@@ -43,11 +43,10 @@ const Navbar = ({ brand, navigation, onAction, theme = 'dark', onToggleTheme }) 
               <motion.span
                 key={`${letter}-${index}`}
                 variants={{
-                  hidden: { opacity: 0, y: 6, filter: 'blur(4px)' },
+                  hidden: { opacity: 0, y: 6 },
                   show: {
                     opacity: 1,
                     y: 0,
-                    filter: 'blur(0px)',
                     transition: {
                       type: 'spring',
                       stiffness: 260,

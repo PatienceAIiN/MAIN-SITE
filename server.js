@@ -3,6 +3,37 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+const loadLocalEnv = () => {
+  if (typeof process.loadEnvFile === 'function') {
+    process.loadEnvFile();
+    return;
+  }
+
+  const envPath = path.resolve(process.cwd(), '.env');
+  if (!fs.existsSync(envPath)) return;
+
+  const content = fs.readFileSync(envPath, 'utf8');
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    const separatorIndex = trimmed.indexOf('=');
+    if (separatorIndex === -1) continue;
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    if (!key || process.env[key] !== undefined) continue;
+
+    let value = trimmed.slice(separatorIndex + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+
+    process.env[key] = value;
+  }
+};
+
+loadLocalEnv();
+
 import adminHandler from './api/admin.js';
 import authHandler from './api/auth.js';
 import chatAdminHandler from './api/chat-admin.js';
