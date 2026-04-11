@@ -30,6 +30,28 @@ const normalizeMessageContent = (value) => {
   return '';
 };
 
+
+const LAUNCHER_SIZE = 64;
+const LAUNCHER_MARGIN = 24;
+
+const getDefaultLauncherPosition = () => {
+  if (typeof window === 'undefined') return { x: 0, y: 0 };
+  return {
+    x: Math.max(LAUNCHER_MARGIN, window.innerWidth - LAUNCHER_SIZE - LAUNCHER_MARGIN),
+    y: Math.max(LAUNCHER_MARGIN, window.innerHeight - LAUNCHER_SIZE - LAUNCHER_MARGIN)
+  };
+};
+
+const clampLauncherPosition = (x, y) => {
+  if (typeof window === 'undefined') return { x, y };
+  const maxX = Math.max(LAUNCHER_MARGIN, window.innerWidth - LAUNCHER_SIZE - LAUNCHER_MARGIN);
+  const maxY = Math.max(LAUNCHER_MARGIN, window.innerHeight - LAUNCHER_SIZE - LAUNCHER_MARGIN);
+  return {
+    x: Math.min(Math.max(x, LAUNCHER_MARGIN), maxX),
+    y: Math.min(Math.max(y, LAUNCHER_MARGIN), maxY)
+  };
+};
+
 const getOrCreateId = (storageKey, prefix) => {
   const existing = window.localStorage.getItem(storageKey);
   if (existing) return existing;
@@ -59,6 +81,9 @@ const ChatWidget = ({ brand }) => {
   const inputRef = useRef(null);
   const abortControllerRef = useRef(null);
   const liveResponseRef = useRef('');
+  const [launcherPosition, setLauncherPosition] = useState(() => getDefaultLauncherPosition());
+  const dragStateRef = useRef({ dragging: false, startX: 0, startY: 0, originX: 0, originY: 0, moved: false });
+  const suppressClickRef = useRef(false);
 
   const conversationId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_conversation_id', 'PatienceAI') : 'PatienceAI-local'), []);
   const sessionId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_session_id', 'session') : 'session-local'), []);
@@ -120,6 +145,19 @@ const ChatWidget = ({ brand }) => {
   useEffect(() => {
     liveResponseRef.current = liveResponse;
   }, [liveResponse]);
+
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const handleResize = () => {
+      setLauncherPosition((current) => clampLauncherPosition(current.x, current.y));
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const launcherMonogram = 'PA';
 
@@ -236,6 +274,7 @@ const ChatWidget = ({ brand }) => {
   };
 
   const toggleChat = () => {
+    if (suppressClickRef.current) return;
     setIsOpen((current) => {
       const next = !current;
       if (next) {
@@ -369,9 +408,51 @@ const ChatWidget = ({ brand }) => {
     ask(prompt);
   };
 
+
+  const onLauncherPointerDown = (event) => {
+    const state = dragStateRef.current;
+    state.dragging = true;
+    state.startX = event.clientX;
+    state.startY = event.clientY;
+    state.originX = launcherPosition.x;
+    state.originY = launcherPosition.y;
+    state.moved = false;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const onLauncherPointerMove = (event) => {
+    const state = dragStateRef.current;
+    if (!state.dragging) return;
+
+    const deltaX = event.clientX - state.startX;
+    const deltaY = event.clientY - state.startY;
+    if (!state.moved && (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4)) {
+      state.moved = true;
+    }
+
+    const next = clampLauncherPosition(state.originX + deltaX, state.originY + deltaY);
+    setLauncherPosition(next);
+  };
+
+  const onLauncherPointerUp = (event) => {
+    const state = dragStateRef.current;
+    if (!state.dragging) return;
+    state.dragging = false;
+    if (state.moved) {
+      suppressClickRef.current = true;
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 0);
+    }
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  };
+
   return (
     <>
-      <div className="fixed bottom-6 right-6 z-[120] flex flex-col items-end gap-2">
+      <div
+        className="fixed z-[120] flex flex-col items-end gap-2 touch-none"
+        style={{ left: launcherPosition.x, top: launcherPosition.y }}
+      >
         {showWave && !isOpen && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
@@ -389,7 +470,11 @@ const ChatWidget = ({ brand }) => {
           whileHover={{ scale: 1.04 }}
           whileTap={{ scale: 0.96 }}
           onClick={toggleChat}
-          className="h-16 w-16 rounded-full bg-slate-950 text-white shadow-2xl border border-white/10 flex items-center justify-center"
+          className="h-16 w-16 rounded-full bg-slate-950 text-white shadow-2xl border border-white/10 flex items-center justify-center cursor-grab active:cursor-grabbing"
+          onPointerDown={onLauncherPointerDown}
+          onPointerMove={onLauncherPointerMove}
+          onPointerUp={onLauncherPointerUp}
+          onPointerCancel={onLauncherPointerUp}
           aria-label="Open AI chat"
         >
           <div className="h-10 w-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs font-bold"><span className="site-brand text-base leading-none tracking-normal">{launcherMonogram}</span></div>
