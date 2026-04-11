@@ -64,9 +64,6 @@ const ensureTempAdmin = async (supabase, username, password) => {
 
 export default async function handler(req, res) {
   const supabase = getSupabaseAdminClient();
-  if (!supabase) {
-    return res.status(500).json({ error: 'Supabase is not configured' });
-  }
 
   if (req.method === 'GET') {
     const token = getCookieValue(req, SESSION_COOKIE_NAME);
@@ -92,11 +89,17 @@ export default async function handler(req, res) {
     }
 
     if (username === TEMP_ADMIN.username && password === TEMP_ADMIN.password) {
-      await ensureTempAdmin(supabase, username, password);
+      if (supabase) {
+        await ensureTempAdmin(supabase, username, password);
+      }
       const token = createSessionToken({ username });
       setAuthCookie(res, token);
 
       return res.status(200).json({ authenticated: true, user: { username } });
+    }
+
+    if (!supabase) {
+      return res.status(500).json({ error: 'Supabase is not configured' });
     }
 
     const { data: user, error } = await supabase
