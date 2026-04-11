@@ -313,7 +313,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
         <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-white/5 p-8 shadow-2xl">
           <p className="text-xs uppercase tracking-[0.35em] text-cyan-300/80 mb-3">Admin access</p>
           <h1 className="text-3xl font-semibold mb-3">Sign in</h1>
-          <p className="text-white/60 mb-8">Use the temporary credentials `admin` / `admin123`.</p>
+          <p className="text-white/60 mb-8">Sign in with your admin account to manage site content and submissions.</p>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
