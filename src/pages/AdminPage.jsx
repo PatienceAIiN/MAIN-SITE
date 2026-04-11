@@ -527,7 +527,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                   </div>
                   <div className="rounded-2xl bg-slate-900/60 border border-white/10 p-4">
                     <p className="text-white/45 text-sm mb-1">Temp login</p>
-                    <p className="text-white">Set ADMIN_USERNAME and ADMIN_PASSWORD in Vercel environment variables.</p>
+                    <p className="text-white">Set ADMIN_USERNAME and ADMIN_PASSWORD in Render environment variables.</p>
                   </div>
                   <div className="rounded-2xl bg-slate-900/60 border border-white/10 p-4">
                     <p className="text-white/45 text-sm mb-1">Save behavior</p>

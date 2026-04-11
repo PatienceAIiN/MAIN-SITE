@@ -1,8 +1,8 @@
-# Vercel Deployment Guide
+# Render Deployment Guide
 
 ## Environment Variables
 
-Add these environment variables to your Vercel project:
+Add these environment variables to your Render web service:
 
 ### Required Variables
 
@@ -51,14 +51,14 @@ Add these environment variables to your Vercel project:
    - Type: Secret
 
 10. **GROQ_MODEL**
-   - Optional Groq model id
-   - Default: `llama-3.3-70b-versatile`
-   - Type: Plain
+    - Optional Groq model id
+    - Default: `llama-3.3-70b-versatile`
+    - Type: Plain
 
 11. **SITE_URL**
-   - Optional site URL used in deployment and emails
-   - Example: `https://your-domain.com`
-   - Type: Plain
+    - Optional site URL used in deployment and emails
+    - Example: `https://your-domain.com`
+    - Type: Plain
 
 ## Setup Steps
 
@@ -70,20 +70,22 @@ Add these environment variables to your Vercel project:
    - Go to Settings > API Keys
    - Click "Generate new key"
    - Give it a name (e.g., "Website Contact Form")
-   - Copy the key and add it to Vercel
+   - Copy the key and add it to Render
 
 ### 2. NeonDB Configuration
 
 1. Create a Neon project
 2. Run `db/schema.sql` (Postgres-compatible schema file)
-3. Add `DATABASE_URL` to Vercel
-4. The API now auto-runs idempotent schema bootstrap (`CREATE TABLE IF NOT EXISTS`) on first DB call per server instance, so tables are created once and skipped on subsequent queries.
+3. Add `DATABASE_URL` to Render
+4. The API auto-runs idempotent schema bootstrap (`CREATE TABLE IF NOT EXISTS`) on first DB call per server instance, so tables are created once and skipped on subsequent queries.
 
-### 3. Vercel Deployment
+### 3. Render Deployment
 
-1. Connect your repository to Vercel
-2. Add the environment variables above
-3. Deploy your application
+1. Create a new Render Web Service from this repository
+2. Use `npm install && npm run build` as the build command
+3. Use `npm start` as the start command
+4. Add the environment variables above
+5. Deploy the service
 
 ### 4. Testing
 
@@ -107,9 +109,9 @@ For local development:
 ### Common Issues
 
 1. **Email not sending**
-   - Check if BREVO_API_KEY is correct
+   - Check if `BREVO_API_KEY` is correct
    - Verify sender email is registered in Brevo
-   - Check Vercel function logs
+   - Check Render service logs
 
 2. **Form submission error**
    - Ensure all fields are filled
@@ -117,9 +119,9 @@ For local development:
    - Verify CORS is properly configured
 
 3. **Environment variables not working**
-   - Make sure variables are added to Vercel (not just locally)
+   - Make sure variables are added to Render, not just locally
    - Check variable names match exactly
-   - Restart deployment after adding variables
+   - Redeploy after adding variables
 
 ## Security Notes
 
@@ -140,10 +142,9 @@ For local development:
 - Database-backed admin content management
 - JSON-seeded site content with NeonDB persistence
 
+## NeonDB Migration (Render)
 
-## NeonDB Migration (Vercel)
-
-To run the app on NeonDB, set these environment variables in Vercel:
+To run the app on NeonDB, set these environment variables in Render:
 
 - `DATABASE_URL` (Neon pooled connection string)
 - `NEON_BRANCH` (optional, if you use branch-based environments)
@@ -163,4 +164,4 @@ Run `db/schema.sql` (Postgres compatible) against Neon so these tables exist:
 - `contact_submissions`
 - `chatbot_messages`
 
-After schema deploy, re-deploy Vercel so all serverless functions pick up the new NeonDB env values.
+After schema deploy, redeploy Render so the web service picks up the new NeonDB env values.

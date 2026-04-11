@@ -57,9 +57,10 @@ export default async function handler(req, res) {
     }
 
     const BREVO_API_KEY = process.env.BREVO_API_KEY;
-    const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'noreply@yourdomain.com';
+    const CONTACT_TO_EMAIL_CONFIG = process.env.CONTACT_TO_EMAIL || process.env.RECIPIENT_EMAIL || '';
+    const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || CONTACT_TO_EMAIL_CONFIG || 'noreply@patience.ai';
     const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || 'PATIENCE AI';
-    const CONTACT_TO_EMAIL = process.env.CONTACT_TO_EMAIL || process.env.RECIPIENT_EMAIL || 'hello@patience.ai';
+    const CONTACT_TO_EMAIL = CONTACT_TO_EMAIL_CONFIG || BREVO_SENDER_EMAIL;
 
     if (!BREVO_API_KEY) {
       return res.status(500).json({ error: 'Email service not configured' });
