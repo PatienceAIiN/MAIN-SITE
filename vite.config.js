@@ -12,7 +12,10 @@ export default defineConfig({
   server: {
     historyApiFallback: true,
   },
-   build: {
+  preview: {
+    allowedHosts: ['patienceai.onrender.com'],
+  },
+  build: {
     outDir: 'dist',
     sourcemap: true
   },
