@@ -76,20 +76,22 @@ const ContactUs = ({ content, isOpen, onClose, onBack }) => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[145] bg-slate-950/65 backdrop-blur-sm px-4 py-6 md:px-8 overflow-y-auto"
+          className="fixed inset-0 z-[145] bg-slate-950/65 backdrop-blur-sm px-4 md:px-8 overflow-y-auto"
+          style={{ paddingTop: 'clamp(0.9rem, 4vh, 2.5rem)', paddingBottom: 'clamp(0.9rem, 4vh, 2.5rem)' }}
           onClick={onClose}
         >
-          <motion.div
-            initial={{ opacity: 0, y: 24, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.98 }}
-            transition={{ duration: 0.24, ease: 'easeOut' }}
-            className="relative max-w-6xl mx-auto rounded-[2.25rem] bg-white shadow-2xl overflow-hidden border border-white/70"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.14),_transparent_42%),radial-gradient(circle_at_bottom_right,_rgba(20,184,166,0.12),_transparent_40%)]" />
-            <div className="relative grid lg:grid-cols-[0.92fr_1.08fr]">
-              <div className="bg-[#0f172a] text-white px-6 py-8 md:px-8 md:py-10 lg:px-10 lg:py-12">
+          <div className="min-h-full flex items-start justify-center">
+            <motion.div
+              initial={{ opacity: 0, y: 18, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.985 }}
+              transition={{ duration: 0.24, ease: 'easeOut' }}
+              className="relative w-full max-w-6xl mx-auto rounded-[2.25rem] bg-white shadow-2xl overflow-y-auto max-h-[calc(100dvh-2rem)] md:max-h-[calc(100dvh-3rem)] border border-white/70"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.14),_transparent_42%),radial-gradient(circle_at_bottom_right,_rgba(20,184,166,0.12),_transparent_40%)]" />
+              <div className="relative grid lg:grid-cols-[0.92fr_1.08fr]">
+                <div className="bg-[#0f172a] text-white px-6 py-8 md:px-8 md:py-10 lg:px-10 lg:py-12">
                 <div className="flex items-start justify-between gap-4 mb-10">
                   <div className="max-w-md">
                     <p className="text-xs uppercase tracking-[0.35em] text-white/55 mb-4">Sales</p>
@@ -269,6 +271,7 @@ const ContactUs = ({ content, isOpen, onClose, onBack }) => {
               </div>
             </div>
           </motion.div>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

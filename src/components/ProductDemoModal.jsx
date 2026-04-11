@@ -114,19 +114,21 @@ const ProductDemoModal = ({ content, isOpen, product, onClose, onBack }) => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[150] bg-slate-950/65 backdrop-blur-sm px-4 py-6 md:px-8 overflow-y-auto"
+          className="fixed inset-0 z-[150] bg-slate-950/65 backdrop-blur-sm px-4 md:px-8 overflow-y-auto"
+          style={{ paddingTop: 'clamp(0.9rem, 4vh, 2.5rem)', paddingBottom: 'clamp(0.9rem, 4vh, 2.5rem)' }}
           onClick={onClose}
         >
-          <motion.div
-            initial={{ opacity: 0, y: 24, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.98 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="relative max-w-3xl mx-auto rounded-[2rem] bg-white shadow-2xl overflow-hidden"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.18),_transparent_55%),radial-gradient(circle_at_top_right,_rgba(236,72,153,0.12),_transparent_50%)] pointer-events-none" />
-            <div className="relative p-6 md:p-8 lg:p-10">
+          <div className="min-h-full flex items-start justify-center">
+            <motion.div
+              initial={{ opacity: 0, y: 18, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.985 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="relative w-full max-w-3xl rounded-[2rem] bg-white shadow-2xl overflow-y-auto max-h-[calc(100dvh-2rem)] md:max-h-[calc(100dvh-3rem)]"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.18),_transparent_55%),radial-gradient(circle_at_top_right,_rgba(236,72,153,0.12),_transparent_50%)] pointer-events-none" />
+              <div className="relative p-6 md:p-8 lg:p-10">
               <div className="flex items-start justify-between gap-4 mb-8">
                 <div className="max-w-xl">
                   <p className="text-sm uppercase tracking-[0.3em] text-indigo-500 mb-3">Product demo</p>
@@ -220,8 +222,9 @@ const ProductDemoModal = ({ content, isOpen, product, onClose, onBack }) => {
                   )}
                 </button>
               </form>
-            </div>
-          </motion.div>
+              </div>
+            </motion.div>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
