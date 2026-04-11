@@ -29,9 +29,7 @@ const ChatWidget = ({ brand }) => {
   const [copiedConversationId, setCopiedConversationId] = useState(false);
   const [leadForm, setLeadForm] = useState({ name: '', email: '', subject: 'Sales inquiry via AI chat', message: '' });
   const [jobForm, setJobForm] = useState({ name: '', email: '', role: '', message: '' });
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: `Hii ✨ I’m ${brand?.name || 'our'} assistant. I can help with anything on this site in a cute and clear way.` }
-  ]);
+  const [messages, setMessages] = useState([]);
   const [liveResponse, setLiveResponse] = useState('');
   const [isStreamingResponse, setIsStreamingResponse] = useState(false);
   const scrollAreaRef = useRef(null);
@@ -41,15 +39,14 @@ const ChatWidget = ({ brand }) => {
   const sessionId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_session_id', 'session') : 'session-local'), []);
   const hasUserMessaged = useMemo(() => messages.some((message) => message.role === 'user'), [messages]);
   const suggestionPrompts = useMemo(() => {
-    const basePrompts = [
-      `What does ${brand?.name || siteContent?.brand?.name || 'your platform'} help teams do?`,
-      `Show me products on ${siteContent?.navigation?.[0]?.label?.toLowerCase?.() || 'the site'}.`,
-      `How does your platform handle governance and security?`,
-      `Give me quick highlights from your case studies.`,
-      `How can I request a product demo?`,
-      `Do you have career opportunities right now?`
+    const brandName = brand?.name || siteContent?.brand?.name || 'your platform';
+    return [
+      `What does ${brandName} help teams do?`,
+      'Show available products.',
+      'How can I request a product demo?',
+      'Share case study highlights.',
+      'Do you have open roles?'
     ];
-    return [...new Set(basePrompts)].slice(0, 5);
   }, [brand]);
 
 
@@ -219,8 +216,8 @@ const ChatWidget = ({ brand }) => {
     });
   };
 
-  const ask = async () => {
-    const question = input.trim();
+  const ask = async (presetQuestion = null) => {
+    const question = String(presetQuestion ?? input).trim();
     if (!question || busy) return;
 
     const openForm = shouldOpenContactForm(question, messages);
@@ -229,7 +226,9 @@ const ChatWidget = ({ brand }) => {
     const userMessage = { role: 'user', content: question };
     const nextMessages = [...messages, userMessage];
     setMessages(nextMessages);
-    setInput('');
+    if (!presetQuestion) {
+      setInput('');
+    }
     setLiveResponse('');
     setIsStreamingResponse(false);
 
@@ -302,8 +301,7 @@ const ChatWidget = ({ brand }) => {
   };
 
   const onSuggestionClick = (prompt) => {
-    setInput(prompt);
-    inputRef.current?.focus();
+    ask(prompt);
   };
 
   return (
@@ -383,27 +381,22 @@ const ChatWidget = ({ brand }) => {
 
             <div ref={scrollAreaRef} className={`h-[360px] overflow-y-auto p-4 space-y-3 bg-slate-50 ${showInfo ? 'pt-16' : ''}`}>
               {!hasUserMessaged && !showContactForm && !showJobForm && (
-                <div className="space-y-2">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500 font-semibold">
-                    Suggested prompts
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {suggestionPrompts.map((prompt, index) => (
-                      <motion.button
-                        key={prompt}
-                        type="button"
-                        onClick={() => onSuggestionClick(prompt)}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.08, duration: 0.35, ease: 'easeOut' }}
-                        whileHover={{ y: -2, scale: 1.01 }}
-                        whileTap={{ scale: 0.98 }}
-                        className="rounded-full border border-cyan-100 bg-gradient-to-r from-white via-sky-50 to-cyan-50 px-3 py-1.5 text-xs text-slate-700 shadow-sm hover:shadow-md"
-                      >
-                        {prompt}
-                      </motion.button>
-                    ))}
-                  </div>
+                <div className="flex flex-wrap gap-2">
+                  {suggestionPrompts.map((prompt, index) => (
+                    <motion.button
+                      key={prompt}
+                      type="button"
+                      onClick={() => onSuggestionClick(prompt)}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.08, duration: 0.35, ease: 'easeOut' }}
+                      whileHover={{ y: -2, scale: 1.01 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="rounded-full border border-cyan-100 bg-gradient-to-r from-white via-sky-50 to-cyan-50 px-3 py-1.5 text-xs text-slate-700 shadow-sm hover:shadow-md"
+                    >
+                      {prompt}
+                    </motion.button>
+                  ))}
                 </div>
               )}
 
