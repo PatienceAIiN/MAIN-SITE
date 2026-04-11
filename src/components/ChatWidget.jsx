@@ -374,11 +374,11 @@ const ChatWidget = ({ brand }) => {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 30, scale: 0.95 }}
+            initial={{ opacity: 0, y: 26, scale: 0.94 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            transition={{ type: 'spring', stiffness: 280, damping: 22 }}
-            className="fixed bottom-24 right-6 z-[120] w-[min(92vw,380px)] rounded-3xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+            exit={{ opacity: 0, y: 20, scale: 0.96 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 24, mass: 0.7 }}
+            className="fixed bottom-24 right-4 sm:right-6 left-4 sm:left-auto z-[120] w-auto sm:w-[min(92vw,380px)] max-w-[380px] max-h-[calc(100vh-7.5rem)] rounded-3xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
           >
             <div className="bg-slate-950 text-white p-4 relative flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
@@ -430,7 +430,7 @@ const ChatWidget = ({ brand }) => {
               )}
             </div>
 
-            <div ref={scrollAreaRef} className={`h-[360px] overflow-y-auto p-4 space-y-3 bg-slate-50 ${showInfo ? 'pt-16' : ''}`}>
+            <div ref={scrollAreaRef} className={`h-[clamp(260px,45vh,360px)] overflow-y-auto p-4 space-y-3 bg-slate-50 ${showInfo ? 'pt-16' : ''}`}>
               {!hasUserMessaged && !showContactForm && !showJobForm && (
                 <div className="flex flex-wrap gap-2">
                   {suggestionPrompts.map((prompt, index) => (
