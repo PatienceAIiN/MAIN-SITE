@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import Button from '../components/ui/Button';
 import { fetchJson } from '../common/fetchJson';
 
-const TABS = ['content', 'blog', 'submissions'];
+const TABS = ['content', 'blog', 'submissions', 'conversations'];
 const STATUS_OPTIONS = ['all', 'new', 'reviewing', 'replied', 'archived'];
 
 const createEmptyBlogDraft = () => ({
@@ -41,6 +41,14 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [submissionError, setSubmissionError] = useState('');
   const [submissionLoading, setSubmissionLoading] = useState(false);
   const [savingId, setSavingId] = useState(null);
+
+  const [conversations, setConversations] = useState([]);
+  const [conversationSearch, setConversationSearch] = useState('');
+  const [conversationLoading, setConversationLoading] = useState(false);
+  const [conversationError, setConversationError] = useState('');
+  const [selectedConversationId, setSelectedConversationId] = useState('');
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingMessage, setEditingMessage] = useState('');
 
   const selectedSubmission = submissions.find((item) => item.id === selectedId) || submissions[0] || null;
 
@@ -88,7 +96,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       if (payload.authenticated) {
         setAuthenticated(true);
         setUsername(payload.user?.username || '');
-        await Promise.all([loadSiteContent(), loadSubmissions()]);
+        await Promise.all([loadSiteContent(), loadSubmissions(), loadConversations()]);
       } else {
         setAuthenticated(false);
       }
@@ -111,6 +119,14 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
     loadSubmissions();
   }, [submissionFilter]);
 
+  useEffect(() => {
+    if (!authenticated || activeTab !== 'conversations') {
+      return;
+    }
+
+    loadConversations(conversationSearch.trim());
+  }, [activeTab]);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -125,7 +141,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       if (payload.authenticated) {
         setAuthenticated(true);
         setUsername(payload.user?.username || loginForm.username);
-        await Promise.all([loadSiteContent(), loadSubmissions()]);
+        await Promise.all([loadSiteContent(), loadSubmissions(), loadConversations()]);
       }
     } catch (error) {
       setLoginError(error.message);
@@ -291,6 +307,61 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
     } finally {
       setSavingId(null);
     }
+  };
+
+
+  const loadConversations = async (conversationId = '') => {
+    setConversationLoading(true);
+    setConversationError('');
+
+    try {
+      const params = new URLSearchParams();
+      if (conversationId) {
+        params.set('conversationId', conversationId);
+      }
+      const payload = await fetchJson(`/api/chat-admin?${params.toString()}`);
+      const next = payload.conversations || [];
+      setConversations(next);
+      setSelectedConversationId((current) => current || next[0]?.conversationId || '');
+    } catch (error) {
+      setConversationError(error.message);
+    } finally {
+      setConversationLoading(false);
+    }
+  };
+
+  const deleteConversation = async (conversationId) => {
+    await fetchJson('/api/chat-admin', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversationId })
+    });
+    await loadConversations(conversationSearch.trim());
+  };
+
+  const deleteConversationMessage = async (id) => {
+    await fetchJson('/api/chat-admin', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    await loadConversations(conversationSearch.trim());
+  };
+
+  const saveConversationMessage = async () => {
+    if (!editingMessageId || !editingMessage.trim()) {
+      return;
+    }
+
+    await fetchJson('/api/chat-admin', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editingMessageId, message: editingMessage.trim() })
+    });
+
+    setEditingMessageId(null);
+    setEditingMessage('');
+    await loadConversations(conversationSearch.trim());
   };
 
   const filteredSubmissions = submissions.filter((item) => {
@@ -462,6 +533,102 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                     <p className="text-white/45 text-sm mb-1">Save behavior</p>
                     <p className="text-white">Save updates the `site_content` row. Reset deletes the custom row and restores defaults.</p>
                   </div>
+                </div>
+              </div>
+            )}
+
+
+            {activeTab === 'conversations' && (
+              <div className="grid grid-cols-1 xl:grid-cols-[0.95fr_1.05fr] gap-6">
+                <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <input
+                      value={conversationSearch}
+                      onChange={(e) => setConversationSearch(e.target.value)}
+                      placeholder="Find by conversation id (PatienceAI-...)"
+                      className="flex-1 rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm"
+                    />
+                    <Button variant="secondary" className="rounded-xl px-4 py-2" onClick={() => loadConversations(conversationSearch.trim())}>
+                      Search
+                    </Button>
+                  </div>
+
+                  {conversationError && <p className="text-red-200 text-sm mb-3">{conversationError}</p>}
+                  {conversationLoading && <p className="text-white/60 text-sm">Loading conversations...</p>}
+
+                  <div className="space-y-2 max-h-[420px] overflow-y-auto">
+                    {(conversations || []).map((conversation) => (
+                      <button
+                        type="button"
+                        key={conversation.conversationId}
+                        onClick={() => setSelectedConversationId(conversation.conversationId)}
+                        className={`w-full rounded-xl border text-left px-3 py-3 transition-colors ${
+                          selectedConversationId === conversation.conversationId
+                            ? 'border-cyan-300/60 bg-cyan-300/10'
+                            : 'border-white/10 bg-slate-900/50 hover:bg-white/5'
+                        }`}
+                      >
+                        <p className="font-medium text-sm">{conversation.conversationId}</p>
+                        <p className="text-xs text-white/50 mt-1">IP: {conversation.ipAddress || 'unknown'}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
+                  {(() => {
+                    const activeConversation = conversations.find((item) => item.conversationId === selectedConversationId) || conversations[0];
+                    if (!activeConversation) {
+                      return <p className="text-white/60">No conversations found.</p>;
+                    }
+
+                    return (
+                      <div>
+                        <div className="flex items-center justify-between gap-3 mb-4">
+                          <div>
+                            <h3 className="text-xl font-semibold">{activeConversation.conversationId}</h3>
+                            <p className="text-xs text-white/50">IP: {activeConversation.ipAddress || 'unknown'}</p>
+                          </div>
+                          <Button variant="secondary" className="rounded-xl px-4 py-2" onClick={() => deleteConversation(activeConversation.conversationId)}>
+                            Delete conversation
+                          </Button>
+                        </div>
+
+                        <div className="space-y-3 max-h-[440px] overflow-y-auto pr-1">
+                          {activeConversation.messages.map((item) => (
+                            <div key={item.id} className="rounded-xl border border-white/10 bg-slate-900/60 p-3">
+                              <p className="text-xs uppercase tracking-wide text-white/40 mb-2">{item.role} • {formatDate(item.created_at)}</p>
+                              {editingMessageId === item.id ? (
+                                <div className="space-y-2">
+                                  <textarea
+                                    value={editingMessage}
+                                    onChange={(e) => setEditingMessage(e.target.value)}
+                                    className="w-full rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-sm min-h-20"
+                                  />
+                                  <div className="flex gap-2">
+                                    <Button variant="white" className="rounded-lg px-3 py-2" onClick={saveConversationMessage}>Save</Button>
+                                    <Button variant="secondary" className="rounded-lg px-3 py-2" onClick={() => { setEditingMessageId(null); setEditingMessage(''); }}>Cancel</Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <p className="text-sm text-white/90 whitespace-pre-wrap">{item.message}</p>
+                                  <div className="flex gap-2 mt-3">
+                                    <Button variant="secondary" className="rounded-lg px-3 py-1.5" onClick={() => { setEditingMessageId(item.id); setEditingMessage(item.message); }}>
+                                      Edit
+                                    </Button>
+                                    <Button variant="secondary" className="rounded-lg px-3 py-1.5" onClick={() => deleteConversationMessage(item.id)}>
+                                      Delete
+                                    </Button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}
