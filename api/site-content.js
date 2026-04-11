@@ -1,13 +1,16 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { getSupabaseAdminClient } from './_supabase.js';
 import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken } from './_security.js';
 
 const TABLE_NAME = 'site_content';
 const SITE_SLUG = 'site';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const readDefaultContent = () => {
-  const filePath = path.join(process.cwd(), 'src', 'data', 'siteContent.json');
+  const filePath = path.resolve(__dirname, '..', 'src', 'data', 'siteContent.json');
   return JSON.parse(readFileSync(filePath, 'utf8'));
 };
 
