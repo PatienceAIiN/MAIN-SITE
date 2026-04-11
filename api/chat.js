@@ -80,6 +80,7 @@ const semanticSearch = (docs, query, limit = 8) => {
 
 const isDeveloperQuestion = (message = '') => /who\s+(developed|built|made)\s+you/i.test(message);
 const isSensitiveQuestion = (message = '') => /(internal|prompt|secret|api key|token|password|credentials|service role)/i.test(message);
+const isCodingQuestion = (message = '') => /(write|debug|fix|review|generate|explain).{0,20}(code|script|function|api|sql|regex|javascript|python|java|react|node)|\b(code|programming|developer)\b/i.test(message);
 
 const readSiteContent = async () => {
   const now = Date.now();
@@ -188,6 +189,19 @@ const tryProductResponse = (question, siteContent, history = []) => {
   return null;
 };
 
+const tryGeneralSiteResponse = (question, siteContent) => {
+  const resolved = String(question || '').toLowerCase();
+  if (/what\s+does.+help\s+teams\s+do|how\s+does.+help\s+teams|what\s+is\s+patience\s+ai/i.test(resolved)) {
+    const heroText = siteContent?.hero?.description;
+    const possibilitiesText = siteContent?.possibilities?.description;
+    const summary = heroText || possibilitiesText;
+    if (summary) {
+      return summary;
+    }
+  }
+  return null;
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -220,7 +234,25 @@ export default async function handler(req, res) {
       return res.status(200).json({ answer, sessionId: safeSessionId, conversationId: safeConversationId });
     }
 
+    if (isCodingQuestion(message)) {
+      const answer = 'I can help with this website’s products, platform, case studies, careers, and contact flow. I can’t help with coding questions.';
+      await Promise.all([
+        saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'user', message: String(message).slice(0, 4000) }),
+        saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'assistant', message: answer })
+      ]);
+      return res.status(200).json({ answer, sessionId: safeSessionId, conversationId: safeConversationId });
+    }
+
     const siteContent = await readSiteContent();
+    const generalAnswer = tryGeneralSiteResponse(message, siteContent);
+    if (generalAnswer) {
+      await Promise.all([
+        saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'user', message: String(message).slice(0, 4000) }),
+        saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'assistant', message: generalAnswer.slice(0, 4000) })
+      ]);
+      return res.status(200).json({ answer: generalAnswer, sessionId: safeSessionId, conversationId: safeConversationId });
+    }
+
     const productAnswer = tryProductResponse(message, siteContent, history);
     if (productAnswer) {
       await Promise.all([

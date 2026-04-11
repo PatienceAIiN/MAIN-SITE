@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { FiCheck, FiCopy, FiInfo, FiMessageCircle, FiSend, FiX } from 'react-icons/fi';
+import { FiCheck, FiCopy, FiInfo, FiMessageCircle, FiSend, FiTrash2, FiX } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 
 const YES_PATTERN = /^(yes|yeah|yep|sure|ok|okay|please|why not|go ahead)$/i;
@@ -215,6 +215,17 @@ const ChatWidget = ({ brand }) => {
     });
   };
 
+  const clearChat = () => {
+    setMessages([]);
+    setInput('');
+    setLiveResponse('');
+    setIsStreamingResponse(false);
+    setBusy(false);
+    setShowContactForm(false);
+    setShowJobForm(false);
+    setLeadError('');
+  };
+
   const ask = async (presetQuestion = null) => {
     const question = String(presetQuestion ?? input).trim();
     if (!question || busy) return;
@@ -354,9 +365,20 @@ const ChatWidget = ({ brand }) => {
                   </button>
                 </div>
               </div>
-              <button type="button" onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white ml-3 shrink-0" aria-label="Close chat">
-                <FiX size={18} />
-              </button>
+              <div className="ml-3 shrink-0 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={clearChat}
+                  className="text-white/80 hover:text-white"
+                  aria-label="Clear chat"
+                  title="Clear chat"
+                >
+                  <FiTrash2 size={16} />
+                </button>
+                <button type="button" onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white" aria-label="Close chat">
+                  <FiX size={18} />
+                </button>
+              </div>
 
               {showInfo && (
                 <div className="absolute top-[calc(100%+8px)] left-3 right-3 z-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 shadow-lg">
