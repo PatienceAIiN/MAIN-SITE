@@ -51,6 +51,25 @@ const getPageTitle = (pathname, siteContent) => {
   return brandName;
 };
 
+const mergeWithDefaults = (defaults, overrides) => {
+  if (Array.isArray(defaults)) {
+    return Array.isArray(overrides) ? overrides : defaults;
+  }
+
+  if (defaults && typeof defaults === 'object') {
+    if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
+      return defaults;
+    }
+
+    return Object.keys(defaults).reduce((acc, key) => {
+      acc[key] = mergeWithDefaults(defaults[key], overrides[key]);
+      return acc;
+    }, { ...defaults });
+  }
+
+  return overrides ?? defaults;
+};
+
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -83,7 +102,7 @@ function App() {
       try {
         const payload = await fetchJson('/api/site-content');
         if (active && payload?.content) {
-          setSiteContent(payload.content);
+          setSiteContent(mergeWithDefaults(defaultSiteContent, payload.content));
           setSiteContentSource(payload.source || 'neondb');
         }
       } catch {
