@@ -32,6 +32,39 @@ const sendBrevoEmail = async ({ apiKey, sender, to, subject, htmlContent, replyT
   });
 };
 
+const getInquiryMeta = ({ source, productName }) => {
+  if (source === 'job-inquiry-chat') {
+    return {
+      label: 'Job enquiry',
+      accent: '#1a73e8',
+      ownerSubject: 'New Job Enquiry from Website Chat',
+      userSubject: 'Your job enquiry has been received',
+      ownerSummary: 'A candidate submitted a hiring enquiry via the AI assistant.',
+      userSummary: 'Thanks for your interest in careers at PATIENCE AI.'
+    };
+  }
+
+  if (source === 'product-demo' && productName) {
+    return {
+      label: 'Product demo request',
+      accent: '#0f9d58',
+      ownerSubject: `Demo Request: ${productName}`,
+      userSubject: `Your demo request for ${productName} is received`,
+      ownerSummary: 'A prospect requested a product demo from the website.',
+      userSummary: 'Thanks for requesting a demo. Our team will follow up shortly.'
+    };
+  }
+
+  return {
+    label: source === 'chatbot' ? 'Sales enquiry (AI assistant)' : 'Sales / Contact enquiry',
+    accent: '#673ab7',
+    ownerSubject: 'New Sales/Contact Enquiry from Website',
+    userSubject: 'Thank you for contacting PATIENCE AI',
+    ownerSummary: 'A visitor submitted a contact request from the website.',
+    userSummary: 'Thanks for reaching out to our team.'
+  };
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -69,9 +102,8 @@ export default async function handler(req, res) {
       });
     }
 
-    const isProductDemo = source === 'product-demo';
-    const emailSubject =
-      isProductDemo && productName ? `Demo Request: ${productName}` : `New Contact Form Submission: ${subject}`;
+    const inquiryMeta = getInquiryMeta({ source, productName });
+    const emailSubject = inquiryMeta.ownerSubject;
     const senderIdentity = {
       name: BREVO_SENDER_NAME,
       email: BREVO_SENDER_EMAIL
@@ -99,34 +131,46 @@ export default async function handler(req, res) {
       .join('');
 
     const ownerHtml = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #111827; border-bottom: 2px solid #4F46E5; padding-bottom: 10px;">New Contact Form Submission</h2>
-        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
-          ${summaryRows}
-        </div>
-        <div style="background-color: #fff; padding: 15px; border-left: 4px solid #4F46E5; margin: 20px 0;">
-          <h3 style="color: #111827; margin-top: 0;">Message:</h3>
-          <p style="color: #4b5563; white-space: pre-wrap;">${escapeHtml(message)}</p>
-        </div>
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px;">
-          <p>This email was sent from the PATIENCE AI contact form.</p>
-          <p>Sent on: ${new Date().toLocaleString()}</p>
+      <div style="margin:0;background:#f6f9fc;padding:24px 12px;font-family:Arial,'Helvetica Neue',sans-serif;color:#202124;">
+        <div style="max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:16px;overflow:hidden;">
+          <div style="padding:18px 22px;background:${inquiryMeta.accent};color:#ffffff;">
+            <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;opacity:0.9;">PATIENCE AI • ${escapeHtml(inquiryMeta.label)}</div>
+            <h2 style="margin:8px 0 4px;font-size:22px;line-height:1.3;">${escapeHtml(inquiryMeta.ownerSubject)}</h2>
+            <p style="margin:0;font-size:14px;opacity:0.92;">${escapeHtml(inquiryMeta.ownerSummary)}</p>
+          </div>
+          <div style="padding:20px 22px;">
+            <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:14px 16px;">
+              ${summaryRows}
+              <p><strong>Source:</strong> ${escapeHtml(source)}</p>
+            </div>
+            <div style="margin-top:14px;border:1px solid #e5e7eb;border-radius:12px;padding:14px 16px;">
+              <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:#5f6368;">Message</p>
+              <p style="margin:0;color:#334155;white-space:pre-wrap;line-height:1.6;">${escapeHtml(message)}</p>
+            </div>
+            <p style="margin:16px 0 0;font-size:12px;color:#5f6368;">Sent on ${new Date().toLocaleString()}.</p>
+          </div>
         </div>
       </div>
     `;
 
     const userHtml = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #111827; border-bottom: 2px solid #4F46E5; padding-bottom: 10px;">Thanks for reaching out</h2>
-        <p style="color: #4b5563; line-height: 1.6;">Dear ${escapeHtml(name)},</p>
-        <p style="color: #4b5563; line-height: 1.6;">We have received your message and will review it shortly.</p>
-        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
-          ${productName ? `<p><strong>Product:</strong> ${escapeHtml(productName)}</p>` : ''}
-          <p><strong>Subject:</strong> ${escapeHtml(subject)}</p>
-          <p><strong>Message:</strong></p>
-          <p style="color: #4b5563; white-space: pre-wrap; font-style: italic;">${escapeHtml(message)}</p>
+      <div style="margin:0;background:#f6f9fc;padding:24px 12px;font-family:Arial,'Helvetica Neue',sans-serif;color:#202124;">
+        <div style="max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:16px;overflow:hidden;">
+          <div style="padding:18px 22px;background:#ffffff;border-bottom:1px solid #e5e7eb;">
+            <h2 style="margin:0;font-size:22px;line-height:1.3;color:#111827;">${escapeHtml(inquiryMeta.userSubject)}</h2>
+            <p style="margin:8px 0 0;color:#4b5563;line-height:1.6;">Hi ${escapeHtml(name)}, ${escapeHtml(inquiryMeta.userSummary)}</p>
+          </div>
+          <div style="padding:20px 22px;">
+            <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:14px 16px;">
+              <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:#5f6368;">Your submission copy</p>
+              ${productName ? `<p><strong>Product:</strong> ${escapeHtml(productName)}</p>` : ''}
+              <p><strong>Subject:</strong> ${escapeHtml(subject)}</p>
+              <p style="margin:0 0 6px;"><strong>Message:</strong></p>
+              <p style="margin:0;color:#334155;white-space:pre-wrap;line-height:1.6;">${escapeHtml(message)}</p>
+            </div>
+            <p style="margin:14px 0 0;color:#4b5563;line-height:1.6;">If you need to add more details, simply reply to this email.</p>
+          </div>
         </div>
-        <p style="color: #4b5563; line-height: 1.6;">Reply to this email if you want to add context or share files.</p>
       </div>
     `;
 
@@ -146,9 +190,7 @@ export default async function handler(req, res) {
         apiKey: BREVO_API_KEY,
         sender: senderIdentity,
         to: userRecipient,
-        subject: isProductDemo && productName
-          ? `Your demo request for ${productName} is received`
-          : 'Thank you for contacting PATIENCE AI',
+        subject: inquiryMeta.userSubject,
         htmlContent: userHtml,
         replyTo: {
           email: BREVO_SENDER_EMAIL,

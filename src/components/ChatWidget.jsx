@@ -6,6 +6,30 @@ import { fetchJson } from '../common/fetchJson';
 const YES_PATTERN = /^(yes|yeah|yep|sure|ok|okay|please|why not|go ahead)$/i;
 const CONTACT_FORM_PATTERN = /\b(show|open|fill|need|want).{0,24}\b(contact|sales)\s+form\b|\bcontact\s+form\b/i;
 const JOB_FORM_PATTERN = /\b(job|career|hiring|apply|application|job\s*enquiry|job\s*inquiry)\b.*\b(form|enquiry|inquiry|apply)\b|\bjob\s*enquiry\b|\bjob\s*inquiry\b/i;
+const normalizeMessageContent = (value) => {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => normalizeMessageContent(entry))
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+  }
+
+  if (value && typeof value === 'object') {
+    const preferredKey = ['content', 'text', 'message', 'answer'].find((key) => typeof value[key] === 'string' && value[key].trim());
+    if (preferredKey) return value[preferredKey].trim();
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return String(value);
+    }
+  }
+
+  return '';
+};
+
 const getOrCreateId = (storageKey, prefix) => {
   const existing = window.localStorage.getItem(storageKey);
   if (existing) return existing;
@@ -247,7 +271,7 @@ const ChatWidget = ({ brand }) => {
   };
 
   const ask = async (presetQuestion = null) => {
-    const question = String(presetQuestion ?? input).trim();
+    const question = normalizeMessageContent(presetQuestion ?? input).trim();
     if (!question || busy) return;
 
     const openForm = shouldOpenContactForm(question, messages);
@@ -311,7 +335,7 @@ const ChatWidget = ({ brand }) => {
         body: JSON.stringify({ message: question, sessionId, conversationId, history: nextMessages.slice(-16) }),
         signal: controller.signal
       });
-      const fullAnswer = payload.answer || '';
+      const fullAnswer = normalizeMessageContent(payload.answer || payload.message || '');
       let visibleAnswer = '';
       setIsStreamingResponse(true);
 
@@ -456,7 +480,7 @@ const ChatWidget = ({ brand }) => {
                   key={`${item.role}-${index}`}
                   className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words ${item.role === 'user' ? 'ml-auto bg-slate-950 text-white' : 'bg-white text-slate-800 border border-slate-200'}`}
                 >
-                  {item.content}
+                  {normalizeMessageContent(item.content)}
                 </div>
               ))}
 
