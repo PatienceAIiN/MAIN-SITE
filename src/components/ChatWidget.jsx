@@ -1,13 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { FiInfo, FiMessageCircle, FiSend, FiX } from 'react-icons/fi';
+import { FiCheck, FiCopy, FiInfo, FiMessageCircle, FiSend, FiX } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 
 const YES_PATTERN = /^(yes|yeah|yep|sure|ok|okay|please|why not|go ahead)$/i;
 const CONTACT_FORM_PATTERN = /\b(show|open|fill|need|want).{0,24}\b(contact|sales)\s+form\b|\bcontact\s+form\b/i;
 const JOB_FORM_PATTERN = /\b(job|career|hiring|apply|application|job\s*enquiry|job\s*inquiry)\b.*\b(form|enquiry|inquiry|apply)\b|\bjob\s*enquiry\b|\bjob\s*inquiry\b/i;
-const WAVE_SEEN_KEY = 'pa_chat_wave_seen';
-
 const getOrCreateId = (storageKey, prefix) => {
   const existing = window.localStorage.getItem(storageKey);
   if (existing) return existing;
@@ -26,7 +24,8 @@ const ChatWidget = ({ brand }) => {
   const [showJobForm, setShowJobForm] = useState(false);
   const [leadStatus, setLeadStatus] = useState('idle');
   const [leadError, setLeadError] = useState('');
-  const [showWave, setShowWave] = useState(false);
+  const [showWave, setShowWave] = useState(true);
+  const [copiedConversationId, setCopiedConversationId] = useState(false);
   const [leadForm, setLeadForm] = useState({ name: '', email: '', subject: 'Sales inquiry via AI chat', message: '' });
   const [jobForm, setJobForm] = useState({ name: '', email: '', role: '', message: '' });
   const [messages, setMessages] = useState([
@@ -40,22 +39,9 @@ const ChatWidget = ({ brand }) => {
   const conversationId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_conversation_id', 'PatienceAI') : 'PatienceAI-local'), []);
   const sessionId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_session_id', 'session') : 'session-local'), []);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const seen = window.localStorage.getItem(WAVE_SEEN_KEY) === 'true';
-    setShowWave(!seen);
-  }, []);
 
   useEffect(() => {
-    if (!isOpen || typeof window === 'undefined') {
-      return;
-    }
-
-    window.localStorage.setItem(WAVE_SEEN_KEY, 'true');
-    setShowWave(false);
+    setShowWave(!isOpen);
   }, [isOpen]);
 
   useEffect(() => {
@@ -169,6 +155,18 @@ const ChatWidget = ({ brand }) => {
     }
   };
 
+  const copyConversationId = async () => {
+    if (typeof navigator === 'undefined' || !navigator.clipboard) return;
+
+    try {
+      await navigator.clipboard.writeText(conversationId);
+      setCopiedConversationId(true);
+      window.setTimeout(() => setCopiedConversationId(false), 1400);
+    } catch {
+      setCopiedConversationId(false);
+    }
+  };
+
   const ask = async () => {
     const question = input.trim();
     if (!question || busy) return;
@@ -257,9 +255,11 @@ const ChatWidget = ({ brand }) => {
         {showWave && !isOpen && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-full bg-white/95 text-slate-800 px-3 py-1.5 text-sm shadow-lg"
+            animate={{ opacity: 1, rotate: [0, -2, 2, -1, 0], y: [0, -2, 0] }}
+            transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+            className="rounded-full border border-cyan-100 bg-gradient-to-r from-cyan-50 via-white to-sky-50 text-slate-800 px-3 py-1.5 text-sm shadow-lg"
           >
+            <span aria-hidden="true" className="mr-1.5 inline-block h-2 w-2 rounded-full bg-cyan-400 shadow-[0_0_0_4px_rgba(34,211,238,0.25)]" />
             Hi 👋
           </motion.div>
         )}
@@ -306,7 +306,20 @@ const ChatWidget = ({ brand }) => {
 
               {showInfo && (
                 <div className="absolute top-[calc(100%+8px)] left-3 right-3 z-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 shadow-lg">
-                  Conversation ID: <span className="font-semibold break-all">{conversationId}</span>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0">
+                      Conversation ID: <span className="font-semibold break-all">{conversationId}</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={copyConversationId}
+                      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100"
+                      aria-label="Copy conversation ID"
+                      title="Copy conversation ID"
+                    >
+                      {copiedConversationId ? <FiCheck size={13} /> : <FiCopy size={13} />}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
