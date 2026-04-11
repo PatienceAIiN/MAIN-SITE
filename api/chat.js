@@ -7,8 +7,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SITE_TABLE = 'site_content';
 const SITE_SLUG = 'site';
 const CHAT_TABLE = 'chatbot_messages';
+const SITE_CONTENT_CACHE_TTL_MS = 30000;
 
 const VECTOR_CACHE = new Map();
+let siteContentCache = { expiresAt: 0, value: null };
 
 const readDefaultContent = () => {
   const filePath = path.resolve(__dirname, '..', 'src', 'data', 'siteContent.json');
@@ -80,12 +82,21 @@ const isDeveloperQuestion = (message = '') => /who\s+(developed|built|made)\s+yo
 const isSensitiveQuestion = (message = '') => /(internal|prompt|secret|api key|token|password|credentials|service role)/i.test(message);
 
 const readSiteContent = async () => {
+  const now = Date.now();
+  if (siteContentCache.value && siteContentCache.expiresAt > now) {
+    return siteContentCache.value;
+  }
+
   try {
     const rows = await queryDb(`SELECT data FROM ${SITE_TABLE} WHERE slug = $1 LIMIT 1`, [SITE_SLUG]);
-    return rows[0]?.data || readDefaultContent();
+    const value = rows[0]?.data || readDefaultContent();
+    siteContentCache = { value, expiresAt: now + SITE_CONTENT_CACHE_TTL_MS };
+    return value;
   } catch (error) {
     console.error('site_content read error:', error.message);
-    return readDefaultContent();
+    const fallback = readDefaultContent();
+    siteContentCache = { value: fallback, expiresAt: now + SITE_CONTENT_CACHE_TTL_MS };
+    return fallback;
   }
 };
 
@@ -137,7 +148,7 @@ const tryProductResponse = (question, siteContent, history = []) => {
   if (!products.length) return null;
 
   const resolved = resolveQuestionWithHistory(question, history);
-  const asksList = /\blist\b.*\bproducts\b|\bproducts\s+list\b|\bwhat\s+products\b/i.test(resolved);
+  const asksList = /\b(list|show|display|available|all)\b.*\b(products?|offerings?|solutions?)\b|\b(products?|offerings?|solutions?)\s+(list|available)\b|\bwhat\s+(products?|offerings?)\b/i.test(resolved);
   if (asksList) {
     const details = products.map(formatProductSpec).join('\n\n');
     return `${siteContent?.brand?.name || 'PatienceAI'} products available in current system data:\n\n${details}\n\nFor complete details and latest updates, please navigate to the Products page.`;
@@ -159,7 +170,8 @@ const tryProductResponse = (question, siteContent, history = []) => {
 
   const productQuestion = /product|spec|feature|pricing|offer|solution|platform|service/i.test(resolved);
   if (productQuestion) {
-    return 'I could not find a closely related product in current system data. Please share a product name or key use-case and I will match it.';
+    const productNames = products.map((product) => product.name).join(', ');
+    return `I could not find a closely related product for that specific request. Available products in current system data are: ${productNames}. Share a product name or key use-case and I will match it.`;
   }
 
   return null;
