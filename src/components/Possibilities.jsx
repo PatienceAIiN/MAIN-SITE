@@ -67,7 +67,7 @@ const Possibilities = ({ content, onAction }) => {
                 onClick={() => onAction(content.cta.action)}
               >
                 {content.cta.label}
-                <span className="w-5 h-5 inline-flex items-center justify-center group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform">
+                <span className="w-5 h-5 inline-flex items-center align-left group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform">
                   ↗
                 </span>
               </Button>
