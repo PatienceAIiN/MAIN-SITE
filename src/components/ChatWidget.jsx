@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { FiCheck, FiCopy, FiInfo, FiMessageCircle, FiSend, FiTrash2, FiX } from 'react-icons/fi';
+import { FiCheck, FiCopy, FiInfo, FiSend, FiSquare, FiTrash2, FiX } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 
 const YES_PATTERN = /^(yes|yeah|yep|sure|ok|okay|please|why not|go ahead)$/i;
@@ -33,6 +33,8 @@ const ChatWidget = ({ brand }) => {
   const [isStreamingResponse, setIsStreamingResponse] = useState(false);
   const scrollAreaRef = useRef(null);
   const inputRef = useRef(null);
+  const abortControllerRef = useRef(null);
+  const liveResponseRef = useRef('');
 
   const conversationId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_conversation_id', 'PatienceAI') : 'PatienceAI-local'), []);
   const sessionId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_session_id', 'session') : 'session-local'), []);
@@ -90,6 +92,10 @@ const ChatWidget = ({ brand }) => {
     if (!panel) return;
     panel.scrollTop = panel.scrollHeight;
   }, [messages, busy, showContactForm, showJobForm, liveResponse, isOpen]);
+
+  useEffect(() => {
+    liveResponseRef.current = liveResponse;
+  }, [liveResponse]);
 
   const launcherMonogram = 'PA';
 
@@ -216,6 +222,8 @@ const ChatWidget = ({ brand }) => {
   };
 
   const clearChat = () => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
     setMessages([]);
     setInput('');
     setLiveResponse('');
@@ -224,6 +232,18 @@ const ChatWidget = ({ brand }) => {
     setShowContactForm(false);
     setShowJobForm(false);
     setLeadError('');
+  };
+
+  const stopResponse = () => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    const partial = liveResponseRef.current.trim();
+    if (partial) {
+      setMessages((current) => [...current, { role: 'assistant', content: partial }]);
+    }
+    setLiveResponse('');
+    setIsStreamingResponse(false);
+    setBusy(false);
   };
 
   const ask = async (presetQuestion = null) => {
@@ -283,29 +303,39 @@ const ChatWidget = ({ brand }) => {
 
     setBusy(true);
     try {
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
       const payload = await fetchJson('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: question, sessionId, conversationId, history: nextMessages.slice(-16) })
+        body: JSON.stringify({ message: question, sessionId, conversationId, history: nextMessages.slice(-16) }),
+        signal: controller.signal
       });
       const fullAnswer = payload.answer || '';
       let visibleAnswer = '';
       setIsStreamingResponse(true);
 
       for (let index = 0; index < fullAnswer.length; index += 1) {
+        if (controller.signal.aborted) break;
         visibleAnswer += fullAnswer[index];
         setLiveResponse(visibleAnswer);
         await new Promise((resolve) => setTimeout(resolve, 8));
       }
 
-      setMessages((current) => [...current, { role: 'assistant', content: fullAnswer }]);
+      if (!controller.signal.aborted) {
+        setMessages((current) => [...current, { role: 'assistant', content: fullAnswer }]);
+      }
       setLiveResponse('');
       setIsStreamingResponse(false);
     } catch (error) {
+      if (error?.name === 'AbortError') {
+        return;
+      }
       setMessages((current) => [...current, { role: 'assistant', content: `Sorry, I couldn't respond right now. ${error.message}` }]);
       setLiveResponse('');
       setIsStreamingResponse(false);
     } finally {
+      abortControllerRef.current = null;
       setBusy(false);
     }
   };
@@ -468,22 +498,33 @@ const ChatWidget = ({ brand }) => {
             </div>
 
             <div className="p-3 border-t border-slate-200 bg-white flex items-center gap-2">
-              <input
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    ask();
-                  }
-                }}
-                placeholder="Ask about products, services, or anything..."
-                className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-              />
-              <button type="button" onClick={ask} disabled={busy || !input.trim()} className="h-10 w-10 rounded-xl bg-slate-950 text-white flex items-center justify-center disabled:opacity-50" aria-label="Send message">
-                {busy ? <FiMessageCircle size={16} /> : <FiSend size={16} />}
-              </button>
+              <div className="flex-1 space-y-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={inputRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        ask();
+                      }
+                    }}
+                    placeholder="Ask about products, services, or anything..."
+                    className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  />
+                  <button
+                    type="button"
+                    onClick={busy ? stopResponse : ask}
+                    disabled={!busy && !input.trim()}
+                    className="h-10 w-10 rounded-xl bg-slate-950 text-white flex items-center justify-center disabled:opacity-50"
+                    aria-label={busy ? 'Stop response' : 'Send message'}
+                  >
+                    {busy ? <FiSquare size={14} /> : <FiSend size={16} />}
+                  </button>
+                </div>
+                {!hasUserMessaged && <p className="text-[11px] text-slate-500 px-1">AI may generate inappropriate response. Be careful.</p>}
+              </div>
             </div>
           </motion.div>
         )}
