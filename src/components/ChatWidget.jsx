@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FiCheck, FiCopy, FiInfo, FiMessageCircle, FiSend, FiX } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
+import siteContent from '../data/siteContent.json';
 
 const YES_PATTERN = /^(yes|yeah|yep|sure|ok|okay|please|why not|go ahead)$/i;
 const CONTACT_FORM_PATTERN = /\b(show|open|fill|need|want).{0,24}\b(contact|sales)\s+form\b|\bcontact\s+form\b/i;
@@ -38,6 +39,18 @@ const ChatWidget = ({ brand }) => {
 
   const conversationId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_conversation_id', 'PatienceAI') : 'PatienceAI-local'), []);
   const sessionId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_session_id', 'session') : 'session-local'), []);
+  const hasUserMessaged = useMemo(() => messages.some((message) => message.role === 'user'), [messages]);
+  const suggestionPrompts = useMemo(() => {
+    const basePrompts = [
+      `What does ${brand?.name || siteContent?.brand?.name || 'your platform'} help teams do?`,
+      `Show me products on ${siteContent?.navigation?.[0]?.label?.toLowerCase?.() || 'the site'}.`,
+      `How does your platform handle governance and security?`,
+      `Give me quick highlights from your case studies.`,
+      `How can I request a product demo?`,
+      `Do you have career opportunities right now?`
+    ];
+    return [...new Set(basePrompts)].slice(0, 5);
+  }, [brand]);
 
 
   useEffect(() => {
@@ -288,6 +301,11 @@ const ChatWidget = ({ brand }) => {
     }
   };
 
+  const onSuggestionClick = (prompt) => {
+    setInput(prompt);
+    inputRef.current?.focus();
+  };
+
   return (
     <>
       <div className="fixed bottom-6 right-6 z-[120] flex flex-col items-end gap-2">
@@ -364,6 +382,31 @@ const ChatWidget = ({ brand }) => {
             </div>
 
             <div ref={scrollAreaRef} className={`h-[360px] overflow-y-auto p-4 space-y-3 bg-slate-50 ${showInfo ? 'pt-16' : ''}`}>
+              {!hasUserMessaged && !showContactForm && !showJobForm && (
+                <div className="space-y-2">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500 font-semibold">
+                    Suggested prompts
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestionPrompts.map((prompt, index) => (
+                      <motion.button
+                        key={prompt}
+                        type="button"
+                        onClick={() => onSuggestionClick(prompt)}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.08, duration: 0.35, ease: 'easeOut' }}
+                        whileHover={{ y: -2, scale: 1.01 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="rounded-full border border-cyan-100 bg-gradient-to-r from-white via-sky-50 to-cyan-50 px-3 py-1.5 text-xs text-slate-700 shadow-sm hover:shadow-md"
+                      >
+                        {prompt}
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {messages.map((item, index) => (
                 <div
                   key={`${item.role}-${index}`}
