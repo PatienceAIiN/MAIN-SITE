@@ -12,6 +12,7 @@ import PlatformPage from './pages/PlatformPage';
 import CareersPage from './pages/CareersPage';
 import BlogPage from './pages/BlogPage';
 import BlogPostPage from './pages/BlogPostPage';
+import ChatWidget from './components/ChatWidget';
 import defaultSiteContent from './data/siteContent.json';
 import { fetchJson } from './common/fetchJson';
 
@@ -53,15 +54,20 @@ const getPageTitle = (pathname, siteContent) => {
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
+  const isAdminRoute = location.pathname === '/admin';
+
   const [activeModal, setActiveModal] = useState(null);
   const [siteContent, setSiteContent] = useState(defaultSiteContent);
   const [siteContentSource, setSiteContentSource] = useState('local');
-  const isAdminRoute = location.pathname === '/admin';
 
   useEffect(() => {
     let active = true;
 
     const loadSiteContent = async () => {
+      if (isAdminRoute) {
+        return;
+      }
+
       try {
         const payload = await fetchJson('/api/site-content');
         if (active && payload?.content) {
@@ -86,7 +92,7 @@ function App() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, []);
+  }, [isAdminRoute]);
 
   useEffect(() => {
     document.title = getPageTitle(location.pathname, siteContent);
@@ -102,9 +108,7 @@ function App() {
 
   const handleAction = useCallback(
     (action) => {
-      if (!action) {
-        return;
-      }
+      if (!action) return;
 
       if (action.type === 'modal') {
         setActiveModal(
@@ -117,16 +121,33 @@ function App() {
 
       setActiveModal(null);
 
-      if (action.type === 'route') {
-        navigate(action.to);
-      }
-
-      if (action.type === 'routeHash') {
-        navigate(`${action.to}#${action.hash}`);
-      }
+      if (action.type === 'route') navigate(action.to);
+      if (action.type === 'routeHash') navigate(`${action.to}#${action.hash}`);
     },
     [navigate]
   );
+
+  if (isAdminRoute) {
+    return (
+      <div className="min-h-screen bg-slate-950">
+        <Routes>
+          <Route
+            path="/admin"
+            element={
+              <AdminPage
+                onAction={handleAction}
+                defaultContent={defaultSiteContent}
+                currentContent={defaultSiteContent}
+                currentContentSource="admin"
+                onContentSaved={() => {}}
+              />
+            }
+          />
+          <Route path="*" element={<Navigate to="/admin" replace />} />
+        </Routes>
+      </div>
+    );
+  }
 
   const detailPages = siteContent.detailPages || [];
 
@@ -135,61 +156,23 @@ function App() {
       <div className="fixed inset-0 pointer-events-none bg-noise opacity-[0.03] z-50 mix-blend-overlay" />
 
       <div className="max-w-[1920px] mx-auto rounded-[1.5rem] overflow-hidden shadow-2xl relative bg-white">
-        {!isAdminRoute && (
-          <Navbar
-            brand={siteContent.brand}
-            navigation={siteContent.navigation}
-            onAction={handleAction}
-          />
-        )}
+        <Navbar brand={siteContent.brand} navigation={siteContent.navigation} onAction={handleAction} />
 
         <Routes>
           <Route path="/" element={<HomePage content={siteContent} onAction={handleAction} />} />
-          <Route
-            path="/products"
-            element={<ProductsPage content={siteContent.productsPage} onAction={handleAction} />}
-          />
-          <Route
-            path="/platform"
-            element={<PlatformPage content={siteContent.platformPage} onAction={handleAction} />}
-          />
-          <Route
-            path="/company/blog"
-            element={<BlogPage content={siteContent.blogPage} onAction={handleAction} />}
-          />
-          <Route
-            path="/company/blog/:slug"
-            element={<BlogPostPage content={siteContent.blogPage} onAction={handleAction} />}
-          />
-          <Route
-            path="/company/careers"
-            element={<CareersPage content={siteContent.careersPage} onAction={handleAction} />}
-          />
+          <Route path="/products" element={<ProductsPage content={siteContent.productsPage} onAction={handleAction} />} />
+          <Route path="/platform" element={<PlatformPage content={siteContent.platformPage} onAction={handleAction} />} />
+          <Route path="/company/blog" element={<BlogPage content={siteContent.blogPage} onAction={handleAction} />} />
+          <Route path="/company/blog/:slug" element={<BlogPostPage content={siteContent.blogPage} onAction={handleAction} />} />
+          <Route path="/company/careers" element={<CareersPage content={siteContent.careersPage} onAction={handleAction} />} />
           {detailPages.map((page) => (
-            <Route
-              key={page.path}
-              path={page.path}
-              element={<DetailPage pageContent={page} onAction={handleAction} />}
-            />
+            <Route key={page.path} path={page.path} element={<DetailPage pageContent={page} onAction={handleAction} />} />
           ))}
-          <Route
-            path="/admin"
-            element={
-              <AdminPage
-                onAction={handleAction}
-                defaultContent={defaultSiteContent}
-                currentContent={siteContent}
-                currentContentSource={siteContentSource}
-                onContentSaved={setSiteContent}
-              />
-            }
-          />
+          <Route path="/admin" element={<Navigate to="/admin" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 
-        {!isAdminRoute && (
-          <Footer brand={siteContent.brand} content={siteContent.footer} onAction={handleAction} />
-        )}
+        <Footer brand={siteContent.brand} content={siteContent.footer} onAction={handleAction} />
       </div>
 
       <ContactUs
@@ -206,6 +189,8 @@ function App() {
         onClose={() => setActiveModal(null)}
         onBack={activeModal?.back ? () => setActiveModal(null) : undefined}
       />
+
+      <ChatWidget brand={siteContent.brand} />
     </div>
   );
 }
