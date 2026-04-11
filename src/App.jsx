@@ -168,7 +168,14 @@ function App() {
       <div className="fixed inset-0 pointer-events-none bg-noise opacity-[0.03] z-50 mix-blend-overlay" />
 
       <div className={`max-w-[1920px] mx-auto rounded-[1.5rem] overflow-hidden shadow-2xl relative transition-colors duration-500 ${theme === 'dark' ? 'bg-slate-900' : 'bg-white'}`}>
-        <Navbar brand={siteContent.brand} navigation={siteContent.navigation} onAction={handleAction} theme={theme} onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))} />
+        <Navbar
+          brand={siteContent.brand}
+          navigation={siteContent.navigation}
+          onAction={handleAction}
+          theme={theme}
+          currentPath={location.pathname}
+          onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+        />
 
         <Routes>
           <Route path="/" element={<HomePage content={siteContent} onAction={handleAction} />} />

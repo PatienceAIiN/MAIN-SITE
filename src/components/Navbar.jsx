@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { FiMoon, FiSun } from 'react-icons/fi';
 import ContentLink from './ContentLink';
 
-const Navbar = ({ brand, navigation, onAction, theme = 'dark', onToggleTheme }) => {
+const Navbar = ({ brand, navigation, onAction, theme = 'dark', onToggleTheme, currentPath }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const headerRef = useRef(null);
   const brandLetters = brand.name.split('');
   const isDark = theme === 'dark';
 
@@ -13,8 +14,36 @@ const Navbar = ({ brand, navigation, onAction, theme = 'dark', onToggleTheme }) 
     onAction(action);
   };
 
+  useEffect(() => {
+    if (!mobileOpen) return undefined;
+
+    const handleOutsidePointer = (event) => {
+      if (!headerRef.current?.contains(event.target)) {
+        setMobileOpen(false);
+      }
+    };
+
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setMobileOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handleOutsidePointer);
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsidePointer);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [mobileOpen]);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [currentPath]);
+
   return (
-    <header className={`py-2.5 px-4 md:px-7 border-b relative z-50 transition-colors duration-500 ${isDark ? 'bg-[#1A1A1A] text-white border-white/5' : 'bg-white text-slate-900 border-slate-200/80'}`}>
+    <header ref={headerRef} className={`py-2.5 px-4 md:px-7 border-b relative z-50 transition-colors duration-500 ${isDark ? 'bg-[#1A1A1A] text-white border-white/5' : 'bg-white text-slate-900 border-slate-200/80'}`}>
       <div className="flex items-center justify-between">
         <button
           type="button"

@@ -23,6 +23,19 @@ body {
   background-color: #F8FAFC;
   color: #0A0A0A;
   overflow-x: hidden;
+  transition: background-color 0.35s ease, color 0.35s ease;
+}
+
+html.dark body {
+  background-color: #020617;
+  color: #e2e8f0;
+}
+
+html.dark input,
+html.dark textarea,
+html.dark select {
+  color: #e2e8f0;
+  caret-color: #e2e8f0;
 }
 
 #root {
