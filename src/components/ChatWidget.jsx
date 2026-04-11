@@ -38,7 +38,7 @@ const ChatWidget = ({ brand }) => {
   const sessionId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_session_id', 'session') : 'session-local'), []);
   const hasUserMessaged = useMemo(() => messages.some((message) => message.role === 'user'), [messages]);
   const suggestionPrompts = useMemo(() => {
-    const brandName = brand?.name || siteContent?.brand?.name || 'your platform';
+    const brandName = brand?.name || 'PATIENCE AI';
     return [
       `What does ${brandName} help teams do?`,
       'Show available products.',
