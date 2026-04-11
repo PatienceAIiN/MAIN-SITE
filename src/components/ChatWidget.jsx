@@ -36,6 +36,17 @@ const ChatWidget = ({ brand }) => {
 
   const conversationId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_conversation_id', 'PatienceAI') : 'PatienceAI-local'), []);
   const sessionId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_session_id', 'session') : 'session-local'), []);
+  const hasUserMessaged = useMemo(() => messages.some((message) => message.role === 'user'), [messages]);
+  const suggestionPrompts = useMemo(() => {
+    const brandName = brand?.name || siteContent?.brand?.name || 'your platform';
+    return [
+      `What does ${brandName} help teams do?`,
+      'Show available products.',
+      'How can I request a product demo?',
+      'Share case study highlights.',
+      'Do you have open roles?'
+    ];
+  }, [brand]);
 
 
   useEffect(() => {
@@ -204,8 +215,8 @@ const ChatWidget = ({ brand }) => {
     });
   };
 
-  const ask = async () => {
-    const question = input.trim();
+  const ask = async (presetQuestion = null) => {
+    const question = String(presetQuestion ?? input).trim();
     if (!question || busy) return;
 
     const openForm = shouldOpenContactForm(question, messages);
@@ -214,7 +225,9 @@ const ChatWidget = ({ brand }) => {
     const userMessage = { role: 'user', content: question };
     const nextMessages = [...messages, userMessage];
     setMessages(nextMessages);
-    setInput('');
+    if (!presetQuestion) {
+      setInput('');
+    }
     setLiveResponse('');
     setIsStreamingResponse(false);
 
@@ -284,6 +297,10 @@ const ChatWidget = ({ brand }) => {
     } finally {
       setBusy(false);
     }
+  };
+
+  const onSuggestionClick = (prompt) => {
+    ask(prompt);
   };
 
   return (
@@ -362,6 +379,26 @@ const ChatWidget = ({ brand }) => {
             </div>
 
             <div ref={scrollAreaRef} className={`h-[360px] overflow-y-auto p-4 space-y-3 bg-slate-50 ${showInfo ? 'pt-16' : ''}`}>
+              {!hasUserMessaged && !showContactForm && !showJobForm && (
+                <div className="flex flex-wrap gap-2">
+                  {suggestionPrompts.map((prompt, index) => (
+                    <motion.button
+                      key={prompt}
+                      type="button"
+                      onClick={() => onSuggestionClick(prompt)}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.08, duration: 0.35, ease: 'easeOut' }}
+                      whileHover={{ y: -2, scale: 1.01 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="rounded-full border border-cyan-100 bg-gradient-to-r from-white via-sky-50 to-cyan-50 px-3 py-1.5 text-xs text-slate-700 shadow-sm hover:shadow-md"
+                    >
+                      {prompt}
+                    </motion.button>
+                  ))}
+                </div>
+              )}
+
               {messages.map((item, index) => (
                 <div
                   key={`${item.role}-${index}`}
