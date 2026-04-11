@@ -285,7 +285,7 @@ const ChatWidget = ({ brand }) => {
               {messages.map((item, index) => (
                 <div
                   key={`${item.role}-${index}`}
-                  className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${item.role === 'user' ? 'ml-auto bg-slate-950 text-white' : 'bg-white text-slate-800 border border-slate-200'}`}
+                  className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words ${item.role === 'user' ? 'ml-auto bg-slate-950 text-white' : 'bg-white text-slate-800 border border-slate-200'}`}
                 >
                   {item.content}
                 </div>

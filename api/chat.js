@@ -117,15 +117,21 @@ const formatProductSpec = (product) => {
   const benefits = Array.isArray(product?.benefits) ? product.benefits.slice(0, 3) : [];
   const technologies = Array.isArray(product?.technologies) ? product.technologies.slice(0, 3) : [];
   const lines = [
-    `• ${product.name}`,
-    `  - Tagline: ${product.shortTagline || 'N/A'}`,
-    `  - Summary: ${product.summary || 'N/A'}`,
-    `  - Audience: ${product.audience || 'N/A'}`,
-    `  - Privacy: ${product.privacyTone || 'N/A'}`
+    `📦 ${product.name}`,
+    `Tagline: ${product.shortTagline || 'N/A'}`,
+    `Summary: ${product.summary || 'N/A'}`,
+    `Audience: ${product.audience || 'N/A'}`,
+    `Privacy: ${product.privacyTone || 'N/A'}`
   ];
-  if (benefits.length) lines.push(`  - Key benefits: ${benefits.join(' | ')}`);
-  if (technologies.length) lines.push(`  - Tech stack: ${technologies.join(' | ')}`);
+  if (benefits.length) lines.push(`Benefits:\n- ${benefits.join('\n- ')}`);
+  if (technologies.length) lines.push(`Tech stack: ${technologies.join(' • ')}`);
   return lines.join('\n');
+};
+
+const formatProductCatalog = (products = [], siteContent = {}) => {
+  const header = `${siteContent?.brand?.name || 'PatienceAI'} product catalog`;
+  const sections = products.map((product, index) => `${index + 1}. ${formatProductSpec(product)}`);
+  return `${header}\n${'='.repeat(header.length)}\n\n${sections.join('\n\n--------------------\n\n')}\n\nTip: Tell me your use-case and I will suggest the best fit.`;
 };
 
 const resolveQuestionWithHistory = (message, history = []) => {
@@ -150,8 +156,7 @@ const tryProductResponse = (question, siteContent, history = []) => {
   const resolved = resolveQuestionWithHistory(question, history);
   const asksList = /\b(list|show|display|available|all)\b.*\b(products?|offerings?|solutions?)\b|\b(products?|offerings?|solutions?)\s+(list|available)\b|\bwhat\s+(products?|offerings?)\b/i.test(resolved);
   if (asksList) {
-    const details = products.map(formatProductSpec).join('\n\n');
-    return `${siteContent?.brand?.name || 'PatienceAI'} products available in current system data:\n\n${details}\n\nFor complete details and latest updates, please navigate to the Products page.`;
+    return formatProductCatalog(products, siteContent);
   }
 
   const productDocs = products.map((product) => ({
@@ -165,7 +170,7 @@ const tryProductResponse = (question, siteContent, history = []) => {
 
   if ((ranked[0]?.score || 0) >= 0.12) {
     const matches = ranked.slice(0, 2).filter((item) => item.score >= 0.12).map((item) => formatProductSpec(item.product)).join('\n\n');
-    return `Here are the most relevant products from system data:\n\n${matches}\n\nFor more details, please navigate to the Products page.`;
+    return `Top product matches for your request:\n\n${matches}\n\nNeed all options? Say "show products".`;
   }
 
   const productQuestion = /product|spec|feature|pricing|offer|solution|platform|service/i.test(resolved);
