@@ -187,32 +187,32 @@ const ChatWidget = ({ brand }) => {
             className="fixed bottom-24 right-6 z-[120] w-[min(92vw,380px)] rounded-3xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
           >
             <div className="bg-slate-950 text-white p-4 relative flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => setShowInfo((current) => !current)}
-                className="absolute left-3 top-3 text-white/80 hover:text-white"
-                aria-label="Conversation info"
-              >
-                <FiInfo size={16} />
-              </button>
-              <div className="flex items-center gap-3 pl-6">
-                <div className="h-10 w-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs font-bold">{initials}</div>
-                <div>
-                  <p className="font-semibold leading-tight">{brand?.name || 'Company'} Assistant</p>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-10 w-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs font-bold shrink-0">{initials}</div>
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="font-semibold leading-tight truncate">{brand?.name || 'Company'} Assistant</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowInfo((current) => !current)}
+                    className="text-white/80 hover:text-white shrink-0"
+                    aria-label="Conversation info"
+                  >
+                    <FiInfo size={15} />
+                  </button>
                 </div>
               </div>
-              <button type="button" onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white" aria-label="Close chat">
+              <button type="button" onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white ml-3 shrink-0" aria-label="Close chat">
                 <FiX size={18} />
               </button>
+
+              {showInfo && (
+                <div className="absolute top-[calc(100%+8px)] left-3 right-3 z-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 shadow-lg">
+                  Conversation ID: <span className="font-semibold break-all">{conversationId}</span>
+                </div>
+              )}
             </div>
 
-            {showInfo && (
-              <div className="border-b border-slate-200 bg-slate-100 px-4 py-2 text-xs text-slate-700">
-                Conversation ID: <span className="font-semibold">{conversationId}</span>
-              </div>
-            )}
-
-            <div className="h-[360px] overflow-y-auto p-4 space-y-3 bg-slate-50">
+            <div className={`h-[360px] overflow-y-auto p-4 space-y-3 bg-slate-50 ${showInfo ? 'pt-16' : ''}`}>
               {messages.map((item, index) => (
                 <div
                   key={`${item.role}-${index}`}

@@ -2,6 +2,7 @@ import { getSupabaseAdminClient } from './_supabase.js';
 import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken } from './_security.js';
 
 const TABLE_NAME = 'chatbot_messages';
+const isMissingTableError = (errorMessage = '') => /Could not find the table/i.test(String(errorMessage));
 
 const requireAdmin = (req) => {
   const token = getCookieValue(req, SESSION_COOKIE_NAME);
@@ -30,6 +31,9 @@ export default async function handler(req, res) {
     const { data, error } = await query;
 
     if (error) {
+      if (isMissingTableError(error.message)) {
+        return res.status(200).json({ conversations: [] });
+      }
       return res.status(500).json({ error: error.message });
     }
 
@@ -68,6 +72,9 @@ export default async function handler(req, res) {
 
     const { data, error } = await supabase.from(TABLE_NAME).update({ message }).eq('id', id).select('*').single();
     if (error) {
+      if (isMissingTableError(error.message)) {
+        return res.status(200).json({ conversations: [] });
+      }
       return res.status(500).json({ error: error.message });
     }
 
@@ -116,6 +123,9 @@ export default async function handler(req, res) {
       .single();
 
     if (error) {
+      if (isMissingTableError(error.message)) {
+        return res.status(200).json({ conversations: [] });
+      }
       return res.status(500).json({ error: error.message });
     }
 

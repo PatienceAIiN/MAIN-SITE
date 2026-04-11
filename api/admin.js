@@ -4,6 +4,7 @@ import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken } from './_secu
 const TABLE_NAME = 'contact_submissions';
 
 const normalizeSearch = (value = '') => value.trim().toLowerCase();
+const isMissingTableError = (errorMessage = '') => /Could not find the table/i.test(String(errorMessage));
 
 const requireAdmin = (req) => {
   const token = getCookieValue(req, SESSION_COOKIE_NAME);
@@ -31,6 +32,9 @@ export default async function handler(req, res) {
       .order('created_at', { ascending: false });
 
     if (error) {
+      if (isMissingTableError(error.message)) {
+        return res.status(200).json({ items: [], counts: { total: 0, new: 0, reviewing: 0, replied: 0, archived: 0 } });
+      }
       return res.status(500).json({ error: error.message });
     }
 
@@ -89,6 +93,9 @@ export default async function handler(req, res) {
       .single();
 
     if (error) {
+      if (isMissingTableError(error.message)) {
+        return res.status(200).json({ items: [], counts: { total: 0, new: 0, reviewing: 0, replied: 0, archived: 0 } });
+      }
       return res.status(500).json({ error: error.message });
     }
 
@@ -109,6 +116,9 @@ export default async function handler(req, res) {
     const { error } = await supabase.from(TABLE_NAME).delete().eq('id', id);
 
     if (error) {
+      if (isMissingTableError(error.message)) {
+        return res.status(200).json({ items: [], counts: { total: 0, new: 0, reviewing: 0, replied: 0, archived: 0 } });
+      }
       return res.status(500).json({ error: error.message });
     }
 
