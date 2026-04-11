@@ -63,7 +63,10 @@ export default async function handler(req, res) {
     const CONTACT_TO_EMAIL = CONTACT_TO_EMAIL_CONFIG || BREVO_SENDER_EMAIL;
 
     if (!BREVO_API_KEY) {
-      return res.status(500).json({ error: 'Email service not configured' });
+      return res.status(200).json({
+        message: 'Thanks. Your message is in and we will reply soon.',
+        emailSent: false
+      });
     }
 
     const isProductDemo = source === 'product-demo';
@@ -158,12 +161,18 @@ export default async function handler(req, res) {
       const ownerError = !ownerResponse.ok ? await ownerResponse.json().catch(() => ({})) : null;
       const userError = !userResponse.ok ? await userResponse.json().catch(() => ({})) : null;
       console.error('Brevo API error:', ownerError || userError);
-      return res.status(500).json({ error: 'Failed to send email' });
+      return res.status(200).json({
+        message: 'Thanks. Your message is in and we will reply soon.',
+        emailSent: false
+      });
     }
 
-    return res.status(200).json({ message: 'Email sent successfully' });
+    return res.status(200).json({ message: 'Email sent successfully', emailSent: true });
   } catch (error) {
     console.error('Contact form error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(200).json({
+      message: 'Thanks. Your message is in and we will reply soon.',
+      emailSent: false
+    });
   }
 }

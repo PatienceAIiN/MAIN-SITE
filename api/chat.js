@@ -8,6 +8,7 @@ const SITE_TABLE = 'site_content';
 const SITE_SLUG = 'site';
 const CHAT_TABLE = 'chatbot_messages';
 const SITE_CONTENT_CACHE_TTL_MS = 30000;
+const GROQ_FALLBACK_NOTE = 'I can only answer questions related to this site content. Please ask about products, platform, case studies, careers, or contact options.';
 
 const VECTOR_CACHE = new Map();
 let siteContentCache = { expiresAt: 0, value: null };
@@ -202,6 +203,24 @@ const tryGeneralSiteResponse = (question, siteContent) => {
   return null;
 };
 
+const buildFallbackAnswer = (siteContent, topResults = []) => {
+  const snippets = topResults
+    .map((item) => item?.chunk)
+    .filter(Boolean)
+    .slice(0, 3);
+
+  if (snippets.length) {
+    return snippets.join('\n\n');
+  }
+
+  const heroDescription = siteContent?.hero?.description;
+  if (heroDescription) {
+    return heroDescription;
+  }
+
+  return GROQ_FALLBACK_NOTE;
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -209,7 +228,6 @@ export default async function handler(req, res) {
   if (!message || !String(message).trim()) return res.status(400).json({ error: 'message is required' });
 
   const groqApiKey = process.env.GROQ_API_KEY;
-  if (!groqApiKey) return res.status(500).json({ error: 'Missing GROQ_API_KEY environment variable' });
 
   try {
     const ipAddress = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').toString().split(',')[0].trim() || null;
@@ -292,33 +310,39 @@ export default async function handler(req, res) {
       ? history.filter((item) => item?.role && item?.content).slice(-16).map((item) => ({ role: item.role, content: String(item.content) }))
       : [];
 
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${groqApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-        temperature: 0.15,
-        max_tokens: 700,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'system', content: contextPrompt },
-          ...trimmedHistory,
-          { role: 'user', content: resolvedQuestion }
-        ]
-      })
-    });
+    let answer = buildFallbackAnswer(siteContent, topResults);
 
-    if (!groqResponse.ok) {
-      const errorBody = await groqResponse.text();
-      return res.status(500).json({ error: `Groq request failed: ${errorBody.slice(0, 220)}` });
+    if (groqApiKey) {
+      const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${groqApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+          temperature: 0.15,
+          max_tokens: 700,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'system', content: contextPrompt },
+            ...trimmedHistory,
+            { role: 'user', content: resolvedQuestion }
+          ]
+        })
+      });
+
+      if (groqResponse.ok) {
+        const completion = await groqResponse.json();
+        const modelAnswer = completion?.choices?.[0]?.message?.content?.trim();
+        if (modelAnswer) {
+          answer = modelAnswer;
+        }
+      } else {
+        const errorBody = await groqResponse.text().catch(() => '');
+        console.error('Groq request failed:', errorBody.slice(0, 220));
+      }
     }
-
-    const completion = await groqResponse.json();
-    const answer = completion?.choices?.[0]?.message?.content?.trim();
-    if (!answer) return res.status(500).json({ error: 'No answer returned by Groq' });
 
     await Promise.all([
       saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'user', message: String(message).slice(0, 4000) }),
