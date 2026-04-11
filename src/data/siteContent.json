@@ -1,0 +1,697 @@
+{
+  "brand": {
+    "name": "PATIENCE AI",
+    "homeAction": {
+      "type": "route",
+      "to": "/"
+    }
+  },
+  "navigation": [
+    {
+      "label": "PRODUCTS",
+      "activePath": "/products",
+      "action": {
+        "type": "route",
+        "to": "/products"
+      }
+    },
+    {
+      "label": "PLATFORM",
+      "activePath": "/platform",
+      "action": {
+        "type": "route",
+        "to": "/platform"
+      }
+    },
+    {
+      "label": "CASE STUDIES",
+      "activePath": "/company/blog",
+      "action": {
+        "type": "route",
+        "to": "/company/blog"
+      }
+    }
+  ],
+  "hero": {
+    "backgroundImage": {
+      "src": "https://media-manager-c.questera.ai/greta-media/01fbab95583dd5091933e068a1a99b447d13f36087e4edece1221f31135785cf090358ce5799cd34ecf30d5b82a9b7dd/images/aW1hZ2UvcG5n/ce847ebd755657336bd175847a25dfc0.png",
+      "alt": "Abstract 3D Background"
+    },
+    "headline": "Product-first AI platforms for governance, measurable impact, and enterprise delivery",
+    "description": "Patience AI builds governed product experiences for teams that need clean requests, clear ownership, and reliable delivery.",
+    "cta": {
+      "label": "Explore Platform",
+      "icon": "FiArrowUpRight",
+      "action": {
+        "type": "route",
+        "to": "/platform"
+      }
+    }
+  },
+  "features": {
+    "cornerButtonIcon": "FiArrowUpRight",
+    "cards": [
+      {
+        "variant": "support",
+        "tags": ["Platform", "Governance"],
+        "title": "Policy-safe automation for support and operations without exposing internal workflows",
+        "image": {
+          "src": "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=800&auto=format&fit=crop",
+          "alt": "AI Robot"
+        },
+        "platforms": [
+          {
+            "icon": "FaFacebookMessenger",
+            "backgroundClass": "bg-gradient-to-br from-[#FF6968] to-[#A334FA]",
+            "label": "Messenger"
+          },
+          {
+            "icon": "FaSkype",
+            "backgroundClass": "bg-[#00AFF0]",
+            "label": "Skype"
+          },
+          {
+            "icon": "FaTelegramPlane",
+            "backgroundClass": "bg-[#229ED9]",
+            "label": "Telegram"
+          },
+          {
+            "icon": "FaDiscord",
+            "backgroundClass": "bg-[#5865F2]",
+            "label": "Discord"
+          }
+        ]
+      },
+      {
+        "variant": "dashboard",
+        "icon": "FiTrendingUp",
+        "title": "Auditable dashboards for product teams that need clarity, control, and measurable outcomes.",
+        "description": "Track usage, delivery, and adoption in one enterprise-ready workspace built for decision makers.",
+        "image": {
+          "src": "https://images.unsplash.com/photo-1633511090164-b4bfdef39924?q=80&w=800&auto=format&fit=crop",
+          "alt": "Abstract 3D Structure"
+        }
+      },
+      {
+        "variant": "stat",
+        "title": "Auditable by design"
+      },
+      {
+        "variant": "integration",
+        "title": "Production-ready integration surface",
+        "brand": {
+          "label": "PATIENCE AI"
+        },
+        "image": {
+          "src": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&auto=format&fit=crop",
+          "alt": "Integration surface"
+        }
+      }
+    ]
+  },
+  "possibilities": {
+    "eyebrow": "[ product surfaces ]",
+    "heading": "Product-first delivery that stays clear and readable",
+    "description": "Patience AI is built for teams that need AI-enabled workflows, secure governance, and measurable outcomes without exposing internal operations.",
+    "cta": {
+      "label": "View products",
+      "icon": "FiArrowUpRight",
+      "action": {
+        "type": "route",
+        "to": "/products"
+      }
+    },
+    "footerTitle": "Enterprise-grade outcomes with product-first delivery",
+    "items": [
+      {
+        "img": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=400&auto=format&fit=crop",
+        "title": "Governed automation",
+        "desc": "Productized AI workflows that route requests, manage context, and keep operations auditable."
+      },
+      {
+        "img": "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=400&auto=format&fit=crop",
+        "title": "Secure integrations",
+        "desc": "Connect product, support, and communication systems without exposing backend complexity."
+      },
+      {
+        "img": "https://images.unsplash.com/photo-1633511090164-b4bfdef39924?q=80&w=400&auto=format&fit=crop",
+        "title": "Measurable delivery",
+        "desc": "Track adoption, throughput, and response improvements with enterprise-ready reporting."
+      },
+      {
+        "img": "https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?q=80&w=400&auto=format&fit=crop",
+        "title": "Composable platform",
+        "desc": "A flexible foundation for education, communications, and other AI-enabled products."
+      }
+    ]
+  },
+  "statement": {
+    "headingPrefix": "Built as a",
+    "headingHighlight": "single source of truth",
+    "headingSuffix": "for product startups shipping AI products, launch stories, and customer-ready demos.",
+    "trustedLine": "Designed for product teams, operators, and enterprise buyers.",
+    "trustedHighlights": [
+      "Product-first",
+      "Governed",
+      "Measurable",
+      "Enterprise-ready"
+    ]
+  },
+  "ctaBanner": {
+    "heading": "Ready to publish the next release?",
+    "description": "Built for young creative teams to ship polished products and stories with clear ownership.",
+    "buttons": [
+      {
+        "label": "Get Started",
+        "variant": "white",
+        "action": {
+          "type": "route",
+          "to": "/products"
+        }
+      },
+      {
+        "label": "Talk to Sales",
+        "variant": "whiteOutline",
+        "action": {
+          "type": "modal",
+          "target": "sales"
+        }
+      }
+    ]
+  },
+  "salesModal": {
+    "title": "Talk to Sales",
+    "description": "",
+    "source": "sales",
+    "highlights": [
+      "Built for product evaluations, pilots, and rollout planning",
+      "Structured details for software, AI, and product teams",
+      "Clear confirmation after every successful submission"
+    ],
+    "fields": [
+      {
+        "name": "name",
+        "label": "Name *",
+        "type": "text",
+        "placeholder": "John Doe",
+        "required": true
+      },
+      {
+        "name": "email",
+        "label": "Email *",
+        "type": "email",
+        "placeholder": "john@example.com",
+        "required": true
+      },
+      {
+        "name": "subject",
+        "label": "Subject *",
+        "type": "text",
+        "placeholder": "Tell us what you need",
+        "required": true
+      },
+      {
+        "name": "message",
+        "label": "Message *",
+        "type": "textarea",
+        "placeholder": "Tell us more about your team, product, and goals...",
+        "required": true,
+        "rows": 6
+      }
+    ],
+    "submitButton": {
+      "idleLabel": "Send Message",
+      "loadingLabel": "Sending...",
+      "idleIcon": "FiSend",
+      "loadingIcon": "FiLoader"
+    },
+    "statusMessages": {
+      "success": "Thanks. Your message is in and we will reply soon.",
+      "error": "Something went wrong. Please try again later."
+    },
+    "closeLabel": "Close modal"
+  },
+  "productDemoModal": {
+    "title": "Request a product demo",
+    "description": "Tell us which product you want to evaluate and we will route your request to the owner with the right context.",
+    "source": "product-demo",
+    "fields": [
+      {
+        "name": "productName",
+        "label": "Product",
+        "type": "text",
+        "placeholder": "",
+        "required": true,
+        "readOnly": true
+      },
+      {
+        "name": "name",
+        "label": "Name *",
+        "type": "text",
+        "placeholder": "John Doe",
+        "required": true
+      },
+      {
+        "name": "email",
+        "label": "Email *",
+        "type": "email",
+        "placeholder": "john@example.com",
+        "required": true
+      },
+      {
+        "name": "company",
+        "label": "Company",
+        "type": "text",
+        "placeholder": "Company name",
+        "required": false
+      },
+      {
+        "name": "message",
+        "label": "What are you trying to solve? *",
+        "type": "textarea",
+        "placeholder": "Tell us about the team, workflow, and goals...",
+        "required": true,
+        "rows": 6
+      }
+    ],
+    "submitButton": {
+      "idleLabel": "Request demo",
+      "loadingLabel": "Sending...",
+      "idleIcon": "FiSend",
+      "loadingIcon": "FiLoader"
+    },
+    "statusMessages": {
+      "success": "Your demo request has been sent to the owner.",
+      "error": "Something went wrong. Please try again later."
+    },
+    "closeLabel": "Close modal"
+  },
+  "productsPage": {
+    "hero": {
+      "eyebrow": "Products",
+      "title": "Explore the product catalog behind Patience AI",
+      "description": "Product-led solutions designed to show real value, route requests cleanly, and support every stage of evaluation.",
+      "buttons": []
+    },
+    "products": [
+      {
+        "id": "pariksha-ki-taiyari",
+        "name": "Pariksha ki Taiyari",
+        "shortTagline": "Fast, adaptive exam prep with intelligent practice, feedback, and collaboration.",
+        "summary": "An intelligent exam-prep platform delivering timed practice, instant feedback, and personalized recommendations for focused learning.",
+        "benefits": [
+          "AI-augmented recommendations and smart content filtering to surface the most relevant lessons.",
+          "Timed practice sessions with instant scoring and progress tracking to accelerate skill building.",
+          "Real-time collaboration and seamless sync across devices for group study and continuity.",
+          "Mobile-first, low-bandwidth delivery to ensure consistent performance in constrained networks.",
+          "Privacy-first controls and secure data handling for trusted learning experiences."
+        ],
+        "technologies": [
+          "Modern JavaScript frontend with mobile-first delivery",
+          "Scalable cloud backend for secure APIs and session handling",
+          "Real-time sync layer for live collaboration",
+          "Edge or on-device ML for personalized recommendations",
+          "Durable cloud storage with offline resume support"
+        ],
+        "audience": "Learners and institutions seeking a performance-focused, AI-enhanced exam preparation solution",
+        "privacyTone": "Privacy and security focused; enterprise controls available"
+      },
+      {
+        "id": "ai-email-saas",
+        "name": "AI Email SaaS",
+        "shortTagline": "Enterprise email automation with secure rules, context-aware drafting, and actionable analytics.",
+        "summary": "Enterprise AI email automation that produces context-aware drafts, enforces templates and policies, and provides actionable analytics for operations teams.",
+        "benefits": [
+          "Production-grade AI generates context-aware, brand-aligned drafts while respecting templates and business rules.",
+          "Template-driven personalization at scale keeps tone, compliance, and brand intact across high volumes.",
+          "Admin analytics and controls let teams tune AI behavior and measure business impact.",
+          "Low-latency delivery pipeline designed for reliability and auditability.",
+          "Secure integration and observability for compliance and operational transparency."
+        ],
+        "technologies": [
+          "Production AI model integration for generation and classification",
+          "Asynchronous backend paired with a reactive frontend",
+          "Ingestion to delivery pipeline with monitoring and retries",
+          "Scalable cloud deployment and observability for enterprise SLAs",
+          "Secure, auditable data handling and admin controls"
+        ],
+        "audience": "Operations, marketing, and customer-facing teams looking to scale compliant, high-quality email workflows",
+        "privacyTone": "Enterprise-grade security and auditability emphasized"
+      }
+    ]
+  },
+  "platformPage": {
+    "hero": {
+      "eyebrow": "Platform",
+      "title": "A compact control layer for governed AI delivery",
+      "description": "See the product stack through governance, workflow, and delivery layers built for AI software teams."
+    },
+    "cards": [
+      {
+        "title": "Governance layer",
+        "description": "Policy, access, and audit controls that keep product operations safe across internal teams and customer-facing flows.",
+        "points": [
+          {
+            "title": "Policy controls",
+            "description": "Business rules, approval paths, and content permissions stay consistent across releases."
+          },
+          {
+            "title": "Signed access",
+            "description": "Admin sessions and sensitive updates are protected with secure authentication and isolation."
+          },
+          {
+            "title": "Auditable change flow",
+            "description": "Every product, content, and request update can be reviewed with traceable context."
+          }
+        ]
+      },
+      {
+        "title": "AI product workflow",
+        "description": "Software teams can plan, build, review, and ship AI-powered products with clear ownership and clean handoffs.",
+        "points": [
+          {
+            "title": "Product development flow",
+            "description": "Requests move from idea to delivery with product context, scope, and priority intact."
+          },
+          {
+            "title": "Build and release alignment",
+            "description": "Design, engineering, and content updates stay aligned through one controlled release surface."
+          },
+          {
+            "title": "Operational visibility",
+            "description": "Teams can track requests, product updates, and publishing steps without losing context."
+          }
+        ]
+      },
+      {
+        "title": "Delivery surface",
+        "description": "Responsive product surfaces that balance speed, readability, and clear evaluation paths.",
+        "points": [
+          {
+            "title": "Clear product hierarchy",
+            "description": "Users see the right product message, demo path, or evaluation detail without noise."
+          },
+          {
+            "title": "High-contrast presentation",
+            "description": "Typography, cards, and actions stay readable across devices and screen sizes."
+          },
+          {
+            "title": "Purposeful motion",
+            "description": "Animation supports product discovery and conversion without distracting from the work."
+          }
+        ]
+      }
+    ]
+  },
+  "detailPages": [
+    {
+      "path": "/product/features",
+      "groupTitle": "Products",
+      "title": "Features",
+      "description": "Built for Indian teams and global buyers that need a product-first AI surface with clear governance and a clean handoff to sales.",
+      "points": [
+        "Multilingual-ready content patterns for English, Hindi, and global rollout without redesigning the page.",
+        "Low-bandwidth layouts that stay readable for India-first deployments and APAC traffic.",
+        "Single-source publishing for product, launch, and campaign updates across regions and time zones.",
+        "Context-aware request capture for demos, pilots, and enterprise evaluations."
+      ]
+    },
+    {
+      "path": "/product/integrations",
+      "groupTitle": "Products",
+      "title": "Integrations",
+      "description": "Connect with the tools Indian and international teams already use while keeping the experience simple for public users.",
+      "points": [
+        "WhatsApp, email, Slack, Microsoft Teams, and CRM handoffs for regional and global operations.",
+        "Supabase-backed form storage with room for India-specific workflows and enterprise reporting.",
+        "Route-based navigation and modal actions that keep the public site clean and predictable.",
+        "Flexible content delivery for SaaS, services, and AI product campaigns across markets."
+      ]
+    },
+    {
+      "path": "/product/pricing",
+      "groupTitle": "Products",
+      "title": "Pricing",
+      "description": "Simple packaging for pilots, enterprise rollouts, and cross-border procurement conversations.",
+      "points": [
+        "Clear pilot and enterprise entry points for buyers in India, the Middle East, Europe, and North America.",
+        "INR-friendly conversations for local teams and USD-based packaging for international deals.",
+        "Easy-to-update pricing language for monthly, annual, and custom deployment models.",
+        "A sales path that stays focused on value, governance, and measurable outcomes."
+      ]
+    },
+    {
+      "path": "/product/changelog",
+      "groupTitle": "Products",
+      "title": "Changelog",
+      "description": "Track product updates, content releases, and rollout notes in a way that works across IST and UTC teams.",
+      "points": [
+        "Publish notes with author, date, and time for both Indian and international teams.",
+        "Release updates that reflect product, content, and workflow changes in one place.",
+        "Easy to scan from desktop and mobile without hiding the important details.",
+        "A clean editorial trail for ops, marketing, and product stakeholders."
+      ]
+    },
+    {
+      "path": "/company/about-us",
+      "groupTitle": "Company",
+      "title": "About Us",
+      "description": "Patience AI is India-rooted, globally usable, and built to keep AI delivery governed, measurable, and easy to explain.",
+      "points": [
+        "Designed for Indian operators who need speed and international buyers who expect polish.",
+        "Built around one source of truth so public content and admin updates stay aligned.",
+        "Enterprise-ready without exposing internal systems or implementation details.",
+        "Product-first presentation that keeps the brand sharp and credible."
+      ]
+    },
+    {
+      "path": "/legal/privacy-policy",
+      "groupTitle": "Legal",
+      "title": "Privacy Policy",
+      "description": "A practical privacy posture for Indian and international data handling expectations.",
+      "points": [
+        "Form submissions are handled through controlled server endpoints with minimal exposure.",
+        "Admin access uses signed sessions and content updates stay auditable.",
+        "DPDP-aligned handling for India with GDPR-aware structure for international use.",
+        "Common startup controls such as DPA handling, audit trails, and retention review are supported.",
+        "No unnecessary public disclosure of operational or customer data."
+      ]
+    },
+    {
+      "path": "/legal/terms-of-service",
+      "groupTitle": "Legal",
+      "title": "Terms of Service",
+      "description": "Simple operating terms for site usage, demo requests, and admin-managed content updates.",
+      "points": [
+        "Use the site honestly and submit accurate information when requesting contact.",
+        "Request flows are routed by product and context for better follow-up.",
+        "Public content can be updated without changing the supported user journey.",
+        "Common startup standards such as NDA, DPA, acceptable use, and security review terms may apply.",
+        "The experience is intended to stay stable, readable, and secure across regions."
+      ]
+    }
+  ],
+  "careersPage": {
+    "hero": {
+      "eyebrow": "Company",
+      "title": "Careers and job inquiries",
+      "description": "Send role-specific inquiries for open positions, internships, or contract work. We review every submission with the relevant team."
+    },
+    "highlights": [
+      "Remote-first hiring with async-friendly collaboration.",
+      "Clear ownership, quick response routing, and a strong focus on product craft.",
+      "Open to contributors who can work independently across time zones."
+    ],
+    "form": {
+      "title": "Job inquiry form",
+      "description": "Share the role you want, your background, and a short note about the kind of work you are looking for.",
+      "source": "careers",
+      "highlights": [
+        "Remote-first roles with async-friendly collaboration",
+        "Fast review path for product, design, engineering, and growth roles",
+        "Simple inquiry flow for jobs, contracts, and internships"
+      ],
+      "fields": [
+        {
+          "name": "name",
+          "label": "Full name *",
+          "type": "text",
+          "placeholder": "Your name",
+          "required": true
+        },
+        {
+          "name": "email",
+          "label": "Email *",
+          "type": "email",
+          "placeholder": "you@example.com",
+          "required": true
+        },
+        {
+          "name": "role",
+          "label": "Role / opening *",
+          "type": "text",
+          "placeholder": "Frontend Engineer, Content, Sales, etc.",
+          "required": true
+        },
+        {
+          "name": "message",
+          "label": "Why you fit *",
+          "type": "textarea",
+          "placeholder": "Tell us about your background, preferred role, and links...",
+          "required": true,
+          "rows": 6
+        }
+      ],
+      "submitButton": {
+        "idleLabel": "Send Inquiry",
+        "loadingLabel": "Sending...",
+        "idleIcon": "FiSend",
+        "loadingIcon": "FiLoader"
+      },
+      "statusMessages": {
+        "success": "Thanks. Your inquiry is in and we will review it with the team.",
+        "error": "Something went wrong. Please try again later."
+      }
+    }
+  },
+  "footer": {
+    "description": "Governed AI products with auditable request handling, controlled publishing, and production-ready delivery.",
+    "columns": [
+      {
+        "title": "Products",
+        "links": [
+          {
+            "label": "Features",
+            "action": {
+              "type": "route",
+              "to": "/product/features"
+            }
+          },
+          {
+            "label": "Integrations",
+            "action": {
+              "type": "route",
+              "to": "/product/integrations"
+            }
+          },
+          {
+            "label": "Pricing",
+            "action": {
+              "type": "route",
+              "to": "/product/pricing"
+            }
+          },
+          {
+            "label": "Changelog",
+            "action": {
+              "type": "route",
+              "to": "/product/changelog"
+            }
+          }
+        ]
+      },
+      {
+        "title": "Company",
+        "links": [
+          {
+            "label": "About Us",
+            "action": {
+              "type": "route",
+              "to": "/company/about-us"
+            }
+          },
+          {
+            "label": "Careers",
+            "action": {
+              "type": "route",
+              "to": "/company/careers"
+            }
+          },
+          {
+            "label": "Blog",
+            "action": {
+              "type": "route",
+              "to": "/company/blog"
+            }
+          },
+          {
+            "label": "Contact",
+            "action": {
+              "type": "modal",
+              "target": "sales"
+            }
+          }
+        ]
+      },
+      {
+        "title": "Docs",
+        "links": [
+          {
+            "label": "Privacy Policy",
+            "action": {
+              "type": "route",
+              "to": "/legal/privacy-policy"
+            }
+          },
+          {
+            "label": "Terms of Service",
+            "action": {
+              "type": "route",
+              "to": "/legal/terms-of-service"
+            }
+          }
+        ]
+      }
+    ],
+    "copyright": "© 2026 Patience AI. All rights reserved.",
+    "socialLinks": [
+      {
+        "icon": "FiTwitter",
+        "href": "#",
+        "label": "Twitter"
+      },
+      {
+        "icon": "FiGithub",
+        "href": "#",
+        "label": "GitHub"
+      }
+    ]
+  },
+  "blogPage": {
+    "hero": {
+      "eyebrow": "Case Studies",
+      "title": "Patience AI notes, launches, and product thinking",
+      "description": "Notes, launches, and product thinking published from the editorial console."
+    },
+    "posts": [
+      {
+        "slug": "shipping-a-low-friction-demo-flow",
+        "header": "Case Study",
+        "title": "Shipping a low-friction demo flow for enterprise AI",
+        "by": "Patience AI Team",
+        "publishedAt": "2026-04-10T09:30:00+05:30",
+        "excerpt": "How we keep demo requests contextual, fast, and routed to the right owner without adding friction.",
+        "tags": ["Product", "Growth", "Operations"],
+        "content": [
+          "Enterprise buyers need context before they commit. The demo flow should capture enough detail to route the request correctly, but not so much that it becomes a form abandonment problem.",
+          "We keep the primary request short, prefill the product name, and store the submission with clear routing metadata so the owner can follow up quickly.",
+          "The goal is to make the interaction feel responsive and specific while still keeping the workflow simple enough to run at scale."
+        ]
+      },
+      {
+        "slug": "why-admin-controlled-content-matters",
+        "header": "Docs",
+        "title": "Why admin-controlled content matters for AI product sites",
+        "by": "Patience AI Team",
+        "publishedAt": "2026-04-09T15:10:00+05:30",
+        "excerpt": "A single JSON-backed content source makes updates faster, safer, and easier to audit.",
+        "tags": ["Engineering", "Content", "Ops"],
+        "content": [
+          "When the same content powers the homepage, products, and blog, the admin surface needs to be predictable. A single source of truth removes hidden hard-coding and reduces drift.",
+          "We prefer storing the whole site in one structured document so product launches, blog posts, and CTA changes can be published together.",
+          "That makes the site easier to evolve without breaking layout assumptions or shipping partial updates."
+        ]
+      }
+    ]
+  }
+}
