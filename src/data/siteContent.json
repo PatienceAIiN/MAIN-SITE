@@ -61,24 +61,34 @@
         },
         "platforms": [
           {
-            "icon": "FaFacebookMessenger",
-            "backgroundClass": "bg-gradient-to-br from-[#FF6968] to-[#A334FA]",
-            "label": "Messenger"
+            "icon": "SiX",
+            "backgroundClass": "bg-[#111111]",
+            "label": "X",
+            "href": "https://x.com/AiPatienceIN"
           },
           {
-            "icon": "FaSkype",
-            "backgroundClass": "bg-[#00AFF0]",
-            "label": "Skype"
+            "icon": "FiMail",
+            "backgroundClass": "bg-[#1E293B]",
+            "label": "Email",
+            "href": "mailto:info@patienceai.in"
           },
           {
-            "icon": "FaTelegramPlane",
-            "backgroundClass": "bg-[#229ED9]",
-            "label": "Telegram"
+            "icon": "FaInstagram",
+            "backgroundClass": "bg-gradient-to-br from-[#F9CE34] via-[#EE2A7B] to-[#6228D7]",
+            "label": "Instagram",
+            "href": "https://www.instagram.com/patienceaiindia/"
           },
           {
-            "icon": "FaDiscord",
-            "backgroundClass": "bg-[#5865F2]",
-            "label": "Discord"
+            "icon": "FaRedditAlien",
+            "backgroundClass": "bg-[#FF4500]",
+            "label": "Reddit",
+            "href": "https://www.reddit.com/user/Various-Soil7866/"
+          },
+          {
+            "icon": "FaLinkedinIn",
+            "backgroundClass": "bg-[#0A66C2]",
+            "label": "LinkedIn",
+            "href": "#"
           }
         ]
       },

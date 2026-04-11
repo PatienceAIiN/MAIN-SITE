@@ -200,7 +200,7 @@ const ContactUs = ({ content, isOpen, onClose, onBack }) => {
                               value={formData[field.name]}
                               onChange={handleChange}
                               required={field.required}
-                              className="w-full px-4 py-3.5 border border-slate-200 rounded-2xl bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                              className="w-full px-4 py-3.5 border border-slate-200 rounded-2xl bg-white text-black placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                               placeholder={field.placeholder}
                             />
                           </div>
@@ -218,7 +218,7 @@ const ContactUs = ({ content, isOpen, onClose, onBack }) => {
                           value={formData[subjectField.name]}
                           onChange={handleChange}
                           required={subjectField.required}
-                          className="w-full px-4 py-3.5 border border-slate-200 rounded-2xl bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                          className="w-full px-4 py-3.5 border border-slate-200 rounded-2xl bg-white text-black placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                           placeholder={subjectField.placeholder}
                         />
                       </div>
@@ -234,7 +234,7 @@ const ContactUs = ({ content, isOpen, onClose, onBack }) => {
                           onChange={handleChange}
                           required={messageField.required}
                           rows={messageField.rows}
-                          className="w-full px-4 py-3.5 border border-slate-200 rounded-2xl bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors resize-none"
+                          className="w-full px-4 py-3.5 border border-slate-200 rounded-2xl bg-white text-black placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors resize-none"
                           placeholder={messageField.placeholder}
                         />
                       </div>

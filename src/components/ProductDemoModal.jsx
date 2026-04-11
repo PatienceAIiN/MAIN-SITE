@@ -94,14 +94,14 @@ const ProductDemoModal = ({ content, isOpen, product, onClose, onBack }) => {
       <textarea
         {...commonProps}
         rows={field.rows || 5}
-        className="w-full px-4 py-3 border border-slate-300 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors resize-none bg-white"
+        className="w-full px-4 py-3 border border-slate-300 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors resize-none bg-white text-black placeholder:text-slate-500"
       />
     ) : (
       <input
         {...commonProps}
         type={field.type}
-        className={`w-full px-4 py-3 border border-slate-300 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors ${
-          field.readOnly ? 'bg-slate-50 text-slate-700' : 'bg-white'
+        className={`w-full px-4 py-3 border border-slate-300 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors placeholder:text-slate-500 ${
+          field.readOnly ? 'bg-slate-50 text-slate-700' : 'bg-white text-black'
         }`}
       />
     );

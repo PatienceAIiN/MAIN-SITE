@@ -64,13 +64,17 @@ const Features = ({ content }) => {
             
             <div className="mt-auto flex gap-4 pb-12">
               {content.cards[0].platforms.map((platform) => (
-                <div
+                <a
                   key={platform.label}
+                  href={platform.href || '#'}
+                  target={platform.href && platform.href !== '#' ? '_blank' : undefined}
+                  rel={platform.href && platform.href !== '#' ? 'noreferrer noopener' : undefined}
                   aria-label={platform.label}
+                  title={platform.label}
                   className={`w-12 h-12 rounded-full ${platform.backgroundClass} flex items-center justify-center shadow-lg hover:-translate-y-1 transition-transform cursor-pointer`}
                 >
                   <SafeIcon icon={iconRegistry[platform.icon]} className="text-white w-6 h-6" />
-                </div>
+                </a>
               ))}
             </div>
           </div>

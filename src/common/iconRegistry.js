@@ -17,12 +17,15 @@ import {
   FiX
 } from 'react-icons/fi';
 import {
+  FaInstagram,
+  FaLinkedinIn,
+  FaRedditAlien,
   FaDiscord,
   FaFacebookMessenger,
   FaSkype,
   FaTelegramPlane
 } from 'react-icons/fa';
-import { SiOpenai } from 'react-icons/si';
+import { SiOpenai, SiX } from 'react-icons/si';
 
 export const iconRegistry = {
   FiArrowUpRight,
@@ -43,8 +46,12 @@ export const iconRegistry = {
   FiTwitter,
   FiX,
   FaDiscord,
+  FaInstagram,
+  FaLinkedinIn,
   FaFacebookMessenger,
+  FaRedditAlien,
   FaSkype,
   FaTelegramPlane,
+  SiX,
   SiOpenai
 };
