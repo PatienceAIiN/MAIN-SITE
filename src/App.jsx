@@ -12,6 +12,7 @@ import PlatformPage from './pages/PlatformPage';
 import CareersPage from './pages/CareersPage';
 import BlogPage from './pages/BlogPage';
 import BlogPostPage from './pages/BlogPostPage';
+import ChatWidget from './components/ChatWidget';
 import defaultSiteContent from './data/siteContent.json';
 import { fetchJson } from './common/fetchJson';
 
@@ -206,6 +207,8 @@ function App() {
         onClose={() => setActiveModal(null)}
         onBack={activeModal?.back ? () => setActiveModal(null) : undefined}
       />
+
+      {!isAdminRoute && <ChatWidget brand={siteContent.brand} />}
     </div>
   );
 }

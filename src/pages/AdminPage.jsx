@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { FiEye, FiEyeOff } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import Button from '../components/ui/Button';
 import { fetchJson } from '../common/fetchJson';
@@ -23,7 +24,8 @@ const formatDate = (value) =>
 const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSource, onContentSaved }) => {
   const [authenticated, setAuthenticated] = useState(false);
   const [username, setUsername] = useState('');
-  const [loginForm, setLoginForm] = useState({ username: 'admin', password: 'admin123' });
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [activeTab, setActiveTab] = useState('content');
@@ -322,18 +324,28 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                 value={loginForm.username}
                 onChange={(e) => setLoginForm((current) => ({ ...current, username: e.target.value }))}
                 className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
-                placeholder="admin"
+                placeholder="Enter admin username"
               />
             </div>
             <div>
               <label className="block text-sm text-white/70 mb-2">Password</label>
-              <input
-                type="password"
-                value={loginForm.password}
-                onChange={(e) => setLoginForm((current) => ({ ...current, password: e.target.value }))}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
-                placeholder="admin123"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={loginForm.password}
+                  onChange={(e) => setLoginForm((current) => ({ ...current, password: e.target.value }))}
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 pr-12 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
+                  placeholder="Enter admin password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((current) => !current)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 hover:text-white"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                </button>
+              </div>
             </div>
             {loginError && <div className="text-red-200 text-sm">{loginError}</div>}
             <Button variant="white" className="w-full rounded-2xl px-6 py-3">
@@ -444,7 +456,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                   </div>
                   <div className="rounded-2xl bg-slate-900/60 border border-white/10 p-4">
                     <p className="text-white/45 text-sm mb-1">Temp login</p>
-                    <p className="text-white">admin / admin123</p>
+                    <p className="text-white">Set ADMIN_USERNAME and ADMIN_PASSWORD in Vercel environment variables.</p>
                   </div>
                   <div className="rounded-2xl bg-slate-900/60 border border-white/10 p-4">
                     <p className="text-white/45 text-sm mb-1">Save behavior</p>
