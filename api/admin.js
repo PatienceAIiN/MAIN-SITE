@@ -4,7 +4,6 @@ import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken } from './_secu
 const TABLE_NAME = 'contact_submissions';
 
 const normalizeSearch = (value = '') => value.trim().toLowerCase();
-const isMissingTableError = (errorMessage = '') => /Could not find the table/i.test(String(errorMessage));
 
 const requireAdmin = (req) => {
   const token = getCookieValue(req, SESSION_COOKIE_NAME);

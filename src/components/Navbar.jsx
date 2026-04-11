@@ -99,15 +99,6 @@ const Navbar = ({ brand, navigation, onAction }) => {
               {item.label}
             </button>
           ))}
-          {installEvent && (
-            <button
-              type="button"
-              onClick={handleInstall}
-              className="w-full text-left text-sm tracking-wide rounded-lg px-3 py-2 text-gray-200 hover:text-white hover:bg-white/5 flex items-center gap-2"
-            >
-              <FiDownload size={16} /> Install app
-            </button>
-          )}
         </nav>
       )}
     </header>
