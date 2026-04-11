@@ -271,7 +271,8 @@ const ChatWidget = ({ brand }) => {
   };
 
   const ask = async (presetQuestion = null) => {
-    const question = normalizeMessageContent(presetQuestion ?? input).trim();
+    const sourceQuestion = typeof presetQuestion === 'string' ? presetQuestion : input;
+    const question = normalizeMessageContent(sourceQuestion).trim();
     if (!question || busy) return;
 
     const openForm = shouldOpenContactForm(question, messages);
@@ -493,10 +494,10 @@ const ChatWidget = ({ brand }) => {
               {showContactForm && (
                 <form onSubmit={submitLead} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
                   <p className="text-xs font-semibold text-slate-700">Sales contact form</p>
-                  <input value={leadForm.name} onChange={(e) => setLeadForm((c) => ({ ...c, name: e.target.value }))} required placeholder="Name" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-                  <input type="email" value={leadForm.email} onChange={(e) => setLeadForm((c) => ({ ...c, email: e.target.value }))} required placeholder="Email" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-                  <input value={leadForm.subject} onChange={(e) => setLeadForm((c) => ({ ...c, subject: e.target.value }))} required placeholder="Subject" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-                  <textarea value={leadForm.message} onChange={(e) => setLeadForm((c) => ({ ...c, message: e.target.value }))} required placeholder="How can our team help you?" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm min-h-20" />
+                  <input value={leadForm.name} onChange={(e) => setLeadForm((c) => ({ ...c, name: e.target.value }))} required placeholder="Name" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400" />
+                  <input type="email" value={leadForm.email} onChange={(e) => setLeadForm((c) => ({ ...c, email: e.target.value }))} required placeholder="Email" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400" />
+                  <input value={leadForm.subject} onChange={(e) => setLeadForm((c) => ({ ...c, subject: e.target.value }))} required placeholder="Subject" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400" />
+                  <textarea value={leadForm.message} onChange={(e) => setLeadForm((c) => ({ ...c, message: e.target.value }))} required placeholder="How can our team help you?" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 min-h-20" />
                   {leadError && <p className="text-xs text-red-600">{leadError}</p>}
                   <button type="submit" disabled={leadStatus === 'submitting'} className="w-full rounded-lg bg-slate-950 text-white py-2 text-sm disabled:opacity-60">
                     {leadStatus === 'submitting' ? 'Submitting...' : 'Submit form'}
@@ -507,10 +508,10 @@ const ChatWidget = ({ brand }) => {
               {showJobForm && (
                 <form onSubmit={submitJobEnquiry} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
                   <p className="text-xs font-semibold text-slate-700">Job enquiry form</p>
-                  <input value={jobForm.name} onChange={(e) => setJobForm((c) => ({ ...c, name: e.target.value }))} required placeholder="Name" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-                  <input type="email" value={jobForm.email} onChange={(e) => setJobForm((c) => ({ ...c, email: e.target.value }))} required placeholder="Email" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-                  <input value={jobForm.role} onChange={(e) => setJobForm((c) => ({ ...c, role: e.target.value }))} required placeholder="Role you're applying for" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-                  <textarea value={jobForm.message} onChange={(e) => setJobForm((c) => ({ ...c, message: e.target.value }))} required placeholder="Tell us about your profile" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm min-h-20" />
+                  <input value={jobForm.name} onChange={(e) => setJobForm((c) => ({ ...c, name: e.target.value }))} required placeholder="Name" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400" />
+                  <input type="email" value={jobForm.email} onChange={(e) => setJobForm((c) => ({ ...c, email: e.target.value }))} required placeholder="Email" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400" />
+                  <input value={jobForm.role} onChange={(e) => setJobForm((c) => ({ ...c, role: e.target.value }))} required placeholder="Role you're applying for" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400" />
+                  <textarea value={jobForm.message} onChange={(e) => setJobForm((c) => ({ ...c, message: e.target.value }))} required placeholder="Tell us about your profile" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 min-h-20" />
                   {leadError && <p className="text-xs text-red-600">{leadError}</p>}
                   <button type="submit" disabled={leadStatus === 'submitting'} className="w-full rounded-lg bg-slate-950 text-white py-2 text-sm disabled:opacity-60">
                     {leadStatus === 'submitting' ? 'Submitting...' : 'Submit form'}
@@ -535,11 +536,17 @@ const ChatWidget = ({ brand }) => {
                       }
                     }}
                     placeholder="Ask about products, services, or anything..."
-                    className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                    className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
                   />
                   <button
                     type="button"
-                    onClick={busy ? stopResponse : ask}
+                    onClick={() => {
+                      if (busy) {
+                        stopResponse();
+                        return;
+                      }
+                      ask();
+                    }}
                     disabled={!busy && !input.trim()}
                     className="h-10 w-10 rounded-xl bg-slate-950 text-white flex items-center justify-center disabled:opacity-50"
                     aria-label={busy ? 'Stop response' : 'Send message'}
