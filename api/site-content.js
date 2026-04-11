@@ -35,6 +35,10 @@ export default async function handler(req, res) {
     const { data, error } = await supabase.from(TABLE_NAME).select('*').eq('slug', SITE_SLUG).maybeSingle();
 
     if (error) {
+      const missingTable = /Could not find the table/i.test(error.message || '');
+      if (missingTable) {
+        return res.status(200).json({ content: defaultContent, source: 'local-fallback-missing-table' });
+      }
       return res.status(500).json({ error: error.message });
     }
 

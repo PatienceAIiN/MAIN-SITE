@@ -8,6 +8,8 @@ const escapeHtml = (value = '') =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
+const isMissingTableError = (errorMessage = '') => /Could not find the table/i.test(String(errorMessage));
+
 const sendBrevoEmail = async ({ apiKey, sender, to, subject, htmlContent, replyTo }) => {
   const payload = {
     sender,
@@ -60,7 +62,7 @@ export default async function handler(req, res) {
         updated_at: new Date().toISOString()
       });
 
-      if (dbError) {
+      if (dbError && !isMissingTableError(dbError.message)) {
         console.error('Supabase insert error:', dbError);
       }
     }
