@@ -5,7 +5,13 @@ import { fileURLToPath } from 'node:url';
 
 const loadLocalEnv = () => {
   if (typeof process.loadEnvFile === 'function') {
-    process.loadEnvFile();
+    try {
+      process.loadEnvFile();
+    } catch (error) {
+      if (error?.code !== 'ENOENT') {
+        throw error;
+      }
+    }
     return;
   }
 
