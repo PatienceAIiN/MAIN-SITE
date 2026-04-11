@@ -1,8 +1,10 @@
 services:
   - type: web
     name: patience-ai
-    env: node
-    plan: free
-    buildCommand: npm install && npm run build
-    startCommand: npm start
-    autoDeploy: true
+    runtime: static
+    buildCommand: npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
