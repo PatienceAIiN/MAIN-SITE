@@ -6,6 +6,7 @@ import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken } from './_secu
 
 const TABLE_NAME = 'site_content';
 const SITE_SLUG = 'site';
+const BROKEN_IMAGE_ID = 'photo-1633511090164-b4bfdef39924';
 const BROKEN_IMAGE_URL = 'https://images.unsplash.com/photo-1633511090164-b4bfdef39924?q=80&w=800&auto=format&fit=crop';
 const FIXED_IMAGE_URL = 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=800&auto=format&fit=crop';
 const BROKEN_THUMB_URL = 'https://images.unsplash.com/photo-1633511090164-b4bfdef39924?q=80&w=400&auto=format&fit=crop';
@@ -29,6 +30,9 @@ const sanitizeContent = (value) => {
 
   if (value === BROKEN_IMAGE_URL) return FIXED_IMAGE_URL;
   if (value === BROKEN_THUMB_URL) return FIXED_THUMB_URL;
+  if (typeof value === 'string' && value.includes(BROKEN_IMAGE_ID)) {
+    return value.includes('w=400') ? FIXED_THUMB_URL : FIXED_IMAGE_URL;
+  }
 
   return value;
 };
