@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getSupabaseAdminClient } from './_supabase.js';
+import { queryDb, isMissingTableError } from './_db.js';
 import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken } from './_security.js';
 
 const TABLE_NAME = 'site_content';
@@ -20,43 +20,28 @@ const requireAdmin = (req) => {
 };
 
 export default async function handler(req, res) {
-  const supabase = getSupabaseAdminClient();
   const defaultContent = readDefaultContent();
 
-  if (!supabase) {
-    if (req.method === 'GET') {
-      return res.status(200).json({ content: defaultContent, source: 'local-fallback' });
-    }
-
-    return res.status(500).json({ error: 'Supabase is not configured' });
-  }
-
   if (req.method === 'GET') {
-    const { data, error } = await supabase.from(TABLE_NAME).select('*').eq('slug', SITE_SLUG).maybeSingle();
+    try {
+      const rows = await queryDb(`SELECT data FROM ${TABLE_NAME} WHERE slug = $1 LIMIT 1`, [SITE_SLUG]);
+      const row = rows[0];
 
-    if (error) {
-      return res.status(500).json({ error: error.message });
-    }
-
-    if (!data) {
-      const { data: inserted, error: insertError } = await supabase
-        .from(TABLE_NAME)
-        .insert({
-          slug: SITE_SLUG,
-          data: defaultContent,
-          updated_at: new Date().toISOString()
-        })
-        .select('*')
-        .single();
-
-      if (insertError) {
-        return res.status(500).json({ error: insertError.message });
+      if (!row) {
+        await queryDb(
+          `INSERT INTO ${TABLE_NAME} (slug, data, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (slug) DO NOTHING`,
+          [SITE_SLUG, JSON.stringify(defaultContent)]
+        );
+        return res.status(200).json({ content: defaultContent, source: 'neondb-seeded-default' });
       }
 
-      return res.status(200).json({ content: inserted.data, source: 'supabase' });
+      return res.status(200).json({ content: row.data, source: 'neondb' });
+    } catch (error) {
+      if (isMissingTableError(error.message)) {
+        return res.status(200).json({ content: defaultContent, source: 'local-fallback-missing-table' });
+      }
+      return res.status(500).json({ error: error.message });
     }
-
-    return res.status(200).json({ content: data.data, source: 'supabase' });
   }
 
   const session = requireAdmin(req);
@@ -70,30 +55,24 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'content object is required' });
     }
 
-    const { data, error } = await supabase
-      .from(TABLE_NAME)
-      .upsert({
-        slug: SITE_SLUG,
-        data: content,
-        updated_at: new Date().toISOString()
-      })
-      .select('*')
-      .single();
-
-    if (error) {
+    try {
+      await queryDb(
+        `INSERT INTO ${TABLE_NAME} (slug, data, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (slug) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+        [SITE_SLUG, JSON.stringify(content)]
+      );
+      return res.status(200).json({ content });
+    } catch (error) {
       return res.status(500).json({ error: error.message });
     }
-
-    return res.status(200).json({ content: data.data });
   }
 
   if (req.method === 'DELETE') {
-    const { error } = await supabase.from(TABLE_NAME).delete().eq('slug', SITE_SLUG);
-    if (error) {
+    try {
+      await queryDb(`DELETE FROM ${TABLE_NAME} WHERE slug = $1`, [SITE_SLUG]);
+      return res.status(200).json({ reset: true, content: defaultContent });
+    } catch (error) {
       return res.status(500).json({ error: error.message });
     }
-
-    return res.status(200).json({ reset: true, content: defaultContent });
   }
 
   return res.status(405).json({ error: 'Method not allowed' });

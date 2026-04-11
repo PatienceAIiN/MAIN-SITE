@@ -1,4 +1,4 @@
-import { getSupabaseAdminClient } from './_supabase.js';
+import { queryDb, isMissingTableError } from './_db.js';
 
 const escapeHtml = (value = '') =>
   String(value)
@@ -7,6 +7,7 @@ const escapeHtml = (value = '') =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+
 
 const sendBrevoEmail = async ({ apiKey, sender, to, subject, htmlContent, replyTo }) => {
   const payload = {
@@ -44,24 +45,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    const supabase = getSupabaseAdminClient();
-
-    if (supabase) {
-      const { error: dbError } = await supabase.from('contact_submissions').insert({
-        name,
-        email,
-        subject,
-        message,
-        company: company || null,
-        product_name: productName || null,
-        source,
-        status: 'new',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      });
-
-      if (dbError) {
-        console.error('Supabase insert error:', dbError);
+    try {
+      await queryDb(
+        `INSERT INTO contact_submissions (name, email, subject, message, company, product_name, source, status, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,'new',NOW(),NOW())`,
+        [name, email, subject, message, company || null, productName || null, source]
+      );
+    } catch (dbError) {
+      if (!isMissingTableError(dbError.message)) {
+        console.error('Neon insert error:', dbError.message);
       }
     }
 
