@@ -423,7 +423,7 @@
       "description": "Connect with the tools Indian and international teams already use while keeping the experience simple for public users.",
       "points": [
         "WhatsApp, email, Slack, Microsoft Teams, and CRM handoffs for regional and global operations.",
-        "Supabase-backed form storage with room for India-specific workflows and enterprise reporting.",
+        "NeonDB-backed form storage with room for India-specific workflows and enterprise reporting.",
         "Route-based navigation and modal actions that keep the public site clean and predictable.",
         "Flexible content delivery for SaaS, services, and AI product campaigns across markets."
       ]

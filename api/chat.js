@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getSupabaseAdminClient } from './_supabase.js';
+import { queryDb, isMissingTableError } from './_db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SITE_TABLE = 'site_content';
@@ -78,24 +78,27 @@ const semanticSearch = (docs, query, limit = 8) => {
 
 const isDeveloperQuestion = (message = '') => /who\s+(developed|built|made)\s+you/i.test(message);
 const isSensitiveQuestion = (message = '') => /(internal|prompt|secret|api key|token|password|credentials|service role)/i.test(message);
-const isMissingTableError = (errorMessage = '') => /Could not find the table/i.test(String(errorMessage));
 
-const readSiteContent = async (supabase) => {
-  if (!supabase) return readDefaultContent();
-
-  const { data, error } = await supabase.from(SITE_TABLE).select('data').eq('slug', SITE_SLUG).maybeSingle();
-  if (error) {
+const readSiteContent = async () => {
+  try {
+    const rows = await queryDb(`SELECT data FROM ${SITE_TABLE} WHERE slug = $1 LIMIT 1`, [SITE_SLUG]);
+    return rows[0]?.data || readDefaultContent();
+  } catch (error) {
     console.error('site_content read error:', error.message);
     return readDefaultContent();
   }
-  return data?.data || readDefaultContent();
 };
 
-const saveMessage = async (supabase, payload) => {
-  if (!supabase) return;
-  const { error } = await supabase.from(CHAT_TABLE).insert({ ...payload, created_at: new Date().toISOString() });
-  if (error && !isMissingTableError(error.message)) {
-    console.error('chatbot_messages insert error:', error.message);
+const saveMessage = async (payload) => {
+  try {
+    await queryDb(
+      `INSERT INTO ${CHAT_TABLE} (session_id, conversation_id, role, message, ip_address, created_at) VALUES ($1,$2,$3,$4,$5,NOW())`,
+      [payload.session_id, payload.conversation_id, payload.role, payload.message, payload.ip_address || null]
+    );
+  } catch (error) {
+    if (!isMissingTableError(error.message)) {
+      console.error('chatbot_messages insert error:', error.message);
+    }
   }
 };
 
@@ -172,7 +175,6 @@ export default async function handler(req, res) {
   if (!groqApiKey) return res.status(500).json({ error: 'Missing GROQ_API_KEY environment variable' });
 
   try {
-    const supabase = getSupabaseAdminClient();
     const ipAddress = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').toString().split(',')[0].trim() || null;
     const safeSessionId = sessionId || `web-${Date.now()}`;
     const safeConversationId = conversationId || safeSessionId;
@@ -180,8 +182,8 @@ export default async function handler(req, res) {
     if (isDeveloperQuestion(message)) {
       const answer = 'I am developed by dev team at PatienceAI.';
       await Promise.all([
-        saveMessage(supabase, { session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'user', message: String(message).slice(0, 4000) }),
-        saveMessage(supabase, { session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'assistant', message: answer })
+        saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'user', message: String(message).slice(0, 4000) }),
+        saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'assistant', message: answer })
       ]);
       return res.status(200).json({ answer, sessionId: safeSessionId, conversationId: safeConversationId });
     }
@@ -189,18 +191,18 @@ export default async function handler(req, res) {
     if (isSensitiveQuestion(message)) {
       const answer = "I can't share internal workings or sensitive data. Please use the contact form for safe support, and I'll help with public site information.";
       await Promise.all([
-        saveMessage(supabase, { session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'user', message: String(message).slice(0, 4000) }),
-        saveMessage(supabase, { session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'assistant', message: answer })
+        saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'user', message: String(message).slice(0, 4000) }),
+        saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'assistant', message: answer })
       ]);
       return res.status(200).json({ answer, sessionId: safeSessionId, conversationId: safeConversationId });
     }
 
-    const siteContent = await readSiteContent(supabase);
+    const siteContent = await readSiteContent();
     const productAnswer = tryProductResponse(message, siteContent, history);
     if (productAnswer) {
       await Promise.all([
-        saveMessage(supabase, { session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'user', message: String(message).slice(0, 4000) }),
-        saveMessage(supabase, { session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'assistant', message: productAnswer.slice(0, 4000) })
+        saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'user', message: String(message).slice(0, 4000) }),
+        saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'assistant', message: productAnswer.slice(0, 4000) })
       ]);
       return res.status(200).json({ answer: productAnswer, sessionId: safeSessionId, conversationId: safeConversationId });
     }
@@ -213,8 +215,8 @@ export default async function handler(req, res) {
     if (!topResults.length || (topResults[0]?.score || 0) < 0.08) {
       const offTopic = `I can only answer questions related to ${siteContent?.brand?.name || 'this'} site content. Please ask about products, platform, case studies, careers, or contact options.`;
       await Promise.all([
-        saveMessage(supabase, { session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'user', message: String(message).slice(0, 4000) }),
-        saveMessage(supabase, { session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'assistant', message: offTopic })
+        saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'user', message: String(message).slice(0, 4000) }),
+        saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'assistant', message: offTopic })
       ]);
       return res.status(200).json({ answer: offTopic, sessionId: safeSessionId, conversationId: safeConversationId });
     }
@@ -262,8 +264,8 @@ export default async function handler(req, res) {
     if (!answer) return res.status(500).json({ error: 'No answer returned by Groq' });
 
     await Promise.all([
-      saveMessage(supabase, { session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'user', message: String(message).slice(0, 4000) }),
-      saveMessage(supabase, { session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'assistant', message: answer.slice(0, 4000) })
+      saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'user', message: String(message).slice(0, 4000) }),
+      saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'assistant', message: answer.slice(0, 4000) })
     ]);
 
     return res.status(200).json({ answer, sessionId: safeSessionId, conversationId: safeConversationId });

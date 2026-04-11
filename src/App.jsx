@@ -72,7 +72,7 @@ function App() {
         const payload = await fetchJson('/api/site-content');
         if (active && payload?.content) {
           setSiteContent(payload.content);
-          setSiteContentSource(payload.source || 'supabase');
+          setSiteContentSource(payload.source || 'neondb');
         }
       } catch {
         if (active) {

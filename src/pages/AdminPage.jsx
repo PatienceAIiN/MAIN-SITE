@@ -444,10 +444,10 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
         <div className="rounded-[2rem] overflow-hidden border border-white/10 bg-[linear-gradient(135deg,#0f172a_0%,#111827_45%,#1f2937_100%)] shadow-2xl">
           <div className="p-6 md:p-8 border-b border-white/10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.35em] text-cyan-300/80 mb-3">Supabase admin</p>
+              <p className="text-xs uppercase tracking-[0.35em] text-cyan-300/80 mb-3">NeonDB admin</p>
               <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">Submission + content console</h1>
               <p className="text-white/65 mt-3 max-w-2xl">
-                Logged in as {username}. Edit the full site JSON, publish it to Supabase, and manage leads from one place.
+                Logged in as {username}. Edit the full site JSON, publish it to NeonDB, and manage leads from one place.
               </p>
               <p className="text-white/45 mt-2 text-sm">Content source: {currentContentSource || 'local'}</p>
             </div>
@@ -523,7 +523,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                   </div>
                   <div className="rounded-2xl bg-slate-900/60 border border-white/10 p-4">
                     <p className="text-white/45 text-sm mb-1">Editing mode</p>
-                    <p className="text-white">Whole-site JSON editing with live publish to Supabase.</p>
+                    <p className="text-white">Whole-site JSON editing with live publish to NeonDB.</p>
                   </div>
                   <div className="rounded-2xl bg-slate-900/60 border border-white/10 p-4">
                     <p className="text-white/45 text-sm mb-1">Temp login</p>

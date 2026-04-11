@@ -1,32 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { FiDownload } from 'react-icons/fi';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import ContentLink from './ContentLink';
 
 const Navbar = ({ brand, navigation, onAction }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [installEvent, setInstallEvent] = useState(null);
   const brandLetters = brand.name.split('');
-
-  useEffect(() => {
-    const onBeforeInstallPrompt = (event) => {
-      event.preventDefault();
-      setInstallEvent(event);
-    };
-
-    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
-  }, []);
-
-  const handleInstall = async () => {
-    if (!installEvent) {
-      return;
-    }
-
-    installEvent.prompt();
-    await installEvent.userChoice.catch(() => null);
-    setInstallEvent(null);
-  };
 
   const handleNavClick = (action) => {
     setMobileOpen(false);
@@ -96,18 +74,6 @@ const Navbar = ({ brand, navigation, onAction }) => {
               />
             ))}
           </nav>
-
-          {installEvent && (
-            <button
-              type="button"
-              onClick={handleInstall}
-              className="text-gray-300 hover:text-white transition-colors"
-              aria-label="Install app"
-              title="Install app"
-            >
-              <FiDownload size={18} />
-            </button>
-          )}
 
           <button
             type="button"

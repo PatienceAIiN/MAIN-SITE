@@ -26,39 +26,36 @@ Add these environment variables to your Vercel project:
    - Example: `hello@patience.ai`
    - Type: Plain
 
-5. **SUPABASE_URL**
-   - Supabase project URL
-   - Type: Plain
-
-6. **SUPABASE_SERVICE_ROLE_KEY**
-   - Supabase service role key for server-side admin operations
+5. **DATABASE_URL**
+   - Neon Postgres connection string
+   - Example: `postgresql://user:password@ep-...neon.tech/neondb?sslmode=require`
    - Type: Secret
 
-7. **ADMIN_SESSION_SECRET**
+6. **ADMIN_SESSION_SECRET**
    - Long random secret used to sign admin sessions
    - Type: Secret
 
-8. **ADMIN_USERNAME**
+7. **ADMIN_USERNAME**
    - Admin panel username (stored only in environment, not database)
    - Example: `patience-admin`
    - Type: Plain
 
-9. **ADMIN_PASSWORD**
+8. **ADMIN_PASSWORD**
    - Admin panel password (stored only in environment, not database)
    - Example: use a long random password
    - Type: Secret
 
-10. **GROQ_API_KEY**
+9. **GROQ_API_KEY**
    - Groq API key for AI chatbot answers
    - Get this from Groq Console
    - Type: Secret
 
-11. **GROQ_MODEL**
+10. **GROQ_MODEL**
    - Optional Groq model id
    - Default: `llama-3.3-70b-versatile`
    - Type: Plain
 
-12. **SITE_URL**
+11. **SITE_URL**
    - Optional site URL used in deployment and emails
    - Example: `https://your-domain.com`
    - Type: Plain
@@ -75,11 +72,12 @@ Add these environment variables to your Vercel project:
    - Give it a name (e.g., "Website Contact Form")
    - Copy the key and add it to Vercel
 
-### 2. Supabase Configuration
+### 2. NeonDB Configuration
 
-1. Create a Supabase project
-2. Run `supabase/schema.sql`
-3. Add the Supabase URL and service role key to Vercel
+1. Create a Neon project
+2. Run `db/schema.sql` (Postgres-compatible schema file)
+3. Add `DATABASE_URL` to Vercel
+4. The API now auto-runs idempotent schema bootstrap (`CREATE TABLE IF NOT EXISTS`) on first DB call per server instance, so tables are created once and skipped on subsequent queries.
 
 ### 3. Vercel Deployment
 
@@ -94,7 +92,7 @@ After deployment, test both contact and chat flows:
 2. Fill out the form with valid data
 3. Submit and check if emails are received
 4. Open the bottom-right chat bubble and ask 2-3 site-related questions
-5. Confirm answers are returned and `chatbot_messages` receives rows in Supabase
+5. Confirm answers are returned and `chatbot_messages` receives rows in NeonDB
 
 ## Local Development
 
@@ -140,7 +138,7 @@ For local development:
 - Loading states
 - Modern UI with Tailwind CSS
 - Database-backed admin content management
-- JSON-seeded site content with Supabase persistence
+- JSON-seeded site content with NeonDB persistence
 
 
 ## NeonDB Migration (Vercel)
@@ -159,12 +157,8 @@ To run the app on NeonDB, set these environment variables in Vercel:
 - `BREVO_SENDER_NAME`
 - `CONTACT_TO_EMAIL`
 
-### What to remove from Vercel when moving from Supabase
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-
 ### Required DB setup in Neon
-Run `supabase/schema.sql` (Postgres compatible) against Neon so these tables exist:
+Run `db/schema.sql` (Postgres compatible) against Neon so these tables exist:
 - `site_content`
 - `contact_submissions`
 - `chatbot_messages`
