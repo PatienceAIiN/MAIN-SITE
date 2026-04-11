@@ -55,10 +55,22 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const isAdminRoute = location.pathname === '/admin';
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === 'undefined') return 'dark';
+    const stored = window.localStorage.getItem('pa_theme');
+    if (stored === 'light' || stored === 'dark') return stored;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
 
   const [activeModal, setActiveModal] = useState(null);
   const [siteContent, setSiteContent] = useState(defaultSiteContent);
   const [siteContentSource, setSiteContentSource] = useState('local');
+
+  useEffect(() => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return;
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    window.localStorage.setItem('pa_theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     let active = true;
@@ -152,11 +164,11 @@ function App() {
   const detailPages = siteContent.detailPages || [];
 
   return (
-    <div className="relative w-full overflow-x-hidden bg-white p-1 md:p-2 lg:p-3">
+    <div className={`relative w-full overflow-x-hidden p-1 md:p-2 lg:p-3 transition-colors duration-500 ${theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-white text-slate-900'}`}>
       <div className="fixed inset-0 pointer-events-none bg-noise opacity-[0.03] z-50 mix-blend-overlay" />
 
-      <div className="max-w-[1920px] mx-auto rounded-[1.5rem] overflow-hidden shadow-2xl relative bg-white">
-        <Navbar brand={siteContent.brand} navigation={siteContent.navigation} onAction={handleAction} />
+      <div className={`max-w-[1920px] mx-auto rounded-[1.5rem] overflow-hidden shadow-2xl relative transition-colors duration-500 ${theme === 'dark' ? 'bg-slate-900' : 'bg-white'}`}>
+        <Navbar brand={siteContent.brand} navigation={siteContent.navigation} onAction={handleAction} theme={theme} onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))} />
 
         <Routes>
           <Route path="/" element={<HomePage content={siteContent} onAction={handleAction} />} />
