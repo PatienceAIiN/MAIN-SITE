@@ -41,7 +41,9 @@ const ChatWidget = ({ brand }) => {
 
 
   useEffect(() => {
-    setShowWave(!isOpen);
+    if (isOpen) {
+      setShowWave(false);
+    }
   }, [isOpen]);
 
   useEffect(() => {
@@ -80,10 +82,7 @@ const ChatWidget = ({ brand }) => {
     panel.scrollTop = panel.scrollHeight;
   }, [messages, busy, showContactForm, showJobForm, liveResponse, isOpen]);
 
-  const initials = useMemo(() => {
-    const name = brand?.name || 'PA';
-    return name.split(' ').map((part) => part.charAt(0)).join('').slice(0, 2).toUpperCase();
-  }, [brand?.name]);
+  const launcherMonogram = 'PA';
 
   const shouldOpenContactForm = (question, currentMessages) => {
     if (!YES_PATTERN.test(question.trim())) return false;
@@ -165,6 +164,46 @@ const ChatWidget = ({ brand }) => {
     } catch {
       setCopiedConversationId(false);
     }
+  };
+
+
+  const playDropletTone = () => {
+    if (typeof window === 'undefined') return;
+
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    const audioContext = new AudioContextClass();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(860, audioContext.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(520, audioContext.currentTime + 0.22);
+
+    gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.13, audioContext.currentTime + 0.02);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.24);
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + 0.24);
+
+    oscillator.onended = () => {
+      audioContext.close().catch(() => {});
+    };
+  };
+
+  const toggleChat = () => {
+    setIsOpen((current) => {
+      const next = !current;
+      if (next) {
+        playDropletTone();
+      }
+      return next;
+    });
   };
 
   const ask = async () => {
@@ -268,11 +307,11 @@ const ChatWidget = ({ brand }) => {
           type="button"
           whileHover={{ scale: 1.04 }}
           whileTap={{ scale: 0.96 }}
-          onClick={() => setIsOpen((current) => !current)}
+          onClick={toggleChat}
           className="h-16 w-16 rounded-full bg-slate-950 text-white shadow-2xl border border-white/10 flex items-center justify-center"
           aria-label="Open AI chat"
         >
-          <div className="h-10 w-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs font-bold">{initials}</div>
+          <div className="h-10 w-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs font-bold"><span className="site-brand text-base leading-none tracking-normal">{launcherMonogram}</span></div>
         </motion.button>
       </div>
 
@@ -287,7 +326,7 @@ const ChatWidget = ({ brand }) => {
           >
             <div className="bg-slate-950 text-white p-4 relative flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="h-10 w-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs font-bold shrink-0">{initials}</div>
+                <div className="h-10 w-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs font-bold shrink-0"><span className="site-brand text-base leading-none tracking-normal">{launcherMonogram}</span></div>
                 <div className="flex items-center gap-2 min-w-0">
                   <p className="font-semibold leading-tight truncate">{brand?.name || 'Company'} Assistant</p>
                   <button
