@@ -141,3 +141,32 @@ For local development:
 - Modern UI with Tailwind CSS
 - Database-backed admin content management
 - JSON-seeded site content with Supabase persistence
+
+
+## NeonDB Migration (Vercel)
+
+To run the app on NeonDB, set these environment variables in Vercel:
+
+- `DATABASE_URL` (Neon pooled connection string)
+- `NEON_BRANCH` (optional, if you use branch-based environments)
+- `ADMIN_USERNAME`
+- `ADMIN_PASSWORD`
+- `ADMIN_SESSION_SECRET`
+- `GROQ_API_KEY`
+- `GROQ_MODEL` (optional)
+- `BREVO_API_KEY`
+- `BREVO_SENDER_EMAIL`
+- `BREVO_SENDER_NAME`
+- `CONTACT_TO_EMAIL`
+
+### What to remove from Vercel when moving from Supabase
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+### Required DB setup in Neon
+Run `supabase/schema.sql` (Postgres compatible) against Neon so these tables exist:
+- `site_content`
+- `contact_submissions`
+- `chatbot_messages`
+
+After schema deploy, re-deploy Vercel so all serverless functions pick up the new NeonDB env values.
