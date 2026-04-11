@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { FiCheck, FiCopy, FiInfo, FiMessageCircle, FiSend, FiX } from 'react-icons/fi';
+import { FiCheck, FiCopy, FiInfo, FiMessageCircle, FiSend, FiTrash2, FiX } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
-import siteContent from '../data/siteContent.json';
 
 const YES_PATTERN = /^(yes|yeah|yep|sure|ok|okay|please|why not|go ahead)$/i;
 const CONTACT_FORM_PATTERN = /\b(show|open|fill|need|want).{0,24}\b(contact|sales)\s+form\b|\bcontact\s+form\b/i;
@@ -29,9 +28,7 @@ const ChatWidget = ({ brand }) => {
   const [copiedConversationId, setCopiedConversationId] = useState(false);
   const [leadForm, setLeadForm] = useState({ name: '', email: '', subject: 'Sales inquiry via AI chat', message: '' });
   const [jobForm, setJobForm] = useState({ name: '', email: '', role: '', message: '' });
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: `Hii ✨ I’m ${brand?.name || 'our'} assistant. I can help with anything on this site in a cute and clear way.` }
-  ]);
+  const [messages, setMessages] = useState([]);
   const [liveResponse, setLiveResponse] = useState('');
   const [isStreamingResponse, setIsStreamingResponse] = useState(false);
   const scrollAreaRef = useRef(null);
@@ -41,15 +38,14 @@ const ChatWidget = ({ brand }) => {
   const sessionId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_session_id', 'session') : 'session-local'), []);
   const hasUserMessaged = useMemo(() => messages.some((message) => message.role === 'user'), [messages]);
   const suggestionPrompts = useMemo(() => {
-    const basePrompts = [
-      `What does ${brand?.name || siteContent?.brand?.name || 'your platform'} help teams do?`,
-      `Show me products on ${siteContent?.navigation?.[0]?.label?.toLowerCase?.() || 'the site'}.`,
-      `How does your platform handle governance and security?`,
-      `Give me quick highlights from your case studies.`,
-      `How can I request a product demo?`,
-      `Do you have career opportunities right now?`
+    const brandName = brand?.name || 'PATIENCE AI';
+    return [
+      `What does ${brandName} help teams do?`,
+      'Show available products.',
+      'How can I request a product demo?',
+      'Share case study highlights.',
+      'Do you have open roles?'
     ];
-    return [...new Set(basePrompts)].slice(0, 5);
   }, [brand]);
 
 
@@ -219,8 +215,19 @@ const ChatWidget = ({ brand }) => {
     });
   };
 
-  const ask = async () => {
-    const question = input.trim();
+  const clearChat = () => {
+    setMessages([]);
+    setInput('');
+    setLiveResponse('');
+    setIsStreamingResponse(false);
+    setBusy(false);
+    setShowContactForm(false);
+    setShowJobForm(false);
+    setLeadError('');
+  };
+
+  const ask = async (presetQuestion = null) => {
+    const question = String(presetQuestion ?? input).trim();
     if (!question || busy) return;
 
     const openForm = shouldOpenContactForm(question, messages);
@@ -229,7 +236,9 @@ const ChatWidget = ({ brand }) => {
     const userMessage = { role: 'user', content: question };
     const nextMessages = [...messages, userMessage];
     setMessages(nextMessages);
-    setInput('');
+    if (!presetQuestion) {
+      setInput('');
+    }
     setLiveResponse('');
     setIsStreamingResponse(false);
 
@@ -302,8 +311,7 @@ const ChatWidget = ({ brand }) => {
   };
 
   const onSuggestionClick = (prompt) => {
-    setInput(prompt);
-    inputRef.current?.focus();
+    ask(prompt);
   };
 
   return (
@@ -357,9 +365,20 @@ const ChatWidget = ({ brand }) => {
                   </button>
                 </div>
               </div>
-              <button type="button" onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white ml-3 shrink-0" aria-label="Close chat">
-                <FiX size={18} />
-              </button>
+              <div className="ml-3 shrink-0 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={clearChat}
+                  className="text-white/80 hover:text-white"
+                  aria-label="Clear chat"
+                  title="Clear chat"
+                >
+                  <FiTrash2 size={16} />
+                </button>
+                <button type="button" onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white" aria-label="Close chat">
+                  <FiX size={18} />
+                </button>
+              </div>
 
               {showInfo && (
                 <div className="absolute top-[calc(100%+8px)] left-3 right-3 z-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 shadow-lg">
@@ -383,27 +402,22 @@ const ChatWidget = ({ brand }) => {
 
             <div ref={scrollAreaRef} className={`h-[360px] overflow-y-auto p-4 space-y-3 bg-slate-50 ${showInfo ? 'pt-16' : ''}`}>
               {!hasUserMessaged && !showContactForm && !showJobForm && (
-                <div className="space-y-2">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500 font-semibold">
-                    Suggested prompts
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {suggestionPrompts.map((prompt, index) => (
-                      <motion.button
-                        key={prompt}
-                        type="button"
-                        onClick={() => onSuggestionClick(prompt)}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.08, duration: 0.35, ease: 'easeOut' }}
-                        whileHover={{ y: -2, scale: 1.01 }}
-                        whileTap={{ scale: 0.98 }}
-                        className="rounded-full border border-cyan-100 bg-gradient-to-r from-white via-sky-50 to-cyan-50 px-3 py-1.5 text-xs text-slate-700 shadow-sm hover:shadow-md"
-                      >
-                        {prompt}
-                      </motion.button>
-                    ))}
-                  </div>
+                <div className="flex flex-wrap gap-2">
+                  {suggestionPrompts.map((prompt, index) => (
+                    <motion.button
+                      key={prompt}
+                      type="button"
+                      onClick={() => onSuggestionClick(prompt)}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.08, duration: 0.35, ease: 'easeOut' }}
+                      whileHover={{ y: -2, scale: 1.01 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="rounded-full border border-cyan-100 bg-gradient-to-r from-white via-sky-50 to-cyan-50 px-3 py-1.5 text-xs text-slate-700 shadow-sm hover:shadow-md"
+                    >
+                      {prompt}
+                    </motion.button>
+                  ))}
                 </div>
               )}
 
