@@ -31,8 +31,10 @@ const ProductsPage = ({ content, onAction }) => {
           aria-hidden="true"
           animate={{ x: [0, 18, 0], y: [0, -12, 0] }}
           transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute right-[-8%] top-[-10%] h-80 w-80 rounded-full bg-indigo-500/20 blur-3xl"
-        />
+          className="absolute right-[-8%] top-[-10%] h-80 w-80"
+        >
+          <div className="h-full w-full rounded-full bg-indigo-500/20 blur-3xl" />
+        </motion.div>
         <div className="relative max-w-7xl mx-auto">
           <p className="text-xs md:text-sm uppercase tracking-[0.35em] text-white/60 mb-5">{content.hero.eyebrow}</p>
           <h1 className="max-w-4xl text-4xl md:text-6xl font-semibold tracking-tight leading-[0.95] mb-5">
