@@ -13,9 +13,22 @@ const GROQ_FALLBACK_NOTE = 'I can only answer questions related to this site con
 const VECTOR_CACHE = new Map();
 let siteContentCache = { expiresAt: 0, value: null };
 
+const DEFAULT_SITE_CONTENT = {
+  brand: { name: 'PatienceAI' },
+  hero: {
+    description:
+      'PatienceAI helps teams deploy practical AI products safely across platform, products, case studies, careers, and contact workflows.'
+  }
+};
+
 const readDefaultContent = () => {
   const filePath = path.resolve(__dirname, '..', 'src', 'data', 'siteContent.json');
-  return JSON.parse(readFileSync(filePath, 'utf8'));
+  try {
+    return JSON.parse(readFileSync(filePath, 'utf8'));
+  } catch (error) {
+    console.error('Unable to read default site content JSON:', error.message);
+    return DEFAULT_SITE_CONTENT;
+  }
 };
 
 const normalize = (value = '') =>
@@ -352,6 +365,15 @@ export default async function handler(req, res) {
     return res.status(200).json({ answer, sessionId: safeSessionId, conversationId: safeConversationId });
   } catch (error) {
     console.error('Chat API error:', error);
-    return res.status(500).json({ error: 'Unable to generate a response right now.' });
+    const fallbackSiteContent = await readSiteContent().catch(() => readDefaultContent());
+    const fallbackAnswer = buildFallbackAnswer(fallbackSiteContent, []);
+    const safeSessionId = req.body?.sessionId || `web-${Date.now()}`;
+    const safeConversationId = req.body?.conversationId || safeSessionId;
+    return res.status(200).json({
+      answer: fallbackAnswer,
+      sessionId: safeSessionId,
+      conversationId: safeConversationId,
+      degraded: true
+    });
   }
 }
