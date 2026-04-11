@@ -9,8 +9,10 @@ const BigStatement = ({ content }) => {
         aria-hidden="true"
         animate={{ x: [0, 16, 0], y: [0, -12, 0] }}
         transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute -left-20 top-16 h-56 w-56 rounded-full bg-sky-100/70 blur-3xl -z-10"
-      />
+        className="absolute -left-20 top-16 h-56 w-56 -z-10"
+      >
+        <div className="h-full w-full rounded-full bg-sky-100/70 blur-3xl" />
+      </motion.div>
 
       <div className="container mx-auto px-6 max-w-5xl text-center">
         <motion.h2

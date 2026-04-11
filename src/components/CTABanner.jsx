@@ -18,13 +18,17 @@ const CTABanner = ({ content, onAction }) => {
             <motion.div
               animate={{ x: [0, 100, 0], y: [0, -50, 0] }}
               transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-              className="absolute -top-[50%] -left-[10%] w-[70%] h-[150%] bg-gradient-to-br from-blue-600/40 to-transparent rounded-full blur-3xl"
-            />
+              className="absolute -top-[50%] -left-[10%] w-[70%] h-[150%]"
+            >
+              <div className="h-full w-full rounded-full bg-gradient-to-br from-blue-600/40 to-transparent blur-3xl" />
+            </motion.div>
             <motion.div
               animate={{ x: [0, -100, 0], y: [0, 50, 0] }}
               transition={{ duration: 15, repeat: Infinity, ease: 'linear' }}
-              className="absolute -bottom-[50%] -right-[10%] w-[70%] h-[150%] bg-gradient-to-tl from-purple-600/40 to-transparent rounded-full blur-3xl"
-            />
+              className="absolute -bottom-[50%] -right-[10%] w-[70%] h-[150%]"
+            >
+              <div className="h-full w-full rounded-full bg-gradient-to-tl from-purple-600/40 to-transparent blur-3xl" />
+            </motion.div>
           </div>
 
           <div className="relative z-10 max-w-3xl mx-auto">

@@ -37,14 +37,18 @@ const Hero = ({ content, onAction }) => {
         aria-hidden="true"
         animate={{ x: [0, 14, 0], y: [0, -10, 0] }}
         transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute left-[-5%] top-[12%] h-72 w-72 rounded-full bg-indigo-500/20 blur-3xl z-[1]"
-      />
+        className="absolute left-[-5%] top-[12%] h-72 w-72 z-[1]"
+      >
+        <div className="h-full w-full rounded-full bg-indigo-500/20 blur-3xl" />
+      </motion.div>
       <motion.div
         aria-hidden="true"
         animate={{ x: [0, -18, 0], y: [0, 12, 0] }}
         transition={{ duration: 26, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute right-[8%] bottom-[16%] h-80 w-80 rounded-full bg-sky-400/10 blur-3xl z-[1]"
-      />
+        className="absolute right-[8%] bottom-[16%] h-80 w-80 z-[1]"
+      >
+        <div className="h-full w-full rounded-full bg-sky-400/10 blur-3xl" />
+      </motion.div>
 
       <div className="relative z-20 flex min-h-[580px] md:min-h-[650px] flex-col justify-center px-6 py-6 md:px-10 md:py-8 lg:px-16 lg:py-9">
         <div className="mx-auto w-full max-w-[1440px]">
