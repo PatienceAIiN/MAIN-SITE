@@ -1,13 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { FiInfo, FiMessageCircle, FiSend, FiX } from 'react-icons/fi';
+import { FiCheck, FiCopy, FiInfo, FiMessageCircle, FiSend, FiX } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 
 const YES_PATTERN = /^(yes|yeah|yep|sure|ok|okay|please|why not|go ahead)$/i;
 const CONTACT_FORM_PATTERN = /\b(show|open|fill|need|want).{0,24}\b(contact|sales)\s+form\b|\bcontact\s+form\b/i;
 const JOB_FORM_PATTERN = /\b(job|career|hiring|apply|application|job\s*enquiry|job\s*inquiry)\b.*\b(form|enquiry|inquiry|apply)\b|\bjob\s*enquiry\b|\bjob\s*inquiry\b/i;
-const WAVE_SEEN_KEY = 'pa_chat_wave_seen';
-
 const getOrCreateId = (storageKey, prefix) => {
   const existing = window.localStorage.getItem(storageKey);
   if (existing) return existing;
@@ -26,7 +24,8 @@ const ChatWidget = ({ brand }) => {
   const [showJobForm, setShowJobForm] = useState(false);
   const [leadStatus, setLeadStatus] = useState('idle');
   const [leadError, setLeadError] = useState('');
-  const [showWave, setShowWave] = useState(false);
+  const [showWave, setShowWave] = useState(true);
+  const [copiedConversationId, setCopiedConversationId] = useState(false);
   const [leadForm, setLeadForm] = useState({ name: '', email: '', subject: 'Sales inquiry via AI chat', message: '' });
   const [jobForm, setJobForm] = useState({ name: '', email: '', role: '', message: '' });
   const [messages, setMessages] = useState([
@@ -40,22 +39,11 @@ const ChatWidget = ({ brand }) => {
   const conversationId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_conversation_id', 'PatienceAI') : 'PatienceAI-local'), []);
   const sessionId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_session_id', 'session') : 'session-local'), []);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const seen = window.localStorage.getItem(WAVE_SEEN_KEY) === 'true';
-    setShowWave(!seen);
-  }, []);
 
   useEffect(() => {
-    if (!isOpen || typeof window === 'undefined') {
-      return;
+    if (isOpen) {
+      setShowWave(false);
     }
-
-    window.localStorage.setItem(WAVE_SEEN_KEY, 'true');
-    setShowWave(false);
   }, [isOpen]);
 
   useEffect(() => {
@@ -94,10 +82,7 @@ const ChatWidget = ({ brand }) => {
     panel.scrollTop = panel.scrollHeight;
   }, [messages, busy, showContactForm, showJobForm, liveResponse, isOpen]);
 
-  const initials = useMemo(() => {
-    const name = brand?.name || 'PA';
-    return name.split(' ').map((part) => part.charAt(0)).join('').slice(0, 2).toUpperCase();
-  }, [brand?.name]);
+  const launcherMonogram = 'PA';
 
   const shouldOpenContactForm = (question, currentMessages) => {
     if (!YES_PATTERN.test(question.trim())) return false;
@@ -167,6 +152,58 @@ const ChatWidget = ({ brand }) => {
       setLeadStatus('idle');
       setLeadError(error.message || 'Unable to submit form right now.');
     }
+  };
+
+  const copyConversationId = async () => {
+    if (typeof navigator === 'undefined' || !navigator.clipboard) return;
+
+    try {
+      await navigator.clipboard.writeText(conversationId);
+      setCopiedConversationId(true);
+      window.setTimeout(() => setCopiedConversationId(false), 1400);
+    } catch {
+      setCopiedConversationId(false);
+    }
+  };
+
+
+  const playDropletTone = () => {
+    if (typeof window === 'undefined') return;
+
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    const audioContext = new AudioContextClass();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(860, audioContext.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(520, audioContext.currentTime + 0.22);
+
+    gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.13, audioContext.currentTime + 0.02);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.24);
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + 0.24);
+
+    oscillator.onended = () => {
+      audioContext.close().catch(() => {});
+    };
+  };
+
+  const toggleChat = () => {
+    setIsOpen((current) => {
+      const next = !current;
+      if (next) {
+        playDropletTone();
+      }
+      return next;
+    });
   };
 
   const ask = async () => {
@@ -257,9 +294,11 @@ const ChatWidget = ({ brand }) => {
         {showWave && !isOpen && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-full bg-white/95 text-slate-800 px-3 py-1.5 text-sm shadow-lg"
+            animate={{ opacity: 1, rotate: [0, -2, 2, -1, 0], y: [0, -2, 0] }}
+            transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+            className="rounded-full border border-cyan-100 bg-gradient-to-r from-cyan-50 via-white to-sky-50 text-slate-800 px-3 py-1.5 text-sm shadow-lg"
           >
+            <span aria-hidden="true" className="mr-1.5 inline-block h-2 w-2 rounded-full bg-cyan-400 shadow-[0_0_0_4px_rgba(34,211,238,0.25)]" />
             Hi 👋
           </motion.div>
         )}
@@ -268,11 +307,11 @@ const ChatWidget = ({ brand }) => {
           type="button"
           whileHover={{ scale: 1.04 }}
           whileTap={{ scale: 0.96 }}
-          onClick={() => setIsOpen((current) => !current)}
+          onClick={toggleChat}
           className="h-16 w-16 rounded-full bg-slate-950 text-white shadow-2xl border border-white/10 flex items-center justify-center"
           aria-label="Open AI chat"
         >
-          <div className="h-10 w-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs font-bold">{initials}</div>
+          <div className="h-10 w-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs font-bold"><span className="site-brand text-base leading-none tracking-normal">{launcherMonogram}</span></div>
         </motion.button>
       </div>
 
@@ -287,7 +326,7 @@ const ChatWidget = ({ brand }) => {
           >
             <div className="bg-slate-950 text-white p-4 relative flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="h-10 w-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs font-bold shrink-0">{initials}</div>
+                <div className="h-10 w-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs font-bold shrink-0"><span className="site-brand text-base leading-none tracking-normal">{launcherMonogram}</span></div>
                 <div className="flex items-center gap-2 min-w-0">
                   <p className="font-semibold leading-tight truncate">{brand?.name || 'Company'} Assistant</p>
                   <button
@@ -306,7 +345,20 @@ const ChatWidget = ({ brand }) => {
 
               {showInfo && (
                 <div className="absolute top-[calc(100%+8px)] left-3 right-3 z-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 shadow-lg">
-                  Conversation ID: <span className="font-semibold break-all">{conversationId}</span>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0">
+                      Conversation ID: <span className="font-semibold break-all">{conversationId}</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={copyConversationId}
+                      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100"
+                      aria-label="Copy conversation ID"
+                      title="Copy conversation ID"
+                    >
+                      {copiedConversationId ? <FiCheck size={13} /> : <FiCopy size={13} />}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
