@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FiInfo, FiMessageCircle, FiSend, FiX } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
@@ -32,6 +32,10 @@ const ChatWidget = ({ brand }) => {
   const [messages, setMessages] = useState([
     { role: 'assistant', content: `Hii ✨ I’m ${brand?.name || 'our'} assistant. I can help with anything on this site in a cute and clear way.` }
   ]);
+  const [liveResponse, setLiveResponse] = useState('');
+  const [isStreamingResponse, setIsStreamingResponse] = useState(false);
+  const scrollAreaRef = useRef(null);
+  const inputRef = useRef(null);
 
   const conversationId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_conversation_id', 'PatienceAI') : 'PatienceAI-local'), []);
   const sessionId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_session_id', 'session') : 'session-local'), []);
@@ -52,6 +56,11 @@ const ChatWidget = ({ brand }) => {
 
     window.localStorage.setItem(WAVE_SEEN_KEY, 'true');
     setShowWave(false);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    inputRef.current?.focus();
   }, [isOpen]);
 
   useEffect(() => {
@@ -78,6 +87,12 @@ const ChatWidget = ({ brand }) => {
       window.removeEventListener('blur', collapse);
     };
   }, []);
+
+  useEffect(() => {
+    const panel = scrollAreaRef.current;
+    if (!panel) return;
+    panel.scrollTop = panel.scrollHeight;
+  }, [messages, busy, showContactForm, showJobForm, liveResponse, isOpen]);
 
   const initials = useMemo(() => {
     const name = brand?.name || 'PA';
@@ -165,6 +180,8 @@ const ChatWidget = ({ brand }) => {
     const nextMessages = [...messages, userMessage];
     setMessages(nextMessages);
     setInput('');
+    setLiveResponse('');
+    setIsStreamingResponse(false);
 
     if (openForm) {
       setShowContactForm(true);
@@ -212,10 +229,23 @@ const ChatWidget = ({ brand }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: question, sessionId, conversationId, history: nextMessages.slice(-16) })
       });
+      const fullAnswer = payload.answer || '';
+      let visibleAnswer = '';
+      setIsStreamingResponse(true);
 
-      setMessages((current) => [...current, { role: 'assistant', content: payload.answer }]);
+      for (let index = 0; index < fullAnswer.length; index += 1) {
+        visibleAnswer += fullAnswer[index];
+        setLiveResponse(visibleAnswer);
+        await new Promise((resolve) => setTimeout(resolve, 8));
+      }
+
+      setMessages((current) => [...current, { role: 'assistant', content: fullAnswer }]);
+      setLiveResponse('');
+      setIsStreamingResponse(false);
     } catch (error) {
       setMessages((current) => [...current, { role: 'assistant', content: `Sorry, I couldn't respond right now. ${error.message}` }]);
+      setLiveResponse('');
+      setIsStreamingResponse(false);
     } finally {
       setBusy(false);
     }
@@ -281,7 +311,7 @@ const ChatWidget = ({ brand }) => {
               )}
             </div>
 
-            <div className={`h-[360px] overflow-y-auto p-4 space-y-3 bg-slate-50 ${showInfo ? 'pt-16' : ''}`}>
+            <div ref={scrollAreaRef} className={`h-[360px] overflow-y-auto p-4 space-y-3 bg-slate-50 ${showInfo ? 'pt-16' : ''}`}>
               {messages.map((item, index) => (
                 <div
                   key={`${item.role}-${index}`}
@@ -290,6 +320,12 @@ const ChatWidget = ({ brand }) => {
                   {item.content}
                 </div>
               ))}
+
+              {isStreamingResponse && (
+                <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words bg-white text-slate-800 border border-slate-200">
+                  {liveResponse || 'Generating response...'}
+                </div>
+              )}
 
               {showContactForm && (
                 <form onSubmit={submitLead} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
@@ -319,11 +355,12 @@ const ChatWidget = ({ brand }) => {
                 </form>
               )}
 
-              {busy && <div className="text-xs text-slate-500">PA is typing...</div>}
+              {busy && <div className="text-xs text-slate-500">{isStreamingResponse ? 'Generating response in real time...' : 'Generating response...'}</div>}
             </div>
 
             <div className="p-3 border-t border-slate-200 bg-white flex items-center gap-2">
               <input
+                ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
