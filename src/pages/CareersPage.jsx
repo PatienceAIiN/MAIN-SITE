@@ -63,23 +63,23 @@ const CareersPage = ({ content, onAction }) => {
 
   return (
     <main className="bg-white">
-      <section className="relative overflow-hidden bg-[#0f172a] text-white px-6 py-16 md:px-10 lg:px-16 lg:py-20">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(129,140,248,0.28),_transparent_40%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.14),_transparent_35%)]" />
+      <section className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900 px-6 py-16 md:px-10 lg:px-16 lg:py-20">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(129,140,248,0.18),_transparent_40%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.1),_transparent_35%)]" />
         <div className="relative max-w-7xl mx-auto grid gap-8 lg:grid-cols-[1.08fr_0.92fr] lg:items-center">
           <div className="max-w-3xl">
-            <p className="text-xs md:text-sm uppercase tracking-[0.35em] text-white/55 mb-5">{content.hero.eyebrow}</p>
+            <p className="text-xs md:text-sm uppercase tracking-[0.35em] text-slate-500 mb-5">{content.hero.eyebrow}</p>
             <h1 className="text-4xl md:text-6xl font-semibold tracking-tight leading-[0.96] mb-6">
               {content.hero.title}
             </h1>
-            <p className="max-w-2xl text-base md:text-lg text-slate-300 leading-relaxed">
+            <p className="max-w-2xl text-base md:text-lg text-slate-600 leading-relaxed">
               {content.hero.description}
             </p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
             {content.highlights.map((item) => (
-              <div key={item} className="rounded-[1.5rem] border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-                <p className="text-sm text-slate-200 leading-relaxed">{item}</p>
+              <div key={item} className="rounded-[1.5rem] border border-slate-200 bg-white p-5 backdrop-blur-sm shadow-sm">
+                <p className="text-sm text-slate-600 leading-relaxed">{item}</p>
               </div>
             ))}
           </div>

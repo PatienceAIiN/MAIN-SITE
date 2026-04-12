@@ -25,22 +25,22 @@ const ProductsPage = ({ content, onAction }) => {
 
   return (
     <main className="bg-white">
-      <section className="relative overflow-hidden bg-[#0f172a] text-white px-6 py-14 md:px-10 lg:px-16 lg:py-16">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.28),_transparent_42%),radial-gradient(circle_at_bottom_right,_rgba(56,189,248,0.16),_transparent_35%)]" />
+      <section className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900 px-6 py-14 md:px-10 lg:px-16 lg:py-16">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.16),_transparent_42%),radial-gradient(circle_at_bottom_right,_rgba(56,189,248,0.12),_transparent_35%)]" />
         <motion.div
           aria-hidden="true"
           animate={{ x: [0, 18, 0], y: [0, -12, 0] }}
           transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
           className="absolute right-[-8%] top-[-10%] h-80 w-80"
         >
-          <div className="h-full w-full rounded-full bg-indigo-500/20 blur-3xl" />
+          <div className="h-full w-full rounded-full bg-indigo-200/45 blur-3xl" />
         </motion.div>
         <div className="relative max-w-7xl mx-auto">
-          <p className="text-xs md:text-sm uppercase tracking-[0.35em] text-white/60 mb-5">{content.hero.eyebrow}</p>
+          <p className="text-xs md:text-sm uppercase tracking-[0.35em] text-slate-500 mb-5">{content.hero.eyebrow}</p>
           <h1 className="max-w-4xl text-4xl md:text-6xl font-semibold tracking-tight leading-[0.95] mb-5">
             {content.hero.title}
           </h1>
-          <p className="max-w-3xl text-base md:text-lg text-slate-300 leading-relaxed mb-8">
+          <p className="max-w-3xl text-base md:text-lg text-slate-600 leading-relaxed mb-8">
             {content.hero.description}
           </p>
           {content.hero.buttons?.length ? (
@@ -109,7 +109,7 @@ const ProductsPage = ({ content, onAction }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[125] bg-slate-950/70 backdrop-blur-sm px-4 py-6 md:px-8 overflow-y-auto"
+            className="fixed inset-0 z-[125] bg-slate-950/25 backdrop-blur-sm px-4 py-6 md:px-8 overflow-y-auto"
             onClick={closeModal}
           >
             <motion.div

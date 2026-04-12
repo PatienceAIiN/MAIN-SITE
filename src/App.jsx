@@ -81,7 +81,7 @@ function App() {
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    document.documentElement.classList.add('dark');
+    document.documentElement.classList.remove('dark');
   }, []);
 
   useEffect(() => {
@@ -153,7 +153,7 @@ function App() {
 
   if (isAdminRoute) {
     return (
-      <div className="min-h-screen bg-slate-950">
+      <div className="admin-light min-h-screen bg-slate-50">
         <Routes>
           <Route
             path="/admin"
@@ -176,10 +176,10 @@ function App() {
   const detailPages = siteContent.detailPages || [];
 
   return (
-    <div className="relative w-full overflow-x-hidden p-1 text-slate-100 md:p-2 lg:p-3 transition-colors duration-500 bg-slate-950">
-      <div className="fixed inset-0 pointer-events-none bg-noise opacity-[0.03] z-50 mix-blend-overlay" />
+    <div className="relative w-full overflow-x-hidden p-1 text-slate-900 md:p-2 lg:p-3 transition-colors duration-500 bg-slate-50">
+      <div className="fixed inset-0 pointer-events-none bg-noise opacity-[0.02] z-50 mix-blend-overlay" />
 
-      <div className="max-w-[1920px] mx-auto rounded-[1.5rem] overflow-hidden shadow-2xl relative transition-colors duration-500 bg-slate-900">
+      <div className="max-w-[1920px] mx-auto rounded-[1.5rem] overflow-hidden shadow-2xl relative transition-colors duration-500 bg-white border border-slate-200">
         <Navbar
           brand={siteContent.brand}
           navigation={siteContent.navigation}

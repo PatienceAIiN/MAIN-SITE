@@ -114,7 +114,7 @@ const ProductDemoModal = ({ content, isOpen, product, onClose, onBack }) => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[150] bg-slate-950/65 backdrop-blur-sm px-4 md:px-8 overflow-y-auto"
+          className="fixed inset-0 z-[150] bg-slate-950/25 backdrop-blur-sm px-4 md:px-8 overflow-y-auto"
           style={{ paddingTop: 'clamp(0.9rem, 4vh, 2.5rem)', paddingBottom: 'clamp(0.9rem, 4vh, 2.5rem)' }}
           onClick={onClose}
         >
@@ -124,7 +124,7 @@ const ProductDemoModal = ({ content, isOpen, product, onClose, onBack }) => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.985 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="relative w-full max-w-3xl rounded-[2rem] bg-white shadow-2xl overflow-y-auto max-h-[calc(100dvh-2rem)] md:max-h-[calc(100dvh-3rem)]"
+              className="relative w-full max-w-3xl rounded-[2rem] bg-white shadow-2xl overflow-y-auto max-h-[calc(100dvh-2rem)] md:max-h-[calc(100dvh-3rem)] border border-slate-200"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.18),_transparent_55%),radial-gradient(circle_at_top_right,_rgba(236,72,153,0.12),_transparent_50%)] pointer-events-none" />
@@ -152,7 +152,7 @@ const ProductDemoModal = ({ content, isOpen, product, onClose, onBack }) => {
                     type="button"
                     onClick={onClose}
                     aria-label={content.closeLabel}
-                    className="shrink-0 w-11 h-11 rounded-full border border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors flex items-center justify-center"
+                    className="shrink-0 w-11 h-11 rounded-full border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors flex items-center justify-center"
                   >
                     <SafeIcon icon={iconRegistry.FiX} className="w-5 h-5" />
                   </button>

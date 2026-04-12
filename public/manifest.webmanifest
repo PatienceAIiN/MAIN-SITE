@@ -4,8 +4,8 @@
   "description": "Product-first AI platforms for governance, measurable impact, and enterprise delivery.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#111827",
+  "background_color": "#f8fafc",
+  "theme_color": "#f8fafc",
   "icons": [
     {
       "src": "/favicon.svg",

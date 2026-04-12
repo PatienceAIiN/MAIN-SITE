@@ -20,16 +20,16 @@ const BlogPostPage = ({ content, onAction }) => {
 
   return (
     <main className="bg-white">
-      <section className="relative overflow-hidden bg-[#0f172a] text-white px-6 py-16 md:px-10 lg:px-16 lg:py-20">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(129,140,248,0.28),_transparent_40%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.14),_transparent_35%)]" />
+      <section className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900 px-6 py-16 md:px-10 lg:px-16 lg:py-20">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(129,140,248,0.18),_transparent_40%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.1),_transparent_35%)]" />
         <div className="relative max-w-5xl mx-auto">
-          <p className="text-xs md:text-sm uppercase tracking-[0.35em] text-white/55 mb-5">{post.header}</p>
+          <p className="text-xs md:text-sm uppercase tracking-[0.35em] text-slate-500 mb-5">{post.header}</p>
           <h1 className="max-w-4xl text-4xl md:text-6xl font-semibold tracking-tight leading-[0.96] mb-6">
             {post.title}
           </h1>
-          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-300">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
             <span>by {post.by}</span>
-            <span className="text-white/30">•</span>
+            <span className="text-slate-300">•</span>
             <span>{formatDateTime(post.publishedAt)}</span>
           </div>
         </div>

@@ -17,14 +17,14 @@ const BlogPage = ({ content, onAction }) => {
 
   return (
     <main className="bg-white">
-      <section className="relative overflow-hidden bg-[#0f172a] text-white px-6 py-16 md:px-10 lg:px-16 lg:py-20">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(129,140,248,0.28),_transparent_40%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.14),_transparent_35%)]" />
+      <section className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900 px-6 py-16 md:px-10 lg:px-16 lg:py-20">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(129,140,248,0.18),_transparent_40%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.1),_transparent_35%)]" />
         <div className="relative max-w-6xl mx-auto">
-          <p className="text-xs md:text-sm uppercase tracking-[0.35em] text-white/55 mb-5">{content?.hero?.eyebrow}</p>
+          <p className="text-xs md:text-sm uppercase tracking-[0.35em] text-slate-500 mb-5">{content?.hero?.eyebrow}</p>
           <h1 className="max-w-4xl text-4xl md:text-6xl font-semibold tracking-tight leading-[0.96] mb-5">
             {content?.hero?.title}
           </h1>
-          <p className="max-w-3xl text-base md:text-lg text-slate-300 leading-relaxed">
+          <p className="max-w-3xl text-base md:text-lg text-slate-600 leading-relaxed">
             {content?.hero?.description}
           </p>
         </div>
@@ -79,11 +79,11 @@ const BlogPage = ({ content, onAction }) => {
                       </Button>
                     </div>
 
-                    <div className="bg-[#0f172a] text-white p-7 md:p-10 flex items-end min-h-[220px] lg:min-h-full">
-                      <div className="w-full rounded-[1.75rem] border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
-                        <p className="text-xs uppercase tracking-[0.3em] text-white/45 mb-3">Author</p>
+                    <div className="bg-slate-50 text-slate-900 p-7 md:p-10 flex items-end min-h-[220px] lg:min-h-full">
+                      <div className="w-full rounded-[1.75rem] border border-slate-200 bg-white p-6 backdrop-blur-sm shadow-sm">
+                        <p className="text-xs uppercase tracking-[0.3em] text-slate-400 mb-3">Author</p>
                         <p className="text-2xl font-semibold mb-5">{post.by}</p>
-                        <div className="space-y-3 text-white/65 text-sm leading-relaxed">
+                        <div className="space-y-3 text-slate-600 text-sm leading-relaxed">
                           {(post.content || []).slice(0, 2).map((paragraph) => (
                             <p key={paragraph}>{paragraph}</p>
                           ))}

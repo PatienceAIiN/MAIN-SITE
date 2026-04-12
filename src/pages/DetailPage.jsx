@@ -10,14 +10,14 @@ const DetailPage = ({ pageContent, onAction }) => {
 
   return (
     <main className="bg-white">
-      <section className="relative overflow-hidden bg-[#0f172a] text-white px-6 py-20 md:px-10 lg:px-16 lg:py-24">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(129,140,248,0.32),_transparent_40%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.16),_transparent_35%)]" />
+      <section className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900 px-6 py-20 md:px-10 lg:px-16 lg:py-24">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(129,140,248,0.18),_transparent_40%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.1),_transparent_35%)]" />
         <div className="relative max-w-5xl mx-auto">
-          <p className="text-sm uppercase tracking-[0.35em] text-white/55 mb-6">{pageContent.groupTitle}</p>
+          <p className="text-sm uppercase tracking-[0.35em] text-slate-500 mb-6">{pageContent.groupTitle}</p>
           <h1 className="text-4xl md:text-6xl font-semibold tracking-tight leading-[0.95] mb-6">
             {pageContent.title}
           </h1>
-          <p className="max-w-3xl text-lg text-slate-300 leading-relaxed mb-10">{pageContent.description}</p>
+          <p className="max-w-3xl text-lg text-slate-600 leading-relaxed mb-10">{pageContent.description}</p>
           <div className="flex flex-col sm:flex-row gap-4">
             {pageContent.cta && (
               <Button

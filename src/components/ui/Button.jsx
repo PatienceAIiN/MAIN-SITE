@@ -8,8 +8,8 @@ const Button = ({ children, variant = 'primary', className = '', ...props }) => 
     primary: "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:-translate-y-0.5 focus:ring-indigo-500",
     secondary: "bg-white text-slate-900 shadow-sm border border-slate-200 hover:border-slate-300 hover:bg-slate-50 focus:ring-slate-500",
     ghost: "text-slate-600 hover:text-slate-900 hover:bg-slate-100 focus:ring-slate-500",
-    white: "bg-white text-indigo-600 shadow-lg hover:shadow-xl hover:-translate-y-0.5 focus:ring-white",
-    whiteOutline: "border border-white/35 bg-white/10 text-white shadow-lg shadow-black/10 hover:bg-white/18 hover:-translate-y-0.5 focus:ring-white backdrop-blur-sm",
+    white: "bg-white text-slate-900 shadow-lg border border-slate-200 hover:shadow-xl hover:border-slate-300 hover:-translate-y-0.5 focus:ring-slate-500",
+    whiteOutline: "border border-slate-300 bg-white/80 text-slate-900 shadow-lg shadow-black/5 hover:bg-white hover:border-slate-400 hover:-translate-y-0.5 focus:ring-slate-500 backdrop-blur-sm",
     coral: "bg-[#EF6A6A] text-white hover:bg-[#e05a5a] shadow-lg shadow-[#EF6A6A]/20 hover:shadow-[#EF6A6A]/40 hover:-translate-y-0.5 focus:ring-[#EF6A6A]",
     purple: "bg-[#6D72D6] text-white hover:bg-[#5c61bf] shadow-lg shadow-[#6D72D6]/20 hover:shadow-[#6D72D6]/40 hover:-translate-y-0.5 focus:ring-[#6D72D6]"
   };

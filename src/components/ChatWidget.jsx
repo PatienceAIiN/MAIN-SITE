@@ -470,14 +470,14 @@ const ChatWidget = ({ brand }) => {
           whileHover={{ scale: 1.04 }}
           whileTap={{ scale: 0.96 }}
           onClick={toggleChat}
-          className="h-16 w-16 rounded-full bg-slate-950 text-white shadow-2xl border border-white/10 flex items-center justify-center cursor-grab active:cursor-grabbing"
+          className="h-16 w-16 rounded-full bg-white text-slate-900 shadow-2xl border border-slate-200 flex items-center justify-center cursor-grab active:cursor-grabbing"
           onPointerDown={onLauncherPointerDown}
           onPointerMove={onLauncherPointerMove}
           onPointerUp={onLauncherPointerUp}
           onPointerCancel={onLauncherPointerUp}
           aria-label="Open AI chat"
         >
-          <div className="h-10 w-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs font-bold"><span className="site-brand text-base leading-none tracking-normal">{launcherMonogram}</span></div>
+          <div className="h-10 w-10 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-xs font-bold"><span className="site-brand site-brand--dark text-base leading-none tracking-normal">{launcherMonogram}</span></div>
         </motion.button>
       </div>
 
@@ -490,15 +490,15 @@ const ChatWidget = ({ brand }) => {
             transition={{ type: 'spring', stiffness: 260, damping: 24, mass: 0.7 }}
             className="fixed bottom-24 right-4 sm:right-6 left-4 sm:left-auto z-[120] w-auto sm:w-[min(92vw,380px)] max-w-[380px] max-h-[calc(100vh-7.5rem)] rounded-3xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
           >
-            <div className="bg-slate-950 text-white p-4 relative flex items-center justify-between">
+            <div className="bg-slate-50 text-slate-900 p-4 relative flex items-center justify-between border-b border-slate-200">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="h-10 w-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs font-bold shrink-0"><span className="site-brand text-base leading-none tracking-normal">{launcherMonogram}</span></div>
+                <div className="h-10 w-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-xs font-bold shrink-0"><span className="site-brand site-brand--dark text-base leading-none tracking-normal">{launcherMonogram}</span></div>
                 <div className="flex items-center gap-2 min-w-0">
                   <p className="font-semibold leading-tight truncate">{brand?.name || 'Company'} Assistant</p>
                   <button
                     type="button"
                     onClick={() => setShowInfo((current) => !current)}
-                    className="text-white/80 hover:text-white shrink-0"
+                    className="text-slate-500 hover:text-slate-900 shrink-0"
                     aria-label="Conversation info"
                   >
                     <FiInfo size={15} />
@@ -509,13 +509,13 @@ const ChatWidget = ({ brand }) => {
                 <button
                   type="button"
                   onClick={clearChat}
-                  className="text-white/80 hover:text-white"
+                  className="text-slate-500 hover:text-slate-900"
                   aria-label="Clear chat"
                   title="Clear chat"
                 >
                   <FiTrash2 size={16} />
                 </button>
-                <button type="button" onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white" aria-label="Close chat">
+                <button type="button" onClick={() => setIsOpen(false)} className="text-slate-500 hover:text-slate-900" aria-label="Close chat">
                   <FiX size={18} />
                 </button>
               </div>
@@ -564,7 +564,7 @@ const ChatWidget = ({ brand }) => {
               {messages.map((item, index) => (
                 <div
                   key={`${item.role}-${index}`}
-                  className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words ${item.role === 'user' ? 'ml-auto bg-slate-950 text-white' : 'bg-white text-slate-800 border border-slate-200'}`}
+                  className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words ${item.role === 'user' ? 'ml-auto bg-slate-900 text-white' : 'bg-white text-slate-800 border border-slate-200'}`}
                 >
                   {normalizeMessageContent(item.content)}
                 </div>
@@ -584,7 +584,7 @@ const ChatWidget = ({ brand }) => {
                   <input value={leadForm.subject} onChange={(e) => setLeadForm((c) => ({ ...c, subject: e.target.value }))} required placeholder="Subject" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
                   <textarea value={leadForm.message} onChange={(e) => setLeadForm((c) => ({ ...c, message: e.target.value }))} required placeholder="How can our team help you?" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500 min-h-20" />
                   {leadError && <p className="text-xs text-red-600">{leadError}</p>}
-                  <button type="submit" disabled={leadStatus === 'submitting'} className="w-full rounded-lg bg-slate-950 text-white py-2 text-sm disabled:opacity-60">
+                  <button type="submit" disabled={leadStatus === 'submitting'} className="w-full rounded-lg bg-slate-900 text-white py-2 text-sm disabled:opacity-60">
                     {leadStatus === 'submitting' ? 'Submitting...' : 'Submit form'}
                   </button>
                 </form>
@@ -598,7 +598,7 @@ const ChatWidget = ({ brand }) => {
                   <input value={jobForm.role} onChange={(e) => setJobForm((c) => ({ ...c, role: e.target.value }))} required placeholder="Role you're applying for" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
                   <textarea value={jobForm.message} onChange={(e) => setJobForm((c) => ({ ...c, message: e.target.value }))} required placeholder="Tell us about your profile" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500 min-h-20" />
                   {leadError && <p className="text-xs text-red-600">{leadError}</p>}
-                  <button type="submit" disabled={leadStatus === 'submitting'} className="w-full rounded-lg bg-slate-950 text-white py-2 text-sm disabled:opacity-60">
+                  <button type="submit" disabled={leadStatus === 'submitting'} className="w-full rounded-lg bg-slate-900 text-white py-2 text-sm disabled:opacity-60">
                     {leadStatus === 'submitting' ? 'Submitting...' : 'Submit form'}
                   </button>
                 </form>
@@ -633,7 +633,7 @@ const ChatWidget = ({ brand }) => {
                       ask();
                     }}
                     disabled={!busy && !input.trim()}
-                    className="h-10 w-10 rounded-xl bg-slate-950 text-white flex items-center justify-center disabled:opacity-50"
+                    className="h-10 w-10 rounded-xl bg-slate-900 text-white flex items-center justify-center disabled:opacity-50"
                     aria-label={busy ? 'Stop response' : 'Send message'}
                   >
                     {busy ? <FiSquare size={14} /> : <FiSend size={16} />}

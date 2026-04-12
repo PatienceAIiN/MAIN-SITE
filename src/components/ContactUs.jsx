@@ -76,7 +76,7 @@ const ContactUs = ({ content, isOpen, onClose, onBack }) => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[145] bg-slate-950/65 backdrop-blur-sm px-4 md:px-8 overflow-y-auto"
+          className="fixed inset-0 z-[145] bg-slate-950/25 backdrop-blur-sm px-4 md:px-8 overflow-y-auto"
           style={{ paddingTop: 'clamp(0.9rem, 4vh, 2.5rem)', paddingBottom: 'clamp(0.9rem, 4vh, 2.5rem)' }}
           onClick={onClose}
         >
@@ -86,19 +86,19 @@ const ContactUs = ({ content, isOpen, onClose, onBack }) => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.985 }}
               transition={{ duration: 0.24, ease: 'easeOut' }}
-              className="relative w-full max-w-6xl mx-auto rounded-[2.25rem] bg-white shadow-2xl overflow-y-auto max-h-[calc(100dvh-2rem)] md:max-h-[calc(100dvh-3rem)] border border-white/70"
+              className="relative w-full max-w-6xl mx-auto rounded-[2.25rem] bg-white shadow-2xl overflow-y-auto max-h-[calc(100dvh-2rem)] md:max-h-[calc(100dvh-3rem)] border border-slate-200"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.14),_transparent_42%),radial-gradient(circle_at_bottom_right,_rgba(20,184,166,0.12),_transparent_40%)]" />
               <div className="relative grid lg:grid-cols-[0.92fr_1.08fr]">
-                <div className="bg-[#0f172a] text-white px-6 py-8 md:px-8 md:py-10 lg:px-10 lg:py-12">
+                <div className="bg-gradient-to-br from-slate-50 via-white to-indigo-50 text-slate-900 px-6 py-8 md:px-8 md:py-10 lg:px-10 lg:py-12 border-r border-slate-200">
                 <div className="flex items-start justify-between gap-4 mb-10">
                   <div className="max-w-md">
-                    <p className="text-xs uppercase tracking-[0.35em] text-white/55 mb-4">Sales</p>
+                    <p className="text-xs uppercase tracking-[0.35em] text-slate-500 mb-4">Sales</p>
                     <h2 className="text-3xl md:text-4xl font-semibold tracking-tight leading-[0.96] mb-4">
                       {content.title}
                     </h2>
-                    <p className="text-slate-300 text-base md:text-lg leading-relaxed">
+                    <p className="text-slate-600 text-base md:text-lg leading-relaxed">
                       {content.description}
                     </p>
                   </div>
@@ -111,7 +111,7 @@ const ContactUs = ({ content, isOpen, onClose, onBack }) => {
                         whileHover={{ x: -2 }}
                         whileTap={{ scale: 0.96 }}
                         aria-label="Back"
-                        className="w-11 h-11 rounded-full border border-white/10 bg-white/5 text-white/80 hover:text-white hover:border-white/20 transition-colors flex items-center justify-center"
+                        className="w-11 h-11 rounded-full border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors flex items-center justify-center"
                       >
                         <SafeIcon icon={iconRegistry.FiArrowLeft} className="w-5 h-5" />
                       </motion.button>
@@ -120,7 +120,7 @@ const ContactUs = ({ content, isOpen, onClose, onBack }) => {
                       type="button"
                       onClick={onClose}
                       aria-label={content.closeLabel}
-                      className="shrink-0 w-11 h-11 rounded-full border border-white/10 bg-white/5 text-white/80 hover:text-white hover:border-white/20 transition-colors flex items-center justify-center"
+                      className="shrink-0 w-11 h-11 rounded-full border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors flex items-center justify-center"
                     >
                       <SafeIcon icon={iconRegistry.FiX} className="w-5 h-5" />
                     </button>
@@ -129,8 +129,8 @@ const ContactUs = ({ content, isOpen, onClose, onBack }) => {
 
                 <div className="grid gap-4">
                   {(content.highlights || []).map((item) => (
-                    <div key={item} className="rounded-[1.5rem] border border-white/10 bg-white/5 px-5 py-4 backdrop-blur-sm">
-                      <p className="text-sm text-slate-200 leading-relaxed">{item}</p>
+                    <div key={item} className="rounded-[1.5rem] border border-slate-200 bg-white px-5 py-4 backdrop-blur-sm shadow-sm">
+                      <p className="text-sm text-slate-600 leading-relaxed">{item}</p>
                     </div>
                   ))}
                 </div>

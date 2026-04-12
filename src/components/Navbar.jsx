@@ -41,7 +41,7 @@ const Navbar = ({ brand, navigation, onAction, currentPath }) => {
   }, [currentPath]);
 
   return (
-    <header ref={headerRef} className="py-2.5 px-4 md:px-7 border-b relative z-50 transition-colors duration-500 bg-[#1A1A1A] text-white border-white/5">
+    <header ref={headerRef} className="py-2.5 px-4 md:px-7 border-b relative z-50 transition-colors duration-500 bg-white text-slate-900 border-slate-200">
       <div className="flex items-center justify-between">
         <button
           type="button"
@@ -64,7 +64,7 @@ const Navbar = ({ brand, navigation, onAction, currentPath }) => {
                 }
               }
             }}
-            className="site-brand site-brand--light flex items-center"
+            className="site-brand site-brand--dark flex items-center"
           >
             {brandLetters.map((letter, index) => (
               <motion.span
@@ -97,8 +97,8 @@ const Navbar = ({ brand, navigation, onAction, currentPath }) => {
                 item={item}
                 onAction={onAction}
                 className="text-[13px] font-medium tracking-wider px-3.5 py-2 rounded-lg transition-colors flex items-center gap-2"
-                activeClassName="bg-white/10 text-white"
-                inactiveClassName="text-slate-200 hover:text-white hover:bg-white/10"
+                activeClassName="bg-slate-100 text-slate-900"
+                inactiveClassName="text-slate-600 hover:text-slate-900 hover:bg-slate-100"
               />
             ))}
           </nav>
@@ -106,7 +106,7 @@ const Navbar = ({ brand, navigation, onAction, currentPath }) => {
           <button
             type="button"
             onClick={() => setMobileOpen((current) => !current)}
-            className="md:hidden text-slate-200 hover:text-white"
+            className="md:hidden text-slate-600 hover:text-slate-900"
             aria-label="Toggle navigation menu"
             aria-expanded={mobileOpen}
           >
@@ -116,13 +116,13 @@ const Navbar = ({ brand, navigation, onAction, currentPath }) => {
       </div>
 
       {mobileOpen && (
-        <nav className="md:hidden mt-3 border-t pt-3 pb-2 flex flex-col gap-1 border-white/10">
+        <nav className="md:hidden mt-3 border-t pt-3 pb-2 flex flex-col gap-1 border-slate-200">
           {navigation.map((item) => (
             <button
               key={`mobile-${item.label}`}
               type="button"
               onClick={() => handleNavClick(item.action)}
-              className="w-full text-left text-sm tracking-wide rounded-lg px-3 py-2 text-slate-100 hover:text-white hover:bg-white/10"
+              className="w-full text-left text-sm tracking-wide rounded-lg px-3 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
             >
               {item.label}
             </button>
