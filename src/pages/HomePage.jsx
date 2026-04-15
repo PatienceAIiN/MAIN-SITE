@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Hero from '../components/Hero';
 
 const HomePage = ({ content, onAction }) => {
   const featureCards = content.features?.cards || [];
   const platformCards = content.platformPage?.cards || [];
   const blogPosts = content.blogPage?.posts || [];
+  const [activeServiceTab, setActiveServiceTab] = useState(0);
 
   return (
     <main className="bg-white">
@@ -65,12 +66,16 @@ const HomePage = ({ content, onAction }) => {
       <section className="bg-white px-6 py-24 md:py-32">
         <div className="mx-auto flex max-w-7xl flex-col gap-8 lg:flex-row">
           <div className="flex gap-4 overflow-x-auto pb-4 lg:w-1/4 lg:flex-col lg:overflow-visible">
-            {platformCards.map((card) => (
+            {platformCards.map((card, index) => (
               <button
                 key={card.title}
                 type="button"
-                onClick={() => onAction({ type: 'route', to: '/platform' })}
-                className="min-w-max rounded-[12px] border border-transparent bg-[#f4f4f4] px-6 py-5 text-left text-sm font-medium text-[#666666] transition-all duration-300 hover:border-[#d1d1d1] hover:bg-[#e6e6e6] hover:text-[#1a1a1a] lg:w-full"
+                onClick={() => setActiveServiceTab(index)}
+                className={`min-w-max rounded-[12px] border px-6 py-5 text-left text-sm font-medium transition-all duration-300 lg:w-full ${
+                  activeServiceTab === index
+                    ? 'border-[#d1d1d1] bg-white text-[#1a1a1a] shadow-sm'
+                    : 'border-transparent bg-[#f4f4f4] text-[#666666] hover:border-[#d1d1d1] hover:bg-[#e6e6e6] hover:text-[#1a1a1a]'
+                }`}
               >
                 {card.title}
               </button>
@@ -96,7 +101,7 @@ const HomePage = ({ content, onAction }) => {
                 </p>
 
                 <div className="mb-12 flex flex-wrap gap-2.5">
-                  {platformCards.flatMap((card) => card.points).slice(0, 9).map((point) => (
+                  {platformCards.flatMap((card) => card.points).map((point) => (
                     <span
                       key={point.title}
                       className="rounded-full border border-[#d1d1d1] bg-white px-4 py-2 text-[13px] font-medium text-[#1a1a1a]"
