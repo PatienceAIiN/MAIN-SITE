@@ -82,7 +82,10 @@ export default async function handler(req, res) {
     }
 
     try {
-      const sanitizedContent = sanitizeContent(content);
+      const sanitizedContent = sanitizeContent({
+        ...content,
+        _schemaVersion: defaultContent._schemaVersion ?? 1
+      });
       await queryDb(
         `INSERT INTO ${TABLE_NAME} (slug, data, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (slug) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
         [SITE_SLUG, JSON.stringify(sanitizedContent)]
