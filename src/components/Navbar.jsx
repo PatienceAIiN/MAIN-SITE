@@ -1,134 +1,123 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useState } from 'react';
 import ContentLink from './ContentLink';
 
 const Navbar = ({ brand, navigation, onAction, currentPath }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const headerRef = useRef(null);
-  const brandLetters = brand.name.split('');
-
-  const handleNavClick = (action) => {
-    setMobileOpen(false);
-    onAction(action);
-  };
-
-  useEffect(() => {
-    if (!mobileOpen) return undefined;
-
-    const handleOutsidePointer = (event) => {
-      if (!headerRef.current?.contains(event.target)) {
-        setMobileOpen(false);
-      }
-    };
-
-    const handleResize = () => {
-      if (window.innerWidth >= 768) {
-        setMobileOpen(false);
-      }
-    };
-
-    document.addEventListener('pointerdown', handleOutsidePointer);
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      document.removeEventListener('pointerdown', handleOutsidePointer);
-      window.removeEventListener('resize', handleResize);
-    };
-  }, [mobileOpen]);
 
   useEffect(() => {
     setMobileOpen(false);
   }, [currentPath]);
 
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+
+    if (mobileOpen) {
+      document.body.style.overflow = 'hidden';
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileOpen]);
+
   return (
-    <header ref={headerRef} className="py-2.5 px-4 md:px-7 border-b relative z-50 transition-colors duration-500 bg-white text-slate-900 border-slate-200">
-      <div className="flex items-center justify-between">
+    <header
+      className={`fixed inset-x-0 top-0 z-[120] transition-all duration-300 ${
+        mobileOpen ? 'bg-white' : 'bg-white/90 backdrop-blur-md'
+      }`}
+    >
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
         <button
           type="button"
           onClick={() => {
             setMobileOpen(false);
             onAction(brand.homeAction);
           }}
-          className="flex items-center shrink-0"
+          className="font-serif text-[1.85rem] tracking-tight text-[#1a1a1a] transition-opacity hover:opacity-80"
           aria-label={brand.name}
         >
-          <motion.span
-            initial="hidden"
-            animate="show"
-            variants={{
-              hidden: {},
-              show: {
-                transition: {
-                  staggerChildren: 0.035,
-                  delayChildren: 0.05
-                }
-              }
-            }}
-            className="site-brand site-brand--dark flex items-center"
-          >
-            {brandLetters.map((letter, index) => (
-              <motion.span
-                key={`${letter}-${index}`}
-                variants={{
-                  hidden: { opacity: 0, y: 6 },
-                  show: {
-                    opacity: 1,
-                    y: 0,
-                    transition: {
-                      type: 'spring',
-                      stiffness: 260,
-                      damping: 18
-                    }
-                  }
-                }}
-                className="inline-block"
-              >
-                {letter === ' ' ? '\u00A0' : letter}
-              </motion.span>
-            ))}
-          </motion.span>
+          {brand.name}
+          <sup className="text-[0.65rem] align-super">®</sup>
         </button>
 
-        <div className="flex items-center gap-4 md:gap-6">
-          <nav className="hidden md:flex items-center gap-2">
-            {navigation.map((item) => (
-              <ContentLink
-                key={item.label}
-                item={item}
-                onAction={onAction}
-                className="text-[13px] font-medium tracking-wider px-3.5 py-2 rounded-lg transition-colors flex items-center gap-2"
-                activeClassName="bg-slate-100 text-slate-900"
-                inactiveClassName="text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-              />
-            ))}
-          </nav>
-
-          <button
-            type="button"
-            onClick={() => setMobileOpen((current) => !current)}
-            className="md:hidden text-slate-600 hover:text-slate-900"
-            aria-label="Toggle navigation menu"
-            aria-expanded={mobileOpen}
-          >
-            <span className="block w-6 h-0.5 bg-current shadow-[0_7px_0_currentColor,0_-7px_0_currentColor]" />
-          </button>
-        </div>
-      </div>
-
-      {mobileOpen && (
-        <nav className="md:hidden mt-3 border-t pt-3 pb-2 flex flex-col gap-1 border-slate-200">
+        <nav className="hidden items-center gap-8 md:flex">
           {navigation.map((item) => (
-            <button
-              key={`mobile-${item.label}`}
-              type="button"
-              onClick={() => handleNavClick(item.action)}
-              className="w-full text-left text-sm tracking-wide rounded-lg px-3 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-            >
-              {item.label}
-            </button>
+            <ContentLink
+              key={item.label}
+              item={item}
+              onAction={onAction}
+              className="text-sm font-medium transition-colors duration-300"
+              activeClassName="text-[#1a1a1a]"
+              inactiveClassName="text-[#666666] hover:text-[#1a1a1a]"
+            />
           ))}
         </nav>
-      )}
+
+        <div className="hidden md:block">
+          <button
+            type="button"
+            onClick={() => onAction({ type: 'modal', target: 'sales' })}
+            className="rounded-full bg-[#1a1a1a] px-6 py-2.5 text-sm font-medium text-white transition-transform duration-300 hover:scale-[1.03]"
+          >
+            Begin Journey
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setMobileOpen((value) => !value)}
+          className="relative z-10 flex h-11 w-11 items-center justify-center md:hidden"
+          aria-label="Toggle navigation menu"
+          aria-expanded={mobileOpen}
+        >
+          <span className="relative block h-4 w-6">
+            <span
+              className={`absolute left-0 top-0 h-0.5 w-6 bg-[#1a1a1a] transition-all duration-300 ${
+                mobileOpen ? 'top-[7px] rotate-45' : ''
+              }`}
+            />
+            <span
+              className={`absolute left-0 top-[7px] h-0.5 w-6 bg-[#1a1a1a] transition-all duration-300 ${
+                mobileOpen ? 'opacity-0' : ''
+              }`}
+            />
+            <span
+              className={`absolute left-0 top-[14px] h-0.5 w-6 bg-[#1a1a1a] transition-all duration-300 ${
+                mobileOpen ? 'top-[7px] -rotate-45' : ''
+              }`}
+            />
+          </span>
+        </button>
+      </div>
+
+      <div
+        className={`overflow-hidden transition-all duration-300 md:hidden ${
+          mobileOpen ? 'max-h-[80vh] border-t border-[#e5e5e5]' : 'max-h-0'
+        }`}
+      >
+        <nav className="flex flex-col gap-6 px-6 py-10">
+          {navigation.map((item) => (
+            <ContentLink
+              key={`mobile-${item.label}`}
+              item={item}
+              onAction={onAction}
+              className="text-3xl font-medium tracking-tight transition-colors duration-300"
+              activeClassName="text-[#1a1a1a]"
+              inactiveClassName="text-[#666666] hover:text-[#1a1a1a]"
+            />
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              setMobileOpen(false);
+              onAction({ type: 'modal', target: 'sales' });
+            }}
+            className="mt-6 w-fit rounded-full bg-[#1a1a1a] px-10 py-4 text-lg font-medium text-white"
+          >
+            Begin Journey
+          </button>
+        </nav>
+      </div>
     </header>
   );
 };

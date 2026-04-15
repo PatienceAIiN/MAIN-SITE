@@ -42,6 +42,9 @@ const requireAdmin = (req) => {
   return verifySessionToken(token);
 };
 
+const isLocalFallbackError = (message = '') =>
+  /not configured|fetch failed|networkerror|enotfound|econnrefused/i.test(String(message));
+
 export default async function handler(req, res) {
   const defaultContent = readDefaultContent();
 
@@ -60,7 +63,7 @@ export default async function handler(req, res) {
 
       return res.status(200).json({ content: sanitizeContent(row.data), source: 'neondb' });
     } catch (error) {
-      if (isMissingTableError(error.message)) {
+      if (isMissingTableError(error.message) || isLocalFallbackError(error.message)) {
         return res.status(200).json({ content: sanitizeContent(defaultContent), source: 'local-fallback-missing-table' });
       }
       return res.status(500).json({ error: error.message });

@@ -16,7 +16,7 @@
       }
     },
     {
-      "label": "PLATFORM",
+      "label": "SERVICES",
       "activePath": "/platform",
       "action": {
         "type": "route",
@@ -34,13 +34,13 @@
   ],
   "hero": {
     "backgroundImage": {
-      "src": "https://media-manager-c.questera.ai/greta-media/01fbab95583dd5091933e068a1a99b447d13f36087e4edece1221f31135785cf090358ce5799cd34ecf30d5b82a9b7dd/images/aW1hZ2UvcG5n/ce847ebd755657336bd175847a25dfc0.png",
-      "alt": "Abstract 3D Background"
+      "src": "https://images.unsplash.com/photo-1677442135703-1787eea5ce01?q=80&w=1200&auto=format&fit=crop",
+      "alt": "Abstract 3D AI Background"
     },
-    "headline": "Product-first AI platforms for governance, measurable impact, and enterprise delivery",
+    "headline": "Product-first AI services for faster work, clear ownership, and real business impact",
     "description": "Patience AI builds governed product experiences for teams that need clean requests, clear ownership, and reliable delivery.",
     "cta": {
-      "label": "Explore Platform",
+      "label": "Explore Services",
       "icon": "FiArrowUpRight",
       "action": {
         "type": "route",
@@ -53,7 +53,7 @@
     "cards": [
       {
         "variant": "support",
-        "tags": ["Platform", "Governance"],
+        "tags": ["Services", "Governance"],
         "title": "Policy-safe automation for support and operations without exposing internal workflows",
         "image": {
           "src": "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=800&auto=format&fit=crop",
@@ -64,13 +64,7 @@
             "icon": "SiX",
             "backgroundClass": "bg-[#111111]",
             "label": "X",
-            "href": "https://x.com/AiPatienceIN"
-          },
-          {
-            "icon": "FiMail",
-            "backgroundClass": "bg-[#1E293B]",
-            "label": "Email",
-            "href": "mailto:info@patienceai.in"
+            "href": "https://x.com/AiPatience32847"
           },
           {
             "icon": "FaInstagram",
@@ -82,13 +76,7 @@
             "icon": "FaRedditAlien",
             "backgroundClass": "bg-[#FF4500]",
             "label": "Reddit",
-            "href": "https://www.reddit.com/user/Various-Soil7866/"
-          },
-          {
-            "icon": "FaLinkedinIn",
-            "backgroundClass": "bg-[#0A66C2]",
-            "label": "LinkedIn",
-            "href": "#"
+            "href": "https://www.reddit.com/user/PatienceAI/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button"
           }
         ]
       },
@@ -150,7 +138,7 @@
       },
       {
         "img": "https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?q=80&w=400&auto=format&fit=crop",
-        "title": "Composable platform",
+        "title": "Simple service stack",
         "desc": "A flexible foundation for education, communications, and other AI-enabled products."
       }
     ]
@@ -352,62 +340,62 @@
   },
   "platformPage": {
     "hero": {
-      "eyebrow": "Platform",
-      "title": "A compact control layer for governed AI delivery",
-      "description": "See the product stack through governance, workflow, and delivery layers built for AI software teams."
+      "eyebrow": "Services",
+      "title": "Simple AI services your team can understand and use fast",
+      "description": "Explore the core services we offer to help teams automate work, stay in control, and move faster."
     },
     "cards": [
       {
-        "title": "Governance layer",
-        "description": "Policy, access, and audit controls that keep product operations safe across internal teams and customer-facing flows.",
+        "title": "AI Strategy",
+        "description": "Clear planning, smart process design, and practical guardrails so your AI rollout stays useful and safe.",
         "points": [
           {
-            "title": "Policy controls",
-            "description": "Business rules, approval paths, and content permissions stay consistent across releases."
+            "title": "Clear planning",
+            "description": "We map the right workflow, outcomes, and priorities before anything is built."
           },
           {
-            "title": "Signed access",
-            "description": "Admin sessions and sensitive updates are protected with secure authentication and isolation."
+            "title": "Safe rollout",
+            "description": "Approvals, access, and usage rules stay clear from day one."
           },
           {
-            "title": "Auditable change flow",
-            "description": "Every product, content, and request update can be reviewed with traceable context."
+            "title": "Measured progress",
+            "description": "Every update can be reviewed with context so the team always knows what changed and why."
           }
         ]
       },
       {
-        "title": "AI product workflow",
-        "description": "Software teams can plan, build, review, and ship AI-powered products with clear ownership and clean handoffs.",
+        "title": "AI Automation",
+        "description": "We build practical automations that reduce manual work and keep teams moving without confusion.",
         "points": [
           {
-            "title": "Product development flow",
-            "description": "Requests move from idea to delivery with product context, scope, and priority intact."
+            "title": "Faster workflows",
+            "description": "Requests move from idea to action with clear context and simple handoffs."
           },
           {
-            "title": "Build and release alignment",
-            "description": "Design, engineering, and content updates stay aligned through one controlled release surface."
+            "title": "Better teamwork",
+            "description": "Design, engineering, and operations stay aligned through one simple workflow."
           },
           {
-            "title": "Operational visibility",
-            "description": "Teams can track requests, product updates, and publishing steps without losing context."
+            "title": "Easy tracking",
+            "description": "Teams can follow updates, requests, and next steps without losing context."
           }
         ]
       },
       {
-        "title": "Delivery surface",
-        "description": "Responsive product surfaces that balance speed, readability, and clear evaluation paths.",
+        "title": "AI Support",
+        "description": "Customer-facing and internal support experiences designed to stay fast, readable, and easy to use.",
         "points": [
           {
-            "title": "Clear product hierarchy",
-            "description": "Users see the right product message, demo path, or evaluation detail without noise."
+            "title": "Clear answers",
+            "description": "Users find the right message, next step, or support path without noise."
           },
           {
-            "title": "High-contrast presentation",
-            "description": "Typography, cards, and actions stay readable across devices and screen sizes."
+            "title": "Easy to use",
+            "description": "Content, cards, and actions stay readable across devices and screen sizes."
           },
           {
-            "title": "Purposeful motion",
-            "description": "Animation supports product discovery and conversion without distracting from the work."
+            "title": "Smooth experience",
+            "description": "Motion and interaction support clarity without getting in the way."
           }
         ]
       }
@@ -466,12 +454,12 @@
       "path": "/company/about-us",
       "groupTitle": "Company",
       "title": "About Us",
-      "description": "Patience AI is India-rooted, globally usable, and built to keep AI delivery governed, measurable, and easy to explain.",
+      "description": "Patience AI builds calm, practical AI experiences for teams that want less noise, faster decisions, and products people actually enjoy using.",
       "points": [
-        "Designed for Indian operators who need speed and international buyers who expect polish.",
-        "Built around one source of truth so public content and admin updates stay aligned.",
-        "Enterprise-ready without exposing internal systems or implementation details.",
-        "Product-first presentation that keeps the brand sharp and credible."
+        "We turn complex AI ideas into clean services that feel simple, useful, and ready for real work.",
+        "Our approach blends product clarity, thoughtful automation, and disciplined execution so teams move faster without losing control.",
+        "We design for trust: readable interfaces, clear next steps, and workflows that stay understandable as they scale.",
+        "Patience AI is built to make ambitious products feel calm, credible, and easy to say yes to."
       ]
     },
     {
@@ -637,6 +625,13 @@
         "title": "Docs",
         "links": [
           {
+            "label": "About Us",
+            "action": {
+              "type": "route",
+              "to": "/company/about-us"
+            }
+          },
+          {
             "label": "Privacy Policy",
             "action": {
               "type": "route",
@@ -656,14 +651,24 @@
     "copyright": "© 2026 Patience AI. All rights reserved.",
     "socialLinks": [
       {
-        "icon": "FiTwitter",
-        "href": "#",
-        "label": "Twitter"
+        "icon": "FaRedditAlien",
+        "href": "https://www.reddit.com/user/PatienceAI/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button",
+        "label": "Reddit"
       },
       {
-        "icon": "FiGithub",
-        "href": "#",
-        "label": "GitHub"
+        "icon": "FaXTwitter",
+        "href": "https://x.com/AiPatience32847",
+        "label": "X"
+      },
+      {
+        "icon": "FaLinkedinIn",
+        "href": "https://www.linkedin.com/company/patience-ai/",
+        "label": "LinkedIn"
+      },
+      {
+        "icon": "FaInstagram",
+        "href": "https://www.instagram.com/patienceaiindia",
+        "label": "Instagram"
       }
     ]
   },

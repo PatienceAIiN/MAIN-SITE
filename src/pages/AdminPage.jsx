@@ -4,7 +4,21 @@ import { motion } from 'framer-motion';
 import Button from '../components/ui/Button';
 import { fetchJson } from '../common/fetchJson';
 
-const TABS = ['content', 'blog', 'submissions', 'conversations'];
+const TABS = ['content', 'pages', 'blog', 'submissions', 'conversations'];
+
+const Spinner = ({ size = 16 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    className="animate-spin"
+    aria-hidden="true"
+  >
+    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeDasharray="31.4" strokeDashoffset="10" opacity="0.3" />
+    <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+  </svg>
+);
 const STATUS_OPTIONS = ['all', 'new', 'reviewing', 'replied', 'archived'];
 
 const createEmptyBlogDraft = () => ({
@@ -27,6 +41,8 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginSuccess, setLoginSuccess] = useState(false);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [activeTab, setActiveTab] = useState('content');
   const [contentJson, setContentJson] = useState(JSON.stringify(currentContent || defaultContent, null, 2));
@@ -49,6 +65,9 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [selectedConversationId, setSelectedConversationId] = useState('');
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingMessage, setEditingMessage] = useState('');
+  const [selectedPageIndex, setSelectedPageIndex] = useState(0);
+  const [pageDraft, setPageDraft] = useState(null);
+  const [pageSaving, setPageSaving] = useState(false);
 
   const selectedSubmission = submissions.find((item) => item.id === selectedId) || submissions[0] || null;
 
@@ -130,6 +149,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
+    setLoginLoading(true);
 
     try {
       const payload = await fetchJson('/api/auth', {
@@ -139,12 +159,18 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       });
 
       if (payload.authenticated) {
-        setAuthenticated(true);
+        setLoginSuccess(true);
         setUsername(payload.user?.username || loginForm.username);
         await Promise.all([loadSiteContent(), loadSubmissions(), loadConversations()]);
+        window.setTimeout(() => {
+          setLoginSuccess(false);
+          setAuthenticated(true);
+        }, 1600);
       }
     } catch (error) {
       setLoginError(error.message);
+    } finally {
+      setLoginLoading(false);
     }
   };
 
@@ -383,46 +409,74 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   if (!authenticated) {
     return (
       <main className="bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10 min-h-[70vh] flex items-center justify-center">
-        <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-white/5 p-8 shadow-2xl">
-          <p className="text-xs uppercase tracking-[0.35em] text-cyan-300/80 mb-3">Admin access</p>
-          <h1 className="text-3xl font-semibold mb-3">Sign in</h1>
-          <p className="text-white/60 mb-8">Sign in with your admin account to manage site content and submissions.</p>
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm text-white/70 mb-2">Username</label>
-              <input
-                value={loginForm.username}
-                onChange={(e) => setLoginForm((current) => ({ ...current, username: e.target.value }))}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
-                placeholder="Enter admin username"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-white/70 mb-2">Password</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={loginForm.password}
-                  onChange={(e) => setLoginForm((current) => ({ ...current, password: e.target.value }))}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 pr-12 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
-                  placeholder="Enter admin password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((current) => !current)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 hover:text-white"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
-                </button>
+        <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-white/5 p-8 shadow-2xl relative overflow-hidden">
+          {loginSuccess ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex flex-col items-center justify-center py-8 text-center"
+            >
+              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-400/20 text-emerald-300 text-3xl">
+                ✓
               </div>
-            </div>
-            {loginError && <div className="text-red-200 text-sm">{loginError}</div>}
-            <Button variant="white" className="w-full rounded-2xl px-6 py-3">
-              Login
-            </Button>
-          </form>
+              <p className="text-xs uppercase tracking-[0.35em] text-emerald-300/80 mb-2">Success</p>
+              <h2 className="text-2xl font-semibold mb-2">Welcome back, {username || loginForm.username}</h2>
+              <p className="text-white/55 text-sm">Loading admin console…</p>
+              <div className="mt-6 flex items-center gap-2 text-white/40 text-sm">
+                <Spinner size={15} />
+                <span>Preparing dashboard</span>
+              </div>
+            </motion.div>
+          ) : (
+            <>
+              <p className="text-xs uppercase tracking-[0.35em] text-cyan-300/80 mb-3">Admin access</p>
+              <h1 className="text-3xl font-semibold mb-3">Sign in</h1>
+              <p className="text-white/60 mb-8">Sign in with your admin account to manage site content and submissions.</p>
+
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label className="block text-sm text-white/70 mb-2">Username</label>
+                  <input
+                    value={loginForm.username}
+                    onChange={(e) => setLoginForm((current) => ({ ...current, username: e.target.value }))}
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
+                    placeholder="Enter admin username"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-white/70 mb-2">Password</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={loginForm.password}
+                      onChange={(e) => setLoginForm((current) => ({ ...current, password: e.target.value }))}
+                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 pr-12 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
+                      placeholder="Enter admin password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((current) => !current)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 hover:text-white"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                    </button>
+                  </div>
+                </div>
+                {loginError && <div className="text-red-200 text-sm">{loginError}</div>}
+                <Button variant="white" className="w-full rounded-2xl px-6 py-3 gap-2" disabled={loginLoading}>
+                  {loginLoading ? (
+                    <>
+                      <Spinner size={16} />
+                      Signing in…
+                    </>
+                  ) : (
+                    'Login'
+                  )}
+                </Button>
+              </form>
+            </>
+          )}
         </div>
       </main>
     );
@@ -486,11 +540,11 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                       <p className="text-white/55 text-sm mt-1">Update the whole site from a single JSON document.</p>
                     </div>
                     <div className="flex flex-wrap gap-3">
-                      <Button variant="secondary" className="rounded-2xl px-5 py-3" onClick={resetContent} disabled={contentSaving}>
-                        Reset
+                      <Button variant="secondary" className="rounded-2xl px-5 py-3 gap-2" onClick={resetContent} disabled={contentSaving}>
+                        {contentSaving ? <><Spinner size={15} />Resetting…</> : 'Reset'}
                       </Button>
-                      <Button variant="white" className="rounded-2xl px-5 py-3" onClick={saveContent} disabled={contentSaving}>
-                        {contentSaving ? 'Saving...' : 'Save JSON'}
+                      <Button variant="white" className="rounded-2xl px-5 py-3 gap-2" onClick={saveContent} disabled={contentSaving}>
+                        {contentSaving ? <><Spinner size={15} />Saving…</> : 'Save JSON'}
                       </Button>
                     </div>
                   </div>
@@ -537,6 +591,169 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
               </div>
             )}
 
+
+            {activeTab === 'pages' && (() => {
+              const parsed = (() => { try { return JSON.parse(contentJson); } catch { return null; } })();
+              const detailPages = parsed?.detailPages || [];
+
+              const selectPage = (index) => {
+                setSelectedPageIndex(index);
+                const page = detailPages[index];
+                if (page) {
+                  setPageDraft({
+                    title: page.title || '',
+                    groupTitle: page.groupTitle || '',
+                    description: page.description || '',
+                    points: Array.isArray(page.points) ? page.points.join('\n') : '',
+                    cta: page.cta ? JSON.stringify(page.cta, null, 2) : ''
+                  });
+                }
+              };
+
+              if (!pageDraft && detailPages.length > 0) {
+                window.setTimeout(() => selectPage(0), 0);
+              }
+
+              const savePage = async () => {
+                if (!pageDraft || !parsed) return;
+                setPageSaving(true);
+                setContentError('');
+                try {
+                  const updatedPages = detailPages.map((page, i) => {
+                    if (i !== selectedPageIndex) return page;
+                    const updated = {
+                      ...page,
+                      title: pageDraft.title.trim(),
+                      groupTitle: pageDraft.groupTitle.trim(),
+                      description: pageDraft.description.trim(),
+                      points: pageDraft.points.split('\n').map((p) => p.trim()).filter(Boolean)
+                    };
+                    if (pageDraft.cta.trim()) {
+                      try { updated.cta = JSON.parse(pageDraft.cta); } catch { /* keep old */ }
+                    }
+                    return updated;
+                  });
+                  const updatedContent = { ...parsed, detailPages: updatedPages };
+                  const payload = await fetchJson('/api/site-content', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: updatedContent })
+                  });
+                  if (payload?.content) {
+                    setContentJson(JSON.stringify(payload.content, null, 2));
+                    onContentSaved(payload.content);
+                  }
+                } catch (error) {
+                  setContentError(error.message);
+                } finally {
+                  setPageSaving(false);
+                }
+              };
+
+              return (
+                <div className="grid grid-cols-1 xl:grid-cols-[0.9fr_1.1fr] gap-6">
+                  <div className="rounded-[1.75rem] border border-white/10 bg-white/5 overflow-hidden">
+                    <div className="px-5 py-4 border-b border-white/10">
+                      <h2 className="text-xl font-semibold">All Pages</h2>
+                      <p className="text-white/50 text-sm mt-1">Select a page to edit its title, description, and bullet points.</p>
+                    </div>
+                    <div className="divide-y divide-white/10 max-h-[520px] overflow-y-auto">
+                      {detailPages.length === 0 && (
+                        <div className="p-6 text-white/50 text-sm">No detail pages found. Add them in the JSON editor.</div>
+                      )}
+                      {detailPages.map((page, index) => (
+                        <button
+                          key={page.path}
+                          type="button"
+                          onClick={() => selectPage(index)}
+                          className={`w-full text-left px-5 py-4 transition-colors ${
+                            selectedPageIndex === index ? 'bg-white/10' : 'hover:bg-white/5'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="font-medium text-white">{page.title}</p>
+                              <p className="text-xs text-white/45 mt-0.5">{page.path}</p>
+                            </div>
+                            <span className="text-xs px-2.5 py-1 rounded-full bg-cyan-300/10 text-cyan-200 shrink-0">{page.groupTitle}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
+                    {pageDraft && detailPages[selectedPageIndex] ? (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between gap-4 mb-2">
+                          <div>
+                            <h2 className="text-xl font-semibold">{detailPages[selectedPageIndex].title}</h2>
+                            <p className="text-white/45 text-xs mt-1">{detailPages[selectedPageIndex].path}</p>
+                          </div>
+                          <Button variant="white" className="rounded-2xl px-5 py-2.5 gap-2 shrink-0" onClick={savePage} disabled={pageSaving}>
+                            {pageSaving ? <><Spinner size={14} />Saving…</> : 'Save page'}
+                          </Button>
+                        </div>
+
+                        {contentError && (
+                          <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-red-100 text-sm">
+                            {contentError}
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm text-white/70 mb-2">Page Title</label>
+                            <input
+                              value={pageDraft.title}
+                              onChange={(e) => setPageDraft((d) => ({ ...d, title: e.target.value }))}
+                              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
+                              placeholder="Page title"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-white/70 mb-2">Group / Section</label>
+                            <input
+                              value={pageDraft.groupTitle}
+                              onChange={(e) => setPageDraft((d) => ({ ...d, groupTitle: e.target.value }))}
+                              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
+                              placeholder="Products / Company / Legal"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm text-white/70 mb-2">Description</label>
+                          <textarea
+                            value={pageDraft.description}
+                            onChange={(e) => setPageDraft((d) => ({ ...d, description: e.target.value }))}
+                            rows={3}
+                            className="w-full rounded-[1.5rem] border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70 resize-none"
+                            placeholder="Short page description shown as the hero subtitle"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm text-white/70 mb-2">Bullet Points <span className="text-white/35 font-normal">(one per line)</span></label>
+                          <textarea
+                            value={pageDraft.points}
+                            onChange={(e) => setPageDraft((d) => ({ ...d, points: e.target.value }))}
+                            rows={8}
+                            className="w-full rounded-[1.5rem] border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70 resize-none font-mono text-sm"
+                            placeholder={"First bullet point\nSecond bullet point\nThird bullet point"}
+                          />
+                          <p className="text-xs text-white/35 mt-2">Each line becomes one bullet point on the page.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="min-h-[300px] flex items-center justify-center text-white/40 text-sm">
+                        Select a page from the list to start editing.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {activeTab === 'conversations' && (
               <div className="grid grid-cols-1 xl:grid-cols-[0.95fr_1.05fr] gap-6">
@@ -684,11 +901,11 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                     </div>
                     <Button
                       variant="white"
-                      className="rounded-2xl px-5 py-3"
+                      className="rounded-2xl px-5 py-3 gap-2"
                       onClick={publishBlogDraft}
                       disabled={contentSaving}
                     >
-                      {contentSaving ? 'Publishing...' : 'Publish post'}
+                      {contentSaving ? <><Spinner size={15} />Publishing…</> : 'Publish post'}
                     </Button>
                   </div>
 

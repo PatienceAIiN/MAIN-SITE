@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import Button from '../components/ui/Button';
 
 const ProductsPage = ({ content, onAction }) => {
   const products = content.products || [];
@@ -19,192 +18,164 @@ const ProductsPage = ({ content, onAction }) => {
     };
   }, [selectedProduct]);
 
-  const closeModal = () => {
-    setSelectedProduct(null);
-  };
-
   return (
-    <main className="bg-white">
-      <section className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900 px-6 py-14 md:px-10 lg:px-16 lg:py-16">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.16),_transparent_42%),radial-gradient(circle_at_bottom_right,_rgba(56,189,248,0.12),_transparent_35%)]" />
-        <motion.div
-          aria-hidden="true"
-          animate={{ x: [0, 18, 0], y: [0, -12, 0] }}
-          transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute right-[-8%] top-[-10%] h-80 w-80"
-        >
-          <div className="h-full w-full rounded-full bg-indigo-200/45 blur-3xl" />
-        </motion.div>
-        <div className="relative max-w-7xl mx-auto">
-          <p className="text-xs md:text-sm uppercase tracking-[0.35em] text-slate-500 mb-5">{content.hero.eyebrow}</p>
-          <h1 className="max-w-4xl text-4xl md:text-6xl font-semibold tracking-tight leading-[0.95] mb-5">
+    <main className="bg-white pt-24">
+      <section className="relative overflow-hidden bg-[#f4f4f4] px-6 pb-24 pt-24 text-center">
+        <div
+          className="absolute inset-0 opacity-[0.04]"
+          style={{ backgroundImage: 'radial-gradient(#000000 1px, transparent 1px)', backgroundSize: '32px 32px' }}
+        />
+        <div className="relative mx-auto max-w-4xl">
+          <div className="mb-8 inline-block rounded-full border border-[#d1d1d1] bg-white px-4 py-1.5 text-sm font-medium text-[#1a1a1a] shadow-sm">
+            {content.hero.eyebrow}
+          </div>
+          <h1 className="mb-8 font-serif text-5xl leading-[1.05] tracking-tight text-[#1a1a1a] md:text-7xl lg:text-[5.5rem]">
             {content.hero.title}
           </h1>
-          <p className="max-w-3xl text-base md:text-lg text-slate-600 leading-relaxed mb-8">
-            {content.hero.description}
-          </p>
-          {content.hero.buttons?.length ? (
-            <div className="flex flex-col sm:flex-row gap-4 items-start">
-              {content.hero.buttons.map((button) => (
-                <Button
-                  key={button.label}
-                  variant={button.variant}
-                  className="w-full sm:w-auto px-8 py-4 rounded-2xl"
-                  onClick={() => onAction(button.action)}
-                >
-                  {button.label}
-                </Button>
-              ))}
-            </div>
-          ) : null}
+          <p className="mx-auto max-w-2xl text-lg leading-relaxed text-[#666666] md:text-xl">{content.hero.description}</p>
         </div>
       </section>
 
-      <section className="px-6 py-10 md:px-10 lg:px-16">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {products.map((product, productIndex) => (
-              <motion.button
-                key={product.id}
-                type="button"
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-80px' }}
-                transition={{ delay: productIndex * 0.08 }}
-                onClick={() => setSelectedProduct(product)}
-                className="group rounded-[2rem] border border-slate-200 bg-slate-50 p-7 md:p-8 text-left shadow-sm hover:shadow-md hover:border-slate-300 transition-all"
-              >
-                <div className="flex flex-wrap items-center gap-3 mb-4">
-                  <span className="px-3 py-1.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold uppercase tracking-[0.25em]">
-                    Product
+      <section className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-6 py-24 lg:grid-cols-2 lg:gap-12 md:py-32">
+        {products.map((product, index) => (
+          <button
+            key={product.id}
+            type="button"
+            onClick={() => setSelectedProduct(product)}
+            className="group flex flex-col overflow-hidden rounded-[24px] border border-[#e5e5e5] bg-white text-left shadow-sm transition-all duration-500 hover:border-[#d1d1d1] hover:shadow-xl"
+          >
+            <div className="relative h-64 overflow-hidden bg-[#f4f4f4] md:h-80">
+              <div className="absolute left-6 top-6 z-10 rounded-2xl bg-white px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-[#1a1a1a] shadow-lg">
+                Product {index + 1}
+              </div>
+              <img
+                src={`https://images.unsplash.com/photo-${index === 0 ? '1516321497487-e288fb19713f' : '1557200134-90327ee9fafa'}?q=80&w=1200&auto=format&fit=crop`}
+                alt={product.name}
+                className="h-full w-full object-cover grayscale transition-all duration-700 ease-out group-hover:scale-105 group-hover:grayscale-0"
+              />
+            </div>
+
+            <div className="flex flex-1 flex-col p-8 md:p-10">
+              <h2 className="mb-4 text-3xl font-medium tracking-tight text-[#1a1a1a]">{product.name}</h2>
+              <p className="mb-6 text-lg leading-relaxed text-[#666666]">{product.summary}</p>
+              <div className="mb-10 flex flex-wrap gap-2.5">
+                {product.technologies.slice(0, 5).map((technology) => (
+                  <span
+                    key={technology}
+                    className="rounded-full border border-[#d1d1d1] bg-[#fdfdfd] px-3.5 py-1.5 text-[12px] font-medium text-[#666666] transition-colors group-hover:border-[#a3a3a3]"
+                  >
+                    {technology}
                   </span>
-                  <span className="text-sm text-slate-500">{product.audience}</span>
-                </div>
-
-                <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-900 mb-3">
-                  {product.name}
-                </h2>
-                <p className="text-slate-600 leading-relaxed mb-4">{product.shortTagline}</p>
-                <p className="text-slate-700 leading-relaxed mb-6 line-clamp-3">{product.summary}</p>
-
-                <div className="flex flex-wrap gap-2">
-                  {product.technologies.slice(0, 3).map((technology) => (
-                    <span
-                      key={technology}
-                      className="px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-500 text-xs font-medium"
-                    >
-                      {technology}
-                    </span>
-                  ))}
-                </div>
-              </motion.button>
-            ))}
-          </div>
-        </div>
+                ))}
+              </div>
+              <span className="mt-auto inline-flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.12em] text-[#1a1a1a]">
+                View details
+                <span>→</span>
+              </span>
+            </div>
+          </button>
+        ))}
       </section>
 
       <AnimatePresence>
-        {selectedProduct && (
+        {selectedProduct ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[125] bg-slate-950/25 backdrop-blur-sm px-4 py-6 md:px-8 overflow-y-auto"
-            onClick={closeModal}
+            className="fixed inset-0 z-[130] overflow-y-auto bg-black/35 px-4 py-6 backdrop-blur-sm md:px-8"
+            onClick={() => setSelectedProduct(null)}
           >
             <motion.div
-              initial={{ opacity: 0, y: 24, scale: 0.98 }}
+              initial={{ opacity: 0, y: 18, scale: 0.985 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 12, scale: 0.98 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="relative max-w-5xl mx-auto rounded-[2rem] bg-white shadow-2xl overflow-hidden"
+              exit={{ opacity: 0, y: 10, scale: 0.985 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+              className="relative mx-auto max-w-5xl overflow-hidden rounded-[28px] bg-white shadow-2xl"
               onClick={(event) => event.stopPropagation()}
             >
               <button
                 type="button"
-                onClick={closeModal}
-                className="absolute top-4 right-4 z-20 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:border-slate-300 transition-colors"
+                onClick={() => setSelectedProduct(null)}
+                className="absolute right-4 top-4 z-10 rounded-full border border-[#d1d1d1] bg-white px-4 py-2 text-sm font-medium text-[#666666] transition-colors hover:border-[#1a1a1a] hover:text-[#1a1a1a]"
               >
-                Cancel
+                Close
               </button>
 
-              <div className="px-6 pt-8 pb-6 md:px-8 md:pt-10 md:pb-8 border-b border-slate-100">
-                <p className="text-xs uppercase tracking-[0.35em] text-indigo-500 mb-3">Product</p>
-                <h3 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900 mb-3">
-                  {selectedProduct.name}
-                </h3>
-                <p className="max-w-3xl text-slate-600 leading-relaxed">
-                  {selectedProduct.summary}
-                </p>
+              <div className="border-b border-[#e5e5e5] bg-[#f4f4f4] px-6 pb-8 pt-16 md:px-8 md:pb-10">
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.35em] text-[#a3a3a3]">Product</p>
+                <h3 className="mb-3 text-3xl font-medium tracking-tight text-[#1a1a1a] md:text-4xl">{selectedProduct.name}</h3>
+                <p className="max-w-3xl text-lg leading-relaxed text-[#666666]">{selectedProduct.summary}</p>
               </div>
 
-              <div className="p-6 md:p-8">
-                <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-6">
-                  <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-6 md:p-8">
-                    <div className="flex flex-wrap gap-2 mb-6">
-                      <span className="px-4 py-2 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold uppercase tracking-[0.25em]">
-                        {selectedProduct.audience}
-                      </span>
-                      <span className="px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-500 text-xs font-semibold uppercase tracking-[0.25em]">
-                        {selectedProduct.privacyTone}
-                      </span>
-                    </div>
+              <div className="grid gap-6 p-6 md:grid-cols-[1.15fr_0.85fr] md:p-8">
+                <div className="rounded-[24px] border border-[#e5e5e5] bg-[#f4f4f4] p-6 md:p-8">
+                  <div className="mb-6 flex flex-wrap gap-2">
+                    <span className="rounded-full border border-[#d1d1d1] bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#1a1a1a]">
+                      {selectedProduct.audience}
+                    </span>
+                    <span className="rounded-full border border-[#d1d1d1] bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#666666]">
+                      {selectedProduct.privacyTone}
+                    </span>
+                  </div>
 
-                    <div className="space-y-3">
-                      {selectedProduct.benefits.slice(0, 4).map((benefit) => (
-                        <div
-                          key={benefit}
-                          className="flex items-start gap-3 rounded-2xl bg-white border border-slate-100 px-5 py-4"
+                  <div className="space-y-3">
+                    {selectedProduct.benefits.map((benefit) => (
+                      <div key={benefit} className="flex items-start gap-3 rounded-2xl border border-[#e5e5e5] bg-white px-5 py-4">
+                        <span className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-[#1a1a1a]" />
+                        <p className="leading-relaxed text-[#4a4a4a]">{benefit}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-[#e5e5e5] bg-white p-6 md:p-8">
+                  <div className="mb-8">
+                    <div className="mb-6 flex items-center gap-4">
+                      <div className="h-px flex-1 bg-[#e5e5e5]" />
+                      <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#a3a3a3]">Technologies</span>
+                      <div className="h-px flex-1 bg-[#e5e5e5]" />
+                    </div>
+                    <div className="flex flex-wrap gap-2.5">
+                      {selectedProduct.technologies.map((technology) => (
+                        <span
+                          key={technology}
+                          className="rounded-full border border-[#d1d1d1] px-3.5 py-1.5 text-[12px] font-medium text-[#666666]"
                         >
-                          <span className="mt-2 h-2.5 w-2.5 rounded-full bg-indigo-500 shrink-0" />
-                          <p className="text-slate-700 leading-relaxed">{benefit}</p>
-                        </div>
+                          {technology}
+                        </span>
                       ))}
                     </div>
                   </div>
 
-                  <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-6 md:p-8">
-                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400 mb-4">Technology</p>
-                    <div className="space-y-3 mb-8">
-                      {selectedProduct.technologies.map((technology) => (
-                        <div
-                          key={technology}
-                          className="rounded-2xl bg-white border border-slate-100 px-5 py-4 text-slate-700 leading-relaxed"
-                        >
-                          {technology}
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex flex-col gap-3">
-                      <Button
-                        variant="coral"
-                        className="rounded-2xl px-6 py-3.5"
-                        onClick={() =>
-                          onAction({
-                            type: 'modal',
-                            target: 'product-demo',
-                            product: selectedProduct,
-                            back: true
-                          })
-                        }
-                      >
-                        Request demo
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        className="rounded-2xl px-6 py-3.5"
-                        onClick={() => onAction({ type: 'modal', target: 'sales', back: true })}
-                      >
-                        Contact sales
-                      </Button>
-                    </div>
+                  <div className="flex flex-col gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onAction({
+                          type: 'modal',
+                          target: 'product-demo',
+                          product: selectedProduct,
+                          back: true
+                        })
+                      }
+                      className="rounded-full bg-[#1a1a1a] px-6 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-white transition-colors hover:bg-black"
+                    >
+                      Request Demo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onAction({ type: 'modal', target: 'sales', back: true })}
+                      className="rounded-full border border-[#d1d1d1] px-6 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-[#1a1a1a] transition-colors hover:border-[#1a1a1a]"
+                    >
+                      Contact Sales
+                    </button>
                   </div>
                 </div>
               </div>
             </motion.div>
           </motion.div>
-        )}
+        ) : null}
       </AnimatePresence>
     </main>
   );

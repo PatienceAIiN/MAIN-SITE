@@ -8,7 +8,7 @@ const SITE_TABLE = 'site_content';
 const SITE_SLUG = 'site';
 const CHAT_TABLE = 'chatbot_messages';
 const SITE_CONTENT_CACHE_TTL_MS = 30000;
-const GROQ_FALLBACK_NOTE = 'I can only answer questions related to this site content. Please ask about products, platform, case studies, careers, or contact options.';
+const GROQ_FALLBACK_NOTE = 'I can only answer questions related to this site content. Please ask about products, services, case studies, careers, or contact options.';
 
 const VECTOR_CACHE = new Map();
 let siteContentCache = { expiresAt: 0, value: null };
@@ -17,7 +17,7 @@ const DEFAULT_SITE_CONTENT = {
   brand: { name: 'PatienceAI' },
   hero: {
     description:
-      'PatienceAI helps teams deploy practical AI products safely across platform, products, case studies, careers, and contact workflows.'
+      'PatienceAI helps teams deploy practical AI products safely across services, products, case studies, careers, and contact workflows.'
   }
 };
 
@@ -266,7 +266,7 @@ export default async function handler(req, res) {
     }
 
     if (isCodingQuestion(message)) {
-      const answer = 'I can help with this website’s products, platform, case studies, careers, and contact flow. I can’t help with coding questions.';
+      const answer = 'I can help with this website’s products, services, case studies, careers, and contact flow. I can’t help with coding questions.';
       await Promise.all([
         saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'user', message: String(message).slice(0, 4000) }),
         saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'assistant', message: answer })
@@ -299,7 +299,7 @@ export default async function handler(req, res) {
     const topResults = semanticSearch(docs, resolvedQuestion, 8);
 
     if (!topResults.length || (topResults[0]?.score || 0) < 0.08) {
-      const offTopic = `I can only answer questions related to ${siteContent?.brand?.name || 'this'} site content. Please ask about products, platform, case studies, careers, or contact options.`;
+      const offTopic = `I can only answer questions related to ${siteContent?.brand?.name || 'this'} site content. Please ask about products, services, case studies, careers, or contact options.`;
       await Promise.all([
         saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'user', message: String(message).slice(0, 4000) }),
         saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'assistant', message: offTopic })

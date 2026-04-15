@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -16,140 +18,81 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   font-family: 'Inter', sans-serif;
+  color: #1a1a1a;
+  background-color: #ffffff;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #F8FAFC;
-  color: #0f172a;
   overflow-x: hidden;
-  transition: background-color 0.35s ease, color 0.35s ease;
 }
 
 input,
 textarea,
 select {
-  color: #0f172a;
-  caret-color: #0f172a;
+  color: #1a1a1a;
+  caret-color: #1a1a1a;
 }
 
 #root {
   width: 100%;
   min-height: 100vh;
-  position: relative;
 }
 
-/* Custom Utilities for Glassmorphism */
-.glass {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
-.glass-dark {
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(148, 163, 184, 0.18);
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
-/* Smooth scrolling */
-html {
-  scroll-behavior: smooth;
-}
-
-.brand-logo {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.58rem;
-}
-
-.brand-logo--compact {
-  transform: translateY(0);
-}
-
-.brand-logo__mark {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: clamp(2.55rem, 2.4vw, 2.9rem);
-  height: clamp(2.55rem, 2.4vw, 2.9rem);
-  flex: 0 0 auto;
-  border-radius: 0.95rem;
-  background: linear-gradient(180deg, #ffffff 0%, #f6f8ff 100%);
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
-  overflow: hidden;
-}
-
-.brand-logo__mark::before {
-  content: '';
-  position: absolute;
-  inset: 18% 14% 18% auto;
-  width: 18%;
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(80, 86, 255, 0.35), rgba(88, 150, 255, 0.12));
-  transform: rotate(18deg);
-}
-
-.brand-logo__mark-text {
-  position: relative;
-  z-index: 1;
-  font-family: 'Inter', sans-serif;
-  font-size: 0.9rem;
-  font-weight: 800;
-  letter-spacing: -0.1em;
-  line-height: 1;
-  color: #0f172a;
-}
-
-.brand-logo__wordmark {
+.marquee-track {
   display: flex;
-  align-items: center;
-  font-family: 'Overcame Demo', serif;
-  font-size: clamp(1.55rem, 1.85vw, 2rem);
-  line-height: 1;
-  letter-spacing: 0;
-  text-transform: none;
-  position: relative;
-  top: 0;
-  transform: translateY(-0.02em);
+  width: max-content;
+  gap: 1.5rem;
+  padding-right: 1.5rem;
+  animation: marquee 40s linear infinite;
 }
 
-.brand-logo--light .brand-logo__wordmark {
-  color: #ffffff;
-  text-shadow: 0 0 24px rgba(125, 142, 255, 0.18);
+.marquee-track:hover {
+  animation-play-state: paused;
 }
 
-.brand-logo--dark .brand-logo__wordmark {
-  color: #101828;
+.marquee-card {
+  flex: none;
+  width: 85vw;
+  min-height: 24rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: 20px;
+  padding: 2.5rem;
 }
 
-.brand-logo--compact .brand-logo__wordmark {
-  font-size: clamp(1.45rem, 1.65vw, 1.8rem);
+@media (min-width: 768px) {
+  .marquee-card {
+    width: 60vw;
+    padding: 3.5rem;
+  }
 }
 
-.site-brand {
-  font-family: 'Overcame Demo', serif;
-  line-height: 1;
-  letter-spacing: 0;
-  text-transform: none;
-  display: inline-flex;
-  align-items: center;
+@media (min-width: 1024px) {
+  .marquee-card {
+    width: 45vw;
+    padding: 4rem;
+  }
 }
 
-.site-brand--light {
-  font-size: clamp(1.45rem, 1.75vw, 1.9rem);
-  color: #ffffff;
-  text-shadow: 0 0 18px rgba(255, 255, 255, 0.12);
-  animation: brand-glow 5.5s ease-in-out infinite;
-}
-
-.site-brand--dark {
-  color: #101828;
-  font-size: clamp(1.35rem, 1.5vw, 1.65rem);
+@media (min-width: 1280px) {
+  .marquee-card {
+    width: 35vw;
+  }
 }
 
 .admin-light {
@@ -214,20 +157,12 @@ html {
   background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 45%, #e2e8f0 100%) !important;
 }
 
-@keyframes brand-glow {
+@keyframes marquee {
   0% {
-    opacity: 0.92;
-    transform: translateY(0);
-    text-shadow: 0 0 18px rgba(255, 255, 255, 0.12);
+    transform: translateX(0%);
   }
-  50% {
-    opacity: 1;
-    transform: translateY(-1px);
-    text-shadow: 0 0 26px rgba(167, 139, 250, 0.18);
-  }
+
   100% {
-    opacity: 0.92;
-    transform: translateY(0);
-    text-shadow: 0 0 18px rgba(255, 255, 255, 0.12);
+    transform: translateX(-50%);
   }
 }

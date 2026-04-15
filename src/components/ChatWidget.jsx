@@ -43,10 +43,17 @@ const getDefaultLauncherPosition = () => {
   };
 };
 
-const clampLauncherPosition = (x, y) => {
+const isAtPageEnd = () => {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return false;
+  const scrollBottom = window.scrollY + window.innerHeight;
+  const documentHeight = document.documentElement.scrollHeight;
+  return documentHeight - scrollBottom <= 8;
+};
+
+const clampLauncherPosition = (x, y, width = LAUNCHER_SIZE, height = LAUNCHER_SIZE) => {
   if (typeof window === 'undefined') return { x, y };
-  const maxX = Math.max(LAUNCHER_MARGIN, window.innerWidth - LAUNCHER_SIZE - LAUNCHER_MARGIN);
-  const maxY = Math.max(LAUNCHER_MARGIN, window.innerHeight - LAUNCHER_SIZE - LAUNCHER_BOTTOM_OFFSET);
+  const maxX = Math.max(LAUNCHER_MARGIN, window.innerWidth - width - LAUNCHER_MARGIN);
+  const maxY = Math.max(LAUNCHER_MARGIN, window.innerHeight - height - LAUNCHER_BOTTOM_OFFSET);
   return {
     x: Math.min(Math.max(x, LAUNCHER_MARGIN), maxX),
     y: Math.min(Math.max(y, LAUNCHER_MARGIN), maxY)
@@ -82,9 +89,9 @@ const ChatWidget = ({ brand }) => {
   const inputRef = useRef(null);
   const abortControllerRef = useRef(null);
   const liveResponseRef = useRef('');
+  const launcherStackRef = useRef(null);
+  const chatPanelRef = useRef(null);
   const [launcherPosition, setLauncherPosition] = useState(() => getDefaultLauncherPosition());
-  const dragStateRef = useRef({ dragging: false, startX: 0, startY: 0, originX: 0, originY: 0, moved: false });
-  const suppressClickRef = useRef(false);
 
   const conversationId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_conversation_id', 'PatienceAI') : 'PatienceAI-local'), []);
   const sessionId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_session_id', 'session') : 'session-local'), []);
@@ -138,6 +145,22 @@ const ChatWidget = ({ brand }) => {
   }, []);
 
   useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const handleClickOutside = (event) => {
+      const isInsideLauncher = launcherStackRef.current?.contains(event.target);
+      const isInsideChat = chatPanelRef.current?.contains(event.target);
+      if (!isInsideLauncher && !isInsideChat) {
+        setIsOpen(false);
+        setShowInfo(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  useEffect(() => {
     const panel = scrollAreaRef.current;
     if (!panel) return;
     panel.scrollTop = panel.scrollHeight;
@@ -151,14 +174,50 @@ const ChatWidget = ({ brand }) => {
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
 
-    const handleResize = () => {
-      setLauncherPosition((current) => clampLauncherPosition(current.x, current.y));
+    let frameId = 0;
+
+    const syncLauncherPosition = () => {
+      const stackRect = launcherStackRef.current?.getBoundingClientRect();
+      const stackWidth = stackRect?.width || LAUNCHER_SIZE;
+      const stackHeight = stackRect?.height || LAUNCHER_SIZE;
+      const defaultPosition = clampLauncherPosition(
+        window.innerWidth - stackWidth - LAUNCHER_MARGIN,
+        window.innerHeight - stackHeight - LAUNCHER_MARGIN,
+        stackWidth,
+        stackHeight
+      );
+
+      if (!isAtPageEnd()) {
+        setLauncherPosition(defaultPosition);
+        return;
+      }
+
+      const socialLinks = document.getElementById('footer-social-links');
+      if (!socialLinks) {
+        setLauncherPosition(defaultPosition);
+        return;
+      }
+
+      const rect = socialLinks.getBoundingClientRect();
+      const anchored = clampLauncherPosition(rect.right - stackWidth, rect.top - stackHeight - 18, stackWidth, stackHeight);
+      setLauncherPosition(anchored);
     };
 
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    const scheduleSync = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(syncLauncherPosition);
+    };
+
+    scheduleSync();
+    window.addEventListener('resize', scheduleSync);
+    window.addEventListener('scroll', scheduleSync, { passive: true });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener('resize', scheduleSync);
+      window.removeEventListener('scroll', scheduleSync);
+    };
+  }, [isOpen, showWave]);
 
   const launcherMonogram = 'PA';
 
@@ -275,7 +334,6 @@ const ChatWidget = ({ brand }) => {
   };
 
   const toggleChat = () => {
-    if (suppressClickRef.current) return;
     setIsOpen((current) => {
       const next = !current;
       if (next) {
@@ -408,49 +466,10 @@ const ChatWidget = ({ brand }) => {
   const onSuggestionClick = (prompt) => {
     ask(prompt);
   };
-
-
-  const onLauncherPointerDown = (event) => {
-    const state = dragStateRef.current;
-    state.dragging = true;
-    state.startX = event.clientX;
-    state.startY = event.clientY;
-    state.originX = launcherPosition.x;
-    state.originY = launcherPosition.y;
-    state.moved = false;
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-  };
-
-  const onLauncherPointerMove = (event) => {
-    const state = dragStateRef.current;
-    if (!state.dragging) return;
-
-    const deltaX = event.clientX - state.startX;
-    const deltaY = event.clientY - state.startY;
-    if (!state.moved && (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4)) {
-      state.moved = true;
-    }
-
-    const next = clampLauncherPosition(state.originX + deltaX, state.originY + deltaY);
-    setLauncherPosition(next);
-  };
-
-  const onLauncherPointerUp = (event) => {
-    const state = dragStateRef.current;
-    if (!state.dragging) return;
-    state.dragging = false;
-    if (state.moved) {
-      suppressClickRef.current = true;
-      window.setTimeout(() => {
-        suppressClickRef.current = false;
-      }, 0);
-    }
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
-  };
-
   return (
     <>
       <div
+        ref={launcherStackRef}
         className="fixed z-[120] flex flex-col items-end gap-2 touch-none"
         style={{ left: launcherPosition.x, top: launcherPosition.y }}
       >
@@ -471,11 +490,7 @@ const ChatWidget = ({ brand }) => {
           whileHover={{ scale: 1.04 }}
           whileTap={{ scale: 0.96 }}
           onClick={toggleChat}
-          className="h-16 w-16 rounded-full bg-white text-slate-900 shadow-2xl border border-slate-200 flex items-center justify-center cursor-grab active:cursor-grabbing"
-          onPointerDown={onLauncherPointerDown}
-          onPointerMove={onLauncherPointerMove}
-          onPointerUp={onLauncherPointerUp}
-          onPointerCancel={onLauncherPointerUp}
+          className="h-16 w-16 rounded-full border border-slate-200 bg-white text-slate-900 shadow-2xl flex items-center justify-center"
           aria-label="Open AI chat"
         >
           <div className="h-10 w-10 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-xs font-bold"><span className="site-brand site-brand--dark text-base leading-none tracking-normal">{launcherMonogram}</span></div>
@@ -485,6 +500,7 @@ const ChatWidget = ({ brand }) => {
       <AnimatePresence>
         {isOpen && (
           <motion.div
+            ref={chatPanelRef}
             initial={{ opacity: 0, y: 26, scale: 0.94 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.96 }}

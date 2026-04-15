@@ -1,10 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import Button from '../components/ui/Button';
-import SafeIcon from '../common/SafeIcon';
-import { iconRegistry } from '../common/iconRegistry';
 
-const PlatformPage = ({ content, onAction }) => {
+const PlatformPage = ({ content, possibilityContent, onAction }) => {
   const [selectedCard, setSelectedCard] = useState(null);
   const [selectedPoint, setSelectedPoint] = useState(null);
 
@@ -26,144 +23,159 @@ const PlatformPage = ({ content, onAction }) => {
     setSelectedCard(null);
   };
 
-  const goBack = () => {
-    if (selectedPoint) {
-      setSelectedPoint(null);
-      return;
-    }
-
-    closeModal();
-  };
-
   return (
-    <main className="bg-white">
-      <section className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900 px-6 py-14 md:px-10 lg:px-16 lg:py-16">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.16),_transparent_42%),radial-gradient(circle_at_bottom_right,_rgba(56,189,248,0.12),_transparent_35%)]" />
-        <div className="relative max-w-7xl mx-auto">
-          <p className="text-xs md:text-sm uppercase tracking-[0.35em] text-slate-500 mb-5">{content.hero.eyebrow}</p>
-          <h1 className="max-w-4xl text-4xl md:text-6xl font-semibold tracking-tight leading-[0.95] mb-5">
+    <main className="bg-white pt-24">
+      <section className="relative overflow-hidden bg-[#f4f4f4] px-6 pb-20 pt-24 text-center md:pb-32">
+        <div
+          className="absolute inset-0 opacity-[0.04]"
+          style={{ backgroundImage: 'radial-gradient(#000000 1px, transparent 1px)', backgroundSize: '32px 32px' }}
+        />
+        <div className="relative mx-auto max-w-4xl">
+          <div className="mb-8 inline-block rounded-full border border-[#d1d1d1] bg-white px-4 py-1.5 text-sm font-medium text-[#1a1a1a] shadow-sm">
+            {content.hero.eyebrow}
+          </div>
+          <h1 className="mb-8 font-serif text-5xl leading-[1.05] tracking-tight text-[#1a1a1a] md:text-7xl lg:text-[5.5rem]">
             {content.hero.title}
           </h1>
-          <p className="max-w-3xl text-base md:text-lg text-slate-600 leading-relaxed">
-            {content.hero.description}
-          </p>
+          <p className="mx-auto max-w-2xl text-lg leading-relaxed text-[#666666] md:text-xl">{content.hero.description}</p>
         </div>
       </section>
 
-      <section className="px-6 py-10 md:px-10 lg:px-16">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
-          {content.cards.map((card, index) => (
-            <motion.button
-              key={card.title}
-              type="button"
-              initial={{ opacity: 0, y: 18 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-80px' }}
-              transition={{ delay: index * 0.06 }}
-              onClick={() => setSelectedCard(card)}
-              className="rounded-[2rem] border border-slate-200 bg-slate-50 p-6 md:p-7 text-left shadow-sm hover:shadow-md hover:border-slate-300 transition-all"
-            >
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-400 mb-4">Platform</p>
-              <h2 className="text-2xl font-semibold text-slate-900 mb-3">{card.title}</h2>
-              <p className="text-slate-600 leading-relaxed">{card.description}</p>
-            </motion.button>
-          ))}
+      <section className="bg-[#f2f2f2] px-6 py-24 md:py-32">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-14 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="mb-6 inline-block rounded-full border border-[#d1d1d1] bg-white px-4 py-1.5 text-sm font-medium text-[#1a1a1a]">
+                {possibilityContent?.eyebrow}
+              </div>
+              <h2 className="max-w-4xl text-4xl leading-[1.02] tracking-[-0.05em] text-[#1a1a1a] md:text-6xl">
+                {possibilityContent?.heading}
+              </h2>
+            </div>
+            <p className="max-w-xl text-lg leading-relaxed text-[#666666]">{possibilityContent?.description}</p>
+          </div>
+
+          <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-4">
+            {(possibilityContent?.items || []).map((item) => (
+              <div
+                key={item.title}
+                className="overflow-hidden rounded-[24px] border border-[#e5e5e5] bg-white shadow-sm transition-all duration-500 hover:-translate-y-1 hover:shadow-xl"
+              >
+                <div className="h-56 overflow-hidden bg-[#e5e5e5]">
+                  <img src={item.img} alt={item.title} className="h-full w-full object-cover grayscale transition-all duration-700 hover:scale-105 hover:grayscale-0" />
+                </div>
+                <div className="p-8">
+                  <h3 className="mb-4 text-2xl font-medium tracking-tight text-[#1a1a1a]">{item.title}</h3>
+                  <p className="text-base leading-relaxed text-[#666666]">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
+      </section>
+
+      <section className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-6 py-24 lg:grid-cols-2 xl:grid-cols-3 md:py-32">
+        {content.cards.map((card, index) => (
+          <button
+            key={card.title}
+            type="button"
+            onClick={() => setSelectedCard(card)}
+            className="group flex flex-col overflow-hidden rounded-[24px] border border-[#e5e5e5] bg-white text-left shadow-sm transition-all duration-500 hover:border-[#d1d1d1] hover:shadow-xl"
+          >
+            <div className="h-64 overflow-hidden bg-[#f4f4f4]">
+              <img
+                src={`https://images.unsplash.com/photo-${index === 0 ? '1451187580459-43490279c0fa' : index === 1 ? '1504384308090-c894fdcc538d' : '1620712943543-bcc4688e7485'}?q=80&w=1200&auto=format&fit=crop`}
+                alt={card.title}
+                className="h-full w-full object-cover grayscale transition-all duration-700 ease-out group-hover:scale-105 group-hover:grayscale-0"
+              />
+            </div>
+            <div className="flex flex-1 flex-col p-8">
+              <h2 className="mb-4 text-3xl font-medium tracking-tight text-[#1a1a1a]">{card.title}</h2>
+              <p className="mb-10 text-lg leading-relaxed text-[#666666]">{card.description}</p>
+              <div className="mt-auto flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.12em] text-[#1a1a1a]">
+                Explore service
+                <span>{'->'}</span>
+              </div>
+            </div>
+          </button>
+        ))}
       </section>
 
       <AnimatePresence>
-        {selectedCard && (
+        {selectedCard ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[130] bg-slate-950/25 backdrop-blur-sm px-4 py-6 md:px-8 overflow-y-auto"
+            className="fixed inset-0 z-[130] overflow-y-auto bg-black/35 px-4 py-6 backdrop-blur-sm md:px-8"
             onClick={closeModal}
           >
             <motion.div
-              initial={{ opacity: 0, y: 24, scale: 0.98 }}
+              initial={{ opacity: 0, y: 18, scale: 0.985 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 12, scale: 0.98 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="relative max-w-4xl mx-auto rounded-[2rem] bg-white shadow-2xl overflow-hidden"
+              exit={{ opacity: 0, y: 10, scale: 0.985 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+              className="relative mx-auto max-w-4xl overflow-hidden rounded-[28px] bg-white shadow-2xl"
               onClick={(event) => event.stopPropagation()}
             >
               <button
                 type="button"
                 onClick={closeModal}
-                className="absolute top-4 right-4 z-20 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:border-slate-300 transition-colors"
+                className="absolute right-4 top-4 z-10 rounded-full border border-[#d1d1d1] bg-white px-4 py-2 text-sm font-medium text-[#666666] transition-colors hover:border-[#1a1a1a] hover:text-[#1a1a1a]"
               >
-                Cancel
+                Close
               </button>
 
-              <motion.button
-                type="button"
-                onClick={goBack}
-                whileHover={{ x: -2 }}
-                whileTap={{ scale: 0.96 }}
-                aria-label="Back"
-                className="absolute top-4 left-4 z-20 w-11 h-11 rounded-full border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors flex items-center justify-center"
-              >
-                <SafeIcon icon={iconRegistry.FiArrowLeft} className="w-5 h-5" />
-              </motion.button>
-
-              <div className="px-6 pt-16 pb-6 md:px-8 md:pt-16 md:pb-8 border-b border-slate-100">
-                <p className="text-xs uppercase tracking-[0.35em] text-indigo-500 mb-3">Platform</p>
-                <h3 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900 mb-3">
+              <div className="border-b border-[#e5e5e5] bg-[#f4f4f4] px-6 pb-8 pt-16 md:px-8 md:pb-10">
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.35em] text-[#a3a3a3]">Services</p>
+                <h3 className="mb-3 text-3xl font-medium tracking-tight text-[#1a1a1a] md:text-4xl">
                   {selectedPoint ? selectedPoint.title : selectedCard.title}
                 </h3>
-                <p className="max-w-3xl text-slate-600 leading-relaxed">
+                <p className="max-w-3xl text-lg leading-relaxed text-[#666666]">
                   {selectedPoint ? selectedPoint.description : selectedCard.description}
                 </p>
               </div>
 
               {!selectedPoint ? (
-                <div className="p-6 md:p-8">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {selectedCard.points.map((point) => (
-                      <button
-                        key={point.title}
-                        type="button"
-                        onClick={() => setSelectedPoint(point)}
-                        className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5 text-left hover:border-indigo-300 hover:shadow-md transition-all"
-                      >
-                        <h4 className="text-lg font-semibold text-slate-900 mb-2">{point.title}</h4>
-                        <p className="text-slate-600 leading-relaxed">{point.description}</p>
-                      </button>
-                    ))}
-                  </div>
+                <div className="grid gap-4 p-6 md:grid-cols-3 md:p-8">
+                  {selectedCard.points.map((point) => (
+                    <button
+                      key={point.title}
+                      type="button"
+                      onClick={() => setSelectedPoint(point)}
+                      className="rounded-[20px] border border-[#e5e5e5] bg-[#f4f4f4] p-5 text-left transition-all duration-300 hover:border-[#d1d1d1] hover:shadow-md"
+                    >
+                      <h4 className="mb-2 text-lg font-medium text-[#1a1a1a]">{point.title}</h4>
+                      <p className="leading-relaxed text-[#666666]">{point.description}</p>
+                    </button>
+                  ))}
                 </div>
               ) : (
                 <div className="p-6 md:p-8">
-                  <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-6 md:p-8">
-                    <div className="space-y-4">
-                      <div className="rounded-2xl bg-white border border-slate-100 px-5 py-4">
-                        <p className="text-sm uppercase tracking-[0.25em] text-slate-400 mb-2">What it means</p>
-                        <p className="text-slate-700 leading-relaxed">{selectedPoint.description}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-3">
-                        <Button
-                          variant="purple"
-                          className="rounded-2xl px-6 py-3.5"
-                          onClick={() => onAction({ type: 'modal', target: 'sales' })}
-                        >
-                          Talk to Sales
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          className="rounded-2xl px-6 py-3.5"
-                          onClick={() => onAction({ type: 'route', to: '/products' })}
-                        >
-                          View products
-                        </Button>
-                      </div>
+                  <div className="rounded-[24px] border border-[#e5e5e5] bg-[#f4f4f4] p-6 md:p-8">
+                    <p className="text-lg leading-relaxed text-[#4a4a4a]">{selectedPoint.description}</p>
+                    <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={() => onAction({ type: 'modal', target: 'sales' })}
+                        className="rounded-full bg-[#1a1a1a] px-6 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-white transition-colors hover:bg-black"
+                      >
+                        Talk to Sales
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPoint(null)}
+                        className="rounded-full border border-[#d1d1d1] px-6 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-[#1a1a1a] transition-colors hover:border-[#1a1a1a]"
+                      >
+                        Back
+                      </button>
                     </div>
                   </div>
                 </div>
               )}
             </motion.div>
           </motion.div>
-        )}
+        ) : null}
       </AnimatePresence>
     </main>
   );

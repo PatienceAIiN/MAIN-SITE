@@ -34,7 +34,7 @@ const getPageTitle = (pathname, siteContent) => {
 
   if (pathname === '/') return `${brandName} / Home`;
   if (pathname === '/products') return `${brandName} / Products`;
-  if (pathname === '/platform') return `${brandName} / Platform`;
+  if (pathname === '/platform') return `${brandName} / Services`;
   if (pathname === '/company/blog') return `${brandName} / Case Studies`;
   if (pathname === '/company/careers') return `${brandName} / Careers`;
   if (pathname === '/admin') return `${brandName} / Admin`;
@@ -61,10 +61,13 @@ const mergeWithDefaults = (defaults, overrides) => {
       return defaults;
     }
 
-    return Object.keys(defaults).reduce((acc, key) => {
-      acc[key] = mergeWithDefaults(defaults[key], overrides[key]);
-      return acc;
-    }, { ...defaults });
+    return Object.keys(defaults).reduce(
+      (acc, key) => ({
+        ...acc,
+        [key]: mergeWithDefaults(defaults[key], overrides[key])
+      }),
+      { ...defaults }
+    );
   }
 
   return overrides ?? defaults;
@@ -77,7 +80,6 @@ function App() {
 
   const [activeModal, setActiveModal] = useState(null);
   const [siteContent, setSiteContent] = useState(defaultSiteContent);
-  const [siteContentSource, setSiteContentSource] = useState('local');
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -96,12 +98,10 @@ function App() {
         const payload = await fetchJson('/api/site-content');
         if (active && payload?.content) {
           setSiteContent(mergeWithDefaults(defaultSiteContent, payload.content));
-          setSiteContentSource(payload.source || 'neondb');
         }
       } catch {
         if (active) {
           setSiteContent(defaultSiteContent);
-          setSiteContentSource('local');
         }
       }
     };
@@ -116,7 +116,7 @@ function App() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [isAdminRoute]);
+  }, [isAdminRoute, location.hash]);
 
   useEffect(() => {
     document.title = getPageTitle(location.pathname, siteContent);
@@ -176,33 +176,38 @@ function App() {
   const detailPages = siteContent.detailPages || [];
 
   return (
-    <div className="relative w-full overflow-x-hidden p-1 text-slate-900 md:p-2 lg:p-3 transition-colors duration-500 bg-slate-50">
-      <div className="fixed inset-0 pointer-events-none bg-noise opacity-[0.02] z-50 mix-blend-overlay" />
+    <div className="min-h-screen bg-white text-[#1a1a1a]">
+      <Navbar
+        brand={siteContent.brand}
+        navigation={siteContent.navigation}
+        onAction={handleAction}
+        currentPath={location.pathname}
+      />
 
-      <div className="max-w-[1920px] mx-auto rounded-[1.5rem] overflow-hidden shadow-2xl relative transition-colors duration-500 bg-white border border-slate-200">
-        <Navbar
-          brand={siteContent.brand}
-          navigation={siteContent.navigation}
-          onAction={handleAction}
-          currentPath={location.pathname}
+      <Routes>
+        <Route path="/" element={<HomePage content={siteContent} onAction={handleAction} />} />
+        <Route path="/products" element={<ProductsPage content={siteContent.productsPage} onAction={handleAction} />} />
+        <Route
+          path="/platform"
+          element={
+            <PlatformPage
+              content={siteContent.platformPage}
+              possibilityContent={siteContent.possibilities}
+              onAction={handleAction}
+            />
+          }
         />
+        <Route path="/company/blog" element={<BlogPage content={siteContent.blogPage} />} />
+        <Route path="/company/blog/:slug" element={<BlogPostPage content={siteContent.blogPage} onAction={handleAction} />} />
+        <Route path="/company/careers" element={<CareersPage content={siteContent.careersPage} onAction={handleAction} />} />
+        {detailPages.map((page) => (
+          <Route key={page.path} path={page.path} element={<DetailPage pageContent={page} onAction={handleAction} />} />
+        ))}
+        <Route path="/admin" element={<Navigate to="/admin" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
 
-        <Routes>
-          <Route path="/" element={<HomePage content={siteContent} onAction={handleAction} />} />
-          <Route path="/products" element={<ProductsPage content={siteContent.productsPage} onAction={handleAction} />} />
-          <Route path="/platform" element={<PlatformPage content={siteContent.platformPage} onAction={handleAction} />} />
-          <Route path="/company/blog" element={<BlogPage content={siteContent.blogPage} onAction={handleAction} />} />
-          <Route path="/company/blog/:slug" element={<BlogPostPage content={siteContent.blogPage} onAction={handleAction} />} />
-          <Route path="/company/careers" element={<CareersPage content={siteContent.careersPage} onAction={handleAction} />} />
-          {detailPages.map((page) => (
-            <Route key={page.path} path={page.path} element={<DetailPage pageContent={page} onAction={handleAction} />} />
-          ))}
-          <Route path="/admin" element={<Navigate to="/admin" replace />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-
-        <Footer brand={siteContent.brand} content={siteContent.footer} onAction={handleAction} />
-      </div>
+      <Footer brand={siteContent.brand} content={siteContent.footer} onAction={handleAction} />
 
       <ContactUs
         content={siteContent.salesModal}

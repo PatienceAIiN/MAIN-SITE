@@ -1,105 +1,69 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import Button from '../components/ui/Button';
 
-const formatDateTime = (value) =>
-  value
-    ? new Intl.DateTimeFormat('en-US', {
-        dateStyle: 'medium',
-        timeStyle: 'short'
-      }).format(new Date(value))
-    : 'Unknown';
-
-const BlogPage = ({ content, onAction }) => {
+const BlogPage = ({ content }) => {
   const navigate = useNavigate();
   const posts = content?.posts || [];
 
   return (
-    <main className="bg-white">
-      <section className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900 px-6 py-16 md:px-10 lg:px-16 lg:py-20">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(129,140,248,0.18),_transparent_40%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.1),_transparent_35%)]" />
-        <div className="relative max-w-6xl mx-auto">
-          <p className="text-xs md:text-sm uppercase tracking-[0.35em] text-slate-500 mb-5">{content?.hero?.eyebrow}</p>
-          <h1 className="max-w-4xl text-4xl md:text-6xl font-semibold tracking-tight leading-[0.96] mb-5">
+    <main className="bg-white pt-24">
+      <section className="relative overflow-hidden bg-[#f4f4f4] px-6 pb-16 pt-24 text-center">
+        <div
+          className="absolute inset-0 opacity-[0.04]"
+          style={{ backgroundImage: 'radial-gradient(#000000 1px, transparent 1px)', backgroundSize: '32px 32px' }}
+        />
+        <div className="relative mx-auto max-w-4xl">
+          <div className="mb-8 inline-block rounded-full border border-[#d1d1d1] bg-white px-4 py-1.5 text-sm font-medium text-[#1a1a1a] shadow-sm">
+            {content?.hero?.eyebrow}
+          </div>
+          <h1 className="mb-8 font-serif text-5xl leading-[1.05] tracking-tight text-[#1a1a1a] md:text-7xl">
             {content?.hero?.title}
           </h1>
-          <p className="max-w-3xl text-base md:text-lg text-slate-600 leading-relaxed">
-            {content?.hero?.description}
-          </p>
+          <p className="mx-auto max-w-2xl text-lg leading-relaxed text-[#666666] md:text-xl">{content?.hero?.description}</p>
         </div>
       </section>
 
-      <section className="px-6 py-14 md:px-10 lg:px-16">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col gap-10">
-            {posts.length ? (
-              posts.map((post, index) => (
-                <motion.article
-                  key={post.slug}
-                  initial={{ opacity: 0, y: 24 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: '-80px' }}
-                  transition={{ delay: index * 0.06 }}
-                  className="group rounded-[2rem] border border-slate-200 bg-slate-50 overflow-hidden shadow-sm"
-                >
-                  <div className="grid gap-0 lg:grid-cols-[1.12fr_0.88fr]">
-                    <div className="p-7 md:p-10">
-                      <div className="flex flex-wrap items-center gap-3 mb-5">
-                        <span className="px-3 py-1.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold uppercase tracking-[0.25em]">
-                          {post.header}
-                        </span>
-                        <span className="text-sm text-slate-500">{formatDateTime(post.publishedAt)}</span>
-                        <span className="text-sm text-slate-400">by {post.by}</span>
-                      </div>
-
-                      <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900 leading-tight mb-4">
-                        {post.title}
-                      </h2>
-
-                      <p className="text-slate-600 text-lg leading-relaxed mb-8 max-w-3xl">{post.excerpt}</p>
-
-                      <div className="flex flex-wrap gap-2 mb-8">
-                        {(post.tags || []).map((tag) => (
-                          <span
-                            key={tag}
-                            className="px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-500 text-xs font-medium"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-
-                      <Button
-                        variant="secondary"
-                        className="rounded-2xl px-6 py-3.5"
-                        onClick={() => navigate(`/company/blog/${post.slug}`)}
-                      >
-                        Read article
-                      </Button>
-                    </div>
-
-                    <div className="bg-slate-50 text-slate-900 p-7 md:p-10 flex items-end min-h-[220px] lg:min-h-full">
-                      <div className="w-full rounded-[1.75rem] border border-slate-200 bg-white p-6 backdrop-blur-sm shadow-sm">
-                        <p className="text-xs uppercase tracking-[0.3em] text-slate-400 mb-3">Author</p>
-                        <p className="text-2xl font-semibold mb-5">{post.by}</p>
-                        <div className="space-y-3 text-slate-600 text-sm leading-relaxed">
-                          {(post.content || []).slice(0, 2).map((paragraph) => (
-                            <p key={paragraph}>{paragraph}</p>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </motion.article>
-              ))
-            ) : (
-              <div className="rounded-[2rem] border border-slate-200 bg-slate-50 p-10 text-slate-600">
-                No posts published yet.
+      <section className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-6 py-24 md:grid-cols-2 xl:grid-cols-3 md:py-32">
+        {posts.map((post, index) => (
+          <article
+            key={post.slug}
+            className="group flex cursor-pointer flex-col overflow-hidden rounded-[24px] border border-[#e5e5e5] bg-white shadow-sm transition-all duration-500 hover:border-[#d1d1d1] hover:shadow-xl"
+            onClick={() => navigate(`/company/blog/${post.slug}`)}
+          >
+            <div className="relative h-64 overflow-hidden bg-[#f4f4f4]">
+              <img
+                src={`https://images.unsplash.com/photo-${index % 3 === 0 ? '1516321497487-e288fb19713f' : index % 3 === 1 ? '1557200134-90327ee9fafa' : '1556742049-0cfed4f6a45d'}?q=80&w=1200&auto=format&fit=crop`}
+                alt={post.title}
+                className="h-full w-full object-cover grayscale transition-all duration-700 ease-out group-hover:scale-105 group-hover:grayscale-0"
+              />
+              <div className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-[#1a1a1a] shadow-sm">
+                {post.header}
               </div>
-            )}
-          </div>
-        </div>
+            </div>
+
+            <div className="flex flex-1 flex-col p-8">
+              <p className="mb-3 text-sm font-medium text-[#666666]">
+                {post.by} · {new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(new Date(post.publishedAt))}
+              </p>
+              <h2 className="mb-4 text-2xl font-medium tracking-tight text-[#1a1a1a]">{post.title}</h2>
+              <p className="mb-8 flex-1 leading-relaxed text-[#666666]">{post.excerpt}</p>
+              <div className="mb-8 flex flex-wrap gap-2">
+                {(post.tags || []).map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full border border-[#d1d1d1] bg-[#fdfdfd] px-3.5 py-1.5 text-[12px] font-medium text-[#666666]"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-auto flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.12em] text-[#1a1a1a]">
+                Read full story
+                <span>→</span>
+              </div>
+            </div>
+          </article>
+        ))}
       </section>
     </main>
   );

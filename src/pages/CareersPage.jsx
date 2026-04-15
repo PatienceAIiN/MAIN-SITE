@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import Button from '../components/ui/Button';
 import SafeIcon from '../common/SafeIcon';
 import { iconRegistry } from '../common/iconRegistry';
 import { fetchJson } from '../common/fetchJson';
@@ -27,8 +26,6 @@ const CareersPage = ({ content, onAction }) => {
     setIsSubmitting(true);
     setSubmitStatus('');
 
-    const subject = `Job Inquiry - ${formData.role || 'Career Opportunity'}`;
-
     try {
       await fetchJson('/api/contact', {
         method: 'POST',
@@ -38,7 +35,7 @@ const CareersPage = ({ content, onAction }) => {
         body: JSON.stringify({
           name: formData.name,
           email: formData.email,
-          subject,
+          subject: `Job Inquiry - ${formData.role || 'Career Opportunity'}`,
           message: `${formData.message}\n\nRole: ${formData.role || 'Not specified'}`,
           source: content.form.source
         })
@@ -53,163 +50,145 @@ const CareersPage = ({ content, onAction }) => {
     }
   };
 
-  const handleReset = () => {
-    setSubmitStatus('');
-    setFormData(INITIAL_FORM);
-  };
-
-  const fields = content.form.fields;
-  const successView = submitStatus === 'success';
-
   return (
-    <main className="bg-white">
-      <section className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900 px-6 py-16 md:px-10 lg:px-16 lg:py-20">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(129,140,248,0.18),_transparent_40%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.1),_transparent_35%)]" />
-        <div className="relative max-w-7xl mx-auto grid gap-8 lg:grid-cols-[1.08fr_0.92fr] lg:items-center">
+    <main className="bg-white pt-24">
+      <section className="relative overflow-hidden bg-[#f4f4f4] px-6 pb-20 pt-24 md:pb-28">
+        <div
+          className="absolute inset-0 opacity-[0.04]"
+          style={{ backgroundImage: 'radial-gradient(#000000 1px, transparent 1px)', backgroundSize: '32px 32px' }}
+        />
+        <div className="relative mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1.08fr_0.92fr] lg:items-center">
           <div className="max-w-3xl">
-            <p className="text-xs md:text-sm uppercase tracking-[0.35em] text-slate-500 mb-5">{content.hero.eyebrow}</p>
-            <h1 className="text-4xl md:text-6xl font-semibold tracking-tight leading-[0.96] mb-6">
+            <div className="mb-6 inline-block rounded-full border border-[#d1d1d1] bg-white px-4 py-1.5 text-sm font-medium text-[#1a1a1a] shadow-sm">
+              {content.hero.eyebrow}
+            </div>
+            <h1 className="mb-6 font-serif text-5xl leading-[1.05] tracking-tight text-[#1a1a1a] md:text-7xl">
               {content.hero.title}
             </h1>
-            <p className="max-w-2xl text-base md:text-lg text-slate-600 leading-relaxed">
-              {content.hero.description}
-            </p>
+            <p className="text-lg leading-relaxed text-[#666666] md:text-xl">{content.hero.description}</p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
             {content.highlights.map((item) => (
-              <div key={item} className="rounded-[1.5rem] border border-slate-200 bg-white p-5 backdrop-blur-sm shadow-sm">
-                <p className="text-sm text-slate-600 leading-relaxed">{item}</p>
+              <div key={item} className="rounded-[20px] border border-[#e5e5e5] bg-white p-5 shadow-sm">
+                <p className="text-sm leading-relaxed text-[#666666]">{item}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="px-6 py-12 md:px-10 lg:px-16">
-        <div className="max-w-7xl mx-auto grid gap-6 lg:grid-cols-[0.92fr_1.08fr]">
-          <div className="rounded-[2rem] border border-slate-200 bg-slate-50 p-6 md:p-8 shadow-sm">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400 mb-4">Inquiry</p>
-            <h2 className="text-3xl font-semibold text-slate-900 mb-4">{content.form.title}</h2>
-            <p className="text-slate-600 leading-relaxed mb-6">{content.form.description}</p>
+      <section className="mx-auto grid max-w-7xl gap-8 px-6 py-24 lg:grid-cols-[0.92fr_1.08fr] md:py-32">
+        <div className="rounded-[24px] border border-[#e5e5e5] bg-[#f4f4f4] p-8">
+          <p className="mb-4 text-xs font-bold uppercase tracking-[0.3em] text-[#a3a3a3]">Inquiry</p>
+          <h2 className="mb-4 text-3xl font-medium tracking-tight text-[#1a1a1a]">{content.form.title}</h2>
+          <p className="mb-8 leading-relaxed text-[#666666]">{content.form.description}</p>
 
-            <div className="space-y-3">
-              {(content.form.highlights || []).map((item) => (
-                <div key={item} className="rounded-2xl bg-white border border-slate-100 px-5 py-4">
-                  <p className="text-slate-700 leading-relaxed">{item}</p>
+          <div className="space-y-3">
+            {(content.form.highlights || []).map((item) => (
+              <div key={item} className="rounded-2xl border border-[#e5e5e5] bg-white px-5 py-4">
+                <p className="leading-relaxed text-[#4a4a4a]">{item}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[24px] border border-[#e5e5e5] bg-white p-8 shadow-sm">
+          <AnimatePresence mode="wait">
+            {submitStatus === 'success' ? (
+              <motion.div
+                key="careers-success"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="rounded-[24px] border border-[#e5e5e5] bg-[#f4f4f4] p-8"
+              >
+                <div className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-2xl font-semibold">
+                  ✓
                 </div>
-              ))}
-            </div>
-          </div>
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.35em] text-emerald-600">Sent</p>
+                <h3 className="mb-3 text-2xl font-medium text-[#1a1a1a]">Inquiry received</h3>
+                <p className="mb-8 leading-relaxed text-[#666666]">{content.form.statusMessages.success}</p>
 
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 md:p-8 shadow-sm">
-            <AnimatePresence mode="wait">
-              {successView ? (
-                <motion.div
-                  key="careers-success"
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -12 }}
-                  transition={{ duration: 0.2, ease: 'easeOut' }}
-                  className="min-h-full"
-                >
-                  <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-8 md:p-10 shadow-sm">
-                    <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-2xl font-semibold mb-5">
-                      ✓
-                    </div>
-                    <p className="text-xs uppercase tracking-[0.35em] text-emerald-600 mb-3">Sent</p>
-                    <h3 className="text-2xl md:text-3xl font-semibold text-slate-900 mb-3">
-                      Inquiry received
-                    </h3>
-                    <p className="text-slate-600 leading-relaxed mb-8">{content.form.statusMessages.success}</p>
-
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <button
-                        type="button"
-                        onClick={handleReset}
-                        className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-slate-900 text-white font-medium hover:bg-slate-800 transition-colors"
-                      >
-                        Send another inquiry
-                      </button>
-                      <Button
-                        variant="secondary"
-                        className="w-full sm:w-auto rounded-2xl px-6 py-3.5"
-                        onClick={() => onAction({ type: 'route', to: '/products' })}
-                      >
-                        View products
-                      </Button>
-                    </div>
-                  </div>
-                </motion.div>
-              ) : (
-                <motion.form
-                  key="careers-form"
-                  onSubmit={handleSubmit}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -12 }}
-                  transition={{ duration: 0.2, ease: 'easeOut' }}
-                  className="space-y-5"
-                >
-                  {fields.map((field) => (
-                    <div key={field.name}>
-                      <label htmlFor={field.name} className="block text-sm font-medium text-slate-700 mb-2">
-                        {field.label}
-                      </label>
-                      {field.type === 'textarea' ? (
-                        <textarea
-                          id={field.name}
-                          name={field.name}
-                          value={formData[field.name]}
-                          onChange={handleChange}
-                          required={field.required}
-                          rows={field.rows || 5}
-                          placeholder={field.placeholder}
-                          className="w-full px-4 py-3.5 border border-slate-200 rounded-2xl bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors resize-none"
-                        />
-                      ) : (
-                        <input
-                          id={field.name}
-                          name={field.name}
-                          type={field.type}
-                          value={formData[field.name]}
-                          onChange={handleChange}
-                          required={field.required}
-                          placeholder={field.placeholder}
-                          className="w-full px-4 py-3.5 border border-slate-200 rounded-2xl bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-                        />
-                      )}
-                    </div>
-                  ))}
-
-                  {submitStatus === 'error' && (
-                    <div className="p-4 bg-red-50 border border-red-200 rounded-2xl" role="status" aria-live="polite">
-                      <p className="text-red-800">{content.form.statusMessages.error}</p>
-                    </div>
-                  )}
-
-                  <Button
-                    variant="purple"
-                    className="w-full rounded-2xl px-6 py-3.5"
-                    type="submit"
-                    disabled={isSubmitting}
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => setSubmitStatus('')}
+                    className="rounded-full bg-[#1a1a1a] px-6 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-white transition-colors hover:bg-black"
                   >
-                    {isSubmitting ? (
-                      <>
-                        <SafeIcon icon={iconRegistry.FiLoader} className="w-5 h-5 animate-spin mr-2" />
-                        {content.form.submitButton.loadingLabel}
-                      </>
+                    Send another inquiry
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onAction({ type: 'route', to: '/products' })}
+                    className="rounded-full border border-[#d1d1d1] px-6 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-[#1a1a1a] transition-colors hover:border-[#1a1a1a]"
+                  >
+                    View products
+                  </button>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.form
+                key="careers-form"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                onSubmit={handleSubmit}
+                className="space-y-5"
+              >
+                {content.form.fields.map((field) => (
+                  <div key={field.name}>
+                    <label htmlFor={field.name} className="mb-2 block text-sm font-medium text-[#1a1a1a]">
+                      {field.label}
+                    </label>
+                    {field.type === 'textarea' ? (
+                      <textarea
+                        id={field.name}
+                        name={field.name}
+                        value={formData[field.name]}
+                        onChange={handleChange}
+                        required={field.required}
+                        rows={field.rows || 5}
+                        placeholder={field.placeholder}
+                        className="w-full rounded-[20px] border border-[#d1d1d1] bg-white px-4 py-3.5 text-[#1a1a1a] placeholder:text-[#a3a3a3] focus:border-[#1a1a1a] focus:outline-none"
+                      />
                     ) : (
-                      <>
-                        <SafeIcon icon={iconRegistry.FiSend} className="w-5 h-5 mr-2" />
-                        {content.form.submitButton.idleLabel}
-                      </>
+                      <input
+                        id={field.name}
+                        name={field.name}
+                        type={field.type}
+                        value={formData[field.name]}
+                        onChange={handleChange}
+                        required={field.required}
+                        placeholder={field.placeholder}
+                        className="w-full rounded-[20px] border border-[#d1d1d1] bg-white px-4 py-3.5 text-[#1a1a1a] placeholder:text-[#a3a3a3] focus:border-[#1a1a1a] focus:outline-none"
+                      />
                     )}
-                  </Button>
-                </motion.form>
-              )}
-            </AnimatePresence>
-          </div>
+                  </div>
+                ))}
+
+                {submitStatus === 'error' ? (
+                  <div className="rounded-[20px] border border-red-200 bg-red-50 p-4 text-red-800" role="status" aria-live="polite">
+                    {content.form.statusMessages.error}
+                  </div>
+                ) : null}
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#1a1a1a] px-8 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <SafeIcon
+                    icon={iconRegistry[isSubmitting ? content.form.submitButton.loadingIcon : content.form.submitButton.idleIcon]}
+                    className={`h-5 w-5 ${isSubmitting ? 'animate-spin' : ''}`}
+                  />
+                  {isSubmitting ? content.form.submitButton.loadingLabel : content.form.submitButton.idleLabel}
+                </button>
+              </motion.form>
+            )}
+          </AnimatePresence>
         </div>
       </section>
     </main>
