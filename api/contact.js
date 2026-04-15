@@ -32,6 +32,22 @@ const sendBrevoEmail = async ({ apiKey, sender, to, subject, htmlContent, replyT
   });
 };
 
+const parseBrevoError = async (response) => {
+  const fallback = `Brevo request failed with status ${response.status}`;
+  try {
+    const payload = await response.json();
+    if (payload?.message) return payload.message;
+    return JSON.stringify(payload);
+  } catch {
+    try {
+      const text = await response.text();
+      return text || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+};
+
 const getInquiryMeta = ({ source, productName }) => {
   if (source === 'job-inquiry-chat') {
     return {
@@ -95,9 +111,10 @@ export default async function handler(req, res) {
     const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || 'PATIENCE AI';
     const CONTACT_TO_EMAIL = CONTACT_TO_EMAIL_CONFIG || BREVO_SENDER_EMAIL;
 
-    if (!BREVO_API_KEY) {
+    if (!BREVO_API_KEY || !CONTACT_TO_EMAIL) {
+      console.error('Missing Brevo email configuration. Ensure BREVO_API_KEY and CONTACT_TO_EMAIL (or RECIPIENT_EMAIL) are set.');
       return res.status(200).json({
-        message: 'Thanks. Your message is in and we will reply soon.',
+        message: 'Thanks. Your message is saved. Email delivery is temporarily unavailable.',
         emailSent: false
       });
     }
@@ -174,46 +191,54 @@ export default async function handler(req, res) {
       </div>
     `;
 
-    const [ownerResponse, userResponse] = await Promise.all([
-      sendBrevoEmail({
-        apiKey: BREVO_API_KEY,
-        sender: senderIdentity,
-        to: ownerRecipient,
-        subject: emailSubject,
-        htmlContent: ownerHtml,
-        replyTo: {
-          email,
-          name
-        }
-      }),
-      sendBrevoEmail({
-        apiKey: BREVO_API_KEY,
-        sender: senderIdentity,
-        to: userRecipient,
-        subject: inquiryMeta.userSubject,
-        htmlContent: userHtml,
-        replyTo: {
-          email: BREVO_SENDER_EMAIL,
-          name: BREVO_SENDER_NAME
-        }
-      })
-    ]);
+    const ownerResponse = await sendBrevoEmail({
+      apiKey: BREVO_API_KEY,
+      sender: senderIdentity,
+      to: ownerRecipient,
+      subject: emailSubject,
+      htmlContent: ownerHtml,
+      replyTo: {
+        email,
+        name
+      }
+    });
 
-    if (!ownerResponse.ok || !userResponse.ok) {
-      const ownerError = !ownerResponse.ok ? await ownerResponse.json().catch(() => ({})) : null;
-      const userError = !userResponse.ok ? await userResponse.json().catch(() => ({})) : null;
-      console.error('Brevo API error:', ownerError || userError);
+    if (!ownerResponse.ok) {
+      const ownerError = await parseBrevoError(ownerResponse);
+      console.error('Brevo owner email error:', ownerError);
       return res.status(200).json({
-        message: 'Thanks. Your message is in and we will reply soon.',
+        message: 'Thanks. Your message is saved. We could not email the team yet.',
         emailSent: false
       });
     }
 
-    return res.status(200).json({ message: 'Email sent successfully', emailSent: true });
+    const userResponse = await sendBrevoEmail({
+      apiKey: BREVO_API_KEY,
+      sender: senderIdentity,
+      to: userRecipient,
+      subject: inquiryMeta.userSubject,
+      htmlContent: userHtml,
+      replyTo: {
+        email: BREVO_SENDER_EMAIL,
+        name: BREVO_SENDER_NAME
+      }
+    });
+
+    if (!userResponse.ok) {
+      const userError = await parseBrevoError(userResponse);
+      console.error('Brevo user confirmation email error:', userError);
+      return res.status(200).json({
+        message: 'Message sent to our team, but confirmation email to sender failed.',
+        emailSent: true,
+        userConfirmationSent: false
+      });
+    }
+
+    return res.status(200).json({ message: 'Email sent successfully', emailSent: true, userConfirmationSent: true });
   } catch (error) {
     console.error('Contact form error:', error);
     return res.status(200).json({
-      message: 'Thanks. Your message is in and we will reply soon.',
+      message: 'Thanks. Your message is saved. We will follow up shortly.',
       emailSent: false
     });
   }
