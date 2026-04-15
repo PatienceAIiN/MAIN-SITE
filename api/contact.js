@@ -32,6 +32,22 @@ const sendBrevoEmail = async ({ apiKey, sender, to, subject, htmlContent, replyT
   });
 };
 
+const parseBrevoError = async (response) => {
+  const fallback = `Brevo request failed with status ${response.status}`;
+  try {
+    const payload = await response.json();
+    if (payload?.message) return payload.message;
+    return JSON.stringify(payload);
+  } catch {
+    try {
+      const text = await response.text();
+      return text || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+};
+
 const getInquiryMeta = ({ source, productName }) => {
   if (source === 'job-inquiry-chat') {
     return {
@@ -95,10 +111,10 @@ export default async function handler(req, res) {
     const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || 'PATIENCE AI';
     const CONTACT_TO_EMAIL = CONTACT_TO_EMAIL_CONFIG || BREVO_SENDER_EMAIL;
 
-    if (!BREVO_API_KEY) {
-      return res.status(200).json({
-        message: 'Thanks. Your message is in and we will reply soon.',
-        emailSent: false
+    if (!BREVO_API_KEY || !BREVO_SENDER_EMAIL || !CONTACT_TO_EMAIL) {
+      console.error('Missing Brevo email configuration. Ensure BREVO_API_KEY, BREVO_SENDER_EMAIL, and CONTACT_TO_EMAIL are set.');
+      return res.status(500).json({
+        error: 'Email service is not configured. Please try again shortly.'
       });
     }
 
@@ -200,21 +216,20 @@ export default async function handler(req, res) {
     ]);
 
     if (!ownerResponse.ok || !userResponse.ok) {
-      const ownerError = !ownerResponse.ok ? await ownerResponse.json().catch(() => ({})) : null;
-      const userError = !userResponse.ok ? await userResponse.json().catch(() => ({})) : null;
-      console.error('Brevo API error:', ownerError || userError);
-      return res.status(200).json({
-        message: 'Thanks. Your message is in and we will reply soon.',
-        emailSent: false
+      const ownerError = !ownerResponse.ok ? await parseBrevoError(ownerResponse) : null;
+      const userError = !userResponse.ok ? await parseBrevoError(userResponse) : null;
+      const detail = ownerError || userError || 'Unknown Brevo error';
+      console.error('Brevo API error:', detail);
+      return res.status(502).json({
+        error: 'Unable to send confirmation emails right now. Please retry in a moment.'
       });
     }
 
     return res.status(200).json({ message: 'Email sent successfully', emailSent: true });
   } catch (error) {
     console.error('Contact form error:', error);
-    return res.status(200).json({
-      message: 'Thanks. Your message is in and we will reply soon.',
-      emailSent: false
+    return res.status(500).json({
+      error: 'Unable to submit your request right now. Please try again.'
     });
   }
 }

@@ -33,19 +33,20 @@ const normalizeMessageContent = (value) => {
 
 const LAUNCHER_SIZE = 64;
 const LAUNCHER_MARGIN = 24;
+const LAUNCHER_BOTTOM_OFFSET = 96;
 
 const getDefaultLauncherPosition = () => {
   if (typeof window === 'undefined') return { x: 0, y: 0 };
   return {
     x: Math.max(LAUNCHER_MARGIN, window.innerWidth - LAUNCHER_SIZE - LAUNCHER_MARGIN),
-    y: Math.max(LAUNCHER_MARGIN, window.innerHeight - LAUNCHER_SIZE - LAUNCHER_MARGIN)
+    y: Math.max(LAUNCHER_MARGIN, window.innerHeight - LAUNCHER_SIZE - LAUNCHER_BOTTOM_OFFSET)
   };
 };
 
 const clampLauncherPosition = (x, y) => {
   if (typeof window === 'undefined') return { x, y };
   const maxX = Math.max(LAUNCHER_MARGIN, window.innerWidth - LAUNCHER_SIZE - LAUNCHER_MARGIN);
-  const maxY = Math.max(LAUNCHER_MARGIN, window.innerHeight - LAUNCHER_SIZE - LAUNCHER_MARGIN);
+  const maxY = Math.max(LAUNCHER_MARGIN, window.innerHeight - LAUNCHER_SIZE - LAUNCHER_BOTTOM_OFFSET);
   return {
     x: Math.min(Math.max(x, LAUNCHER_MARGIN), maxX),
     y: Math.min(Math.max(y, LAUNCHER_MARGIN), maxY)
