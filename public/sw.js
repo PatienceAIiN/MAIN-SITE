@@ -1,4 +1,4 @@
-const CACHE_NAME = 'patience-ai-v3';
+const CACHE_NAME = 'patience-ai-v4';
 const OFFLINE_SHELL = ['/index.html', '/manifest.webmanifest', '/favicon.svg'];
 
 self.addEventListener('install', (event) => {

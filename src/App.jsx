@@ -97,7 +97,12 @@ function App() {
       try {
         const payload = await fetchJson('/api/site-content');
         if (active && payload?.content) {
-          setSiteContent(mergeWithDefaults(defaultSiteContent, payload.content));
+          const dbVersion = payload.content._schemaVersion ?? 0;
+          const defaultVersion = defaultSiteContent._schemaVersion ?? 0;
+          if (dbVersion >= defaultVersion) {
+            setSiteContent(mergeWithDefaults(defaultSiteContent, payload.content));
+          }
+          // else: DB content is from an older schema — use fresh defaults
         }
       } catch {
         if (active) {
