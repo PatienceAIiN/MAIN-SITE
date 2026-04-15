@@ -49,13 +49,13 @@ const Hero = ({ content, onAction }) => {
   }, []);
 
   return (
-    <section className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-white px-6 pb-32 pt-44">
-      <div className="absolute inset-x-0 bottom-0 top-[22rem] z-0">
+    <section className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-white px-6 pb-20 pt-28">
+      <div className="absolute inset-x-0 bottom-0 top-[10rem] z-0">
         <div ref={containerRef} className="relative h-full w-full opacity-0 transition-opacity duration-150">
           <video ref={videoRef} autoPlay muted playsInline loop className="h-full w-full object-cover">
             <source src={VIDEO_SOURCE} type="video/mp4" />
           </video>
-          <div className="absolute inset-0 bg-gradient-to-b from-white via-white/55 to-white" />
+          <div className="absolute inset-0 bg-gradient-to-b from-white via-white/25 to-white" />
         </div>
       </div>
 

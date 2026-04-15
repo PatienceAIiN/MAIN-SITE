@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useMotionValue } from 'framer-motion';
 import { FiCheck, FiCopy, FiInfo, FiSend, FiSquare, FiTrash2, FiX } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 
@@ -91,7 +91,22 @@ const ChatWidget = ({ brand }) => {
   const liveResponseRef = useRef('');
   const launcherStackRef = useRef(null);
   const chatPanelRef = useRef(null);
-  const [launcherPosition, setLauncherPosition] = useState(() => getDefaultLauncherPosition());
+  const hasDragged = useRef(false);
+  const dragX = useMotionValue(0);
+  const dragY = useMotionValue(0);
+  const [userMovedLauncher, setUserMovedLauncher] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return !!localStorage.getItem('pa_launcher_custom_pos');
+  });
+  const [launcherPosition, setLauncherPosition] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('pa_launcher_custom_pos');
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return getDefaultLauncherPosition();
+  });
 
   const conversationId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_conversation_id', 'PatienceAI') : 'PatienceAI-local'), []);
   const sessionId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_session_id', 'session') : 'session-local'), []);
@@ -180,6 +195,13 @@ const ChatWidget = ({ brand }) => {
       const stackRect = launcherStackRef.current?.getBoundingClientRect();
       const stackWidth = stackRect?.width || LAUNCHER_SIZE;
       const stackHeight = stackRect?.height || LAUNCHER_SIZE;
+
+      // If user manually moved the bubble, only clamp to viewport on resize
+      if (userMovedLauncher) {
+        setLauncherPosition((prev) => clampLauncherPosition(prev.x, prev.y, stackWidth, stackHeight));
+        return;
+      }
+
       const defaultPosition = clampLauncherPosition(
         window.innerWidth - stackWidth - LAUNCHER_MARGIN,
         window.innerHeight - stackHeight - LAUNCHER_MARGIN,
@@ -217,7 +239,7 @@ const ChatWidget = ({ brand }) => {
       window.removeEventListener('resize', scheduleSync);
       window.removeEventListener('scroll', scheduleSync);
     };
-  }, [isOpen, showWave]);
+  }, [isOpen, showWave, userMovedLauncher]);
 
   const launcherMonogram = 'PA';
 
@@ -334,6 +356,7 @@ const ChatWidget = ({ brand }) => {
   };
 
   const toggleChat = () => {
+    if (hasDragged.current) return; // was a drag, not a click
     setIsOpen((current) => {
       const next = !current;
       if (next) {
@@ -468,10 +491,37 @@ const ChatWidget = ({ brand }) => {
   };
   return (
     <>
-      <div
+      <motion.div
         ref={launcherStackRef}
-        className="fixed z-[120] flex flex-col items-end gap-2 touch-none"
-        style={{ left: launcherPosition.x, top: launcherPosition.y }}
+        drag
+        dragMomentum={false}
+        dragElastic={0}
+        style={{ x: dragX, y: dragY, left: launcherPosition.x, top: launcherPosition.y }}
+        onDragStart={() => { hasDragged.current = false; }}
+        onDrag={() => {
+          if (Math.abs(dragX.get()) > 4 || Math.abs(dragY.get()) > 4) {
+            hasDragged.current = true;
+          }
+        }}
+        onDragEnd={() => {
+          if (hasDragged.current) {
+            const stackRect = launcherStackRef.current?.getBoundingClientRect();
+            const w = stackRect?.width || LAUNCHER_SIZE;
+            const h = stackRect?.height || LAUNCHER_SIZE;
+            const newPos = clampLauncherPosition(
+              launcherPosition.x + dragX.get(),
+              launcherPosition.y + dragY.get(),
+              w,
+              h
+            );
+            setLauncherPosition(newPos);
+            setUserMovedLauncher(true);
+            try { localStorage.setItem('pa_launcher_custom_pos', JSON.stringify(newPos)); } catch {}
+          }
+          dragX.set(0);
+          dragY.set(0);
+        }}
+        className="fixed z-[120] flex flex-col items-end gap-2 touch-none cursor-grab active:cursor-grabbing"
       >
         {showWave && !isOpen && (
           <motion.div
@@ -495,7 +545,7 @@ const ChatWidget = ({ brand }) => {
         >
           <div className="h-10 w-10 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-xs font-bold"><span className="site-brand site-brand--dark text-base leading-none tracking-normal">{launcherMonogram}</span></div>
         </motion.button>
-      </div>
+      </motion.div>
 
       <AnimatePresence>
         {isOpen && (

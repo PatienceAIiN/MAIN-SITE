@@ -61,6 +61,17 @@ export default async function handler(req, res) {
         return res.status(200).json({ content: sanitizeContent(defaultContent), source: 'neondb-seeded-default' });
       }
 
+      // If stored content is from an older schema, overwrite with current defaults
+      const dbVersion = row.data?._schemaVersion ?? 0;
+      const defaultVersion = defaultContent._schemaVersion ?? 0;
+      if (dbVersion < defaultVersion) {
+        await queryDb(
+          `UPDATE ${TABLE_NAME} SET data = $1::jsonb, updated_at = NOW() WHERE slug = $2`,
+          [JSON.stringify(defaultContent), SITE_SLUG]
+        );
+        return res.status(200).json({ content: sanitizeContent(defaultContent), source: 'neondb-migrated' });
+      }
+
       return res.status(200).json({ content: sanitizeContent(row.data), source: 'neondb' });
     } catch (error) {
       if (isMissingTableError(error.message) || isLocalFallbackError(error.message)) {
