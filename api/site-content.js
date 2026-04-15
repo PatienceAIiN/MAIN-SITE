@@ -38,8 +38,26 @@ const withContentMetadata = (content, version = 1) => ({
   ...content,
   _schemaVersion: content._schemaVersion ?? 1,
   _contentVersion: version,
-  _contentUpdatedAt: new Date().toISOString()
+  _contentUpdatedAt: content._contentUpdatedAt ?? new Date().toISOString()
 });
+
+const applyContentPatch = (base, patch) => {
+  if (patch === undefined) return base;
+  if (patch === null) return undefined;
+  if (Array.isArray(patch) || Array.isArray(base) || typeof patch !== 'object' || typeof base !== 'object' || !base) {
+    return patch;
+  }
+
+  const result = { ...base };
+  Object.entries(patch).forEach(([key, value]) => {
+    if (value === null) {
+      delete result[key];
+      return;
+    }
+    result[key] = applyContentPatch(base[key], value);
+  });
+  return result;
+};
 
 const readDefaultContent = () => {
   const filePath = path.resolve(__dirname, '..', 'src', 'data', 'siteContent.json');
@@ -89,7 +107,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ content: sanitizeContent(seededContent), source: 'neondb-seeded-default' });
       }
 
-      const mergedContent = mergeWithDefaults(defaultContent, row.data);
+      const mergedContent = withContentMetadata(mergeWithDefaults(defaultContent, row.data), row.data?._contentVersion ?? 1);
       return res.status(200).json({ content: sanitizeContent(mergedContent), source: 'neondb' });
     } catch (error) {
       if (isMissingTableError(error.message) || isLocalFallbackError(error.message)) {
@@ -108,20 +126,18 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PATCH') {
-    const { content } = req.body || {};
-    if (!content || typeof content !== 'object') {
-      return res.status(400).json({ error: 'content object is required' });
+    const { patch, content } = req.body || {};
+    const update = patch ?? content;
+    if (!update || typeof update !== 'object') {
+      return res.status(400).json({ error: 'patch object is required' });
     }
 
     try {
       const currentRows = await queryDb(`SELECT data FROM ${TABLE_NAME} WHERE slug = $1 LIMIT 1`, [SITE_SLUG]);
       const currentVersion = currentRows[0]?.data?._contentVersion ?? currentRows[0]?.data?._schemaVersion ?? 0;
-      const sanitizedContent = sanitizeContent(
-        withContentMetadata(
-          mergeWithDefaults(defaultContent, content),
-          currentVersion + 1
-        )
-      );
+      const currentContent = mergeWithDefaults(defaultContent, currentRows[0]?.data || {});
+      const nextContent = applyContentPatch(currentContent, update) || currentContent;
+      const sanitizedContent = sanitizeContent(withContentMetadata(nextContent, currentVersion + 1));
       await queryDb(
         `INSERT INTO ${TABLE_NAME} (slug, data, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (slug) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
         [SITE_SLUG, JSON.stringify(sanitizedContent)]

@@ -92,14 +92,14 @@ function App() {
         return;
       }
 
-        try {
-          const payload = await fetchJson('/api/site-content');
-          if (active && payload?.content) {
-            setSiteContent(mergeWithDefaults(defaultSiteContent, payload.content));
-          }
-        } catch {
-          if (active) {
-            setSiteContent(defaultSiteContent);
+      try {
+        const payload = await fetchJson('/api/site-content');
+        if (active && payload?.content) {
+          setSiteContent(mergeWithDefaults(defaultSiteContent, payload.content));
+        }
+      } catch {
+        if (active) {
+          setSiteContent(defaultSiteContent);
         }
       }
     };
