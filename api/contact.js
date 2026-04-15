@@ -32,6 +32,12 @@ const sendBrevoEmail = async ({ apiKey, sender, to, subject, htmlContent, replyT
   });
 };
 
+const parseEmailList = (rawValue = '') =>
+  String(rawValue)
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
 const parseBrevoError = async (response) => {
   const fallback = `Brevo request failed with status ${response.status}`;
   try {
@@ -109,10 +115,12 @@ export default async function handler(req, res) {
     const CONTACT_TO_EMAIL_CONFIG = process.env.CONTACT_TO_EMAIL || process.env.RECIPIENT_EMAIL || '';
     const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || CONTACT_TO_EMAIL_CONFIG || 'noreply@patience.ai';
     const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || 'PATIENCE AI';
-    const CONTACT_TO_EMAIL = CONTACT_TO_EMAIL_CONFIG || BREVO_SENDER_EMAIL;
+    const CONTACT_TO_EMAILS = parseEmailList(CONTACT_TO_EMAIL_CONFIG || BREVO_SENDER_EMAIL);
 
-    if (!BREVO_API_KEY || !CONTACT_TO_EMAIL) {
-      console.error('Missing Brevo email configuration. Ensure BREVO_API_KEY and CONTACT_TO_EMAIL (or RECIPIENT_EMAIL) are set.');
+    if (!BREVO_API_KEY || CONTACT_TO_EMAILS.length === 0) {
+      console.error(
+        'Missing Brevo email configuration. Ensure BREVO_API_KEY and CONTACT_TO_EMAIL (or RECIPIENT_EMAIL) are set.'
+      );
       return res.status(200).json({
         message: 'Thanks. Your message is saved. Email delivery is temporarily unavailable.',
         emailSent: false
@@ -125,12 +133,10 @@ export default async function handler(req, res) {
       name: BREVO_SENDER_NAME,
       email: BREVO_SENDER_EMAIL
     };
-    const ownerRecipient = [
-      {
-        email: CONTACT_TO_EMAIL,
-        name: 'Patience AI Team'
-      }
-    ];
+    const ownerRecipient = CONTACT_TO_EMAILS.map((contactEmail) => ({
+      email: contactEmail,
+      name: 'Patience AI Team'
+    }));
     const userRecipient = [
       {
         email,
@@ -203,13 +209,12 @@ export default async function handler(req, res) {
       }
     });
 
+    let ownerEmailSent = ownerResponse.ok;
+    let ownerError;
+
     if (!ownerResponse.ok) {
-      const ownerError = await parseBrevoError(ownerResponse);
+      ownerError = await parseBrevoError(ownerResponse);
       console.error('Brevo owner email error:', ownerError);
-      return res.status(200).json({
-        message: 'Thanks. Your message is saved. We could not email the team yet.',
-        emailSent: false
-      });
     }
 
     const userResponse = await sendBrevoEmail({
@@ -224,13 +229,45 @@ export default async function handler(req, res) {
       }
     });
 
+    let userConfirmationSent = userResponse.ok;
+    let userError;
+
     if (!userResponse.ok) {
-      const userError = await parseBrevoError(userResponse);
+      userError = await parseBrevoError(userResponse);
       console.error('Brevo user confirmation email error:', userError);
+    }
+
+    if (!ownerEmailSent && !userConfirmationSent) {
+      return res.status(200).json({
+        message: 'Thanks. Your message is saved but email delivery failed. Please verify Brevo sender/recipient settings.',
+        emailSent: false,
+        userConfirmationSent: false,
+        emailDebug: {
+          ownerError,
+          userError
+        }
+      });
+    }
+
+    if (!ownerEmailSent) {
+      return res.status(200).json({
+        message: 'Confirmation email sent to user, but team email failed.',
+        emailSent: false,
+        userConfirmationSent: true,
+        emailDebug: {
+          ownerError
+        }
+      });
+    }
+
+    if (!userConfirmationSent) {
       return res.status(200).json({
         message: 'Message sent to our team, but confirmation email to sender failed.',
         emailSent: true,
-        userConfirmationSent: false
+        userConfirmationSent: false,
+        emailDebug: {
+          userError
+        }
       });
     }
 

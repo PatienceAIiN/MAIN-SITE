@@ -15,10 +15,12 @@ const ContactUs = ({ content, isOpen, onClose, onBack }) => {
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState('');
+  const [submitMessage, setSubmitMessage] = useState('');
 
   useEffect(() => {
     if (!isOpen) {
       setSubmitStatus('');
+      setSubmitMessage('');
       setFormData(INITIAL_FORM);
       return undefined;
     }
@@ -43,9 +45,10 @@ const ContactUs = ({ content, isOpen, onClose, onBack }) => {
     event.preventDefault();
     setIsSubmitting(true);
     setSubmitStatus('');
+    setSubmitMessage('');
 
     try {
-      await fetchJson('/api/contact', {
+      const response = await fetchJson('/api/contact', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -55,10 +58,21 @@ const ContactUs = ({ content, isOpen, onClose, onBack }) => {
           source: content.source
         })
       });
-      setSubmitStatus('success');
-      setFormData(INITIAL_FORM);
+
+      const teamReceived = response?.emailSent === true;
+      const userReceived = response?.userConfirmationSent === true;
+
+      if (teamReceived && userReceived) {
+        setSubmitStatus('success');
+        setFormData(INITIAL_FORM);
+        return;
+      }
+
+      setSubmitStatus('error');
+      setSubmitMessage(response?.message || content.statusMessages.error);
     } catch {
       setSubmitStatus('error');
+      setSubmitMessage(content.statusMessages.error);
     } finally {
       setIsSubmitting(false);
     }
@@ -241,7 +255,7 @@ const ContactUs = ({ content, isOpen, onClose, onBack }) => {
 
                       {submitStatus === 'error' && (
                         <div className="p-4 bg-red-50 border border-red-200 rounded-2xl" role="status" aria-live="polite">
-                          <p className="text-red-800">{content.statusMessages.error}</p>
+                          <p className="text-red-800">{submitMessage || content.statusMessages.error}</p>
                         </div>
                       )}
 
