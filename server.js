@@ -15,7 +15,7 @@ const loadLocalEnv = () => {
     return;
   }
 
-  const envPath = path.resolve(process.cwd(), '.env');
+  const envPath = path.resolve(process.cwd(),'.env');
   if (!fs.existsSync(envPath)) return;
 
   const content = fs.readFileSync(envPath, 'utf8');
