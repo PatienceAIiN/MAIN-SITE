@@ -103,7 +103,9 @@ const ChatWidget = ({ brand }) => {
       try {
         const saved = localStorage.getItem('pa_launcher_custom_pos');
         if (saved) return JSON.parse(saved);
-      } catch {}
+      } catch {
+        // Ignore invalid stored launcher position.
+      }
     }
     return getDefaultLauncherPosition();
   });
@@ -516,7 +518,11 @@ const ChatWidget = ({ brand }) => {
             );
             setLauncherPosition(newPos);
             setUserMovedLauncher(true);
-            try { localStorage.setItem('pa_launcher_custom_pos', JSON.stringify(newPos)); } catch {}
+            try {
+              localStorage.setItem('pa_launcher_custom_pos', JSON.stringify(newPos));
+            } catch {
+              // Ignore storage write failures.
+            }
           }
           dragX.set(0);
           dragY.set(0);

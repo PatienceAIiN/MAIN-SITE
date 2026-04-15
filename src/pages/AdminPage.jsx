@@ -490,6 +490,8 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
     }
   })();
 
+  const contentVersion = contentObject?._contentVersion ?? defaultContent?._contentVersion ?? 1;
+  const contentUpdatedAt = contentObject?._contentUpdatedAt || '';
   const blogPosts = contentObject?.blogPage?.posts || [];
 
   return (
@@ -504,6 +506,10 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                 Logged in as {username}. Edit the full site JSON, publish it to NeonDB, and manage leads from one place.
               </p>
               <p className="text-white/45 mt-2 text-sm">Content source: {currentContentSource || 'local'}</p>
+              <p className="text-white/45 mt-1 text-sm">
+                Content version: {contentVersion}
+                {contentUpdatedAt ? ` · Updated ${formatDate(contentUpdatedAt)}` : ''}
+              </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <Button variant="white" className="rounded-2xl px-6 py-3" onClick={() => onAction({ type: 'route', to: '/' })}>
@@ -574,6 +580,11 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                   <div className="rounded-2xl bg-slate-900/60 border border-white/10 p-4">
                     <p className="text-white/45 text-sm mb-1">Current source</p>
                     <p className="text-white">{currentContentSource || 'local'}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-900/60 border border-white/10 p-4">
+                    <p className="text-white/45 text-sm mb-1">Content version</p>
+                    <p className="text-white">{contentVersion}</p>
+                    {contentUpdatedAt && <p className="text-white/45 text-sm mt-1">Updated {formatDate(contentUpdatedAt)}</p>}
                   </div>
                   <div className="rounded-2xl bg-slate-900/60 border border-white/10 p-4">
                     <p className="text-white/45 text-sm mb-1">Editing mode</p>

@@ -61,13 +61,11 @@ const mergeWithDefaults = (defaults, overrides) => {
       return defaults;
     }
 
-    return Object.keys(defaults).reduce(
-      (acc, key) => ({
-        ...acc,
-        [key]: mergeWithDefaults(defaults[key], overrides[key])
-      }),
-      { ...defaults }
-    );
+    const merged = { ...defaults, ...overrides };
+    Object.keys(defaults).forEach((key) => {
+      merged[key] = mergeWithDefaults(defaults[key], overrides[key]);
+    });
+    return merged;
   }
 
   return overrides ?? defaults;
@@ -94,19 +92,14 @@ function App() {
         return;
       }
 
-      try {
-        const payload = await fetchJson('/api/site-content');
-        if (active && payload?.content) {
-          const dbVersion = payload.content._schemaVersion ?? 0;
-          const defaultVersion = defaultSiteContent._schemaVersion ?? 0;
-          if (dbVersion >= defaultVersion) {
+        try {
+          const payload = await fetchJson('/api/site-content');
+          if (active && payload?.content) {
             setSiteContent(mergeWithDefaults(defaultSiteContent, payload.content));
           }
-          // else: DB content is from an older schema — use fresh defaults
-        }
-      } catch {
-        if (active) {
-          setSiteContent(defaultSiteContent);
+        } catch {
+          if (active) {
+            setSiteContent(defaultSiteContent);
         }
       }
     };

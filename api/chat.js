@@ -7,11 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SITE_TABLE = 'site_content';
 const SITE_SLUG = 'site';
 const CHAT_TABLE = 'chatbot_messages';
-const SITE_CONTENT_CACHE_TTL_MS = 30000;
 const GROQ_FALLBACK_NOTE = 'I can only answer questions related to this site content. Please ask about products, services, case studies, careers, or contact options.';
-
-const VECTOR_CACHE = new Map();
-let siteContentCache = { expiresAt: 0, value: null };
 
 const DEFAULT_SITE_CONTENT = {
   brand: { name: 'PatienceAI' },
@@ -19,6 +15,26 @@ const DEFAULT_SITE_CONTENT = {
     description:
       'PatienceAI helps teams deploy practical AI products safely across services, products, case studies, careers, and contact workflows.'
   }
+};
+
+const mergeWithDefaults = (defaults, overrides) => {
+  if (Array.isArray(defaults)) {
+    return Array.isArray(overrides) ? overrides : defaults;
+  }
+
+  if (defaults && typeof defaults === 'object') {
+    if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
+      return defaults;
+    }
+
+    const merged = { ...defaults, ...overrides };
+    Object.keys(defaults).forEach((key) => {
+      merged[key] = mergeWithDefaults(defaults[key], overrides[key]);
+    });
+    return merged;
+  }
+
+  return overrides ?? defaults;
 };
 
 const readDefaultContent = () => {
@@ -49,7 +65,10 @@ const flattenContent = (node, prefix = '', bucket = []) => {
     return bucket;
   }
   if (typeof node === 'object') {
-    Object.entries(node).forEach(([key, value]) => flattenContent(value, prefix ? `${prefix}.${key}` : key, bucket));
+    Object.entries(node).forEach(([key, value]) => {
+      if (String(key).startsWith('_')) return;
+      flattenContent(value, prefix ? `${prefix}.${key}` : key, bucket);
+    });
   }
   return bucket;
 };
@@ -73,16 +92,6 @@ const cosineSimilarity = (left, right) => {
   return dot / (left.magnitude * right.magnitude);
 };
 
-const buildVectorStore = (chunks, cacheKey) => {
-  if (VECTOR_CACHE.has(cacheKey)) {
-    return VECTOR_CACHE.get(cacheKey);
-  }
-
-  const docs = chunks.map((chunk) => ({ chunk, ...textToSparseVector(chunk) }));
-  VECTOR_CACHE.set(cacheKey, docs);
-  return docs;
-};
-
 const semanticSearch = (docs, query, limit = 8) => {
   const queryVector = textToSparseVector(query);
   return docs
@@ -97,21 +106,14 @@ const isSensitiveQuestion = (message = '') => /(internal|prompt|secret|api key|t
 const isCodingQuestion = (message = '') => /(write|debug|fix|review|generate|explain).{0,20}(code|script|function|api|sql|regex|javascript|python|java|react|node)|\b(code|programming|developer)\b/i.test(message);
 
 const readSiteContent = async () => {
-  const now = Date.now();
-  if (siteContentCache.value && siteContentCache.expiresAt > now) {
-    return siteContentCache.value;
-  }
-
   try {
     const rows = await queryDb(`SELECT data FROM ${SITE_TABLE} WHERE slug = $1 LIMIT 1`, [SITE_SLUG]);
-    const value = rows[0]?.data || readDefaultContent();
-    siteContentCache = { value, expiresAt: now + SITE_CONTENT_CACHE_TTL_MS };
+    const defaultContent = readDefaultContent();
+    const value = rows[0]?.data ? mergeWithDefaults(defaultContent, rows[0].data) : defaultContent;
     return value;
   } catch (error) {
     console.error('site_content read error:', error.message);
-    const fallback = readDefaultContent();
-    siteContentCache = { value: fallback, expiresAt: now + SITE_CONTENT_CACHE_TTL_MS };
-    return fallback;
+    return readDefaultContent();
   }
 };
 
@@ -295,7 +297,7 @@ export default async function handler(req, res) {
 
     const resolvedQuestion = resolveQuestionWithHistory(message, history);
     const flattened = flattenContent(siteContent);
-    const docs = buildVectorStore(flattened, String(flattened.length));
+    const docs = flattened.map((chunk) => ({ chunk, ...textToSparseVector(chunk) }));
     const topResults = semanticSearch(docs, resolvedQuestion, 8);
 
     if (!topResults.length || (topResults[0]?.score || 0) < 0.08) {

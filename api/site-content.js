@@ -14,6 +14,33 @@ const FIXED_THUMB_URL = 'https://images.unsplash.com/photo-1618005182384-a83a8bd
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const mergeWithDefaults = (defaults, overrides) => {
+  if (Array.isArray(defaults)) {
+    return Array.isArray(overrides) ? overrides : defaults;
+  }
+
+  if (defaults && typeof defaults === 'object') {
+    if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
+      return defaults;
+    }
+
+    const merged = { ...defaults, ...overrides };
+    Object.keys(defaults).forEach((key) => {
+      merged[key] = mergeWithDefaults(defaults[key], overrides[key]);
+    });
+    return merged;
+  }
+
+  return overrides ?? defaults;
+};
+
+const withContentMetadata = (content, version = 1) => ({
+  ...content,
+  _schemaVersion: content._schemaVersion ?? 1,
+  _contentVersion: version,
+  _contentUpdatedAt: new Date().toISOString()
+});
+
 const readDefaultContent = () => {
   const filePath = path.resolve(__dirname, '..', 'src', 'data', 'siteContent.json');
   return JSON.parse(readFileSync(filePath, 'utf8'));
@@ -54,28 +81,22 @@ export default async function handler(req, res) {
       const row = rows[0];
 
       if (!row) {
+        const seededContent = withContentMetadata(defaultContent, 1);
         await queryDb(
           `INSERT INTO ${TABLE_NAME} (slug, data, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (slug) DO NOTHING`,
-          [SITE_SLUG, JSON.stringify(defaultContent)]
+          [SITE_SLUG, JSON.stringify(seededContent)]
         );
-        return res.status(200).json({ content: sanitizeContent(defaultContent), source: 'neondb-seeded-default' });
+        return res.status(200).json({ content: sanitizeContent(seededContent), source: 'neondb-seeded-default' });
       }
 
-      // If stored content is from an older schema, overwrite with current defaults
-      const dbVersion = row.data?._schemaVersion ?? 0;
-      const defaultVersion = defaultContent._schemaVersion ?? 0;
-      if (dbVersion < defaultVersion) {
-        await queryDb(
-          `UPDATE ${TABLE_NAME} SET data = $1::jsonb, updated_at = NOW() WHERE slug = $2`,
-          [JSON.stringify(defaultContent), SITE_SLUG]
-        );
-        return res.status(200).json({ content: sanitizeContent(defaultContent), source: 'neondb-migrated' });
-      }
-
-      return res.status(200).json({ content: sanitizeContent(row.data), source: 'neondb' });
+      const mergedContent = mergeWithDefaults(defaultContent, row.data);
+      return res.status(200).json({ content: sanitizeContent(mergedContent), source: 'neondb' });
     } catch (error) {
       if (isMissingTableError(error.message) || isLocalFallbackError(error.message)) {
-        return res.status(200).json({ content: sanitizeContent(defaultContent), source: 'local-fallback-missing-table' });
+        return res.status(200).json({
+          content: sanitizeContent(withContentMetadata(defaultContent, defaultContent._contentVersion ?? 1)),
+          source: 'local-fallback-missing-table'
+        });
       }
       return res.status(500).json({ error: error.message });
     }
@@ -93,10 +114,14 @@ export default async function handler(req, res) {
     }
 
     try {
-      const sanitizedContent = sanitizeContent({
-        ...content,
-        _schemaVersion: defaultContent._schemaVersion ?? 1
-      });
+      const currentRows = await queryDb(`SELECT data FROM ${TABLE_NAME} WHERE slug = $1 LIMIT 1`, [SITE_SLUG]);
+      const currentVersion = currentRows[0]?.data?._contentVersion ?? currentRows[0]?.data?._schemaVersion ?? 0;
+      const sanitizedContent = sanitizeContent(
+        withContentMetadata(
+          mergeWithDefaults(defaultContent, content),
+          currentVersion + 1
+        )
+      );
       await queryDb(
         `INSERT INTO ${TABLE_NAME} (slug, data, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (slug) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
         [SITE_SLUG, JSON.stringify(sanitizedContent)]
@@ -109,8 +134,9 @@ export default async function handler(req, res) {
 
   if (req.method === 'DELETE') {
     try {
+      const resetContent = sanitizeContent(withContentMetadata(defaultContent, 1));
       await queryDb(`DELETE FROM ${TABLE_NAME} WHERE slug = $1`, [SITE_SLUG]);
-      return res.status(200).json({ reset: true, content: defaultContent });
+      return res.status(200).json({ reset: true, content: resetContent });
     } catch (error) {
       return res.status(500).json({ error: error.message });
     }
