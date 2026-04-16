@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import Button from '../components/ui/Button';
@@ -35,31 +35,6 @@ const createEmptyBlogDraft = () => ({
 const formatDate = (value) =>
   value ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : 'Unknown';
 
-const buildContentPatch = (base, next) => {
-  if (Object.is(base, next)) return undefined;
-
-  if (Array.isArray(base) || Array.isArray(next) || typeof base !== 'object' || typeof next !== 'object' || !base || !next) {
-    return next;
-  }
-
-  const patch = {};
-  const keys = new Set([...Object.keys(base), ...Object.keys(next)]);
-
-  keys.forEach((key) => {
-    if (!Object.prototype.hasOwnProperty.call(next, key)) {
-      patch[key] = null;
-      return;
-    }
-
-    const childPatch = buildContentPatch(base[key], next[key]);
-    if (childPatch !== undefined) {
-      patch[key] = childPatch;
-    }
-  });
-
-  return Object.keys(patch).length ? patch : undefined;
-};
-
 const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSource, onContentSaved }) => {
   const [authenticated, setAuthenticated] = useState(false);
   const [username, setUsername] = useState('');
@@ -93,7 +68,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
   const [pageDraft, setPageDraft] = useState(null);
   const [pageSaving, setPageSaving] = useState(false);
-  const contentBaselineRef = useRef(currentContent || defaultContent);
 
   const selectedSubmission = submissions.find((item) => item.id === selectedId) || submissions[0] || null;
 
@@ -101,13 +75,11 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
     try {
       const payload = await fetchJson('/api/site-content');
       if (payload?.content) {
-        contentBaselineRef.current = payload.content;
         setContentJson(JSON.stringify(payload.content, null, 2));
         onContentSaved(payload.content);
       }
     } catch (error) {
       setContentError(error.message);
-      contentBaselineRef.current = defaultContent;
       setContentJson(JSON.stringify(defaultContent, null, 2));
     }
   };
@@ -214,19 +186,13 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
 
     try {
       const parsed = JSON.parse(contentJson);
-      const patch = buildContentPatch(contentBaselineRef.current || defaultContent, parsed);
-      if (!patch) {
-        setContentSaving(false);
-        return;
-      }
       const payload = await fetchJson('/api/site-content', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ patch })
+        body: JSON.stringify({ content: parsed })
       });
 
       if (payload?.content) {
-        contentBaselineRef.current = payload.content;
         setContentJson(JSON.stringify(payload.content, null, 2));
         onContentSaved(payload.content);
       }
@@ -247,7 +213,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       });
 
       const content = payload?.content || defaultContent;
-      contentBaselineRef.current = content;
       setContentJson(JSON.stringify(content, null, 2));
       onContentSaved(content);
     } catch (error) {
@@ -311,19 +276,13 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
         posts
       };
 
-      const patch = buildContentPatch(contentBaselineRef.current || defaultContent, parsed);
-      if (!patch) {
-        throw new Error('No content changes detected.');
-      }
-
       const payload = await fetchJson('/api/site-content', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ patch })
+        body: JSON.stringify({ content: parsed })
       });
 
       if (payload?.content) {
-        contentBaselineRef.current = payload.content;
         setContentJson(JSON.stringify(payload.content, null, 2));
         onContentSaved(payload.content);
         populateBlogDraft(nextPost);
@@ -531,8 +490,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
     }
   })();
 
-  const contentVersion = contentObject?._contentVersion ?? defaultContent?._contentVersion ?? 1;
-  const contentUpdatedAt = contentObject?._contentUpdatedAt || '';
   const blogPosts = contentObject?.blogPage?.posts || [];
 
   return (
@@ -547,10 +504,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                 Logged in as {username}. Edit the full site JSON, publish it to NeonDB, and manage leads from one place.
               </p>
               <p className="text-white/45 mt-2 text-sm">Content source: {currentContentSource || 'local'}</p>
-              <p className="text-white/45 mt-1 text-sm">
-                Content version: {contentVersion}
-                {contentUpdatedAt ? ` · Updated ${formatDate(contentUpdatedAt)}` : ''}
-              </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <Button variant="white" className="rounded-2xl px-6 py-3" onClick={() => onAction({ type: 'route', to: '/' })}>
@@ -623,11 +576,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                     <p className="text-white">{currentContentSource || 'local'}</p>
                   </div>
                   <div className="rounded-2xl bg-slate-900/60 border border-white/10 p-4">
-                    <p className="text-white/45 text-sm mb-1">Content version</p>
-                    <p className="text-white">{contentVersion}</p>
-                    {contentUpdatedAt && <p className="text-white/45 text-sm mt-1">Updated {formatDate(contentUpdatedAt)}</p>}
-                  </div>
-                  <div className="rounded-2xl bg-slate-900/60 border border-white/10 p-4">
                     <p className="text-white/45 text-sm mb-1">Editing mode</p>
                     <p className="text-white">Whole-site JSON editing with live publish to NeonDB.</p>
                   </div>
@@ -686,14 +634,10 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                     return updated;
                   });
                   const updatedContent = { ...parsed, detailPages: updatedPages };
-                  const patch = buildContentPatch(contentBaselineRef.current || defaultContent, updatedContent);
-                  if (!patch) {
-                    throw new Error('No content changes detected.');
-                  }
                   const payload = await fetchJson('/api/site-content', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ patch })
+                    body: JSON.stringify({ content: updatedContent })
                   });
                   if (payload?.content) {
                     setContentJson(JSON.stringify(payload.content, null, 2));

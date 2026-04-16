@@ -34,31 +34,6 @@ const mergeWithDefaults = (defaults, overrides) => {
   return overrides ?? defaults;
 };
 
-const withContentMetadata = (content, version = 1) => ({
-  ...content,
-  _schemaVersion: content._schemaVersion ?? 1,
-  _contentVersion: version,
-  _contentUpdatedAt: content._contentUpdatedAt ?? new Date().toISOString()
-});
-
-const applyContentPatch = (base, patch) => {
-  if (patch === undefined) return base;
-  if (patch === null) return undefined;
-  if (Array.isArray(patch) || Array.isArray(base) || typeof patch !== 'object' || typeof base !== 'object' || !base) {
-    return patch;
-  }
-
-  const result = { ...base };
-  Object.entries(patch).forEach(([key, value]) => {
-    if (value === null) {
-      delete result[key];
-      return;
-    }
-    result[key] = applyContentPatch(base[key], value);
-  });
-  return result;
-};
-
 const readDefaultContent = () => {
   const filePath = path.resolve(__dirname, '..', 'src', 'data', 'siteContent.json');
   return JSON.parse(readFileSync(filePath, 'utf8'));
@@ -99,20 +74,19 @@ export default async function handler(req, res) {
       const row = rows[0];
 
       if (!row) {
-        const seededContent = withContentMetadata(defaultContent, 1);
         await queryDb(
           `INSERT INTO ${TABLE_NAME} (slug, data, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (slug) DO NOTHING`,
-          [SITE_SLUG, JSON.stringify(seededContent)]
+          [SITE_SLUG, JSON.stringify(defaultContent)]
         );
-        return res.status(200).json({ content: sanitizeContent(seededContent), source: 'neondb-seeded-default' });
+        return res.status(200).json({ content: sanitizeContent(defaultContent), source: 'neondb-seeded-default' });
       }
 
-      const mergedContent = withContentMetadata(mergeWithDefaults(defaultContent, row.data), row.data?._contentVersion ?? 1);
+      const mergedContent = mergeWithDefaults(defaultContent, row.data);
       return res.status(200).json({ content: sanitizeContent(mergedContent), source: 'neondb' });
     } catch (error) {
       if (isMissingTableError(error.message) || isLocalFallbackError(error.message)) {
         return res.status(200).json({
-          content: sanitizeContent(withContentMetadata(defaultContent, defaultContent._contentVersion ?? 1)),
+          content: sanitizeContent(defaultContent),
           source: 'local-fallback-missing-table'
         });
       }
@@ -126,18 +100,13 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PATCH') {
-    const { patch, content } = req.body || {};
-    const update = patch ?? content;
-    if (!update || typeof update !== 'object') {
-      return res.status(400).json({ error: 'patch object is required' });
+    const { content } = req.body || {};
+    if (!content || typeof content !== 'object') {
+      return res.status(400).json({ error: 'content object is required' });
     }
 
     try {
-      const currentRows = await queryDb(`SELECT data FROM ${TABLE_NAME} WHERE slug = $1 LIMIT 1`, [SITE_SLUG]);
-      const currentVersion = currentRows[0]?.data?._contentVersion ?? currentRows[0]?.data?._schemaVersion ?? 0;
-      const currentContent = mergeWithDefaults(defaultContent, currentRows[0]?.data || {});
-      const nextContent = applyContentPatch(currentContent, update) || currentContent;
-      const sanitizedContent = sanitizeContent(withContentMetadata(nextContent, currentVersion + 1));
+      const sanitizedContent = sanitizeContent(mergeWithDefaults(defaultContent, content));
       await queryDb(
         `INSERT INTO ${TABLE_NAME} (slug, data, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (slug) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
         [SITE_SLUG, JSON.stringify(sanitizedContent)]
@@ -150,9 +119,8 @@ export default async function handler(req, res) {
 
   if (req.method === 'DELETE') {
     try {
-      const resetContent = sanitizeContent(withContentMetadata(defaultContent, 1));
       await queryDb(`DELETE FROM ${TABLE_NAME} WHERE slug = $1`, [SITE_SLUG]);
-      return res.status(200).json({ reset: true, content: resetContent });
+      return res.status(200).json({ reset: true, content: sanitizeContent(defaultContent) });
     } catch (error) {
       return res.status(500).json({ error: error.message });
     }

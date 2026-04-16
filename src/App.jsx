@@ -86,6 +86,7 @@ function App() {
 
   useEffect(() => {
     let active = true;
+    let intervalId = 0;
 
     const loadSiteContent = async () => {
       if (isAdminRoute) {
@@ -105,6 +106,7 @@ function App() {
     };
 
     loadSiteContent();
+    intervalId = window.setInterval(loadSiteContent, 4000);
 
     const timer = window.setTimeout(() => {
       scrollToHash(location.hash);
@@ -113,6 +115,7 @@ function App() {
     return () => {
       active = false;
       window.clearTimeout(timer);
+      window.clearInterval(intervalId);
     };
   }, [isAdminRoute, location.hash]);
 
