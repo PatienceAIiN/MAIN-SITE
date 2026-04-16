@@ -1,3 +1,4 @@
+import nodemailer from 'nodemailer';
 import { queryDb, isMissingTableError } from './_db.js';
 
 const escapeHtml = (value = '') =>
@@ -8,44 +9,18 @@ const escapeHtml = (value = '') =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-
-
 const normalizeEmailAddress = (value = '') => {
   const input = String(value).trim();
   if (!input) return '';
-
   const angleMatch = input.match(/<([^>]+)>/);
   if (angleMatch?.[1]) return angleMatch[1].trim();
-
   return input.replace(/^mailto:/i, '').trim();
 };
 
-const sendBrevoEmail = async ({ apiKey, sender, to, subject, htmlContent, replyTo }) => {
-  const payload = {
-    sender,
-    to,
-    subject,
-    htmlContent
-  };
-
-  if (replyTo) {
-    payload.replyTo = replyTo;
-  }
-
-  return fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'api-key': apiKey
-    },
-    body: JSON.stringify(payload)
-  });
-};
+const isValidEmail = (value = '') => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmailAddress(value));
 
 const parseEmailList = (rawValue = '') => {
   const seen = new Set();
-
   return String(rawValue)
     .split(/[\s,;]+/)
     .map((entry) => normalizeEmailAddress(entry))
@@ -56,24 +31,6 @@ const parseEmailList = (rawValue = '') => {
       seen.add(normalized);
       return true;
     });
-};
-
-const isValidEmail = (value = '') => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmailAddress(value));
-
-const parseBrevoError = async (response) => {
-  const fallback = `Brevo request failed with status ${response.status}`;
-  try {
-    const payload = await response.json();
-    if (payload?.message) return payload.message;
-    return JSON.stringify(payload);
-  } catch {
-    try {
-      const text = await response.text();
-      return text || fallback;
-    } catch {
-      return fallback;
-    }
-  }
 };
 
 const getInquiryMeta = ({ source, productName }) => {
@@ -87,7 +44,6 @@ const getInquiryMeta = ({ source, productName }) => {
       userSummary: 'Thanks for your interest in careers at PATIENCE AI.'
     };
   }
-
   if (source === 'product-demo' && productName) {
     return {
       label: 'Product demo request',
@@ -98,7 +54,6 @@ const getInquiryMeta = ({ source, productName }) => {
       userSummary: 'Thanks for requesting a demo. Our team will follow up shortly.'
     };
   }
-
   return {
     label: source === 'chatbot' ? 'Sales enquiry (AI assistant)' : 'Sales / Contact enquiry',
     accent: '#673ab7',
@@ -107,6 +62,25 @@ const getInquiryMeta = ({ source, productName }) => {
     ownerSummary: 'A visitor submitted a contact request from the website.',
     userSummary: 'Thanks for reaching out to our team.'
   };
+};
+
+const createTransporter = () => {
+  const host = process.env.SMTP_HOST || 'smtpout.secureserver.net';
+  const port = parseInt(process.env.SMTP_PORT || '465', 10);
+  const secure = process.env.SMTP_SECURE !== 'false'; // true for 465, false for 587
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
+    },
+    tls: {
+      rejectUnauthorized: false
+    }
+  });
 };
 
 export default async function handler(req, res) {
@@ -137,64 +111,36 @@ export default async function handler(req, res) {
       }
     }
 
-    const BREVO_API_KEY = (process.env.BREVO_API_KEY || process.env.BREVO_KEY || '').trim();
-    const BREVO_SENDER_EMAIL = normalizeEmailAddress(
-      process.env.BREVO_SENDER_EMAIL || process.env.BREVO_FROM_EMAIL || process.env.BREVO_EMAIL_FROM || ''
-    );
-    const BREVO_SENDER_NAME = (process.env.BREVO_SENDER_NAME || 'PATIENCE AI').trim() || 'PATIENCE AI';
-    const CONTACT_TO_EMAIL_CONFIG =
-      process.env.BREVO_RECIPIENT_EMAIL ||
-      process.env.BREVO_RECIPIENT_EMAILS ||
-      process.env.CONTACT_TO_EMAIL ||
-      process.env.CONTACT_TO_EMAILS ||
-      process.env.RECIPIENT_EMAIL ||
-      process.env.BREVO_TO_EMAIL ||
-      '';
+    const SMTP_USER = (process.env.SMTP_USER || '').trim();
+    const SMTP_PASS = (process.env.SMTP_PASS || '').trim();
+    const SENDER_NAME = (process.env.SMTP_SENDER_NAME || 'PATIENCE AI').trim();
+    const CONTACT_TO_EMAIL_CONFIG = process.env.CONTACT_TO_EMAIL || process.env.SMTP_TO_EMAIL || '';
     const CONTACT_TO_EMAILS = parseEmailList(CONTACT_TO_EMAIL_CONFIG).filter(isValidEmail);
 
     const configIssues = [];
-    if (!BREVO_API_KEY) {
-      configIssues.push('BREVO_API_KEY is missing');
-    }
-    if (!isValidEmail(BREVO_SENDER_EMAIL)) {
-      configIssues.push('BREVO_SENDER_EMAIL must be a valid verified Brevo sender address');
-    }
-    if (CONTACT_TO_EMAILS.length === 0) {
-      configIssues.push('CONTACT_TO_EMAIL (or BREVO_RECIPIENT_EMAIL) must contain at least one valid recipient');
-    }
+    if (!SMTP_USER) configIssues.push('SMTP_USER is missing');
+    if (!SMTP_PASS) configIssues.push('SMTP_PASS is missing');
+    if (CONTACT_TO_EMAILS.length === 0) configIssues.push('CONTACT_TO_EMAIL must contain at least one valid recipient');
 
     if (configIssues.length > 0) {
-      console.error('Missing Brevo email configuration:', configIssues.join('; '));
+      console.error('Missing SMTP configuration:', configIssues.join('; '));
       return res.status(200).json({
-        message: 'Thanks. Your message is saved. Email delivery is temporarily unavailable until Brevo sender and recipient settings are configured.',
+        message: 'Thanks. Your message is saved. Email delivery is temporarily unavailable.',
         emailSent: false,
-        emailDebug: {
-          configIssues
-        }
+        emailDebug: { configIssues }
       });
     }
 
     const inquiryMeta = getInquiryMeta({ source, productName });
-    const emailSubject = inquiryMeta.ownerSubject;
-    const senderIdentity = {
-      name: BREVO_SENDER_NAME,
-      email: BREVO_SENDER_EMAIL
-    };
-    const ownerRecipient = CONTACT_TO_EMAILS.map((contactEmail) => ({
-      email: contactEmail,
-      name: 'Patience AI Team'
-    }));
     const normalizedUserEmail = normalizeEmailAddress(email);
-    const userRecipient = isValidEmail(normalizedUserEmail) ? [{ email: normalizedUserEmail, name: name.trim() }] : [];
+
     const summaryRows = [
       `<p><strong>Name:</strong> ${escapeHtml(name)}</p>`,
       `<p><strong>Email:</strong> ${escapeHtml(email)}</p>`,
       company ? `<p><strong>Company:</strong> ${escapeHtml(company)}</p>` : '',
       productName ? `<p><strong>Product:</strong> ${escapeHtml(productName)}</p>` : '',
       `<p><strong>Subject:</strong> ${escapeHtml(subject)}</p>`
-    ]
-      .filter(Boolean)
-      .join('');
+    ].filter(Boolean).join('');
 
     const ownerHtml = `
       <div style="margin:0;background:#f6f9fc;padding:24px 12px;font-family:Arial,'Helvetica Neue',sans-serif;color:#202124;">
@@ -240,74 +186,68 @@ export default async function handler(req, res) {
       </div>
     `;
 
-    const ownerResponse = await sendBrevoEmail({
-      apiKey: BREVO_API_KEY,
-      sender: senderIdentity,
-      to: ownerRecipient,
-      subject: emailSubject,
-      htmlContent: ownerHtml,
-      replyTo: isValidEmail(normalizedUserEmail) ? { email: normalizedUserEmail, name: name.trim() } : undefined
-    });
+    const transporter = createTransporter();
+    const fromAddress = `"${SENDER_NAME}" <${SMTP_USER}>`;
 
-    let ownerEmailSent = ownerResponse.ok;
+    let ownerEmailSent = false;
+    let userConfirmationSent = false;
     let ownerError;
-
-    if (!ownerResponse.ok) {
-      ownerError = await parseBrevoError(ownerResponse);
-      console.error('Brevo owner email error:', ownerError);
-    }
-
-    const userResponse = await sendBrevoEmail({
-      apiKey: BREVO_API_KEY,
-      sender: senderIdentity,
-      to: userRecipient,
-      subject: inquiryMeta.userSubject,
-      htmlContent: userHtml,
-      replyTo: {
-        email: BREVO_SENDER_EMAIL,
-        name: BREVO_SENDER_NAME
-      }
-    });
-
-    let userConfirmationSent = userResponse.ok;
     let userError;
 
-    if (!userResponse.ok) {
-      userError = await parseBrevoError(userResponse);
-      console.error('Brevo user confirmation email error:', userError);
+    try {
+      await transporter.sendMail({
+        from: fromAddress,
+        to: CONTACT_TO_EMAILS.join(', '),
+        replyTo: isValidEmail(normalizedUserEmail) ? `"${name.trim()}" <${normalizedUserEmail}>` : undefined,
+        subject: inquiryMeta.ownerSubject,
+        html: ownerHtml
+      });
+      ownerEmailSent = true;
+    } catch (err) {
+      ownerError = err.message;
+      console.error('Owner email error:', err.message);
+    }
+
+    try {
+      if (isValidEmail(normalizedUserEmail)) {
+        await transporter.sendMail({
+          from: fromAddress,
+          to: `"${name.trim()}" <${normalizedUserEmail}>`,
+          replyTo: fromAddress,
+          subject: inquiryMeta.userSubject,
+          html: userHtml
+        });
+        userConfirmationSent = true;
+      }
+    } catch (err) {
+      userError = err.message;
+      console.error('User confirmation email error:', err.message);
     }
 
     if (!ownerEmailSent && !userConfirmationSent) {
       return res.status(200).json({
-        message: 'Thanks. Your message is saved but email delivery failed. Please verify the verified Brevo sender and recipient inbox settings.',
+        message: 'Thanks. Your message is saved but email delivery failed. Please try again later.',
         emailSent: false,
         userConfirmationSent: false,
-        emailDebug: {
-          ownerError,
-          userError
-        }
+        emailDebug: { ownerError, userError }
       });
     }
 
     if (!ownerEmailSent) {
       return res.status(200).json({
-        message: 'Confirmation email sent to user, but team email failed.',
+        message: 'Confirmation email sent to you, but team notification failed.',
         emailSent: false,
         userConfirmationSent: true,
-        emailDebug: {
-          ownerError
-        }
+        emailDebug: { ownerError }
       });
     }
 
     if (!userConfirmationSent) {
       return res.status(200).json({
-        message: 'Message sent to our team, but confirmation email to sender failed.',
+        message: 'Message sent to our team, but confirmation email to you failed.',
         emailSent: true,
         userConfirmationSent: false,
-        emailDebug: {
-          userError
-        }
+        emailDebug: { userError }
       });
     }
 
