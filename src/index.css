@@ -166,3 +166,48 @@ select {
     transform: translateX(-50%);
   }
 }
+
+@media (max-width: 767px) {
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  main {
+    width: 100%;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  p,
+  a,
+  button {
+    overflow-wrap: break-word;
+  }
+
+  img,
+  video,
+  canvas,
+  svg,
+  iframe {
+    max-width: 100%;
+  }
+
+  .marquee-track {
+    gap: 1rem;
+    padding-right: 1rem;
+  }
+
+  .marquee-card {
+    width: 92vw;
+    min-height: 20rem;
+    padding: 1.5rem;
+  }
+}
