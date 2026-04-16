@@ -66,7 +66,7 @@ const Navbar = ({ brand, navigation, onAction, currentPath }) => {
         <button
           type="button"
           onClick={() => setMobileOpen((value) => !value)}
-          className="relative z-10 flex h-11 w-11 items-center justify-center md:hidden"
+          className="relative z-10 flex h-10 w-10 items-center justify-center md:hidden"
           aria-label="Toggle navigation menu"
           aria-expanded={mobileOpen}
         >
