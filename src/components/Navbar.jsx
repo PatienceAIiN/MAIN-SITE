@@ -26,14 +26,14 @@ const Navbar = ({ brand, navigation, onAction, currentPath }) => {
         mobileOpen ? 'bg-white shadow-sm' : 'bg-white/95 backdrop-blur-md'
       }`}
     >
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 sm:py-5">
         <button
           type="button"
           onClick={() => {
             setMobileOpen(false);
             onAction(brand.homeAction);
           }}
-          className="font-serif text-[1.85rem] tracking-tight text-[#1a1a1a] transition-opacity hover:opacity-80"
+          className="font-serif text-[1.55rem] tracking-tight text-[#1a1a1a] transition-opacity hover:opacity-80 sm:text-[1.85rem]"
           aria-label={brand.name}
         >
           {brand.name}
@@ -66,7 +66,7 @@ const Navbar = ({ brand, navigation, onAction, currentPath }) => {
         <button
           type="button"
           onClick={() => setMobileOpen((value) => !value)}
-          className="relative z-10 flex h-11 w-11 items-center justify-center md:hidden"
+          className="relative z-10 flex h-10 w-10 items-center justify-center md:hidden"
           aria-label="Toggle navigation menu"
           aria-expanded={mobileOpen}
         >
@@ -95,13 +95,13 @@ const Navbar = ({ brand, navigation, onAction, currentPath }) => {
           mobileOpen ? 'max-h-[80vh] border-t border-[#e5e5e5]' : 'max-h-0'
         }`}
       >
-        <nav className="flex flex-col gap-6 px-6 py-10">
+        <nav className="flex flex-col gap-5 px-4 py-8 sm:px-6 sm:py-10">
           {navigation.map((item) => (
             <ContentLink
               key={`mobile-${item.label}`}
               item={item}
               onAction={onAction}
-              className="text-3xl font-medium tracking-tight transition-colors duration-300"
+              className="text-2xl sm:text-3xl font-medium tracking-tight transition-colors duration-300"
               activeClassName="text-[#1a1a1a]"
               inactiveClassName="text-[#666666] hover:text-[#1a1a1a]"
             />
