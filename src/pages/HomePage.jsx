@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import Hero from '../components/Hero';
 
 const HomePage = ({ content, onAction }) => {
@@ -6,6 +7,16 @@ const HomePage = ({ content, onAction }) => {
   const platformCards = content.platformPage?.cards || [];
   const blogPosts = content.blogPage?.posts || [];
   const [activeServiceTab, setActiveServiceTab] = useState(0);
+  const activeCard = platformCards[activeServiceTab] || null;
+  const serviceImages = useMemo(
+    () => [
+      'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1200&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?q=80&w=1200&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=1200&auto=format&fit=crop'
+    ],
+    []
+  );
+  const activeImage = serviceImages[activeServiceTab] || content.hero.backgroundImage?.src;
 
   return (
     <main className="bg-white">
@@ -85,31 +96,51 @@ const HomePage = ({ content, onAction }) => {
           <div className="overflow-hidden rounded-[24px] border border-[#e5e5e5] bg-white p-2.5 sm:p-3 shadow-sm lg:w-3/4">
             <div className="grid gap-8 lg:grid-cols-[0.45fr_0.55fr] lg:gap-12">
               <div className="relative min-h-[320px] overflow-hidden rounded-[16px] bg-[#f4f4f4]">
-                <img
-                  src={content.hero.backgroundImage?.src}
-                  alt={content.hero.backgroundImage?.alt}
-                  className="h-full w-full object-cover grayscale"
-                />
+                <AnimatePresence mode="wait">
+                  <motion.img
+                    key={activeImage}
+                    src={activeImage}
+                    alt={activeCard?.title || content.hero.backgroundImage?.alt}
+                    initial={{ opacity: 0, scale: 1.05 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.98 }}
+                    transition={{ duration: 0.35, ease: 'easeOut' }}
+                    className="absolute inset-0 h-full w-full object-cover grayscale"
+                  />
+                </AnimatePresence>
               </div>
 
               <div className="flex flex-col px-3 py-5 sm:px-4 sm:py-6 lg:pr-10 lg:pt-10">
-                <h3 className="mb-4 text-3xl font-medium tracking-tight text-[#1a1a1a] md:text-4xl">
-                  {content.platformPage?.hero?.title}
-                </h3>
-                <p className="mb-10 text-base leading-relaxed text-[#666666] md:text-lg">
-                  {content.platformPage?.hero?.description}
-                </p>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeCard?.title || 'default-service'}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.28, ease: 'easeOut' }}
+                  >
+                    <h3 className="mb-4 text-3xl font-medium tracking-tight text-[#1a1a1a] md:text-4xl">
+                      {activeCard?.title || content.platformPage?.hero?.title}
+                    </h3>
+                    <p className="mb-10 text-base leading-relaxed text-[#666666] md:text-lg">
+                      {activeCard?.description || content.platformPage?.hero?.description}
+                    </p>
 
-                <div className="mb-10 flex flex-wrap gap-2">
-                  {platformCards.flatMap((card) => card.points).map((point) => (
-                    <span
-                      key={point.title}
-                      className="rounded-full border border-[#d1d1d1] bg-white px-4 py-2 text-[13px] font-medium text-[#1a1a1a]"
-                    >
-                      {point.title}
-                    </span>
-                  ))}
-                </div>
+                    <div className="mb-10 flex flex-wrap gap-2">
+                      {(activeCard?.points || []).map((point) => (
+                        <motion.span
+                          key={point.title}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.24 }}
+                          className="rounded-full border border-[#d1d1d1] bg-white px-4 py-2 text-[13px] font-medium text-[#1a1a1a]"
+                        >
+                          {point.title}
+                        </motion.span>
+                      ))}
+                    </div>
+                  </motion.div>
+                </AnimatePresence>
 
                 <button
                   type="button"
