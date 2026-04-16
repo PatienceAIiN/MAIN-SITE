@@ -11,26 +11,26 @@ const HomePage = ({ content, onAction }) => {
     <main className="bg-white">
       <Hero content={content.hero} onAction={onAction} />
 
-      <section className="bg-[#f4f4f4] px-6 py-24 md:py-32">
+      <section className="bg-[#f4f4f4] px-4 py-16 sm:px-6 sm:py-24 md:py-32">
         <div className="mx-auto max-w-7xl">
-          <div className="mb-20 md:mb-28">
-            <h2 className="text-5xl leading-[1.03] tracking-[-0.05em] text-[#a3a3a3] sm:text-6xl md:text-[5.4rem]">
+          <div className="mb-14 md:mb-28">
+            <h2 className="text-[2rem] leading-[1.05] tracking-[-0.04em] text-[#a3a3a3] sm:text-6xl md:text-[5.4rem]">
               Most AI products fail
               <br />
               <span className="text-[#1a1a1a]">before they feel inevitable</span>
             </h2>
           </div>
 
-          <div className="grid gap-16 lg:grid-cols-[0.9fr_1.1fr] lg:gap-24">
+          <div className="grid gap-10 sm:gap-16 lg:grid-cols-[0.9fr_1.1fr] lg:gap-24">
             <div className="flex flex-col">
               <p className="max-w-lg text-lg font-medium leading-relaxed text-[#1a1a1a]">
                 {content.statement?.headingPrefix} {content.statement?.headingHighlight} {content.statement?.headingSuffix}
               </p>
-              <div className="mt-14">
+              <div className="mt-10 sm:mt-14">
                 <button
                   type="button"
                   onClick={() => onAction(content.ctaBanner?.buttons?.[0]?.action || { type: 'route', to: '/products' })}
-                  className="inline-flex items-center gap-4 rounded-[4px] bg-[#222222] px-6 py-4 text-sm font-semibold tracking-[0.08em] text-white transition-colors duration-300 hover:bg-black"
+                  className="inline-flex w-full items-center justify-center gap-4 rounded-[4px] bg-[#222222] px-6 py-4 text-sm font-semibold tracking-[0.08em] text-white transition-colors duration-300 hover:bg-black sm:w-auto"
                 >
                   <span className="relative flex h-2 w-2">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-40" />
@@ -45,7 +45,7 @@ const HomePage = ({ content, onAction }) => {
               {featureCards.map((card, index) => (
                 <div
                   key={`${card.title}-${index}`}
-                  className={`flex items-start gap-6 border-t border-[#d1d1d1] py-8 ${
+                  className={`flex items-start gap-4 sm:gap-6 border-t border-[#d1d1d1] py-6 sm:py-8 ${
                     index === featureCards.length - 1 ? 'border-b' : ''
                   }`}
                 >
@@ -63,15 +63,15 @@ const HomePage = ({ content, onAction }) => {
         </div>
       </section>
 
-      <section className="bg-white px-6 py-24 md:py-32">
+      <section className="bg-white px-4 py-16 sm:px-6 sm:py-24 md:py-32">
         <div className="mx-auto flex max-w-7xl flex-col gap-8 lg:flex-row">
-          <div className="flex gap-4 overflow-x-auto pb-4 lg:w-1/4 lg:flex-col lg:overflow-visible">
+          <div className="flex gap-3 overflow-x-auto pb-4 lg:w-1/4 lg:flex-col lg:overflow-visible">
             {platformCards.map((card, index) => (
               <button
                 key={card.title}
                 type="button"
                 onClick={() => setActiveServiceTab(index)}
-                className={`min-w-max rounded-[12px] border px-6 py-5 text-left text-sm font-medium transition-all duration-300 lg:w-full ${
+                className={`min-w-max rounded-[12px] border px-5 py-4 text-left text-sm font-medium transition-all duration-300 lg:w-full ${
                   activeServiceTab === index
                     ? 'border-[#d1d1d1] bg-white text-[#1a1a1a] shadow-sm'
                     : 'border-transparent bg-[#f4f4f4] text-[#666666] hover:border-[#d1d1d1] hover:bg-[#e6e6e6] hover:text-[#1a1a1a]'
@@ -82,7 +82,7 @@ const HomePage = ({ content, onAction }) => {
             ))}
           </div>
 
-          <div className="overflow-hidden rounded-[24px] border border-[#e5e5e5] bg-white p-3 shadow-sm lg:w-3/4">
+          <div className="overflow-hidden rounded-[24px] border border-[#e5e5e5] bg-white p-2.5 sm:p-3 shadow-sm lg:w-3/4">
             <div className="grid gap-8 lg:grid-cols-[0.45fr_0.55fr] lg:gap-12">
               <div className="relative min-h-[320px] overflow-hidden rounded-[16px] bg-[#f4f4f4]">
                 <img
@@ -92,7 +92,7 @@ const HomePage = ({ content, onAction }) => {
                 />
               </div>
 
-              <div className="flex flex-col px-4 py-6 lg:pr-10 lg:pt-10">
+              <div className="flex flex-col px-3 py-5 sm:px-4 sm:py-6 lg:pr-10 lg:pt-10">
                 <h3 className="mb-4 text-3xl font-medium tracking-tight text-[#1a1a1a] md:text-4xl">
                   {content.platformPage?.hero?.title}
                 </h3>
@@ -100,7 +100,7 @@ const HomePage = ({ content, onAction }) => {
                   {content.platformPage?.hero?.description}
                 </p>
 
-                <div className="mb-12 flex flex-wrap gap-2.5">
+                <div className="mb-10 flex flex-wrap gap-2">
                   {platformCards.flatMap((card) => card.points).map((point) => (
                     <span
                       key={point.title}
@@ -114,7 +114,7 @@ const HomePage = ({ content, onAction }) => {
                 <button
                   type="button"
                   onClick={() => onAction({ type: 'route', to: '/platform' })}
-                  className="mt-auto inline-flex w-fit items-center gap-3 rounded-[4px] bg-[#1a1a1a] px-8 py-4 text-sm font-semibold tracking-[0.08em] text-white transition-colors duration-300 hover:bg-black"
+                  className="mt-auto inline-flex w-full items-center justify-center gap-3 rounded-[4px] bg-[#1a1a1a] px-8 py-4 text-sm font-semibold tracking-[0.08em] text-white transition-colors duration-300 hover:bg-black sm:w-fit"
                 >
                   Explore Services
                   <span>{'->'}</span>
@@ -147,20 +147,20 @@ const HomePage = ({ content, onAction }) => {
         </div>
       </section>
 
-      <section className="bg-[#f4f4f4] px-6 py-24 md:py-32">
+      <section className="bg-[#f4f4f4] px-4 py-16 sm:px-6 sm:py-24 md:py-32">
         <div className="mx-auto max-w-7xl">
-          <h2 className="max-w-4xl text-5xl font-medium leading-[1.05] tracking-[-0.05em] text-[#1a1a1a] md:text-[5.5rem]">
+          <h2 className="max-w-4xl text-[2rem] font-medium leading-[1.05] tracking-[-0.04em] text-[#1a1a1a] sm:text-5xl md:text-[5.5rem]">
             {content.ctaBanner?.heading}
           </h2>
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-[#666666]">{content.ctaBanner?.description}</p>
 
-          <div className="mt-16 flex flex-col overflow-hidden rounded-[8px] border border-[#1a1a1a] bg-white md:flex-row">
+          <div className="mt-12 sm:mt-16 flex flex-col overflow-hidden rounded-[8px] border border-[#1a1a1a] bg-white md:flex-row">
             {content.ctaBanner?.buttons?.map((button, index) => (
               <button
                 key={button.label}
                 type="button"
                 onClick={() => onAction(button.action)}
-                className={`flex flex-1 items-center justify-center gap-2 px-8 py-12 text-2xl font-medium tracking-tight text-[#1a1a1a] transition-all duration-300 hover:bg-[#1a1a1a] hover:text-white md:py-16 md:text-[28px] ${
+                className={`flex flex-1 items-center justify-center gap-2 px-6 py-8 text-xl font-medium tracking-tight text-[#1a1a1a] transition-all duration-300 hover:bg-[#1a1a1a] hover:text-white md:px-8 md:py-16 md:text-[28px] ${
                   index === 0 ? 'border-b border-[#1a1a1a] md:border-b-0 md:border-r' : ''
                 }`}
               >
