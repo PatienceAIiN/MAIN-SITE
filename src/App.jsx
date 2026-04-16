@@ -51,26 +51,6 @@ const getPageTitle = (pathname, siteContent) => {
   return brandName;
 };
 
-const mergeWithDefaults = (defaults, overrides) => {
-  if (Array.isArray(defaults)) {
-    return Array.isArray(overrides) ? overrides : defaults;
-  }
-
-  if (defaults && typeof defaults === 'object') {
-    if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
-      return defaults;
-    }
-
-    const merged = { ...defaults, ...overrides };
-    Object.keys(defaults).forEach((key) => {
-      merged[key] = mergeWithDefaults(defaults[key], overrides[key]);
-    });
-    return merged;
-  }
-
-  return overrides ?? defaults;
-};
-
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -94,9 +74,9 @@ function App() {
       }
 
       try {
-        const payload = await fetchJson('/api/site-content');
+        const payload = await fetchJson('/api/site-content', { cache: 'no-store' });
         if (active && payload?.content) {
-          setSiteContent(mergeWithDefaults(defaultSiteContent, payload.content));
+          setSiteContent(payload.content);
         }
       } catch {
         if (active) {
@@ -108,9 +88,18 @@ function App() {
     loadSiteContent();
     intervalId = window.setInterval(loadSiteContent, 4000);
 
+    const handleSiteContentUpdate = () => {
+      loadSiteContent();
+    };
+
+    window.addEventListener('storage', handleSiteContentUpdate);
+    window.addEventListener('site-content-updated', handleSiteContentUpdate);
+
     return () => {
       active = false;
       window.clearInterval(intervalId);
+      window.removeEventListener('storage', handleSiteContentUpdate);
+      window.removeEventListener('site-content-updated', handleSiteContentUpdate);
     };
   }, [isAdminRoute]);
 

@@ -14,26 +14,6 @@ const FIXED_THUMB_URL = 'https://images.unsplash.com/photo-1618005182384-a83a8bd
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const mergeWithDefaults = (defaults, overrides) => {
-  if (Array.isArray(defaults)) {
-    return Array.isArray(overrides) ? overrides : defaults;
-  }
-
-  if (defaults && typeof defaults === 'object') {
-    if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
-      return defaults;
-    }
-
-    const merged = { ...defaults, ...overrides };
-    Object.keys(defaults).forEach((key) => {
-      merged[key] = mergeWithDefaults(defaults[key], overrides[key]);
-    });
-    return merged;
-  }
-
-  return overrides ?? defaults;
-};
-
 const readDefaultContent = () => {
   const filePath = path.resolve(__dirname, '..', 'src', 'data', 'siteContent.json');
   return JSON.parse(readFileSync(filePath, 'utf8'));
@@ -79,20 +59,16 @@ export default async function handler(req, res) {
           `INSERT INTO ${TABLE_NAME} (slug, data, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (slug) DO NOTHING`,
           [SITE_SLUG, JSON.stringify(canonicalContent)]
         );
+        res.setHeader('Cache-Control', 'no-store, max-age=0');
         return res.status(200).json({ content: canonicalContent, source: 'neondb-seeded-default' });
       }
 
       const storedContent = sanitizeContent(row.data);
-      if (JSON.stringify(storedContent) !== JSON.stringify(canonicalContent)) {
-        await queryDb(
-          `UPDATE ${TABLE_NAME} SET data = $1::jsonb, updated_at = NOW() WHERE slug = $2`,
-          [JSON.stringify(canonicalContent), SITE_SLUG]
-        );
-      }
-
-      return res.status(200).json({ content: canonicalContent, source: 'neondb-canonical' });
+      res.setHeader('Cache-Control', 'no-store, max-age=0');
+      return res.status(200).json({ content: storedContent, source: 'neondb' });
     } catch (error) {
       if (isMissingTableError(error.message) || isLocalFallbackError(error.message)) {
+        res.setHeader('Cache-Control', 'no-store, max-age=0');
         return res.status(200).json({
           content: canonicalContent,
           source: 'local-fallback-missing-table'
@@ -114,11 +90,12 @@ export default async function handler(req, res) {
     }
 
     try {
-      const sanitizedContent = sanitizeContent(mergeWithDefaults(defaultContent, content));
+      const sanitizedContent = sanitizeContent(content);
       await queryDb(
         `INSERT INTO ${TABLE_NAME} (slug, data, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (slug) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
         [SITE_SLUG, JSON.stringify(sanitizedContent)]
       );
+      res.setHeader('Cache-Control', 'no-store, max-age=0');
       return res.status(200).json({ content: sanitizedContent });
     } catch (error) {
       return res.status(500).json({ error: error.message });
@@ -128,6 +105,7 @@ export default async function handler(req, res) {
   if (req.method === 'DELETE') {
     try {
       await queryDb(`DELETE FROM ${TABLE_NAME} WHERE slug = $1`, [SITE_SLUG]);
+      res.setHeader('Cache-Control', 'no-store, max-age=0');
       return res.status(200).json({ reset: true, content: sanitizeContent(defaultContent) });
     } catch (error) {
       return res.status(500).json({ error: error.message });

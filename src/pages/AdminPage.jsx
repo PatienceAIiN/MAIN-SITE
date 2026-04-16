@@ -69,7 +69,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
 
   const loadSiteContent = async () => {
     try {
-      const payload = await fetchJson('/api/site-content');
+      const payload = await fetchJson('/api/site-content', { cache: 'no-store' });
       if (payload?.content) {
         setContentJson(JSON.stringify(payload.content, null, 2));
         onContentSaved(payload.content);
@@ -78,6 +78,19 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       setContentError(error.message);
       setContentJson(JSON.stringify(defaultContent, null, 2));
     }
+  };
+
+  const notifySiteContentUpdate = () => {
+    if (typeof window === 'undefined') return;
+
+    const token = String(Date.now());
+    try {
+      window.localStorage.setItem('pa_site_content_version', token);
+    } catch {
+      // Ignore storage failures and still emit a local event.
+    }
+
+    window.dispatchEvent(new Event('site-content-updated'));
   };
 
   const loadSubmissions = async () => {
@@ -191,6 +204,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       if (payload?.content) {
         setContentJson(JSON.stringify(payload.content, null, 2));
         onContentSaved(payload.content);
+        notifySiteContentUpdate();
       }
     } catch (error) {
       setContentError(error.message);
@@ -211,6 +225,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       const content = payload?.content || defaultContent;
       setContentJson(JSON.stringify(content, null, 2));
       onContentSaved(content);
+      notifySiteContentUpdate();
     } catch (error) {
       setContentError(error.message);
     } finally {
@@ -282,6 +297,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
         setContentJson(JSON.stringify(payload.content, null, 2));
         onContentSaved(payload.content);
         populateBlogDraft(nextPost);
+        notifySiteContentUpdate();
       }
     } catch (error) {
       setContentError(error.message);
