@@ -166,3 +166,49 @@ select {
     transform: translateX(-50%);
   }
 }
+
+@media (max-width: 767px) {
+  main,
+  section,
+  article,
+  header,
+  footer,
+  div,
+  p,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  a,
+  button,
+  span {
+    overflow-wrap: anywhere;
+  }
+
+  img,
+  video,
+  canvas,
+  svg,
+  iframe {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .marquee-track {
+    gap: 1rem;
+    padding-right: 1rem;
+  }
+
+  .marquee-card {
+    width: 92vw;
+    min-height: 20rem;
+    padding: 1.5rem;
+  }
+
+  [class*='tracking-[0.22em]'],
+  [class*='tracking-[0.25em]'] {
+    letter-spacing: 0.16em !important;
+  }
+}
