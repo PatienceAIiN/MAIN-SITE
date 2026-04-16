@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import Button from '../components/ui/Button';
 import { fetchJson } from '../common/fetchJson';
 
-const TABS = ['content', 'pages', 'blog', 'submissions', 'conversations'];
+const TABS = ['content', 'blog', 'submissions', 'conversations'];
 
 const Spinner = ({ size = 16 }) => (
   <svg
@@ -65,10 +65,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [selectedConversationId, setSelectedConversationId] = useState('');
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingMessage, setEditingMessage] = useState('');
-  const [selectedPageIndex, setSelectedPageIndex] = useState(0);
-  const [pageDraft, setPageDraft] = useState(null);
-  const [pageSaving, setPageSaving] = useState(false);
-
   const selectedSubmission = submissions.find((item) => item.id === selectedId) || submissions[0] || null;
 
   const loadSiteContent = async () => {
@@ -591,169 +587,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
               </div>
             )}
 
-
-            {activeTab === 'pages' && (() => {
-              const parsed = (() => { try { return JSON.parse(contentJson); } catch { return null; } })();
-              const detailPages = parsed?.detailPages || [];
-
-              const selectPage = (index) => {
-                setSelectedPageIndex(index);
-                const page = detailPages[index];
-                if (page) {
-                  setPageDraft({
-                    title: page.title || '',
-                    groupTitle: page.groupTitle || '',
-                    description: page.description || '',
-                    points: Array.isArray(page.points) ? page.points.join('\n') : '',
-                    cta: page.cta ? JSON.stringify(page.cta, null, 2) : ''
-                  });
-                }
-              };
-
-              if (!pageDraft && detailPages.length > 0) {
-                window.setTimeout(() => selectPage(0), 0);
-              }
-
-              const savePage = async () => {
-                if (!pageDraft || !parsed) return;
-                setPageSaving(true);
-                setContentError('');
-                try {
-                  const updatedPages = detailPages.map((page, i) => {
-                    if (i !== selectedPageIndex) return page;
-                    const updated = {
-                      ...page,
-                      title: pageDraft.title.trim(),
-                      groupTitle: pageDraft.groupTitle.trim(),
-                      description: pageDraft.description.trim(),
-                      points: pageDraft.points.split('\n').map((p) => p.trim()).filter(Boolean)
-                    };
-                    if (pageDraft.cta.trim()) {
-                      try { updated.cta = JSON.parse(pageDraft.cta); } catch { /* keep old */ }
-                    }
-                    return updated;
-                  });
-                  const updatedContent = { ...parsed, detailPages: updatedPages };
-                  const payload = await fetchJson('/api/site-content', {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content: updatedContent })
-                  });
-                  if (payload?.content) {
-                    setContentJson(JSON.stringify(payload.content, null, 2));
-                    onContentSaved(payload.content);
-                  }
-                } catch (error) {
-                  setContentError(error.message);
-                } finally {
-                  setPageSaving(false);
-                }
-              };
-
-              return (
-                <div className="grid grid-cols-1 xl:grid-cols-[0.9fr_1.1fr] gap-6">
-                  <div className="rounded-[1.75rem] border border-white/10 bg-white/5 overflow-hidden">
-                    <div className="px-5 py-4 border-b border-white/10">
-                      <h2 className="text-xl font-semibold">All Pages</h2>
-                      <p className="text-white/50 text-sm mt-1">Select a page to edit its title, description, and bullet points.</p>
-                    </div>
-                    <div className="divide-y divide-white/10 max-h-[520px] overflow-y-auto">
-                      {detailPages.length === 0 && (
-                        <div className="p-6 text-white/50 text-sm">No detail pages found. Add them in the JSON editor.</div>
-                      )}
-                      {detailPages.map((page, index) => (
-                        <button
-                          key={page.path}
-                          type="button"
-                          onClick={() => selectPage(index)}
-                          className={`w-full text-left px-5 py-4 transition-colors ${
-                            selectedPageIndex === index ? 'bg-white/10' : 'hover:bg-white/5'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <p className="font-medium text-white">{page.title}</p>
-                              <p className="text-xs text-white/45 mt-0.5">{page.path}</p>
-                            </div>
-                            <span className="text-xs px-2.5 py-1 rounded-full bg-cyan-300/10 text-cyan-200 shrink-0">{page.groupTitle}</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
-                    {pageDraft && detailPages[selectedPageIndex] ? (
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between gap-4 mb-2">
-                          <div>
-                            <h2 className="text-xl font-semibold">{detailPages[selectedPageIndex].title}</h2>
-                            <p className="text-white/45 text-xs mt-1">{detailPages[selectedPageIndex].path}</p>
-                          </div>
-                          <Button variant="white" className="rounded-2xl px-5 py-2.5 gap-2 shrink-0" onClick={savePage} disabled={pageSaving}>
-                            {pageSaving ? <><Spinner size={14} />Saving…</> : 'Save page'}
-                          </Button>
-                        </div>
-
-                        {contentError && (
-                          <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-red-100 text-sm">
-                            {contentError}
-                          </div>
-                        )}
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm text-white/70 mb-2">Page Title</label>
-                            <input
-                              value={pageDraft.title}
-                              onChange={(e) => setPageDraft((d) => ({ ...d, title: e.target.value }))}
-                              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
-                              placeholder="Page title"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm text-white/70 mb-2">Group / Section</label>
-                            <input
-                              value={pageDraft.groupTitle}
-                              onChange={(e) => setPageDraft((d) => ({ ...d, groupTitle: e.target.value }))}
-                              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
-                              placeholder="Products / Company / Legal"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm text-white/70 mb-2">Description</label>
-                          <textarea
-                            value={pageDraft.description}
-                            onChange={(e) => setPageDraft((d) => ({ ...d, description: e.target.value }))}
-                            rows={3}
-                            className="w-full rounded-[1.5rem] border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70 resize-none"
-                            placeholder="Short page description shown as the hero subtitle"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm text-white/70 mb-2">Bullet Points <span className="text-white/35 font-normal">(one per line)</span></label>
-                          <textarea
-                            value={pageDraft.points}
-                            onChange={(e) => setPageDraft((d) => ({ ...d, points: e.target.value }))}
-                            rows={8}
-                            className="w-full rounded-[1.5rem] border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70 resize-none font-mono text-sm"
-                            placeholder={"First bullet point\nSecond bullet point\nThird bullet point"}
-                          />
-                          <p className="text-xs text-white/35 mt-2">Each line becomes one bullet point on the page.</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="min-h-[300px] flex items-center justify-center text-white/40 text-sm">
-                        Select a page from the list to start editing.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
 
             {activeTab === 'conversations' && (
               <div className="grid grid-cols-1 xl:grid-cols-[0.95fr_1.05fr] gap-6">

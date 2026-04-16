@@ -21,8 +21,8 @@ Add these environment variables to your Render web service:
    - Example: `PATIENCE AI`
    - Type: Plain
 
-4. **CONTACT_TO_EMAIL**
-   - Email address where contact form submissions will be sent
+4. **BREVO_RECIPIENT_EMAIL** or **CONTACT_TO_EMAIL**
+   - Team inbox that receives website submissions
    - Example: `hello@patience.ai`
    - Type: Plain
 
@@ -66,7 +66,8 @@ Add these environment variables to your Render web service:
 
 1. Sign up for a Brevo account at [https://www.brevo.com](https://www.brevo.com)
 2. Verify your sender domain/email in Brevo dashboard
-3. Generate an API key:
+3. Set a separate recipient inbox for `BREVO_RECIPIENT_EMAIL` or `CONTACT_TO_EMAIL`
+4. Generate an API key:
    - Go to Settings > API Keys
    - Click "Generate new key"
    - Give it a name (e.g., "Website Contact Form")
@@ -110,7 +111,8 @@ For local development:
 
 1. **Email not sending**
    - Check if `BREVO_API_KEY` is correct
-   - Verify sender email is registered in Brevo
+   - Verify `BREVO_SENDER_EMAIL` is a Brevo-verified sender
+   - Verify `BREVO_RECIPIENT_EMAIL` or `CONTACT_TO_EMAIL` points to a real inbox
    - Check Render service logs
 
 2. **Form submission error**
@@ -156,7 +158,7 @@ To run the app on NeonDB, set these environment variables in Render:
 - `BREVO_API_KEY`
 - `BREVO_SENDER_EMAIL`
 - `BREVO_SENDER_NAME`
-- `CONTACT_TO_EMAIL`
+- `BREVO_RECIPIENT_EMAIL` or `CONTACT_TO_EMAIL`
 
 ### Required DB setup in Neon
 Run `db/schema.sql` (Postgres compatible) against Neon so these tables exist:

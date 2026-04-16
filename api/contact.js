@@ -38,6 +38,8 @@ const parseEmailList = (rawValue = '') =>
     .map((entry) => entry.trim())
     .filter(Boolean);
 
+const isValidEmail = (value = '') => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim());
+
 const parseBrevoError = async (response) => {
   const fallback = `Brevo request failed with status ${response.status}`;
   try {
@@ -99,6 +101,10 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ error: 'A valid email address is required' });
+  }
+
   try {
     try {
       await queryDb(
@@ -111,19 +117,32 @@ export default async function handler(req, res) {
       }
     }
 
-    const BREVO_API_KEY = process.env.BREVO_API_KEY;
-    const CONTACT_TO_EMAIL_CONFIG = process.env.CONTACT_TO_EMAIL || process.env.RECIPIENT_EMAIL || '';
-    const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || CONTACT_TO_EMAIL_CONFIG || 'noreply@patience.ai';
-    const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || 'PATIENCE AI';
-    const CONTACT_TO_EMAILS = parseEmailList(CONTACT_TO_EMAIL_CONFIG || BREVO_SENDER_EMAIL);
+    const BREVO_API_KEY = (process.env.BREVO_API_KEY || '').trim();
+    const BREVO_SENDER_EMAIL = (process.env.BREVO_SENDER_EMAIL || '').trim();
+    const BREVO_SENDER_NAME = (process.env.BREVO_SENDER_NAME || 'PATIENCE AI').trim() || 'PATIENCE AI';
+    const CONTACT_TO_EMAIL_CONFIG =
+      process.env.BREVO_RECIPIENT_EMAIL || process.env.CONTACT_TO_EMAIL || process.env.RECIPIENT_EMAIL || '';
+    const CONTACT_TO_EMAILS = parseEmailList(CONTACT_TO_EMAIL_CONFIG).filter(isValidEmail);
 
-    if (!BREVO_API_KEY || CONTACT_TO_EMAILS.length === 0) {
-      console.error(
-        'Missing Brevo email configuration. Ensure BREVO_API_KEY and CONTACT_TO_EMAIL (or RECIPIENT_EMAIL) are set.'
-      );
+    const configIssues = [];
+    if (!BREVO_API_KEY) {
+      configIssues.push('BREVO_API_KEY is missing');
+    }
+    if (!isValidEmail(BREVO_SENDER_EMAIL)) {
+      configIssues.push('BREVO_SENDER_EMAIL must be a valid verified Brevo sender address');
+    }
+    if (CONTACT_TO_EMAILS.length === 0) {
+      configIssues.push('CONTACT_TO_EMAIL (or BREVO_RECIPIENT_EMAIL) must contain at least one valid recipient');
+    }
+
+    if (configIssues.length > 0) {
+      console.error('Missing Brevo email configuration:', configIssues.join('; '));
       return res.status(200).json({
-        message: 'Thanks. Your message is saved. Email delivery is temporarily unavailable.',
-        emailSent: false
+        message: 'Thanks. Your message is saved. Email delivery is temporarily unavailable until Brevo sender and recipient settings are configured.',
+        emailSent: false,
+        emailDebug: {
+          configIssues
+        }
       });
     }
 
@@ -137,12 +156,7 @@ export default async function handler(req, res) {
       email: contactEmail,
       name: 'Patience AI Team'
     }));
-    const userRecipient = [
-      {
-        email,
-        name
-      }
-    ];
+    const userRecipient = isValidEmail(email) ? [{ email: email.trim(), name: name.trim() }] : [];
     const summaryRows = [
       `<p><strong>Name:</strong> ${escapeHtml(name)}</p>`,
       `<p><strong>Email:</strong> ${escapeHtml(email)}</p>`,
@@ -203,10 +217,7 @@ export default async function handler(req, res) {
       to: ownerRecipient,
       subject: emailSubject,
       htmlContent: ownerHtml,
-      replyTo: {
-        email,
-        name
-      }
+      replyTo: isValidEmail(email) ? { email: email.trim(), name: name.trim() } : undefined
     });
 
     let ownerEmailSent = ownerResponse.ok;
@@ -239,7 +250,7 @@ export default async function handler(req, res) {
 
     if (!ownerEmailSent && !userConfirmationSent) {
       return res.status(200).json({
-        message: 'Thanks. Your message is saved but email delivery failed. Please verify Brevo sender/recipient settings.',
+        message: 'Thanks. Your message is saved but email delivery failed. Please verify the verified Brevo sender and recipient inbox settings.',
         emailSent: false,
         userConfirmationSent: false,
         emailDebug: {
