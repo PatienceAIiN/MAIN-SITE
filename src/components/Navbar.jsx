@@ -22,18 +22,18 @@ const Navbar = ({ brand, navigation, onAction, currentPath }) => {
 
   return (
     <header
-      className={`fixed inset-x-0 top-0 z-[160] border-b border-slate-200/80 transition-all duration-300 ${
+      className={`fixed inset-x-0 top-0 z-[160] w-full border-b border-slate-200/80 transition-all duration-300 ${
         mobileOpen ? 'bg-white shadow-sm' : 'bg-white/95 backdrop-blur-md'
       }`}
     >
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 sm:py-5">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-4 sm:px-6 sm:py-5">
         <button
           type="button"
           onClick={() => {
             setMobileOpen(false);
             onAction(brand.homeAction);
           }}
-          className="font-serif text-[1.55rem] tracking-tight text-[#1a1a1a] transition-opacity hover:opacity-80 sm:text-[1.85rem]"
+          className="font-serif text-[1.75rem] tracking-tight text-[#1a1a1a] transition-opacity hover:opacity-80 sm:text-[1.85rem]"
           aria-label={brand.name}
         >
           {brand.name}
@@ -91,7 +91,7 @@ const Navbar = ({ brand, navigation, onAction, currentPath }) => {
       </div>
 
       <div
-        className={`overflow-hidden transition-all duration-300 md:hidden ${
+        className={`overflow-hidden bg-white transition-all duration-300 md:hidden ${
           mobileOpen ? 'max-h-[80vh] border-t border-[#e5e5e5]' : 'max-h-0'
         }`}
       >

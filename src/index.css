@@ -168,23 +168,28 @@ select {
 }
 
 @media (max-width: 767px) {
-  main,
-  section,
-  article,
-  header,
-  footer,
-  div,
-  p,
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  main {
+    width: 100%;
+  }
+
   h1,
   h2,
   h3,
   h4,
   h5,
   h6,
+  p,
   a,
-  button,
-  span {
-    overflow-wrap: anywhere;
+  button {
+    overflow-wrap: break-word;
   }
 
   img,
@@ -193,7 +198,6 @@ select {
   svg,
   iframe {
     max-width: 100%;
-    height: auto;
   }
 
   .marquee-track {
@@ -205,10 +209,5 @@ select {
     width: 92vw;
     min-height: 20rem;
     padding: 1.5rem;
-  }
-
-  [class*='tracking-[0.22em]'],
-  [class*='tracking-[0.25em]'] {
-    letter-spacing: 0.16em !important;
   }
 }
