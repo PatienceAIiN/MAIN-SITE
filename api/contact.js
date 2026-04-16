@@ -9,6 +9,17 @@ const escapeHtml = (value = '') =>
     .replace(/'/g, '&#39;');
 
 
+
+const normalizeEmailAddress = (value = '') => {
+  const input = String(value).trim();
+  if (!input) return '';
+
+  const angleMatch = input.match(/<([^>]+)>/);
+  if (angleMatch?.[1]) return angleMatch[1].trim();
+
+  return input.replace(/^mailto:/i, '').trim();
+};
+
 const sendBrevoEmail = async ({ apiKey, sender, to, subject, htmlContent, replyTo }) => {
   const payload = {
     sender,
@@ -32,13 +43,22 @@ const sendBrevoEmail = async ({ apiKey, sender, to, subject, htmlContent, replyT
   });
 };
 
-const parseEmailList = (rawValue = '') =>
-  String(rawValue)
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
+const parseEmailList = (rawValue = '') => {
+  const seen = new Set();
 
-const isValidEmail = (value = '') => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim());
+  return String(rawValue)
+    .split(/[\s,;]+/)
+    .map((entry) => normalizeEmailAddress(entry))
+    .filter(Boolean)
+    .filter((entry) => {
+      const normalized = entry.toLowerCase();
+      if (seen.has(normalized)) return false;
+      seen.add(normalized);
+      return true;
+    });
+};
+
+const isValidEmail = (value = '') => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmailAddress(value));
 
 const parseBrevoError = async (response) => {
   const fallback = `Brevo request failed with status ${response.status}`;
@@ -117,11 +137,19 @@ export default async function handler(req, res) {
       }
     }
 
-    const BREVO_API_KEY = (process.env.BREVO_API_KEY || '').trim();
-    const BREVO_SENDER_EMAIL = (process.env.BREVO_SENDER_EMAIL || '').trim();
+    const BREVO_API_KEY = (process.env.BREVO_API_KEY || process.env.BREVO_KEY || '').trim();
+    const BREVO_SENDER_EMAIL = normalizeEmailAddress(
+      process.env.BREVO_SENDER_EMAIL || process.env.BREVO_FROM_EMAIL || process.env.BREVO_EMAIL_FROM || ''
+    );
     const BREVO_SENDER_NAME = (process.env.BREVO_SENDER_NAME || 'PATIENCE AI').trim() || 'PATIENCE AI';
     const CONTACT_TO_EMAIL_CONFIG =
-      process.env.BREVO_RECIPIENT_EMAIL || process.env.CONTACT_TO_EMAIL || process.env.RECIPIENT_EMAIL || '';
+      process.env.BREVO_RECIPIENT_EMAIL ||
+      process.env.BREVO_RECIPIENT_EMAILS ||
+      process.env.CONTACT_TO_EMAIL ||
+      process.env.CONTACT_TO_EMAILS ||
+      process.env.RECIPIENT_EMAIL ||
+      process.env.BREVO_TO_EMAIL ||
+      '';
     const CONTACT_TO_EMAILS = parseEmailList(CONTACT_TO_EMAIL_CONFIG).filter(isValidEmail);
 
     const configIssues = [];
@@ -156,7 +184,8 @@ export default async function handler(req, res) {
       email: contactEmail,
       name: 'Patience AI Team'
     }));
-    const userRecipient = isValidEmail(email) ? [{ email: email.trim(), name: name.trim() }] : [];
+    const normalizedUserEmail = normalizeEmailAddress(email);
+    const userRecipient = isValidEmail(normalizedUserEmail) ? [{ email: normalizedUserEmail, name: name.trim() }] : [];
     const summaryRows = [
       `<p><strong>Name:</strong> ${escapeHtml(name)}</p>`,
       `<p><strong>Email:</strong> ${escapeHtml(email)}</p>`,
@@ -217,7 +246,7 @@ export default async function handler(req, res) {
       to: ownerRecipient,
       subject: emailSubject,
       htmlContent: ownerHtml,
-      replyTo: isValidEmail(email) ? { email: email.trim(), name: name.trim() } : undefined
+      replyTo: isValidEmail(normalizedUserEmail) ? { email: normalizedUserEmail, name: name.trim() } : undefined
     });
 
     let ownerEmailSent = ownerResponse.ok;

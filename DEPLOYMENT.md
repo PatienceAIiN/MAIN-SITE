@@ -21,9 +21,10 @@ Add these environment variables to your Render web service:
    - Example: `PATIENCE AI`
    - Type: Plain
 
-4. **BREVO_RECIPIENT_EMAIL** or **CONTACT_TO_EMAIL**
+4. **BREVO_RECIPIENT_EMAIL** (or `BREVO_RECIPIENT_EMAILS`) / **CONTACT_TO_EMAIL** (or `CONTACT_TO_EMAILS`)
    - Team inbox that receives website submissions
    - Example: `hello@patience.ai`
+   - Multiple addresses are supported via comma, semicolon, or whitespace separation
    - Type: Plain
 
 5. **DATABASE_URL**
