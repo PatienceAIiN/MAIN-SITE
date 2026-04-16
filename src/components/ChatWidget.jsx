@@ -33,9 +33,20 @@ const normalizeMessageContent = (value) => {
 
 const LAUNCHER_SIZE = 64;
 const LAUNCHER_MARGIN = 24;
+const MOBILE_BREAKPOINT = 640;
+
+const isMobileViewport = (width = 0) => width < MOBILE_BREAKPOINT;
 
 const getDefaultLauncherPosition = () => {
   if (typeof window === 'undefined') return { x: 0, y: 0 };
+
+  if (isMobileViewport(window.innerWidth)) {
+    return {
+      x: Math.max(12, (window.innerWidth - LAUNCHER_SIZE) / 2),
+      y: Math.max(12, window.innerHeight - LAUNCHER_SIZE - 16)
+    };
+  }
+
   return {
     x: Math.max(LAUNCHER_MARGIN, window.innerWidth - LAUNCHER_SIZE - LAUNCHER_MARGIN),
     y: Math.max(LAUNCHER_MARGIN, window.innerHeight - LAUNCHER_SIZE - LAUNCHER_MARGIN)
@@ -51,6 +62,13 @@ const isAtPageEnd = () => {
 
 const clampLauncherPosition = (x, y, width = LAUNCHER_SIZE, height = LAUNCHER_SIZE) => {
   if (typeof window === 'undefined') return { x, y };
+
+  if (isMobileViewport(window.innerWidth)) {
+    const centeredX = Math.max(12, (window.innerWidth - width) / 2);
+    const mobileY = Math.max(12, window.innerHeight - height - 16);
+    return { x: centeredX, y: mobileY };
+  }
+
   const maxX = Math.max(LAUNCHER_MARGIN, window.innerWidth - width - LAUNCHER_MARGIN);
   const maxY = Math.max(LAUNCHER_MARGIN, window.innerHeight - height - LAUNCHER_MARGIN);
   return {
@@ -187,7 +205,7 @@ const ChatWidget = ({ brand }) => {
         stackHeight
       );
 
-      if (!isAtPageEnd()) {
+      if (isMobileViewport(window.innerWidth) || !isAtPageEnd()) {
         setLauncherPosition(defaultPosition);
         return;
       }
@@ -471,7 +489,7 @@ const ChatWidget = ({ brand }) => {
       <motion.div
         ref={launcherStackRef}
         style={{ left: launcherPosition.x, top: launcherPosition.y }}
-        className="fixed z-[120] flex flex-col items-end gap-2 touch-none cursor-grab active:cursor-grabbing"
+        className="fixed z-[140] flex flex-col items-center sm:items-end gap-2 touch-none"
       >
         {showWave && !isOpen && (
           <motion.div
@@ -505,7 +523,7 @@ const ChatWidget = ({ brand }) => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 260, damping: 24, mass: 0.7 }}
-            className="fixed bottom-24 right-4 sm:right-6 left-4 sm:left-auto z-[120] w-auto sm:w-[min(92vw,380px)] max-w-[380px] max-h-[calc(100vh-7.5rem)] rounded-3xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+            className="fixed bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] left-1/2 z-[140] w-[min(94vw,420px)] -translate-x-1/2 sm:bottom-24 sm:left-auto sm:right-6 sm:translate-x-0 sm:w-[min(92vw,380px)] max-w-[420px] max-h-[calc(100vh-8rem)] rounded-3xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
           >
             <div className="bg-slate-50 text-slate-900 p-4 relative flex items-center justify-between border-b border-slate-200">
               <div className="flex items-center gap-3 min-w-0">

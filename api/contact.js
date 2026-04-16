@@ -32,11 +32,20 @@ const sendBrevoEmail = async ({ apiKey, sender, to, subject, htmlContent, replyT
   });
 };
 
-const parseEmailList = (rawValue = '') =>
-  String(rawValue)
-    .split(',')
+const parseEmailList = (rawValue = '') => {
+  const seen = new Set();
+
+  return String(rawValue)
+    .split(/[\s,;]+/)
     .map((entry) => entry.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((entry) => {
+      const normalized = entry.toLowerCase();
+      if (seen.has(normalized)) return false;
+      seen.add(normalized);
+      return true;
+    });
+};
 
 const isValidEmail = (value = '') => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim());
 
@@ -121,7 +130,12 @@ export default async function handler(req, res) {
     const BREVO_SENDER_EMAIL = (process.env.BREVO_SENDER_EMAIL || '').trim();
     const BREVO_SENDER_NAME = (process.env.BREVO_SENDER_NAME || 'PATIENCE AI').trim() || 'PATIENCE AI';
     const CONTACT_TO_EMAIL_CONFIG =
-      process.env.BREVO_RECIPIENT_EMAIL || process.env.CONTACT_TO_EMAIL || process.env.RECIPIENT_EMAIL || '';
+      process.env.BREVO_RECIPIENT_EMAIL ||
+      process.env.BREVO_RECIPIENT_EMAILS ||
+      process.env.CONTACT_TO_EMAIL ||
+      process.env.CONTACT_TO_EMAILS ||
+      process.env.RECIPIENT_EMAIL ||
+      '';
     const CONTACT_TO_EMAILS = parseEmailList(CONTACT_TO_EMAIL_CONFIG).filter(isValidEmail);
 
     const configIssues = [];

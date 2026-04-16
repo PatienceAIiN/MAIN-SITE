@@ -22,8 +22,8 @@ const Navbar = ({ brand, navigation, onAction, currentPath }) => {
 
   return (
     <header
-      className={`fixed inset-x-0 top-0 z-[120] transition-all duration-300 ${
-        mobileOpen ? 'bg-white' : 'bg-white/90 backdrop-blur-md'
+      className={`fixed inset-x-0 top-0 z-[160] border-b border-slate-200/80 transition-all duration-300 ${
+        mobileOpen ? 'bg-white shadow-sm' : 'bg-white/95 backdrop-blur-md'
       }`}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
