@@ -67,6 +67,7 @@ const isLocalFallbackError = (message = '') =>
 
 export default async function handler(req, res) {
   const defaultContent = readDefaultContent();
+  const canonicalContent = sanitizeContent(defaultContent);
 
   if (req.method === 'GET') {
     try {
@@ -76,17 +77,24 @@ export default async function handler(req, res) {
       if (!row) {
         await queryDb(
           `INSERT INTO ${TABLE_NAME} (slug, data, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (slug) DO NOTHING`,
-          [SITE_SLUG, JSON.stringify(defaultContent)]
+          [SITE_SLUG, JSON.stringify(canonicalContent)]
         );
-        return res.status(200).json({ content: sanitizeContent(defaultContent), source: 'neondb-seeded-default' });
+        return res.status(200).json({ content: canonicalContent, source: 'neondb-seeded-default' });
       }
 
-      const mergedContent = mergeWithDefaults(defaultContent, row.data);
-      return res.status(200).json({ content: sanitizeContent(mergedContent), source: 'neondb' });
+      const storedContent = sanitizeContent(row.data);
+      if (JSON.stringify(storedContent) !== JSON.stringify(canonicalContent)) {
+        await queryDb(
+          `UPDATE ${TABLE_NAME} SET data = $1::jsonb, updated_at = NOW() WHERE slug = $2`,
+          [JSON.stringify(canonicalContent), SITE_SLUG]
+        );
+      }
+
+      return res.status(200).json({ content: canonicalContent, source: 'neondb-canonical' });
     } catch (error) {
       if (isMissingTableError(error.message) || isLocalFallbackError(error.message)) {
         return res.status(200).json({
-          content: sanitizeContent(defaultContent),
+          content: canonicalContent,
           source: 'local-fallback-missing-table'
         });
       }
