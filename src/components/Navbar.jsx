@@ -82,16 +82,23 @@ const Navbar = ({ brand, navigation, onAction, currentPath }) => {
           onClick={() => { setMobileOpen(false); onAction(brand.homeAction); }}
           className="font-serif text-[1.75rem] tracking-tight text-[#1a1a1a] sm:text-[1.85rem]"
           aria-label={brand.name}
+          initial={{ opacity: 0, x: -18 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.55, ease: [0.25, 0.1, 0.25, 1] }}
           whileHover={{ opacity: 0.75 }}
           whileTap={{ scale: 0.97 }}
-          transition={{ duration: 0.15 }}
         >
           {brand.name}
           <sup className="text-[0.6rem] align-super">®</sup>
         </motion.button>
 
         {/* Desktop nav */}
-        <nav className="hidden items-center gap-7 md:flex">
+        <motion.nav
+          className="hidden items-center gap-7 md:flex"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.12, ease: [0.25, 0.1, 0.25, 1] }}
+        >
           {navigation.map((item) => (
             <motion.div
               key={item.label}
@@ -107,7 +114,7 @@ const Navbar = ({ brand, navigation, onAction, currentPath }) => {
               />
             </motion.div>
           ))}
-        </nav>
+        </motion.nav>
 
         {/* Desktop CTA */}
         <div className="hidden md:block">
@@ -115,9 +122,11 @@ const Navbar = ({ brand, navigation, onAction, currentPath }) => {
             type="button"
             onClick={() => onAction({ type: 'modal', target: 'sales' })}
             className="rounded-full bg-[#1a1a1a] px-6 py-2.5 text-sm font-medium text-white"
+            initial={{ opacity: 0, x: 18 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.55, delay: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
             whileHover={{ scale: 1.04, backgroundColor: '#333333' }}
             whileTap={{ scale: 0.97 }}
-            transition={{ duration: 0.18 }}
           >
             Begin Journey
           </motion.button>

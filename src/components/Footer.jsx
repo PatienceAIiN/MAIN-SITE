@@ -10,9 +10,10 @@ const SOCIAL_ICONS = {
   LinkedIn: FaLinkedinIn
 };
 
+const LOCATION_LABEL = 'Based in Pune, Maharashtra, India';
+
 const Footer = ({ brand, content, onAction }) => {
   const [currentTime, setCurrentTime] = useState('');
-  const [locationLabel, setLocationLabel] = useState('Pune, Maharashtra');
 
   useEffect(() => {
     const updateTime = () => {
@@ -32,37 +33,6 @@ const Footer = ({ brand, content, onAction }) => {
     return () => window.clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
-
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords: { latitude, longitude } }) => {
-        try {
-          const resp = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
-            { headers: { 'Accept-Language': 'en' } }
-          );
-          const data = await resp.json();
-          const city =
-            data.address?.city ||
-            data.address?.town ||
-            data.address?.village ||
-            data.address?.county;
-          const state = data.address?.state;
-          if (city || state) {
-            setLocationLabel([city, state].filter(Boolean).join(', '));
-          }
-        } catch {
-          // keep default
-        }
-      },
-      () => {
-        // permission denied — keep default
-      },
-      { timeout: 8000 }
-    );
-  }, []);
-
   return (
     <footer className="border-t border-[#e5e5e5] bg-white text-[#1a1a1a]">
       <div className="relative border-b border-[#e5e5e5] px-6 py-4 text-[11px] font-medium uppercase tracking-[0.22em] text-[#666666] md:text-xs">
@@ -71,10 +41,9 @@ const Footer = ({ brand, content, onAction }) => {
             {brand.name}
             <sup className="text-[0.6rem] align-super">®</sup>
           </div>
-          <div className="hidden text-center md:block">Based in Pune, Maharashtra, India</div>
+          <div className="text-center">{LOCATION_LABEL}</div>
           <div className="flex gap-6">
             <span>{currentTime}</span>
-            <span className="hidden sm:inline">{locationLabel}</span>
           </div>
         </div>
       </div>
