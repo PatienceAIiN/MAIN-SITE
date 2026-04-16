@@ -49,7 +49,7 @@ const Hero = ({ content, onAction }) => {
   }, []);
 
   return (
-    <section className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-white px-4 pb-16 pt-24 sm:px-6 sm:pb-20 sm:pt-28">
+    <section className="relative flex min-h-screen w-full items-start justify-start overflow-hidden bg-white px-4 pb-16 pt-20 sm:items-center sm:justify-center sm:px-6 sm:pb-20 sm:pt-28">
       <div className="absolute inset-x-0 bottom-0 top-[10rem] z-0">
         <div ref={containerRef} className="relative h-full w-full opacity-0 transition-opacity duration-150">
           <video ref={videoRef} autoPlay muted playsInline loop className="h-full w-full object-cover">
@@ -60,10 +60,10 @@ const Hero = ({ content, onAction }) => {
       </div>
 
       <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col items-center text-center">
-        <p className="mb-6 rounded-full border border-[#d1d1d1] bg-white/90 px-4 py-1.5 text-sm font-medium text-[#666666] shadow-sm">
+        <p className="mb-4 rounded-full border border-[#d1d1d1] bg-white/90 px-4 py-1.5 text-sm font-medium text-[#666666] shadow-sm sm:mb-6">
           Product-first AI systems
         </p>
-        <h1 className="max-w-6xl text-balance font-serif text-[2rem] font-normal leading-[1.04] tracking-[-0.05em] text-[#1a1a1a] sm:text-6xl md:text-7xl">
+        <h1 className="max-w-6xl text-balance font-serif text-[2rem] font-normal leading-[1.04] tracking-[-0.05em] text-[#1a1a1a] sm:text-5xl md:text-6xl lg:text-7xl">
           {content.headline}
         </h1>
         <p className="mt-8 max-w-2xl text-base leading-relaxed text-[#4a4a4a] sm:text-lg">
