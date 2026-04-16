@@ -96,10 +96,10 @@ const ContactUs = ({ content, isOpen, onClose, onBack }) => {
         >
           <div className="min-h-full flex items-start justify-center">
             <motion.div
-              initial={{ opacity: 0, y: 18, scale: 0.985 }}
+              initial={{ opacity: 0, y: 36, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.985 }}
-              transition={{ duration: 0.24, ease: 'easeOut' }}
+              exit={{ opacity: 0, y: 20, scale: 0.97 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 360, mass: 0.8 }}
               className="relative w-full max-w-6xl mx-auto rounded-[2.25rem] bg-white shadow-2xl overflow-y-auto max-h-[calc(100dvh-2rem)] md:max-h-[calc(100dvh-3rem)] border border-slate-200"
               onClick={(event) => event.stopPropagation()}
             >

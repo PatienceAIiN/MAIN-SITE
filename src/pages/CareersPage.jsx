@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import FadeIn from '../common/FadeIn';
 import SafeIcon from '../common/SafeIcon';
 import { iconRegistry } from '../common/iconRegistry';
 import { fetchJson } from '../common/fetchJson';
@@ -58,28 +59,34 @@ const CareersPage = ({ content, onAction }) => {
           style={{ backgroundImage: 'radial-gradient(#000000 1px, transparent 1px)', backgroundSize: '32px 32px' }}
         />
         <div className="relative mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1.08fr_0.92fr] lg:items-center">
-          <div className="max-w-3xl">
-            <div className="mb-6 inline-block rounded-full border border-[#d1d1d1] bg-white px-4 py-1.5 text-sm font-medium text-[#1a1a1a] shadow-sm">
+          <FadeIn className="max-w-3xl">
+            <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.05 }} className="mb-6 inline-block rounded-full border border-[#d1d1d1] bg-white px-4 py-1.5 text-sm font-medium text-[#1a1a1a] shadow-sm">
               {content.hero.eyebrow}
-            </div>
-            <h1 className="mb-6 font-serif text-5xl leading-[1.05] tracking-tight text-[#1a1a1a] md:text-7xl">
+            </motion.div>
+            <motion.h1 initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.12 }} className="mb-6 font-serif text-5xl leading-[1.05] tracking-tight text-[#1a1a1a] md:text-7xl">
               {content.hero.title}
-            </h1>
-            <p className="text-lg leading-relaxed text-[#666666] md:text-xl">{content.hero.description}</p>
-          </div>
+            </motion.h1>
+            <motion.p initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.22 }} className="text-lg leading-relaxed text-[#666666] md:text-xl">{content.hero.description}</motion.p>
+          </FadeIn>
 
           <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
-            {content.highlights.map((item) => (
-              <div key={item} className="rounded-[20px] border border-[#e5e5e5] bg-white p-5 shadow-sm">
+            {content.highlights.map((item, i) => (
+              <motion.div
+                key={item}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.4, delay: 0.15 + i * 0.08 }}
+                className="rounded-[20px] border border-[#e5e5e5] bg-white p-5 shadow-sm"
+              >
                 <p className="text-sm leading-relaxed text-[#666666]">{item}</p>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
       </section>
 
       <section className="mx-auto grid max-w-7xl gap-8 px-6 py-24 lg:grid-cols-[0.92fr_1.08fr] md:py-32">
-        <div className="rounded-[24px] border border-[#e5e5e5] bg-[#f4f4f4] p-8">
+        <FadeIn direction="left" className="rounded-[24px] border border-[#e5e5e5] bg-[#f4f4f4] p-8">
           <p className="mb-4 text-xs font-bold uppercase tracking-[0.3em] text-[#a3a3a3]">Inquiry</p>
           <h2 className="mb-4 text-3xl font-medium tracking-tight text-[#1a1a1a]">{content.form.title}</h2>
           <p className="mb-8 leading-relaxed text-[#666666]">{content.form.description}</p>
@@ -91,9 +98,9 @@ const CareersPage = ({ content, onAction }) => {
               </div>
             ))}
           </div>
-        </div>
+        </FadeIn>
 
-        <div className="rounded-[24px] border border-[#e5e5e5] bg-white p-8 shadow-sm">
+        <FadeIn direction="right" className="rounded-[24px] border border-[#e5e5e5] bg-white p-8 shadow-sm">
           <AnimatePresence mode="wait">
             {submitStatus === 'success' ? (
               <motion.div
@@ -189,7 +196,7 @@ const CareersPage = ({ content, onAction }) => {
               </motion.form>
             )}
           </AnimatePresence>
-        </div>
+        </FadeIn>
       </section>
     </main>
   );

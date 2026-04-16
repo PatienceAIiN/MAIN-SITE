@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Hero from '../components/Hero';
+import FadeIn from '../common/FadeIn';
 
 const HomePage = ({ content, onAction }) => {
   const featureCards = content.features?.cards || [];
@@ -24,16 +25,16 @@ const HomePage = ({ content, onAction }) => {
 
       <section className="bg-[#f4f4f4] px-4 py-16 sm:px-6 sm:py-24 md:py-32">
         <div className="mx-auto max-w-7xl">
-          <div className="mb-14 md:mb-28">
+          <FadeIn className="mb-14 md:mb-28">
             <h2 className="text-[2rem] leading-[1.05] tracking-[-0.04em] text-[#a3a3a3] sm:text-6xl md:text-[5.4rem]">
               Most AI products fail
               <br />
               <span className="text-[#1a1a1a]">before they feel inevitable</span>
             </h2>
-          </div>
+          </FadeIn>
 
           <div className="grid gap-10 sm:gap-16 lg:grid-cols-[0.9fr_1.1fr] lg:gap-24">
-            <div className="flex flex-col">
+            <FadeIn direction="left" className="flex flex-col">
               <p className="max-w-lg text-lg font-medium leading-relaxed text-[#1a1a1a]">
                 {content.statement?.headingPrefix} {content.statement?.headingHighlight} {content.statement?.headingSuffix}
               </p>
@@ -50,12 +51,16 @@ const HomePage = ({ content, onAction }) => {
                   Explore what we build
                 </button>
               </div>
-            </div>
+            </FadeIn>
 
             <div className="flex flex-col">
               {featureCards.map((card, index) => (
-                <div
+                <motion.div
                   key={`${card.title}-${index}`}
+                  initial={{ opacity: 0, x: 20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true, margin: '-30px' }}
+                  transition={{ duration: 0.4, delay: index * 0.08, ease: [0.25, 0.1, 0.25, 1] }}
                   className={`flex items-start gap-4 sm:gap-6 border-t border-[#d1d1d1] py-6 sm:py-8 ${
                     index === featureCards.length - 1 ? 'border-b' : ''
                   }`}
@@ -67,7 +72,7 @@ const HomePage = ({ content, onAction }) => {
                       <p className="mt-3 max-w-2xl text-base leading-relaxed text-[#666666]">{card.description}</p>
                     ) : null}
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>
@@ -180,10 +185,12 @@ const HomePage = ({ content, onAction }) => {
 
       <section className="bg-[#f4f4f4] px-4 py-16 sm:px-6 sm:py-24 md:py-32">
         <div className="mx-auto max-w-7xl">
+          <FadeIn>
           <h2 className="max-w-4xl text-[2rem] font-medium leading-[1.05] tracking-[-0.04em] text-[#1a1a1a] sm:text-5xl md:text-[5.5rem]">
             {content.ctaBanner?.heading}
           </h2>
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-[#666666]">{content.ctaBanner?.description}</p>
+          </FadeIn>
 
           <div className="mt-12 sm:mt-16 flex flex-col overflow-hidden rounded-[8px] border border-[#1a1a1a] bg-white md:flex-row">
             {content.ctaBanner?.buttons?.map((button, index) => (

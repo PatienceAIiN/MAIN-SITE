@@ -1,4 +1,13 @@
 import React, { useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
+
+const stagger = {
+  container: { animate: { transition: { staggerChildren: 0.11, delayChildren: 0.1 } } },
+  item: {
+    initial: { opacity: 0, y: 22 },
+    animate: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.25, 0.1, 0.25, 1] } },
+  },
+};
 
 const VIDEO_SOURCE =
   'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260328_083109_283f3553-e28f-428b-a723-d639c617eb2b.mp4';
@@ -59,24 +68,32 @@ const Hero = ({ content, onAction }) => {
         </div>
       </div>
 
-      <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col items-center text-center">
-        <p className="mb-4 rounded-full border border-[#d1d1d1] bg-white/90 px-4 py-1.5 text-sm font-medium text-[#666666] shadow-sm sm:mb-6">
+      <motion.div
+        className="relative z-10 mx-auto flex w-full max-w-7xl flex-col items-center text-center"
+        variants={stagger.container}
+        initial="initial"
+        animate="animate"
+      >
+        <motion.p variants={stagger.item} className="mb-4 rounded-full border border-[#d1d1d1] bg-white/90 px-4 py-1.5 text-sm font-medium text-[#666666] shadow-sm sm:mb-6">
           Product-first AI systems
-        </p>
-        <h1 className="max-w-6xl text-balance font-serif text-[2rem] font-normal leading-[1.04] tracking-[-0.05em] text-[#1a1a1a] sm:text-5xl md:text-6xl lg:text-7xl">
+        </motion.p>
+        <motion.h1 variants={stagger.item} className="max-w-6xl text-balance font-serif text-[2rem] font-normal leading-[1.04] tracking-[-0.05em] text-[#1a1a1a] sm:text-5xl md:text-6xl lg:text-7xl">
           {content.headline}
-        </h1>
-        <p className="mt-8 max-w-2xl text-base leading-relaxed text-[#4a4a4a] sm:text-lg">
+        </motion.h1>
+        <motion.p variants={stagger.item} className="mt-8 max-w-2xl text-base leading-relaxed text-[#4a4a4a] sm:text-lg">
           {content.description}
-        </p>
-        <button
+        </motion.p>
+        <motion.button
+          variants={stagger.item}
           type="button"
           onClick={() => onAction(content.cta.action)}
-          className="mt-10 inline-flex w-full items-center justify-center rounded-full bg-[#1a1a1a] px-8 py-4 text-base font-medium text-white shadow-xl transition-transform duration-300 hover:scale-[1.03] sm:mt-12 sm:w-auto sm:px-14 sm:py-5"
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.97 }}
+          className="mt-10 inline-flex w-full items-center justify-center rounded-full bg-[#1a1a1a] px-8 py-4 text-base font-medium text-white shadow-xl sm:mt-12 sm:w-auto sm:px-14 sm:py-5"
         >
           {content.cta.label}
-        </button>
-      </div>
+        </motion.button>
+      </motion.div>
     </section>
   );
 };

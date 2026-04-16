@@ -1,5 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+
+const pageVariants = {
+  initial: { opacity: 0, y: 14 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.28, ease: [0.25, 0.1, 0.25, 1] } },
+  exit:    { opacity: 0, y: -8, transition: { duration: 0.18, ease: [0.4, 0, 1, 1] } },
+};
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ContactUs from './components/ContactUs';
@@ -171,30 +178,33 @@ function App() {
         currentPath={location.pathname}
       />
 
-      <Routes>
-        <Route path="/" element={<HomePage content={siteContent} onAction={handleAction} />} />
-        <Route path="/products" element={<ProductsPage content={siteContent.productsPage} onAction={handleAction} />} />
-        <Route
-          path="/platform"
-          element={
-            <PlatformPage
-              content={siteContent.platformPage}
-              possibilityContent={siteContent.possibilities}
-              onAction={handleAction}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div key={location.pathname} variants={pageVariants} initial="initial" animate="animate" exit="exit">
+          <Routes location={location}>
+            <Route path="/" element={<HomePage content={siteContent} onAction={handleAction} />} />
+            <Route path="/products" element={<ProductsPage content={siteContent.productsPage} onAction={handleAction} />} />
+            <Route
+              path="/platform"
+              element={
+                <PlatformPage
+                  content={siteContent.platformPage}
+                  possibilityContent={siteContent.possibilities}
+                  onAction={handleAction}
+                />
+              }
             />
-          }
-        />
-        <Route path="/company/blog" element={<BlogPage content={siteContent.blogPage} />} />
-        <Route path="/company/blog/:slug" element={<BlogPostPage content={siteContent.blogPage} onAction={handleAction} />} />
-        <Route path="/company/careers" element={<CareersPage content={siteContent.careersPage} onAction={handleAction} />} />
-        {detailPages.map((page) => (
-          <Route key={page.path} path={page.path} element={<DetailPage pageContent={page} onAction={handleAction} />} />
-        ))}
-        <Route path="/admin" element={<Navigate to="/admin" replace />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-
-      <Footer brand={siteContent.brand} content={siteContent.footer} onAction={handleAction} />
+            <Route path="/company/blog" element={<BlogPage content={siteContent.blogPage} />} />
+            <Route path="/company/blog/:slug" element={<BlogPostPage content={siteContent.blogPage} onAction={handleAction} />} />
+            <Route path="/company/careers" element={<CareersPage content={siteContent.careersPage} onAction={handleAction} />} />
+            {detailPages.map((page) => (
+              <Route key={page.path} path={page.path} element={<DetailPage pageContent={page} onAction={handleAction} />} />
+            ))}
+            <Route path="/admin" element={<Navigate to="/admin" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+          <Footer brand={siteContent.brand} content={siteContent.footer} onAction={handleAction} />
+        </motion.div>
+      </AnimatePresence>
 
       <ContactUs
         content={siteContent.salesModal}
