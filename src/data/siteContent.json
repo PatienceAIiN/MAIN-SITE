@@ -166,14 +166,6 @@
           "type": "route",
           "to": "/products"
         }
-      },
-      {
-        "label": "Talk to Sales",
-        "variant": "whiteOutline",
-        "action": {
-          "type": "modal",
-          "target": "sales"
-        }
       }
     ]
   },

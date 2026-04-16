@@ -108,20 +108,17 @@ function App() {
     loadSiteContent();
     intervalId = window.setInterval(loadSiteContent, 4000);
 
-    const timer = window.setTimeout(() => {
-      scrollToHash(location.hash);
-    }, 60);
-
     return () => {
       active = false;
-      window.clearTimeout(timer);
       window.clearInterval(intervalId);
     };
-  }, [isAdminRoute, location.hash]);
+  }, [isAdminRoute]);
 
   useEffect(() => {
     document.title = getPageTitle(location.pathname, siteContent);
+  }, [location.pathname, siteContent]);
 
+  useEffect(() => {
     const timer = window.setTimeout(() => {
       scrollToHash(location.hash);
     }, 60);
@@ -129,7 +126,7 @@ function App() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [location.pathname, location.hash, siteContent]);
+  }, [location.pathname, location.hash]);
 
   const handleAction = useCallback(
     (action) => {

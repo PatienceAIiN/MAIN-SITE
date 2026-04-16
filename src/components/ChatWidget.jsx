@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion, useMotionValue } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { FiCheck, FiCopy, FiInfo, FiSend, FiSquare, FiTrash2, FiX } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 
@@ -33,13 +33,12 @@ const normalizeMessageContent = (value) => {
 
 const LAUNCHER_SIZE = 64;
 const LAUNCHER_MARGIN = 24;
-const LAUNCHER_BOTTOM_OFFSET = 96;
 
 const getDefaultLauncherPosition = () => {
   if (typeof window === 'undefined') return { x: 0, y: 0 };
   return {
     x: Math.max(LAUNCHER_MARGIN, window.innerWidth - LAUNCHER_SIZE - LAUNCHER_MARGIN),
-    y: Math.max(LAUNCHER_MARGIN, window.innerHeight - LAUNCHER_SIZE - LAUNCHER_BOTTOM_OFFSET)
+    y: Math.max(LAUNCHER_MARGIN, window.innerHeight - LAUNCHER_SIZE - LAUNCHER_MARGIN)
   };
 };
 
@@ -53,7 +52,7 @@ const isAtPageEnd = () => {
 const clampLauncherPosition = (x, y, width = LAUNCHER_SIZE, height = LAUNCHER_SIZE) => {
   if (typeof window === 'undefined') return { x, y };
   const maxX = Math.max(LAUNCHER_MARGIN, window.innerWidth - width - LAUNCHER_MARGIN);
-  const maxY = Math.max(LAUNCHER_MARGIN, window.innerHeight - height - LAUNCHER_BOTTOM_OFFSET);
+  const maxY = Math.max(LAUNCHER_MARGIN, window.innerHeight - height - LAUNCHER_MARGIN);
   return {
     x: Math.min(Math.max(x, LAUNCHER_MARGIN), maxX),
     y: Math.min(Math.max(y, LAUNCHER_MARGIN), maxY)
@@ -91,24 +90,7 @@ const ChatWidget = ({ brand }) => {
   const liveResponseRef = useRef('');
   const launcherStackRef = useRef(null);
   const chatPanelRef = useRef(null);
-  const hasDragged = useRef(false);
-  const dragX = useMotionValue(0);
-  const dragY = useMotionValue(0);
-  const [userMovedLauncher, setUserMovedLauncher] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return !!localStorage.getItem('pa_launcher_custom_pos');
-  });
-  const [launcherPosition, setLauncherPosition] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('pa_launcher_custom_pos');
-        if (saved) return JSON.parse(saved);
-      } catch {
-        // Ignore invalid stored launcher position.
-      }
-    }
-    return getDefaultLauncherPosition();
-  });
+  const [launcherPosition, setLauncherPosition] = useState(() => getDefaultLauncherPosition());
 
   const conversationId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_conversation_id', 'PatienceAI') : 'PatienceAI-local'), []);
   const sessionId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_session_id', 'session') : 'session-local'), []);
@@ -137,6 +119,22 @@ const ChatWidget = ({ brand }) => {
   }, [isOpen]);
 
   useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const handleClickOutside = (event) => {
+      const isInsideLauncher = launcherStackRef.current?.contains(event.target);
+      const isInsideChat = chatPanelRef.current?.contains(event.target);
+      if (!isInsideLauncher && !isInsideChat) {
+        setIsOpen(false);
+        setShowInfo(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  useEffect(() => {
     if (typeof document === 'undefined' || typeof window === 'undefined') {
       return undefined;
     }
@@ -162,22 +160,6 @@ const ChatWidget = ({ brand }) => {
   }, []);
 
   useEffect(() => {
-    if (!isOpen) return undefined;
-
-    const handleClickOutside = (event) => {
-      const isInsideLauncher = launcherStackRef.current?.contains(event.target);
-      const isInsideChat = chatPanelRef.current?.contains(event.target);
-      if (!isInsideLauncher && !isInsideChat) {
-        setIsOpen(false);
-        setShowInfo(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
-
-  useEffect(() => {
     const panel = scrollAreaRef.current;
     if (!panel) return;
     panel.scrollTop = panel.scrollHeight;
@@ -197,12 +179,6 @@ const ChatWidget = ({ brand }) => {
       const stackRect = launcherStackRef.current?.getBoundingClientRect();
       const stackWidth = stackRect?.width || LAUNCHER_SIZE;
       const stackHeight = stackRect?.height || LAUNCHER_SIZE;
-
-      // If user manually moved the bubble, only clamp to viewport on resize
-      if (userMovedLauncher) {
-        setLauncherPosition((prev) => clampLauncherPosition(prev.x, prev.y, stackWidth, stackHeight));
-        return;
-      }
 
       const defaultPosition = clampLauncherPosition(
         window.innerWidth - stackWidth - LAUNCHER_MARGIN,
@@ -241,7 +217,7 @@ const ChatWidget = ({ brand }) => {
       window.removeEventListener('resize', scheduleSync);
       window.removeEventListener('scroll', scheduleSync);
     };
-  }, [isOpen, showWave, userMovedLauncher]);
+  }, [isOpen, showWave]);
 
   const launcherMonogram = 'PA';
 
@@ -358,7 +334,6 @@ const ChatWidget = ({ brand }) => {
   };
 
   const toggleChat = () => {
-    if (hasDragged.current) return; // was a drag, not a click
     setIsOpen((current) => {
       const next = !current;
       if (next) {
@@ -495,38 +470,7 @@ const ChatWidget = ({ brand }) => {
     <>
       <motion.div
         ref={launcherStackRef}
-        drag
-        dragMomentum={false}
-        dragElastic={0}
-        style={{ x: dragX, y: dragY, left: launcherPosition.x, top: launcherPosition.y }}
-        onDragStart={() => { hasDragged.current = false; }}
-        onDrag={() => {
-          if (Math.abs(dragX.get()) > 4 || Math.abs(dragY.get()) > 4) {
-            hasDragged.current = true;
-          }
-        }}
-        onDragEnd={() => {
-          if (hasDragged.current) {
-            const stackRect = launcherStackRef.current?.getBoundingClientRect();
-            const w = stackRect?.width || LAUNCHER_SIZE;
-            const h = stackRect?.height || LAUNCHER_SIZE;
-            const newPos = clampLauncherPosition(
-              launcherPosition.x + dragX.get(),
-              launcherPosition.y + dragY.get(),
-              w,
-              h
-            );
-            setLauncherPosition(newPos);
-            setUserMovedLauncher(true);
-            try {
-              localStorage.setItem('pa_launcher_custom_pos', JSON.stringify(newPos));
-            } catch {
-              // Ignore storage write failures.
-            }
-          }
-          dragX.set(0);
-          dragY.set(0);
-        }}
+        style={{ left: launcherPosition.x, top: launcherPosition.y }}
         className="fixed z-[120] flex flex-col items-end gap-2 touch-none cursor-grab active:cursor-grabbing"
       >
         {showWave && !isOpen && (

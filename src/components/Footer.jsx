@@ -79,7 +79,7 @@ const Footer = ({ brand, content, onAction }) => {
         </div>
       </div>
 
-      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-6 pb-10 pt-12 lg:grid-cols-[1.15fr_0.85fr] lg:gap-8 lg:pb-14 lg:pt-16">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-6 pb-6 pt-8 lg:grid-cols-[1.15fr_0.85fr] lg:gap-8 lg:pb-10 lg:pt-10">
         <div>
           <h2 className="text-3xl font-medium uppercase tracking-[-0.04em] sm:text-4xl md:text-5xl lg:text-[4rem] lg:leading-[1.02]">
             Building AI services
@@ -111,7 +111,7 @@ const Footer = ({ brand, content, onAction }) => {
         </div>
       </div>
 
-      <div className="border-t border-[#e5e5e5] px-6 py-6">
+      <div className="border-t border-[#e5e5e5] px-6 py-4">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 text-xs text-[#8c8c8c] md:flex-row md:items-center md:justify-between">
           <p>{content.copyright.replace(/Â©|Ã‚Â©/g, '©')}</p>
           <div id="footer-social-links" className="flex flex-wrap gap-6">
