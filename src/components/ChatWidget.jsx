@@ -1,11 +1,27 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FiCheck, FiCopy, FiInfo, FiSend, FiSquare, FiTrash2, FiX } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
 import { fetchJson } from '../common/fetchJson';
 
 const YES_PATTERN = /^(yes|yeah|yep|sure|ok|okay|please|why not|go ahead)$/i;
 const CONTACT_FORM_PATTERN = /\b(show|open|fill|need|want).{0,24}\b(contact|sales)\s+form\b|\bcontact\s+form\b/i;
 const JOB_FORM_PATTERN = /\b(job|career|hiring|apply|application|job\s*enquiry|job\s*inquiry)\b.*\b(form|enquiry|inquiry|apply)\b|\bjob\s*enquiry\b|\bjob\s*inquiry\b/i;
+const NAVIGATION_REQUEST_PATTERN = /\b(open|go to|navigate|take me to|redirect|show me)\b/i;
+const buildRouteActions = (message = '') => {
+  const text = String(message).toLowerCase();
+  const actions = [];
+  const pushAction = (action) => {
+    if (!actions.some((item) => item.path === action.path)) actions.push(action);
+  };
+
+  if (/(home|landing|main)\b/.test(text)) pushAction({ label: 'Open Home', path: '/', hint: 'Visit homepage' });
+  if (/(product|pricing|solution|offer)\b/.test(text)) pushAction({ label: 'Open Products', path: '/products', hint: 'See products' });
+  if (/(platform|service|capabilit)/.test(text)) pushAction({ label: 'Open Services', path: '/platform', hint: 'See services' });
+  if (/(case study|blog|stories|insight)/.test(text)) pushAction({ label: 'Open Case Studies', path: '/company/blog', hint: 'Read case studies' });
+  if (/(career|job|hiring|apply)/.test(text)) pushAction({ label: 'Open Careers', path: '/company/careers', hint: 'See open roles' });
+  return actions;
+};
 const normalizeMessageContent = (value) => {
   if (typeof value === 'string') return value;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
@@ -108,6 +124,7 @@ const getOrCreateId = (storageKey, prefix) => {
 };
 
 const ChatWidget = ({ brand }) => {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [input, setInput] = useState('');
@@ -123,6 +140,7 @@ const ChatWidget = ({ brand }) => {
   const [messages, setMessages] = useState([]);
   const [liveResponse, setLiveResponse] = useState('');
   const [isStreamingResponse, setIsStreamingResponse] = useState(false);
+  const [routeActions, setRouteActions] = useState([]);
   const scrollAreaRef = useRef(null);
   const inputRef = useRef(null);
   const abortControllerRef = useRef(null);
@@ -396,6 +414,7 @@ const ChatWidget = ({ brand }) => {
     setShowContactForm(false);
     setShowJobForm(false);
     setLeadError('');
+    setRouteActions([]);
   };
 
   const stopResponse = () => {
@@ -426,6 +445,7 @@ const ChatWidget = ({ brand }) => {
     }
     setLiveResponse('');
     setIsStreamingResponse(false);
+    setRouteActions([]);
 
     if (openForm) {
       setShowContactForm(true);
@@ -466,6 +486,19 @@ const ChatWidget = ({ brand }) => {
       return;
     }
 
+    const navigationActions = buildRouteActions(question);
+    if (NAVIGATION_REQUEST_PATTERN.test(question) && navigationActions.length > 0) {
+      setRouteActions(navigationActions);
+      setMessages((current) => [
+        ...current,
+        {
+          role: 'assistant',
+          content: 'Absolutely — tap one of these quick actions and I’ll take you there.'
+        }
+      ]);
+      return;
+    }
+
     setBusy(true);
     try {
       const controller = new AbortController();
@@ -489,6 +522,17 @@ const ChatWidget = ({ brand }) => {
 
       if (!controller.signal.aborted) {
         setMessages((current) => [...current, { role: 'assistant', content: fullAnswer }]);
+        if (payload?.needsExpertHelp) {
+          setShowContactForm(true);
+          setShowJobForm(false);
+          setMessages((current) => [
+            ...current,
+            {
+              role: 'assistant',
+              content: 'I may be missing key context for this request. Please share your question in the contact form and an expert will get back to you within 2 hours.'
+            }
+          ]);
+        }
       }
       setLiveResponse('');
       setIsStreamingResponse(false);
@@ -629,6 +673,33 @@ const ChatWidget = ({ brand }) => {
                 </div>
               ))}
 
+              {routeActions.length > 0 && (
+                <div className="max-w-[95%] rounded-2xl border border-cyan-100 bg-white/95 p-2.5 shadow-sm">
+                  <p className="px-1 pb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">Quick navigation</p>
+                  <div className="flex flex-wrap gap-2">
+                    {routeActions.map((action, index) => (
+                      <motion.button
+                        key={action.path}
+                        type="button"
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.06, duration: 0.24, ease: 'easeOut' }}
+                        whileHover={{ y: -1, scale: 1.01 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          navigate(action.path);
+                          setRouteActions([]);
+                          setIsOpen(false);
+                        }}
+                        className="rounded-full border border-cyan-200 bg-gradient-to-r from-white via-cyan-50 to-sky-50 px-3 py-1.5 text-xs text-slate-700 shadow-sm transition"
+                      >
+                        {action.label}
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {isStreamingResponse && (
                 <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words bg-white text-slate-800 border border-slate-200">
                   {liveResponse || 'Generating response...'}
@@ -698,7 +769,7 @@ const ChatWidget = ({ brand }) => {
                     {busy ? <FiSquare size={14} /> : <FiSend size={16} />}
                   </button>
                 </div>
-                {!hasUserMessaged && <p className="text-[11px] text-slate-500 px-1">AI may generate inappropriate response. Be careful.</p>}
+                {!hasUserMessaged && <p className="text-[11px] text-slate-500 px-1">Responses are AI-generated and may be imperfect — please verify important details.</p>}
               </div>
             </div>
           </motion.div>
