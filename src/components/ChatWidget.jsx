@@ -141,6 +141,8 @@ const ChatWidget = ({ brand }) => {
   const [liveResponse, setLiveResponse] = useState('');
   const [isStreamingResponse, setIsStreamingResponse] = useState(false);
   const [routeActions, setRouteActions] = useState([]);
+  const [assistantSuggestions, setAssistantSuggestions] = useState([]);
+  const [showContactCta, setShowContactCta] = useState(false);
   const scrollAreaRef = useRef(null);
   const inputRef = useRef(null);
   const abortControllerRef = useRef(null);
@@ -415,6 +417,8 @@ const ChatWidget = ({ brand }) => {
     setShowJobForm(false);
     setLeadError('');
     setRouteActions([]);
+    setAssistantSuggestions([]);
+    setShowContactCta(false);
   };
 
   const stopResponse = () => {
@@ -446,6 +450,8 @@ const ChatWidget = ({ brand }) => {
     setLiveResponse('');
     setIsStreamingResponse(false);
     setRouteActions([]);
+    setAssistantSuggestions([]);
+    setShowContactCta(false);
 
     if (openForm) {
       setShowContactForm(true);
@@ -522,16 +528,10 @@ const ChatWidget = ({ brand }) => {
 
       if (!controller.signal.aborted) {
         setMessages((current) => [...current, { role: 'assistant', content: fullAnswer }]);
+        setAssistantSuggestions(Array.isArray(payload?.suggestions) ? payload.suggestions.filter((entry) => typeof entry === 'string' && entry.trim()) : []);
+        setShowContactCta(Boolean(payload?.needsExpertHelp));
         if (payload?.needsExpertHelp) {
-          setShowContactForm(true);
           setShowJobForm(false);
-          setMessages((current) => [
-            ...current,
-            {
-              role: 'assistant',
-              content: 'I may be missing key context for this request. Please share your question in the contact form and an expert will get back to you within 2 hours.'
-            }
-          ]);
         }
       }
       setLiveResponse('');
@@ -699,6 +699,47 @@ const ChatWidget = ({ brand }) => {
                   </div>
                 </div>
               )}
+              {assistantSuggestions.length > 0 && (
+                <div className="max-w-[95%] rounded-2xl border border-cyan-100 bg-white/95 p-2.5 shadow-sm">
+                  <p className="px-1 pb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">Suggestions</p>
+                  <div className="flex flex-wrap gap-2">
+                    {assistantSuggestions.map((suggestion, index) => (
+                      <motion.button
+                        key={`${suggestion}-${index}`}
+                        type="button"
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.06, duration: 0.24, ease: 'easeOut' }}
+                        whileHover={{ y: -1, scale: 1.01 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          setAssistantSuggestions([]);
+                          ask(suggestion.toLowerCase() === 'continue' ? 'continue' : suggestion);
+                        }}
+                        className="rounded-full border border-cyan-200 bg-gradient-to-r from-white via-cyan-50 to-sky-50 px-3 py-1.5 text-xs text-slate-700 shadow-sm transition"
+                      >
+                        {suggestion}
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {showContactCta && !showContactForm && (
+                <div className="max-w-[95%] rounded-2xl border border-amber-100 bg-amber-50/80 p-2.5 shadow-sm">
+                  <p className="px-1 pb-2 text-xs text-slate-700">Need a precise recommendation from our team?</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowContactForm(true);
+                      setShowContactCta(false);
+                    }}
+                    className="rounded-full border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 shadow-sm"
+                  >
+                    Open contact form
+                  </button>
+                </div>
+              )}
 
               {isStreamingResponse && (
                 <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words bg-white text-slate-800 border border-slate-200">
@@ -769,7 +810,7 @@ const ChatWidget = ({ brand }) => {
                     {busy ? <FiSquare size={14} /> : <FiSend size={16} />}
                   </button>
                 </div>
-                {!hasUserMessaged && <p className="text-[11px] text-slate-500 px-1">Responses are AI-generated and may be imperfect — please verify important details.</p>}
+                <p className="text-[11px] text-slate-500 px-1">Responses are AI-generated and may be imperfect.</p>
               </div>
             </div>
           </motion.div>
