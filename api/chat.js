@@ -145,12 +145,6 @@ const formatProductSpec = (product) => {
   return lines.join('\n');
 };
 
-const formatProductCatalog = (products = [], siteContent = {}) => {
-  const header = `${siteContent?.brand?.name || 'PatienceAI'} product catalog`;
-  const sections = products.map((product, index) => `${index + 1}. ${formatProductSpec(product)}`);
-  return `${header}\n${'='.repeat(header.length)}\n\n${sections.join('\n\n--------------------\n\n')}\n\nTip: Tell me your use-case and I will suggest the best fit.`;
-};
-
 const resolveQuestionWithHistory = (message, history = []) => {
   const text = String(message || '').trim();
   const shortFollowUp = /^(and|what about|how about|more|details|why|how|it|that|this|then)/i.test(text) || normalize(text).length <= 4;
@@ -166,40 +160,82 @@ const resolveQuestionWithHistory = (message, history = []) => {
   return `${text}\n\nPrevious user context: ${recentUser.content}`;
 };
 
-const tryProductResponse = (question, siteContent, history = []) => {
-  const products = siteContent?.productsPage?.products || [];
-  if (!products.length) return null;
+const CONTINUE_PATTERN = /^(continue|more|tell me more|go on|next|details?)$/i;
 
+const getProductSearchDocs = (siteContent = {}) => {
+  const products = siteContent?.productsPage?.products || [];
+  return products.map((product) => ({
+    kind: 'product',
+    id: product.id || product.name,
+    title: product.name,
+    summary: product.summary || product.shortTagline || '',
+    description: product.summary || '',
+    details: formatProductSpec(product),
+    vectorText: [product.name, product.id, product.summary, product.shortTagline, product.audience, ...(product.benefits || []), ...(product.technologies || [])].join(' ')
+  }));
+};
+
+const getServiceSearchDocs = (siteContent = {}) => {
+  const cards = siteContent?.platformPage?.cards || [];
+  return cards.map((service) => ({
+    kind: 'service',
+    id: service.title,
+    title: service.title,
+    summary: service.description || '',
+    description: service.description || '',
+    details: [`🛠️ ${service.title}`, `Summary: ${service.description || 'N/A'}`, ...(service.points || []).slice(0, 3).map((point) => `- ${point.title}: ${point.description || ''}`)].join('\n'),
+    vectorText: [service.title, service.description, ...(service.points || []).flatMap((point) => [point.title, point.description])].join(' ')
+  }));
+};
+
+const getTopEntityMatches = (query, siteContent) => {
+  const docs = [...getProductSearchDocs(siteContent), ...getServiceSearchDocs(siteContent)]
+    .map((item) => ({ ...item, ...textToSparseVector(item.vectorText) }));
+  const queryVector = textToSparseVector(query);
+  const ranked = docs
+    .map((doc) => ({ item: doc, score: cosineSimilarity(queryVector, doc) }))
+    .sort((a, b) => b.score - a.score);
+  return ranked;
+};
+
+const tryProductResponse = (question, siteContent, history = []) => {
   const resolved = resolveQuestionWithHistory(question, history);
   const asksDemo = /\b(demo|book|schedule|request)\b.*\b(demo|walkthrough|product)\b|\bproduct\s+demo\b/i.test(resolved);
   if (asksDemo) {
-    const topProduct = products[0]?.name;
-    return `You can request a demo from the product card on the Products page using "Request demo". If helpful, tell me the product name${topProduct ? ` (for example, ${topProduct})` : ''} and I’ll guide you quickly.`;
+    return {
+      answer: 'You can request a demo directly from the matching product card using "Request demo". Share your use-case and I will point to the best match.',
+      suggestions: ['Find best match']
+    };
   }
 
-  const asksList = /\b(list|show|display|available|all)\b.*\b(products?|offerings?|solutions?)\b|\b(products?|offerings?|solutions?)\s+(list|available)\b|\bwhat\s+(products?|offerings?)\b/i.test(resolved);
-  if (asksList) {
-    return formatProductCatalog(products, siteContent);
-  }
-
-  const productDocs = products.map((product) => ({
-    product,
-    ...textToSparseVector([product.name, product.id, product.summary, product.shortTagline, product.audience, ...(product.benefits || []), ...(product.technologies || [])].join(' '))
-  }));
-  const queryVector = textToSparseVector(resolved);
-  const ranked = productDocs
-    .map((doc) => ({ product: doc.product, score: cosineSimilarity(queryVector, doc) }))
-    .sort((a, b) => b.score - a.score);
+  const isContinue = CONTINUE_PATTERN.test(String(question || '').trim());
+  const contextualQuestion = isContinue
+    ? [...history].reverse().find((item) => item?.role === 'user' && String(item.content || '').trim() && !CONTINUE_PATTERN.test(String(item.content || '').trim()))?.content || question
+    : resolved;
+  const ranked = getTopEntityMatches(contextualQuestion, siteContent);
 
   if ((ranked[0]?.score || 0) >= 0.12) {
-    const matches = ranked.slice(0, 2).filter((item) => item.score >= 0.12).map((item) => formatProductSpec(item.product)).join('\n\n');
-    return `Top product matches for your request:\n\n${matches}\n\nNeed all options? Say "show products".`;
+    const matched = ranked[0].item;
+    if (isContinue) {
+      return {
+        answer: `Great choice — here are more details about ${matched.title}:\n\n${matched.details}`,
+        suggestions: []
+      };
+    }
+
+    return {
+      answer: `I found a strong match: ${matched.title}.\n\nShort brief: ${matched.summary || matched.description || 'This offering is a good fit for your request.'}\n\nIf you want more details, say "continue".`,
+      suggestions: ['Continue']
+    };
   }
 
-  const productQuestion = /product|spec|feature|pricing|offer|solution|platform|service/i.test(resolved);
+  const productQuestion = /product|spec|feature|pricing|offer|solution|platform|service|automation|strategy|ai/i.test(resolved);
   if (productQuestion) {
-    const productNames = products.map((product) => product.name).join(', ');
-    return `I’m not seeing an exact match yet. Available products: ${productNames}. Share your use-case or a product name and I’ll recommend the best fit.`;
+    return {
+      answer: "I couldn't find a confident product or service match from your request. Please connect with our team through the contact form for the right recommendation.",
+      needsExpertHelp: true,
+      suggestions: []
+    };
   }
 
   return null;
@@ -288,11 +324,18 @@ export default async function handler(req, res) {
 
     const productAnswer = tryProductResponse(message, siteContent, history);
     if (productAnswer) {
+      const answer = productAnswer.answer || '';
       await Promise.all([
         saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'user', message: String(message).slice(0, 4000) }),
-        saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'assistant', message: productAnswer.slice(0, 4000) })
+        saveMessage({ session_id: safeSessionId, conversation_id: safeConversationId, ip_address: ipAddress, role: 'assistant', message: answer.slice(0, 4000) })
       ]);
-      return res.status(200).json({ answer: productAnswer, sessionId: safeSessionId, conversationId: safeConversationId });
+      return res.status(200).json({
+        answer,
+        sessionId: safeSessionId,
+        conversationId: safeConversationId,
+        needsExpertHelp: Boolean(productAnswer.needsExpertHelp),
+        suggestions: Array.isArray(productAnswer.suggestions) ? productAnswer.suggestions : []
+      });
     }
 
     const resolvedQuestion = resolveQuestionWithHistory(message, history);
