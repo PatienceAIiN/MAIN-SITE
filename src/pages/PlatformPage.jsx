@@ -118,24 +118,26 @@ const PlatformPage = ({ content, possibilityContent, onAction }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[130] overflow-y-auto bg-black/35 px-4 py-6 backdrop-blur-sm md:px-8"
+            className="fixed inset-0 z-[130] overflow-y-auto bg-black/35 px-4 backdrop-blur-sm md:px-8"
+            style={{ paddingTop: 'clamp(0.9rem, 4vh, 2.5rem)', paddingBottom: 'clamp(0.9rem, 4vh, 2.5rem)' }}
             onClick={closeModal}
           >
-            <motion.div
-              initial={{ opacity: 0, y: 36, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.97 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 360, mass: 0.8 }}
-              className="relative mx-auto max-w-4xl overflow-hidden rounded-[28px] bg-white shadow-2xl"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                onClick={closeModal}
-                className="absolute right-4 top-4 z-10 rounded-full border border-[#d1d1d1] bg-white px-4 py-2 text-sm font-medium text-[#666666] transition-colors hover:border-[#1a1a1a] hover:text-[#1a1a1a]"
+            <div className="min-h-full flex items-start justify-center">
+              <motion.div
+                initial={{ opacity: 0, y: 36, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.97 }}
+                transition={{ type: 'spring', damping: 28, stiffness: 360, mass: 0.8 }}
+                className="relative mx-auto w-full max-w-[calc(100vw-1rem)] md:max-w-4xl overflow-y-auto max-h-[calc(100dvh-2rem)] md:max-h-[calc(100dvh-3rem)] rounded-[28px] bg-white shadow-2xl"
+                onClick={(event) => event.stopPropagation()}
               >
-                Close
-              </button>
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="absolute right-4 top-4 z-10 rounded-full border border-[#d1d1d1] bg-white px-4 py-2 text-sm font-medium text-[#666666] transition-colors hover:border-[#1a1a1a] hover:text-[#1a1a1a]"
+                >
+                  Close
+                </button>
 
               <div className="border-b border-[#e5e5e5] bg-[#f4f4f4] px-6 pb-8 pt-16 md:px-8 md:pb-10">
                 <p className="mb-3 text-xs font-bold uppercase tracking-[0.35em] text-[#a3a3a3]">Services</p>
@@ -184,7 +186,8 @@ const PlatformPage = ({ content, possibilityContent, onAction }) => {
                   </div>
                 </div>
               )}
-            </motion.div>
+              </motion.div>
+            </div>
           </motion.div>
         ) : null}
       </AnimatePresence>
