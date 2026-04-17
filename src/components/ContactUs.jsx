@@ -100,7 +100,7 @@ const ContactUs = ({ content, isOpen, onClose, onBack }) => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.97 }}
               transition={{ type: 'spring', damping: 28, stiffness: 360, mass: 0.8 }}
-              className="relative w-full max-w-6xl mx-auto rounded-[2.25rem] bg-white shadow-2xl overflow-y-auto max-h-[calc(100dvh-2rem)] md:max-h-[calc(100dvh-3rem)] border border-slate-200"
+              className="relative mx-auto w-full max-w-[calc(100vw-1rem)] md:max-w-6xl rounded-[2.25rem] bg-white shadow-2xl overflow-y-auto max-h-[calc(100dvh-2rem)] md:max-h-[calc(100dvh-3rem)] border border-slate-200"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.14),_transparent_42%),radial-gradient(circle_at_bottom_right,_rgba(20,184,166,0.12),_transparent_40%)]" />
