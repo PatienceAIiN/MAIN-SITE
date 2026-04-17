@@ -3,6 +3,11 @@ services:
     name: patience-ai
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build
-    startCommand: npm start
+    buildCommand: npm ci && npm install -g pm2 && npm run build
+    startCommand: pm2-runtime start ecosystem.config.cjs
     healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SITE_URL
+        value: https://patienceai.in

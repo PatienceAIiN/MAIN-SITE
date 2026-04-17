@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import Button from '../components/ui/Button';
 import { fetchJson } from '../common/fetchJson';
 
-const TABS = ['content', 'blog', 'submissions', 'conversations'];
+const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations'];
 
 const Spinner = ({ size = 16 }) => (
   <svg
@@ -65,6 +65,10 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [selectedConversationId, setSelectedConversationId] = useState('');
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingMessage, setEditingMessage] = useState('');
+
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState('');
   const selectedSubmission = submissions.find((item) => item.id === selectedId) || submissions[0] || null;
 
   const loadSiteContent = async () => {
@@ -77,6 +81,19 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
     } catch (error) {
       setContentError(error.message);
       setContentJson(JSON.stringify(defaultContent, null, 2));
+    }
+  };
+
+  const loadAnalytics = async () => {
+    setAnalyticsLoading(true);
+    setAnalyticsError('');
+    try {
+      const data = await fetchJson('/api/analytics');
+      setAnalyticsData(data);
+    } catch (err) {
+      setAnalyticsError(err.message);
+    } finally {
+      setAnalyticsLoading(false);
     }
   };
 
@@ -154,6 +171,11 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
 
     loadConversations(conversationSearch.trim());
   }, [activeTab]);
+
+  useEffect(() => {
+    if (!authenticated || activeTab !== 'analytics') return;
+    loadAnalytics();
+  }, [activeTab, authenticated]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -991,6 +1013,204 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                 </motion.aside>
               </div>
             )}
+            {activeTab === 'analytics' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-semibold">Analytics Dashboard</h2>
+                    <p className="text-white/55 text-sm mt-1">Real-time traffic — powered by your own NeonDB. 100% free.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={loadAnalytics}
+                    className="px-4 py-2 rounded-full text-sm font-medium bg-white/5 text-white/70 hover:bg-white/10 transition-colors"
+                  >
+                    {analyticsLoading ? 'Refreshing…' : 'Refresh'}
+                  </button>
+                </div>
+
+                {analyticsError && (
+                  <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-red-100 text-sm">
+                    {analyticsError}
+                  </div>
+                )}
+
+                {analyticsLoading && !analyticsData && (
+                  <div className="text-white/55 text-sm py-8 text-center">Loading analytics…</div>
+                )}
+
+                {analyticsData && (
+                  <>
+                    {/* KPI Row */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+                      {[
+                        { label: 'All-time views', value: analyticsData.total },
+                        { label: 'This month', value: analyticsData.month },
+                        { label: 'This week', value: analyticsData.week },
+                        { label: 'Today', value: analyticsData.today },
+                        { label: 'Unique today', value: analyticsData.uniqueToday },
+                        { label: 'Unique this week', value: analyticsData.uniqueWeek },
+                      ].map((kpi) => (
+                        <div key={kpi.label} className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 text-center">
+                          <p className="text-3xl font-bold text-cyan-300">{kpi.value?.toLocaleString()}</p>
+                          <p className="text-xs text-white/50 mt-1">{kpi.label}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                      {/* Top Pages */}
+                      <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
+                        <h3 className="text-lg font-semibold mb-4">Top Pages</h3>
+                        {analyticsData.topPages.length === 0 ? (
+                          <p className="text-white/40 text-sm">No data yet.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {analyticsData.topPages.map((row, i) => {
+                              const max = analyticsData.topPages[0]?.count || 1;
+                              const pct = Math.round((row.count / max) * 100);
+                              return (
+                                <div key={i} className="text-sm">
+                                  <div className="flex justify-between mb-1">
+                                    <span className="text-white/80 truncate max-w-[75%]">{row.page || '/'}</span>
+                                    <span className="text-cyan-300 font-medium">{row.count}</span>
+                                  </div>
+                                  <div className="h-1.5 rounded-full bg-white/10">
+                                    <div className="h-1.5 rounded-full bg-cyan-400" style={{ width: `${pct}%` }} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Top Referrers */}
+                      <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
+                        <h3 className="text-lg font-semibold mb-4">Traffic Sources</h3>
+                        {analyticsData.topReferrers.length === 0 ? (
+                          <p className="text-white/40 text-sm">No referrer data yet — mostly direct traffic.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {analyticsData.topReferrers.map((row, i) => {
+                              const max = analyticsData.topReferrers[0]?.count || 1;
+                              const pct = Math.round((row.count / max) * 100);
+                              const label = row.referrer.replace(/^https?:\/\//, '').split('/')[0];
+                              return (
+                                <div key={i} className="text-sm">
+                                  <div className="flex justify-between mb-1">
+                                    <span className="text-white/80 truncate max-w-[75%]">{label}</span>
+                                    <span className="text-cyan-300 font-medium">{row.count}</span>
+                                  </div>
+                                  <div className="h-1.5 rounded-full bg-white/10">
+                                    <div className="h-1.5 rounded-full bg-violet-400" style={{ width: `${pct}%` }} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Devices */}
+                      <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
+                        <h3 className="text-lg font-semibold mb-4">Devices</h3>
+                        <div className="flex flex-wrap gap-3">
+                          {analyticsData.devices.length === 0 ? (
+                            <p className="text-white/40 text-sm">No data yet.</p>
+                          ) : (
+                            analyticsData.devices.map((row, i) => (
+                              <div key={i} className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-center min-w-[90px]">
+                                <p className="text-2xl font-bold text-emerald-300">{row.count}</p>
+                                <p className="text-xs text-white/50 capitalize mt-1">{row.device}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Browsers */}
+                      <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
+                        <h3 className="text-lg font-semibold mb-4">Browsers</h3>
+                        <div className="flex flex-wrap gap-3">
+                          {analyticsData.browsers.length === 0 ? (
+                            <p className="text-white/40 text-sm">No data yet.</p>
+                          ) : (
+                            analyticsData.browsers.map((row, i) => (
+                              <div key={i} className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-center min-w-[90px]">
+                                <p className="text-2xl font-bold text-amber-300">{row.count}</p>
+                                <p className="text-xs text-white/50 mt-1">{row.browser}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Recent Visitors */}
+                    <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
+                      <h3 className="text-lg font-semibold mb-4">Recent Visitors (last 50)</h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-white/75">
+                          <thead>
+                            <tr className="text-left text-white/40 text-xs uppercase tracking-wider border-b border-white/10">
+                              <th className="pb-3 pr-4">Page</th>
+                              <th className="pb-3 pr-4">Referrer</th>
+                              <th className="pb-3 pr-4">Device</th>
+                              <th className="pb-3 pr-4">Browser</th>
+                              <th className="pb-3">Time</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5">
+                            {analyticsData.recent.map((row, i) => (
+                              <tr key={i} className="hover:bg-white/5">
+                                <td className="py-2 pr-4 max-w-[200px] truncate">{row.page}</td>
+                                <td className="py-2 pr-4 max-w-[160px] truncate text-white/45">
+                                  {row.referrer ? row.referrer.replace(/^https?:\/\//, '').split('/')[0] : '—'}
+                                </td>
+                                <td className="py-2 pr-4 capitalize">{row.device_type}</td>
+                                <td className="py-2 pr-4">{row.browser}</td>
+                                <td className="py-2 text-white/40">{formatDate(row.created_at)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {analyticsData.recent.length === 0 && (
+                          <p className="text-white/40 text-sm py-4 text-center">No visits tracked yet — deploy and visit the site to start tracking.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Free Tools Quicklinks */}
+                    <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
+                      <h3 className="text-lg font-semibold mb-4">Free External Tools — Register &amp; Connect</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 text-sm">
+                        {[
+                          { name: 'Google Search Console', url: 'https://search.google.com/search-console', desc: 'Index your site, see search queries, fix crawl errors. Submit sitemap at /sitemap.xml', color: 'text-blue-300' },
+                          { name: 'Google Analytics 4', url: 'https://analytics.google.com', desc: 'Get your G-XXXXXXXXXX ID, then uncomment GA4 script in index.html', color: 'text-orange-300' },
+                          { name: 'Microsoft Clarity', url: 'https://clarity.microsoft.com', desc: 'Free heatmaps + session recordings. Get project ID, uncomment Clarity script in index.html', color: 'text-blue-400' },
+                          { name: 'Bing Webmaster Tools', url: 'https://www.bing.com/webmasters', desc: 'Submit sitemap, monitor Bing indexing. Covers Yahoo + DuckDuckGo traffic too', color: 'text-cyan-300' },
+                          { name: 'Google PageSpeed', url: 'https://pagespeed.web.dev', desc: 'Test and optimize performance score — higher score = better ranking', color: 'text-green-300' },
+                          { name: 'Schema Validator', url: 'https://validator.schema.org', desc: 'Verify your JSON-LD structured data is valid for rich snippets', color: 'text-purple-300' },
+                        ].map((tool) => (
+                          <a
+                            key={tool.name}
+                            href={tool.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-2xl bg-slate-900/60 border border-white/10 p-4 hover:border-white/25 transition-colors block"
+                          >
+                            <p className={`font-semibold mb-1 ${tool.color}`}>{tool.name}</p>
+                            <p className="text-white/50 text-xs leading-relaxed">{tool.desc}</p>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
           </div>
         </div>
       </section>
