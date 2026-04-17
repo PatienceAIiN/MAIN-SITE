@@ -161,6 +161,8 @@ const resolveQuestionWithHistory = (message, history = []) => {
 };
 
 const CONTINUE_PATTERN = /^(continue|more|tell me more|go on|next|details?)$/i;
+const PRODUCT_LIST_PATTERN = /\b(available|list|show|what|which)\b.{0,30}\b(products?|solutions?|offerings?)\b|\bproducts?\s+(available|offered)\b/i;
+const SERVICE_LIST_PATTERN = /\b(available|list|show|what|which)\b.{0,30}\b(services?|platform)\b|\bservices?\s+(available|offered)\b/i;
 
 const getProductSearchDocs = (siteContent = {}) => {
   const products = siteContent?.productsPage?.products || [];
@@ -198,8 +200,59 @@ const getTopEntityMatches = (query, siteContent) => {
   return ranked;
 };
 
+const buildCatalogResponse = (items = [], kindLabel = 'products') => {
+  if (!items.length) {
+    return {
+      answer: `I currently do not have published ${kindLabel} in this website data. Please use the contact form and our team will share the latest details.`,
+      needsExpertHelp: true,
+      suggestions: []
+    };
+  }
+
+  const briefs = items
+    .slice(0, 6)
+    .map((item, index) => `${index + 1}. ${item.title || item.name} — ${(item.summary || item.description || 'Details available on request.').trim()}`)
+    .join('\n');
+
+  const topSuggestions = items
+    .slice(0, 3)
+    .map((item) => item.title || item.name)
+    .filter(Boolean);
+
+  return {
+    answer: `Here is a brief of available ${kindLabel}:\n\n${briefs}\n\nTell me which one you want, and I will give a detailed brief.`,
+    suggestions: topSuggestions
+  };
+};
+
+const getLastAssistantFocus = (history = [], siteContent = {}) => {
+  const recentAssistantMessages = [...history]
+    .reverse()
+    .filter((item) => item?.role === 'assistant' && item?.content)
+    .slice(0, 4)
+    .map((item) => String(item.content));
+
+  if (!recentAssistantMessages.length) return null;
+
+  const entities = [...getProductSearchDocs(siteContent), ...getServiceSearchDocs(siteContent)];
+  return entities.find((entity) =>
+    recentAssistantMessages.some((message) => new RegExp(`\\b${String(entity.title || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(message))
+  );
+};
+
 const tryProductResponse = (question, siteContent, history = []) => {
   const resolved = resolveQuestionWithHistory(question, history);
+  const productDocs = getProductSearchDocs(siteContent);
+  const serviceDocs = getServiceSearchDocs(siteContent);
+
+  if (PRODUCT_LIST_PATTERN.test(resolved)) {
+    return buildCatalogResponse(productDocs, 'products');
+  }
+
+  if (SERVICE_LIST_PATTERN.test(resolved)) {
+    return buildCatalogResponse(serviceDocs, 'services');
+  }
+
   const asksDemo = /\b(demo|book|schedule|request)\b.*\b(demo|walkthrough|product)\b|\bproduct\s+demo\b/i.test(resolved);
   if (asksDemo) {
     return {
@@ -209,16 +262,33 @@ const tryProductResponse = (question, siteContent, history = []) => {
   }
 
   const isContinue = CONTINUE_PATTERN.test(String(question || '').trim());
+  const isPronounFollowUp = /\b(it|this|that|one|first|second|third|that product|that service)\b/i.test(String(question || '').trim());
+  const lastAssistantFocus = getLastAssistantFocus(history, siteContent);
   const contextualQuestion = isContinue
     ? [...history].reverse().find((item) => item?.role === 'user' && String(item.content || '').trim() && !CONTINUE_PATTERN.test(String(item.content || '').trim()))?.content || question
-    : resolved;
+    : isPronounFollowUp && lastAssistantFocus
+      ? `${resolved}\n\nFocus entity: ${lastAssistantFocus.title}`
+      : resolved;
   const ranked = getTopEntityMatches(contextualQuestion, siteContent);
+  const boostedMatch = (ranked[0]?.score || 0) >= 0.12
+    ? ranked[0]?.item
+    : isPronounFollowUp && lastAssistantFocus
+      ? lastAssistantFocus
+      : null;
 
-  if ((ranked[0]?.score || 0) >= 0.12) {
-    const matched = ranked[0].item;
+  if (boostedMatch) {
+    const matched = boostedMatch;
+    const asksSpecificDetails = /\b(privacy|audience|benefits?|features?|tech|technology|stack|security|pricing|summary|details?)\b/i.test(contextualQuestion);
     if (isContinue) {
       return {
         answer: `Great choice — here are more details about ${matched.title}:\n\n${matched.details}`,
+        suggestions: []
+      };
+    }
+
+    if (asksSpecificDetails && matched.details) {
+      return {
+        answer: `Here are the key details for ${matched.title}:\n\n${matched.details}`,
         suggestions: []
       };
     }
