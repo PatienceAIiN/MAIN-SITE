@@ -124,7 +124,7 @@ const ProductDemoModal = ({ content, isOpen, product, onClose, onBack }) => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.97 }}
               transition={{ type: 'spring', damping: 28, stiffness: 360, mass: 0.8 }}
-              className="relative w-full max-w-3xl rounded-[2rem] bg-white shadow-2xl overflow-y-auto max-h-[calc(100dvh-2rem)] md:max-h-[calc(100dvh-3rem)] border border-slate-200"
+              className="relative w-full max-w-[calc(100vw-1rem)] md:max-w-3xl rounded-[2rem] bg-white shadow-2xl overflow-y-auto max-h-[calc(100dvh-2rem)] md:max-h-[calc(100dvh-3rem)] border border-slate-200"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.18),_transparent_55%),radial-gradient(circle_at_top_right,_rgba(236,72,153,0.12),_transparent_50%)] pointer-events-none" />

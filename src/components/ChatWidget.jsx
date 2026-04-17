@@ -33,7 +33,22 @@ const normalizeMessageContent = (value) => {
 
 const LAUNCHER_SIZE = 64;
 const LAUNCHER_MARGIN = 24;
+const MOBILE_EDGE_GAP = 12;
+const DESKTOP_EDGE_GAP = 16;
 const MOBILE_BREAKPOINT = 768;
+
+const getViewportSize = () => {
+  if (typeof window === 'undefined') {
+    return { width: 0, height: 0 };
+  }
+
+  const viewportWidth = window.visualViewport?.width || window.innerWidth || document.documentElement?.clientWidth || 0;
+  const viewportHeight = window.visualViewport?.height || window.innerHeight || document.documentElement?.clientHeight || 0;
+  return {
+    width: Math.max(0, Math.round(viewportWidth)),
+    height: Math.max(0, Math.round(viewportHeight))
+  };
+};
 
 const isMobileViewport = (width = 0) => {
   if (typeof window === "undefined") return width < MOBILE_BREAKPOINT;
@@ -43,17 +58,18 @@ const isMobileViewport = (width = 0) => {
 
 const getDefaultLauncherPosition = () => {
   if (typeof window === 'undefined') return { x: 0, y: 0 };
+  const { width: viewportWidth, height: viewportHeight } = getViewportSize();
 
-  if (isMobileViewport(window.innerWidth)) {
+  if (isMobileViewport(viewportWidth)) {
     return {
-      x: Math.max(12, window.innerWidth - LAUNCHER_SIZE - 16),
-      y: Math.max(12, window.innerHeight - LAUNCHER_SIZE - 16)
+      x: Math.max(MOBILE_EDGE_GAP, viewportWidth - LAUNCHER_SIZE - DESKTOP_EDGE_GAP),
+      y: Math.max(MOBILE_EDGE_GAP, viewportHeight - LAUNCHER_SIZE - DESKTOP_EDGE_GAP)
     };
   }
 
   return {
-    x: Math.max(LAUNCHER_MARGIN, window.innerWidth - LAUNCHER_SIZE - LAUNCHER_MARGIN),
-    y: Math.max(LAUNCHER_MARGIN, window.innerHeight - LAUNCHER_SIZE - LAUNCHER_MARGIN)
+    x: Math.max(LAUNCHER_MARGIN, viewportWidth - LAUNCHER_SIZE - LAUNCHER_MARGIN),
+    y: Math.max(LAUNCHER_MARGIN, viewportHeight - LAUNCHER_SIZE - LAUNCHER_MARGIN)
   };
 };
 
@@ -66,15 +82,16 @@ const isAtPageEnd = () => {
 
 const clampLauncherPosition = (x, y, width = LAUNCHER_SIZE, height = LAUNCHER_SIZE) => {
   if (typeof window === 'undefined') return { x, y };
+  const { width: viewportWidth, height: viewportHeight } = getViewportSize();
 
-  if (isMobileViewport(window.innerWidth)) {
-    const anchoredX = Math.max(12, window.innerWidth - width - 16);
-    const mobileY = Math.max(12, window.innerHeight - height - 16);
+  if (isMobileViewport(viewportWidth)) {
+    const anchoredX = Math.max(MOBILE_EDGE_GAP, viewportWidth - width - DESKTOP_EDGE_GAP);
+    const mobileY = Math.max(MOBILE_EDGE_GAP, viewportHeight - height - DESKTOP_EDGE_GAP);
     return { x: anchoredX, y: mobileY };
   }
 
-  const maxX = Math.max(LAUNCHER_MARGIN, window.innerWidth - width - LAUNCHER_MARGIN);
-  const maxY = Math.max(LAUNCHER_MARGIN, window.innerHeight - height - LAUNCHER_MARGIN);
+  const maxX = Math.max(LAUNCHER_MARGIN, viewportWidth - width - LAUNCHER_MARGIN);
+  const maxY = Math.max(LAUNCHER_MARGIN, viewportHeight - height - LAUNCHER_MARGIN);
   return {
     x: Math.min(Math.max(x, LAUNCHER_MARGIN), maxX),
     y: Math.min(Math.max(y, LAUNCHER_MARGIN), maxY)
@@ -198,18 +215,19 @@ const ChatWidget = ({ brand }) => {
     let frameId = 0;
 
     const syncLauncherPosition = () => {
+      const { width: viewportWidth, height: viewportHeight } = getViewportSize();
       const stackRect = launcherStackRef.current?.getBoundingClientRect();
       const stackWidth = stackRect?.width || LAUNCHER_SIZE;
       const stackHeight = stackRect?.height || LAUNCHER_SIZE;
 
       const defaultPosition = clampLauncherPosition(
-        window.innerWidth - stackWidth - LAUNCHER_MARGIN,
-        window.innerHeight - stackHeight - LAUNCHER_MARGIN,
+        viewportWidth - stackWidth - LAUNCHER_MARGIN,
+        viewportHeight - stackHeight - LAUNCHER_MARGIN,
         stackWidth,
         stackHeight
       );
 
-      if (isMobileViewport(window.innerWidth) || !isAtPageEnd()) {
+      if (isMobileViewport(viewportWidth) || !isAtPageEnd()) {
         setLauncherPosition(defaultPosition);
         return;
       }
@@ -232,11 +250,13 @@ const ChatWidget = ({ brand }) => {
 
     scheduleSync();
     window.addEventListener('resize', scheduleSync);
+    window.visualViewport?.addEventListener('resize', scheduleSync);
     window.addEventListener('scroll', scheduleSync, { passive: true });
 
     return () => {
       window.cancelAnimationFrame(frameId);
       window.removeEventListener('resize', scheduleSync);
+      window.visualViewport?.removeEventListener('resize', scheduleSync);
       window.removeEventListener('scroll', scheduleSync);
     };
   }, [isOpen, showWave]);
@@ -493,14 +513,14 @@ const ChatWidget = ({ brand }) => {
       <motion.div
         ref={launcherStackRef}
         style={{ left: launcherPosition.x, top: launcherPosition.y }}
-        className="fixed z-[140] flex flex-col items-end gap-2 touch-none"
+        className="fixed z-[140] flex max-w-[calc(100vw-1rem)] flex-col items-end gap-2 touch-none"
       >
         {showWave && !isOpen && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, rotate: [0, -2, 2, -1, 0], y: [0, -2, 0] }}
             transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-            className="rounded-full border border-cyan-100 bg-gradient-to-r from-cyan-50 via-white to-sky-50 text-slate-800 px-3 py-1.5 text-sm shadow-lg"
+            className="max-w-[calc(100vw-7rem)] truncate rounded-full border border-cyan-100 bg-gradient-to-r from-cyan-50 via-white to-sky-50 px-3 py-1.5 text-sm text-slate-800 shadow-lg"
           >
             <span aria-hidden="true" className="mr-1.5 inline-block h-2 w-2 rounded-full bg-cyan-400 shadow-[0_0_0_4px_rgba(34,211,238,0.25)]" />
             Hi 👋
@@ -527,7 +547,7 @@ const ChatWidget = ({ brand }) => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 260, damping: 24, mass: 0.7 }}
-            className="fixed bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] left-3 right-3 z-[140] w-auto max-w-none md:bottom-24 md:left-auto md:right-6 md:w-[min(92vw,380px)] md:max-w-[420px] max-h-[calc(100dvh-8rem)] rounded-3xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+            className="fixed bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] left-3 right-3 z-[140] w-auto max-w-[calc(100vw-1.5rem)] md:bottom-24 md:left-auto md:right-6 md:w-[min(calc(100vw-3rem),380px)] md:max-w-[420px] max-h-[calc(100dvh-8rem)] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
           >
             <div className="bg-slate-50 text-slate-900 p-4 relative flex items-center justify-between border-b border-slate-200">
               <div className="flex items-center gap-3 min-w-0">
