@@ -25,30 +25,31 @@ All headers are injected on every response before any route handler runs.
 | `X-XSS-Protection` | `1; mode=block` | XSS protection for older browsers |
 | `Content-Security-Policy` | See below | XSS, script injection, data injection |
 
-### Content Security Policy breakdown
+### Content Security Policy
 
 ```
-default-src 'self'
-script-src  'self' 'unsafe-inline' 'unsafe-eval'
-            https://www.googletagmanager.com
-            https://www.clarity.ms
-            https://fonts.googleapis.com
-style-src   'self' 'unsafe-inline' https://fonts.googleapis.com
-font-src    'self' https://fonts.gstatic.com
-img-src     'self' data: blob: https: http:
-connect-src 'self'
-            https://www.google-analytics.com
-            https://analytics.google.com
-            https://www.clarity.ms
-            https://api.indexnow.org
-frame-src   'none'
-object-src  'none'
-base-uri    'self'
+default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;
+frame-ancestors 'none';
+base-uri 'self';
 form-action 'self'
 ```
 
-`'unsafe-inline'` and `'unsafe-eval'` are required by React (Vite build) and Google Analytics.
-To remove them in future: migrate to a nonce-based CSP or use a bundler that supports CSP hashes.
+**Why `default-src *`:** The app uses React (Vite), Framer Motion, Quest SDK, Google Analytics,
+and Microsoft Clarity — all of which require external connections and inline script/style execution.
+A strict per-domain allowlist broke Quest SDK API calls and Framer Motion, making the entire site
+go blank. Since `'unsafe-inline'` and `'unsafe-eval'` are unavoidable in this stack, a strict
+`connect-src` allowlist provides minimal real security gain against XSS.
+
+**The three directives that DO provide real protection here:**
+
+| Directive | Value | Protects Against |
+|---|---|---|
+| `frame-ancestors` | `'none'` | Clickjacking — stronger than X-Frame-Options in modern browsers |
+| `base-uri` | `'self'` | `<base>` tag injection — attacker redirecting all relative URLs |
+| `form-action` | `'self'` | Form hijacking — forms posting to an attacker's server |
+
+**To tighten in the future:** Replace `'unsafe-inline'` with nonce-based CSP once the
+Quest SDK and GA4 integration support nonces. This would allow a strict `connect-src` allowlist.
 
 ---
 
