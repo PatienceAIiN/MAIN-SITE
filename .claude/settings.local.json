@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --input-type=module)",
+      "WebFetch(domain:patienceai.in)",
+      "WebFetch(domain:www.googleapis.com)",
+      "Bash(node -e ':*)"
+    ]
+  }
+}
