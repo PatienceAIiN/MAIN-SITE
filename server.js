@@ -62,32 +62,101 @@ const ROUTE_META = {
     title: 'PATIENCE AI — Product-First AI for Governance & Enterprise Delivery',
     description: 'PATIENCE AI (patienceai.in) builds governed product experiences for enterprise teams — clean requests, clear ownership, and reliable AI delivery at scale.',
     keywords: 'PATIENCE AI, PatienceAI, Patience AI, patienceai.in, enterprise AI platform, AI governance, product-first AI, AI delivery',
+    faq: [
+      { q: 'What is PATIENCE AI?', a: 'PATIENCE AI (patienceai.in) is a product-first AI company that builds governed product experiences for enterprise teams. We deliver clean request handling, clear ownership, and reliable AI delivery at scale.' },
+      { q: 'What does PATIENCE AI do?', a: 'PATIENCE AI provides enterprise AI services including AI strategy, AI automation, and AI support. We build auditable, policy-safe AI systems for teams that need measurable outcomes and governance.' },
+      { q: 'Where is PATIENCE AI based?', a: 'PATIENCE AI is based in Pune, Maharashtra, India and serves enterprise clients globally.' },
+      { q: 'How can I contact PATIENCE AI?', a: 'You can contact PATIENCE AI through the contact form at patienceai.in or by requesting a product demo directly on the website.' },
+      { q: 'What industries does PATIENCE AI serve?', a: 'PATIENCE AI serves enterprise teams across industries that require governed AI delivery — including operations, support automation, product management, and enterprise software.' },
+    ],
   },
   '/products': {
     title: 'PATIENCE AI Products — Enterprise AI Suite | patienceai.in',
     description: 'Explore PATIENCE AI\'s suite of enterprise AI products. Built for governance, measurable impact, and reliable delivery at scale.',
     keywords: 'PATIENCE AI products, PatienceAI products, Patience AI products, enterprise AI tools, AI automation products, AI governance tools',
+    faq: [
+      { q: 'What products does PATIENCE AI offer?', a: 'PATIENCE AI offers an enterprise AI suite including AI strategy planning tools, AI automation pipelines, and AI support systems — all built for auditable, governed delivery.' },
+      { q: 'Are PATIENCE AI products ready for production use?', a: 'Yes. PATIENCE AI products are production-ready with auditable request handling, controlled publishing, and enterprise-grade delivery pipelines.' },
+    ],
   },
   '/platform': {
     title: 'PATIENCE AI Platform & Services — Enterprise AI Infrastructure',
     description: 'PATIENCE AI platform delivers enterprise AI services with clear ownership, clean architecture, and reliable delivery pipelines.',
     keywords: 'PATIENCE AI platform, PatienceAI platform, Patience AI services, enterprise AI infrastructure, AI delivery platform',
+    faq: [
+      { q: 'What services does PATIENCE AI provide?', a: 'PATIENCE AI provides three core services: AI Strategy (planning and safe rollout), AI Automation (policy-safe workflow automation), and AI Support (intelligent support operations).' },
+      { q: 'How does PATIENCE AI ensure AI governance?', a: 'PATIENCE AI builds auditable dashboards, controlled publishing workflows, and policy-safe automation — giving enterprise teams full visibility and control over their AI systems.' },
+    ],
   },
   '/company/blog': {
     title: 'PATIENCE AI Case Studies & Blog — AI Insights | patienceai.in',
     description: 'Real-world case studies and insights from PATIENCE AI on enterprise AI governance, measurable impact, and product delivery.',
     keywords: 'PATIENCE AI blog, PatienceAI blog, Patience AI case studies, enterprise AI insights, AI governance articles',
+    faq: [
+      { q: 'Where can I read PATIENCE AI case studies?', a: 'PATIENCE AI publishes real-world case studies and insights at patienceai.in/company/blog — covering enterprise AI governance, measurable outcomes, and product delivery.' },
+    ],
   },
   '/company/careers': {
     title: 'PATIENCE AI Careers — Join Our Team | patienceai.in',
     description: 'Join the PATIENCE AI team. We\'re building product-first AI platforms for enterprise delivery. See open roles and opportunities.',
     keywords: 'PATIENCE AI careers, PatienceAI careers, Patience AI jobs, enterprise AI company jobs, work at PATIENCE AI',
+    faq: [
+      { q: 'Is PATIENCE AI hiring?', a: 'PATIENCE AI is building a team focused on product-first AI for enterprise delivery. Current openings and opportunities are listed at patienceai.in/company/careers.' },
+      { q: 'Where is the PATIENCE AI team located?', a: 'PATIENCE AI is headquartered in Pune, Maharashtra, India. We are building AI products for global enterprise clients.' },
+    ],
   },
+};
+
+const buildRouteSchemas = (route, canonical) => {
+  const meta = ROUTE_META[route] || ROUTE_META['/'];
+  const schemas = [];
+
+  // BreadcrumbList — helps Google understand site structure for AI mode
+  if (route !== '/') {
+    const crumbs = [{ name: 'Home', url: 'https://patienceai.in/' }];
+    if (route.startsWith('/company/')) {
+      crumbs.push({ name: 'Company', url: 'https://patienceai.in/company/' });
+    }
+    const labels = { '/products': 'Products', '/platform': 'Platform & Services', '/company/blog': 'Case Studies', '/company/careers': 'Careers' };
+    if (labels[route]) crumbs.push({ name: labels[route], url: canonical });
+    schemas.push({
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: crumbs.map((c, i) => ({ '@type': 'ListItem', position: i + 1, name: c.name, item: c.url })),
+    });
+  }
+
+  // FAQPage — directly feeds Google AI Overviews
+  if (meta.faq?.length) {
+    schemas.push({
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: meta.faq.map(({ q, a }) => ({
+        '@type': 'Question',
+        name: q,
+        acceptedAnswer: { '@type': 'Answer', text: a },
+      })),
+    });
+  }
+
+  // Speakable — marks content Google Assistant / AI can read aloud
+  schemas.push({
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    '@id': `${canonical}#webpage`,
+    url: canonical,
+    name: meta.title,
+    description: meta.description,
+    speakable: { '@type': 'SpeakableSpecification', cssSelector: ['h1', 'h2', '.hero-description'] },
+  });
+
+  return schemas.map(s => `<script type="application/ld+json">\n${JSON.stringify(s, null, 2)}\n</script>`).join('\n');
 };
 
 const injectMeta = (html, route) => {
   const meta = ROUTE_META[route] || ROUTE_META['/'];
   const canonical = `${DOMAIN}${route === '/' ? '' : route}/`.replace(/\/\/$/, '/');
+  const routeSchemas = buildRouteSchemas(route, canonical);
 
   return html
     .replace(/<title>[^<]*<\/title>/, `<title>${meta.title}</title>`)
@@ -98,7 +167,8 @@ const injectMeta = (html, route) => {
     .replace(/(<meta property="og:description" content=")[^"]*(")/,  `$1${meta.description}$2`)
     .replace(/(<meta property="og:url" content=")[^"]*(")/,          `$1${canonical}$2`)
     .replace(/(<meta name="twitter:title" content=")[^"]*(")/,       `$1${meta.title}$2`)
-    .replace(/(<meta name="twitter:description" content=")[^"]*(")/,  `$1${meta.description}$2`);
+    .replace(/(<meta name="twitter:description" content=")[^"]*(")/,  `$1${meta.description}$2`)
+    .replace('</head>', `${routeSchemas}\n</head>`);
 };
 
 // Cache the HTML template at startup
