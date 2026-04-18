@@ -11,6 +11,7 @@ const BROKEN_IMAGE_URL = 'https://images.unsplash.com/photo-1633511090164-b4bfde
 const FIXED_IMAGE_URL = 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=800&auto=format&fit=crop';
 const BROKEN_THUMB_URL = 'https://images.unsplash.com/photo-1633511090164-b4bfdef39924?q=80&w=400&auto=format&fit=crop';
 const FIXED_THUMB_URL = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=400&auto=format&fit=crop';
+const CANONICAL_BRAND_NAME = 'PATIENCE AI';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -37,6 +38,19 @@ const sanitizeContent = (value) => {
   return value;
 };
 
+const normalizeBranding = (content) => {
+  if (!content || typeof content !== 'object') {
+    return content;
+  }
+
+  const nextContent = { ...content };
+  nextContent.brand = {
+    ...(nextContent.brand || {}),
+    name: CANONICAL_BRAND_NAME
+  };
+  return nextContent;
+};
+
 const requireAdmin = (req) => {
   const token = getCookieValue(req, SESSION_COOKIE_NAME);
   return verifySessionToken(token);
@@ -47,7 +61,7 @@ const isLocalFallbackError = (message = '') =>
 
 export default async function handler(req, res) {
   const defaultContent = readDefaultContent();
-  const canonicalContent = sanitizeContent(defaultContent);
+  const canonicalContent = normalizeBranding(sanitizeContent(defaultContent));
 
   if (req.method === 'GET') {
     try {
@@ -63,7 +77,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ content: canonicalContent, source: 'neondb-seeded-default' });
       }
 
-      const storedContent = sanitizeContent(row.data);
+      const storedContent = normalizeBranding(sanitizeContent(row.data));
       res.setHeader('Cache-Control', 'no-store, max-age=0');
       return res.status(200).json({ content: storedContent, source: 'neondb' });
     } catch (error) {
@@ -91,7 +105,7 @@ export default async function handler(req, res) {
     }
 
     try {
-      const sanitizedContent = sanitizeContent(content);
+      const sanitizedContent = normalizeBranding(sanitizeContent(content));
       await queryDb(
         `INSERT INTO ${TABLE_NAME} (slug, data, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (slug) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
         [SITE_SLUG, JSON.stringify(sanitizedContent)]
@@ -108,7 +122,7 @@ export default async function handler(req, res) {
     try {
       await queryDb(`DELETE FROM ${TABLE_NAME} WHERE slug = $1`, [SITE_SLUG]);
       res.setHeader('Cache-Control', 'no-store, max-age=0');
-      return res.status(200).json({ reset: true, content: sanitizeContent(defaultContent) });
+      return res.status(200).json({ reset: true, content: normalizeBranding(sanitizeContent(defaultContent)) });
     } catch (error) {
       return res.status(500).json({ error: error.message });
     }

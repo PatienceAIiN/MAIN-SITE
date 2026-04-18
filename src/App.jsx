@@ -37,24 +37,24 @@ const scrollToHash = (hash) => {
 };
 
 const getPageTitle = (pathname, siteContent) => {
-  const brandName = siteContent?.brand?.name || 'PATIENCE AI';
+  const brandName = 'Patience AI';
   const detailPages = siteContent?.detailPages || [];
 
-  if (pathname === '/') return `${brandName} / Home`;
-  if (pathname === '/products') return `${brandName} / Products`;
-  if (pathname === '/platform') return `${brandName} / Services`;
-  if (pathname === '/company/blog') return `${brandName} / Case Studies`;
-  if (pathname === '/company/careers') return `${brandName} / Careers`;
-  if (pathname === '/admin') return `${brandName} / Admin`;
+  if (pathname === '/') return brandName;
+  if (pathname === '/products') return `Products | ${brandName}`;
+  if (pathname === '/platform') return `Services | ${brandName}`;
+  if (pathname === '/company/blog') return `Case Studies | ${brandName}`;
+  if (pathname === '/company/careers') return `Careers | ${brandName}`;
+  if (pathname === '/admin') return `Admin | ${brandName}`;
 
   if (pathname.startsWith('/company/blog/')) {
     const slug = pathname.split('/').filter(Boolean).pop();
     const post = siteContent?.blogPage?.posts?.find((item) => item.slug === slug);
-    return `${brandName} / ${post?.title || 'Blog Post'}`;
+    return `${post?.title || 'Blog Post'} | ${brandName}`;
   }
 
   const detailPage = detailPages.find((page) => page.path === pathname);
-  if (detailPage?.title) return `${brandName} / ${detailPage.title}`;
+  if (detailPage?.title) return `${detailPage.title} | ${brandName}`;
 
   return brandName;
 };
