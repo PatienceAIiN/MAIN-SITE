@@ -53,6 +53,86 @@ const distDir = path.join(__dirname, 'dist');
 const indexHtml = path.join(distDir, 'index.html');
 const app = express();
 const port = process.env.PORT || 3000;
+const DOMAIN = process.env.SITE_URL || 'https://patienceai.in';
+
+// Per-route SEO meta — injected server-side so crawlers see real content without JS
+const ROUTE_META = {
+  '/': {
+    title: 'Patience AI — Product-First AI for Governance & Enterprise Delivery',
+    description: 'Patience AI builds governed product experiences for teams that need clean requests, clear ownership, and reliable delivery. Enterprise AI done right.',
+    keywords: 'Patience AI, patienceai, enterprise AI platform, AI governance, product-first AI, AI delivery',
+  },
+  '/products': {
+    title: 'Products — Patience AI | Enterprise AI Suite',
+    description: 'Explore Patience AI\'s suite of enterprise AI products. Built for governance, measurable impact, and reliable delivery at scale.',
+    keywords: 'Patience AI products, enterprise AI tools, AI automation products, AI governance tools',
+  },
+  '/platform': {
+    title: 'Platform & Services — Patience AI | AI Infrastructure',
+    description: 'Patience AI\'s platform delivers enterprise AI services with clear ownership, clean architecture, and reliable delivery pipelines.',
+    keywords: 'Patience AI platform, AI services, enterprise AI infrastructure, AI delivery platform',
+  },
+  '/company/blog': {
+    title: 'Case Studies & Blog — Patience AI | AI Insights',
+    description: 'Real-world case studies and insights from Patience AI on enterprise AI governance, measurable impact, and product delivery.',
+    keywords: 'Patience AI blog, AI case studies, enterprise AI insights, AI governance articles',
+  },
+  '/company/careers': {
+    title: 'Careers — Patience AI | Join Our Team',
+    description: 'Join the Patience AI team. We\'re building product-first AI platforms for enterprise delivery. See open roles and opportunities.',
+    keywords: 'Patience AI careers, AI jobs, enterprise AI company jobs, work at Patience AI',
+  },
+};
+
+const injectMeta = (html, route) => {
+  const meta = ROUTE_META[route] || ROUTE_META['/'];
+  const canonical = `${DOMAIN}${route === '/' ? '' : route}/`.replace(/\/\/$/, '/');
+
+  return html
+    .replace(/<title>[^<]*<\/title>/, `<title>${meta.title}</title>`)
+    .replace(/(<meta name="description" content=")[^"]*(")/,  `$1${meta.description}$2`)
+    .replace(/(<meta name="keywords" content=")[^"]*(")/,     `$1${meta.keywords}$2`)
+    .replace(/(<link rel="canonical" href=")[^"]*(")/,        `$1${canonical}$2`)
+    .replace(/(<meta property="og:title" content=")[^"]*(")/,       `$1${meta.title}$2`)
+    .replace(/(<meta property="og:description" content=")[^"]*(")/,  `$1${meta.description}$2`)
+    .replace(/(<meta property="og:url" content=")[^"]*(")/,          `$1${canonical}$2`)
+    .replace(/(<meta name="twitter:title" content=")[^"]*(")/,       `$1${meta.title}$2`)
+    .replace(/(<meta name="twitter:description" content=")[^"]*(")/,  `$1${meta.description}$2`);
+};
+
+// Cache the HTML template at startup
+let htmlTemplate = '';
+const getHtmlTemplate = () => {
+  if (!htmlTemplate && fs.existsSync(indexHtml)) {
+    htmlTemplate = fs.readFileSync(indexHtml, 'utf8');
+  }
+  return htmlTemplate;
+};
+
+// Submit all URLs to IndexNow (Bing, Yandex — instant indexing, free)
+const submitIndexNow = async () => {
+  const key = process.env.INDEXNOW_KEY || 'patienceai2024indexnow';
+  const urls = [
+    `${DOMAIN}/`,
+    `${DOMAIN}/products`,
+    `${DOMAIN}/platform`,
+    `${DOMAIN}/company/blog`,
+    `${DOMAIN}/company/careers`,
+  ];
+  try {
+    const res = await fetch('https://api.indexnow.org/indexnow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ host: new URL(DOMAIN).hostname, key, urlList: urls }),
+    });
+    console.log(`[IndexNow] Submitted ${urls.length} URLs — status ${res.status}`);
+  } catch (e) {
+    console.log('[IndexNow] Submission skipped:', e.message);
+  }
+};
+
+// Submit on startup (runs once per deploy — notifies Bing + Yandex immediately)
+setTimeout(submitIndexNow, 5000);
 
 const wrap = (handler) => async (req, res, next) => {
   try {
@@ -103,11 +183,16 @@ app.get('*', (req, res, next) => {
     return next();
   }
 
-  if (fs.existsSync(indexHtml)) {
-    return res.sendFile(indexHtml);
+  const template = getHtmlTemplate();
+  if (!template) {
+    return res.status(404).send('Build output not found');
   }
 
-  return res.status(404).send('Build output not found');
+  // Strip query params for route matching
+  const route = req.path.replace(/\/$/, '') || '/';
+  const html = injectMeta(template, route);
+  res.set('Content-Type', 'text/html');
+  res.send(html);
 });
 
 app.use((error, req, res, next) => {
