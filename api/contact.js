@@ -78,7 +78,7 @@ const createTransporter = () => {
       pass: process.env.SMTP_PASS
     },
     tls: {
-      rejectUnauthorized: false
+      rejectUnauthorized: process.env.NODE_ENV === 'production'
     }
   });
 };
@@ -126,8 +126,7 @@ export default async function handler(req, res) {
       console.error('Missing SMTP configuration:', configIssues.join('; '));
       return res.status(200).json({
         message: 'Thanks. Your message is saved. Email delivery is temporarily unavailable.',
-        emailSent: false,
-        emailDebug: { configIssues }
+        emailSent: false
       });
     }
 
@@ -225,29 +224,29 @@ export default async function handler(req, res) {
     }
 
     if (!ownerEmailSent && !userConfirmationSent) {
+      console.error('[contact] both emails failed — owner:', ownerError, '| user:', userError);
       return res.status(200).json({
         message: 'Thanks. Your message is saved but email delivery failed. Please try again later.',
         emailSent: false,
-        userConfirmationSent: false,
-        emailDebug: { ownerError, userError }
+        userConfirmationSent: false
       });
     }
 
     if (!ownerEmailSent) {
+      console.error('[contact] owner email failed:', ownerError);
       return res.status(200).json({
         message: 'Confirmation email sent to you, but team notification failed.',
         emailSent: false,
-        userConfirmationSent: true,
-        emailDebug: { ownerError }
+        userConfirmationSent: true
       });
     }
 
     if (!userConfirmationSent) {
+      console.error('[contact] user confirmation failed:', userError);
       return res.status(200).json({
         message: 'Message sent to our team, but confirmation email to you failed.',
         emailSent: true,
-        userConfirmationSent: false,
-        emailDebug: { userError }
+        userConfirmationSent: false
       });
     }
 

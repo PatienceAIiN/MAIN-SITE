@@ -3,7 +3,16 @@ import crypto from 'node:crypto';
 const SESSION_COOKIE = 'pa_admin_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 
-const getSecret = () => process.env.ADMIN_SESSION_SECRET || 'dev-admin-session-secret-change-me';
+const getSecret = () => {
+  const secret = process.env.ADMIN_SESSION_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[SECURITY] ADMIN_SESSION_SECRET env var is not set. Set it in Render environment variables immediately.');
+    }
+    return 'dev-admin-session-secret-change-me';
+  }
+  return secret;
+};
 
 const base64UrlEncode = (input) =>
   Buffer.from(input).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');

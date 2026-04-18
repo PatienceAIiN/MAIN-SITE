@@ -74,7 +74,8 @@ export default async function handler(req, res) {
           source: 'local-fallback-missing-table'
         });
       }
-      return res.status(500).json({ error: error.message });
+      console.error('[site-content GET]', error.message);
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
@@ -98,7 +99,8 @@ export default async function handler(req, res) {
       res.setHeader('Cache-Control', 'no-store, max-age=0');
       return res.status(200).json({ content: sanitizedContent });
     } catch (error) {
-      return res.status(500).json({ error: error.message });
+      console.error('[site-content PATCH]', error.message);
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 

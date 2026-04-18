@@ -1,4 +1,7 @@
 import { isMissingTableError, queryDb } from './_db.js';
+import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken } from './_security.js';
+
+const requireAdmin = (req) => verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME));
 
 const parseDevice = (ua = '') => {
   if (/mobile|android|iphone|ipod/i.test(ua)) return 'mobile';
@@ -55,6 +58,9 @@ export default async function analyticsHandler(req, res) {
   }
 
   if (req.method === 'GET') {
+    if (!requireAdmin(req)) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
     try {
       const [total, today, week, month, topPages, topRefs, devices, browsers, recent, uniqueToday, uniqueWeek] =
         await Promise.all([

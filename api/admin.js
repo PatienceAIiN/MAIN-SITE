@@ -48,7 +48,8 @@ export default async function handler(req, res) {
       if (isMissingTableError(error.message)) {
         return res.status(200).json({ items: [], counts: { total: 0, new: 0, reviewing: 0, replied: 0, archived: 0 } });
       }
-      return res.status(500).json({ error: error.message });
+      console.error('[admin]', error.message);
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
@@ -58,13 +59,16 @@ export default async function handler(req, res) {
     }
 
     const { id, status } = req.body || {};
+    const ALLOWED_STATUSES = ['new', 'reviewing', 'replied', 'archived'];
     if (!id || !status) return res.status(400).json({ error: 'id and status are required' });
+    if (!ALLOWED_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status value' });
 
     try {
       const rows = await queryDb(`UPDATE ${TABLE_NAME} SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`, [status, id]);
       return res.status(200).json({ item: rows[0] || null });
     } catch (error) {
-      return res.status(500).json({ error: error.message });
+      console.error('[admin]', error.message);
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
@@ -80,7 +84,8 @@ export default async function handler(req, res) {
       await queryDb(`DELETE FROM ${TABLE_NAME} WHERE id = $1`, [id]);
       return res.status(200).json({ deleted: true, id });
     } catch (error) {
-      return res.status(500).json({ error: error.message });
+      console.error('[admin]', error.message);
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
