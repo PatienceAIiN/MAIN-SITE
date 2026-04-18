@@ -207,11 +207,11 @@ app.get('/sitemap.xml', (req, res) => {
   const domain = process.env.SITE_URL || 'https://patienceai.in';
   const now = new Date().toISOString().split('T')[0];
   const routes = [
-    { path: '/', priority: '1.0', changefreq: 'weekly' },
-    { path: '/products', priority: '0.9', changefreq: 'weekly' },
-    { path: '/platform', priority: '0.9', changefreq: 'weekly' },
-    { path: '/company/blog', priority: '0.8', changefreq: 'daily' },
-    { path: '/company/careers', priority: '0.7', changefreq: 'weekly' },
+    { path: '/', priority: '1.0', changefreq: 'hourly' },
+    { path: '/products', priority: '0.9', changefreq: 'hourly' },
+    { path: '/platform', priority: '0.9', changefreq: 'hourly' },
+    { path: '/company/blog', priority: '0.8', changefreq: 'hourly' },
+    { path: '/company/careers', priority: '0.7', changefreq: 'hourly' },
   ];
   const urls = routes.map(r =>
     `  <url>\n    <loc>${domain}${r.path}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${r.changefreq}</changefreq>\n    <priority>${r.priority}</priority>\n  </url>`
