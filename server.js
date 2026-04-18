@@ -155,7 +155,9 @@ const buildRouteSchemas = (route, canonical) => {
 
 const injectMeta = (html, route) => {
   const meta = ROUTE_META[route] || ROUTE_META['/'];
-  const canonical = `${DOMAIN}${route === '/' ? '' : route}/`.replace(/\/\/$/, '/');
+  // Always hardcode https://patienceai.in — never rely on SITE_URL env var for canonical
+  const base = 'https://patienceai.in';
+  const canonical = `${base}${route === '/' ? '' : route}/`.replace(/\/\/$/, '/');
   const routeSchemas = buildRouteSchemas(route, canonical);
 
   return html
@@ -171,7 +173,7 @@ const injectMeta = (html, route) => {
     .replace('</head>', `${routeSchemas}\n</head>`);
 };
 
-// Cache the HTML template at startup
+// Cache the HTML template once at startup (Render always restarts on deploy)
 let htmlTemplate = '';
 const getHtmlTemplate = () => {
   if (!htmlTemplate && fs.existsSync(indexHtml)) {
@@ -217,6 +219,16 @@ const wrap = (handler) => async (req, res, next) => {
 };
 
 app.disable('x-powered-by');
+
+// ── HTTP → HTTPS redirect ─────────────────────────────────────────────────────
+// Render sets x-forwarded-proto when terminating TLS; redirect plain HTTP
+app.use((req, res, next) => {
+  const proto = req.headers['x-forwarded-proto'];
+  if (proto && proto !== 'https') {
+    return res.redirect(301, `https://patienceai.in${req.url}`);
+  }
+  next();
+});
 
 // ── Security headers ──────────────────────────────────────────────────────────
 app.use((req, res, next) => {
