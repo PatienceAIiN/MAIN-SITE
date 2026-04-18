@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     buildCommand: npm ci && npm run build
-    startCommand: ./node_modules/.bin/pm2-runtime start ecosystem.config.cjs
+    startCommand: PM2_HOME=/tmp/.pm2 ./node_modules/.bin/pm2-runtime start ecosystem.config.cjs
     healthCheckPath: /
     envVars:
       - key: NODE_ENV
