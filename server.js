@@ -59,29 +59,29 @@ const DOMAIN = process.env.SITE_URL || 'https://patienceai.in';
 // Per-route SEO meta — injected server-side so crawlers see real content without JS
 const ROUTE_META = {
   '/': {
-    title: 'PatienceAI — Product-First AI for Governance & Enterprise Delivery',
-    description: 'PatienceAI (patienceai.in) builds governed product experiences for enterprise teams — clean requests, clear ownership, and reliable AI delivery at scale.',
-    keywords: 'PatienceAI, Patience AI, patienceai.in, enterprise AI platform, AI governance, product-first AI, AI delivery',
+    title: 'PATIENCE AI — Product-First AI for Governance & Enterprise Delivery',
+    description: 'PATIENCE AI (patienceai.in) builds governed product experiences for enterprise teams — clean requests, clear ownership, and reliable AI delivery at scale.',
+    keywords: 'PATIENCE AI, PatienceAI, Patience AI, patienceai.in, enterprise AI platform, AI governance, product-first AI, AI delivery',
   },
   '/products': {
-    title: 'PatienceAI Products — Enterprise AI Suite | patienceai.in',
-    description: 'Explore PatienceAI\'s suite of enterprise AI products. Built for governance, measurable impact, and reliable delivery at scale.',
-    keywords: 'PatienceAI products, Patience AI products, enterprise AI tools, AI automation products, AI governance tools',
+    title: 'PATIENCE AI Products — Enterprise AI Suite | patienceai.in',
+    description: 'Explore PATIENCE AI\'s suite of enterprise AI products. Built for governance, measurable impact, and reliable delivery at scale.',
+    keywords: 'PATIENCE AI products, PatienceAI products, Patience AI products, enterprise AI tools, AI automation products, AI governance tools',
   },
   '/platform': {
-    title: 'PatienceAI Platform & Services — Enterprise AI Infrastructure',
-    description: 'PatienceAI platform delivers enterprise AI services with clear ownership, clean architecture, and reliable delivery pipelines.',
-    keywords: 'PatienceAI platform, Patience AI services, enterprise AI infrastructure, AI delivery platform',
+    title: 'PATIENCE AI Platform & Services — Enterprise AI Infrastructure',
+    description: 'PATIENCE AI platform delivers enterprise AI services with clear ownership, clean architecture, and reliable delivery pipelines.',
+    keywords: 'PATIENCE AI platform, PatienceAI platform, Patience AI services, enterprise AI infrastructure, AI delivery platform',
   },
   '/company/blog': {
-    title: 'PatienceAI Case Studies & Blog — AI Insights | patienceai.in',
-    description: 'Real-world case studies and insights from PatienceAI on enterprise AI governance, measurable impact, and product delivery.',
-    keywords: 'PatienceAI blog, Patience AI case studies, enterprise AI insights, AI governance articles',
+    title: 'PATIENCE AI Case Studies & Blog — AI Insights | patienceai.in',
+    description: 'Real-world case studies and insights from PATIENCE AI on enterprise AI governance, measurable impact, and product delivery.',
+    keywords: 'PATIENCE AI blog, PatienceAI blog, Patience AI case studies, enterprise AI insights, AI governance articles',
   },
   '/company/careers': {
-    title: 'PatienceAI Careers — Join Our Team | patienceai.in',
-    description: 'Join the PatienceAI team. We\'re building product-first AI platforms for enterprise delivery. See open roles and opportunities.',
-    keywords: 'PatienceAI careers, Patience AI jobs, enterprise AI company jobs, work at PatienceAI',
+    title: 'PATIENCE AI Careers — Join Our Team | patienceai.in',
+    description: 'Join the PATIENCE AI team. We\'re building product-first AI platforms for enterprise delivery. See open roles and opportunities.',
+    keywords: 'PATIENCE AI careers, PatienceAI careers, Patience AI jobs, enterprise AI company jobs, work at PATIENCE AI',
   },
 };
 
