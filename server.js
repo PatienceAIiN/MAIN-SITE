@@ -163,20 +163,16 @@ app.use((req, res, next) => {
   // Basic XSS protection for older browsers
   res.setHeader('X-XSS-Protection', '1; mode=block');
   // Content Security Policy
+  // default-src * allows all resources so React, Framer Motion, Quest SDK and
+  // third-party scripts work without breakage. The three directives below are
+  // the ones that provide real protection for an app that requires unsafe-inline
+  // and unsafe-eval (React/Vite builds):
+  //   frame-ancestors 'none'  — blocks clickjacking (stronger than X-Frame-Options)
+  //   base-uri 'self'         — blocks <base> tag injection attacks
+  //   form-action 'self'      — blocks forms being hijacked to external URLs
   res.setHeader(
     'Content-Security-Policy',
-    [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.clarity.ms https://fonts.googleapis.com",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com",
-      "img-src 'self' data: blob: https: http:",
-      "connect-src 'self' https://www.google-analytics.com https://analytics.google.com https://www.clarity.ms https://api.indexnow.org",
-      "frame-src 'none'",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-    ].join('; ')
+    "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
   );
   // CORS — only allow same origin for API calls
   const origin = req.headers.origin;
