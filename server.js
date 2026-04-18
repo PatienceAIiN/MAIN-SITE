@@ -111,23 +111,26 @@ const getHtmlTemplate = () => {
 
 // Submit all URLs to IndexNow (Bing, Yandex — instant indexing, free)
 const submitIndexNow = async () => {
-  const key = process.env.INDEXNOW_KEY || 'patienceai2024indexnow';
+  const key = 'patienceai2024indexnow';
+  const host = 'patienceai.in';
+  const base = 'https://patienceai.in';
   const urls = [
-    `${DOMAIN}/`,
-    `${DOMAIN}/products`,
-    `${DOMAIN}/platform`,
-    `${DOMAIN}/company/blog`,
-    `${DOMAIN}/company/careers`,
+    `${base}/`,
+    `${base}/products`,
+    `${base}/platform`,
+    `${base}/company/blog`,
+    `${base}/company/careers`,
   ];
   try {
     const res = await fetch('https://api.indexnow.org/indexnow', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({ host: new URL(DOMAIN).hostname, key, urlList: urls }),
+      body: JSON.stringify({ host, key, urlList: urls }),
     });
-    console.log(`[IndexNow] Submitted ${urls.length} URLs — status ${res.status}`);
+    const text = await res.text();
+    console.log(`[IndexNow] Submitted ${urls.length} URLs — HTTP ${res.status} — ${text || 'ok'}`);
   } catch (e) {
-    console.log('[IndexNow] Submission skipped:', e.message);
+    console.log('[IndexNow] Submission failed:', e.message);
   }
 };
 
