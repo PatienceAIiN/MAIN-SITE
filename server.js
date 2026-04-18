@@ -204,7 +204,7 @@ app.all('/api/site-content', wrap(siteContentHandler));
 
 // Dynamic sitemap.xml
 app.get('/sitemap.xml', (req, res) => {
-  const domain = process.env.SITE_URL || 'https://patienceai.in';
+  const domain = 'https://patienceai.in';
   const now = new Date().toISOString().split('T')[0];
   const routes = [
     { path: '/', priority: '1.0', changefreq: 'hourly' },
