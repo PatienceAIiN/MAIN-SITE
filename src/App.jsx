@@ -37,14 +37,14 @@ const scrollToHash = (hash) => {
 };
 
 const getPageTitle = (pathname, siteContent) => {
-  const brandName = 'Patience AI';
+  const brandName = siteContent?.brand?.name || 'PATIENCE AI';
   const detailPages = siteContent?.detailPages || [];
 
-  if (pathname === '/') return brandName;
-  if (pathname === '/products') return `Products | ${brandName}`;
-  if (pathname === '/platform') return `Services | ${brandName}`;
-  if (pathname === '/company/blog') return `Case Studies | ${brandName}`;
-  if (pathname === '/company/careers') return `Careers | ${brandName}`;
+  if (pathname === '/') return `${brandName} — Product-First AI for Governance & Enterprise Delivery`;
+  if (pathname === '/products') return `${brandName} Products — Enterprise AI Suite | patienceai.in`;
+  if (pathname === '/platform') return `${brandName} Platform & Services — Enterprise AI Infrastructure`;
+  if (pathname === '/company/blog') return `${brandName} Case Studies & Blog — AI Insights | patienceai.in`;
+  if (pathname === '/company/careers') return `${brandName} Careers — Join Our Team | patienceai.in`;
   if (pathname === '/admin') return `Admin | ${brandName}`;
 
   if (pathname.startsWith('/company/blog/')) {
