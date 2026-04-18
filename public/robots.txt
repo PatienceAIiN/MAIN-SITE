@@ -13,6 +13,11 @@ Sitemap: https://patienceai.in/sitemap.xml
 User-agent: Googlebot
 Allow: /
 
+User-agent: Googlebot-Image
+Allow: /favicon-32.png
+Allow: /favicon.ico
+Allow: /favicon.svg
+
 User-agent: Bingbot
 Allow: /
 

@@ -226,6 +226,17 @@ if (fs.existsSync(distDir)) {
   app.use(express.static(distDir, { index: false }));
 }
 
+// Serve favicon.ico — Google looks here first before checking <link> tags
+app.get('/favicon.ico', (req, res) => {
+  const faviconPath = path.join(distDir, 'favicon-32.png');
+  if (fs.existsSync(faviconPath)) {
+    res.set('Content-Type', 'image/png');
+    res.set('Cache-Control', 'public, max-age=86400');
+    return res.sendFile(faviconPath);
+  }
+  res.status(404).end();
+});
+
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api/')) {
     return next();
