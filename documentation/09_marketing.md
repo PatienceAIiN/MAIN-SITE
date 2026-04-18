@@ -80,7 +80,31 @@ What you get:
 
 ## 2. SEO Setup
 
-### 2a. Meta Tags (index.html)
+### 2a. Server-Side Meta Injection Per Route
+**File:** `server.js` — `ROUTE_META` object + `injectMeta()` function
+
+This is the most important SEO fix for a React SPA. When Google's crawler visits any page,
+the Express server injects the correct title, description, canonical, and OG tags **before
+sending HTML** — no JavaScript rendering required.
+
+| Route | Title served to crawlers |
+|---|---|
+| `/` | Patience AI — Product-First AI for Governance & Enterprise Delivery |
+| `/products` | Products — Patience AI \| Enterprise AI Suite |
+| `/platform` | Platform & Services — Patience AI \| AI Infrastructure |
+| `/company/blog` | Case Studies & Blog — Patience AI \| AI Insights |
+| `/company/careers` | Careers — Patience AI \| Join Our Team |
+
+**To add a new route**, add an entry to `ROUTE_META` in `server.js`:
+```js
+'/new-page': {
+  title: 'Page Title — Patience AI',
+  description: '160-char description with keywords.',
+  keywords: 'keyword1, keyword2, patience AI',
+},
+```
+
+### 2b. Base Meta Tags (index.html)
 | Tag | Value |
 |---|---|
 | `<title>` | Patience AI — Product-First AI for Governance & Enterprise Delivery |
@@ -89,23 +113,24 @@ What you get:
 | `canonical` | https://patienceai.in/ |
 | `robots` | index, follow, max-image-preview:large |
 
-### 2b. Open Graph (Social Sharing)
+### 2c. Open Graph (Social Sharing)
 When someone shares a link on WhatsApp, LinkedIn, Facebook, Twitter — they see:
 - Title, description, and preview image (`/og-image.png`)
 - Set `og:image` to a 1200×630px image for best results
 - Currently points to `https://patienceai.in/og-image.png` — **upload this file to `public/`**
+- Create a 1200×630px image at canva.com → export PNG → rename to `og-image.png` → drop in `public/`
 
-### 2c. Twitter Cards
+### 2d. Twitter Cards
 Same as OG but for Twitter/X. `summary_large_image` card type is set — shows a big image preview when tweeted.
 
-### 2d. JSON-LD Structured Data
+### 2e. JSON-LD Structured Data
 Two schemas embedded in `<head>`:
 - `Organization` — tells Google who you are, your logo, URL
 - `WebSite` — enables Google Sitelinks search box in search results
 
 Validate at: https://validator.schema.org — paste `https://patienceai.in`
 
-### 2e. Sitemap
+### 2f. Sitemap
 Auto-generated at runtime: `https://patienceai.in/sitemap.xml`
 
 Pages included:
@@ -119,7 +144,7 @@ Pages included:
 
 To add a new page to the sitemap, edit the `routes` array in `server.js` → sitemap section.
 
-### 2f. Robots.txt
+### 2g. Robots.txt
 Located at `public/robots.txt`. Allows all major crawlers:
 - Googlebot, Bingbot, Slurp (Yahoo), DuckDuckBot
 - Baiduspider (China), YandexBot (Russia)
@@ -131,20 +156,27 @@ Blocks: `/admin` and `/api/` from indexing.
 
 ## 3. Search Engine Indexing
 
-### 3a. Google Search Console
+### 3a. Google Search Console ← REQUIRED FOR GOOGLE
 **URL:** https://search.google.com/search-console
-**What to do:**
-1. Add property → `https://patienceai.in`
-2. Verify via HTML file (place in `public/` → deploy → verify)
-3. Sitemaps → submit `sitemap.xml`
-4. Use "URL Inspection" to force-index any page immediately
 
-**What you see:**
+**Status:** Not yet registered. This is mandatory for Google indexing.
+
+**Steps:**
+1. Add property → `https://patienceai.in`
+2. Choose "HTML file" verification
+3. Download the HTML file → drop in `public/` → push to GitHub
+4. Wait ~2 min for Render to deploy → click Verify
+5. Sitemaps → enter `sitemap.xml` → Submit
+
+**What you see after setup:**
 - Which queries people type to find your site
 - Click-through rate from Google search
 - Which pages are indexed vs not indexed
 - Core Web Vitals (page speed from real users)
 - Manual actions / penalties (if any)
+
+**To force-index any page immediately:**
+Search Console → URL Inspection → paste URL → Request Indexing
 
 ### 3b. Bing Webmaster Tools
 **URL:** https://www.bing.com/webmasters
@@ -157,25 +189,43 @@ Covers Bing + DuckDuckGo + Yahoo combined (~30% of global search).
 **URL:** https://webmaster.yandex.com
 Covers Russia, Eastern Europe, Central Asia.
 
-### 3d. IndexNow (Instant Indexing — Bing + Yandex)
-Free protocol — ping search engines the moment you publish new content.
-API: `https://api.indexnow.org/indexnow?url=https://patienceai.in/company/blog/your-post&key=YOUR_KEY`
-Get a free key at: https://www.indexnow.org
+### 3d. IndexNow — Automatic on Every Deploy
+**Status: ACTIVE and WORKING**
+**Key:** `patienceai2024indexnow`
+**Key file:** `public/patienceai2024indexnow.txt`
+
+On every Render deploy, the server automatically submits all 5 URLs to IndexNow API.
+This instantly notifies Bing, Yandex, and DuckDuckGo — no account needed.
+
+**Render log confirmation:**
+```
+[IndexNow] Submitted 5 URLs — HTTP 200 — ok
+```
+
+**Covered engines via IndexNow:** Bing, Yandex, DuckDuckGo, Seznam, Naver, Yep
+
+**Manual ping for new blog posts:**
+```
+POST https://api.indexnow.org/indexnow
+{
+  "host": "patienceai.in",
+  "key": "patienceai2024indexnow",
+  "urlList": ["https://patienceai.in/company/blog/your-new-post"]
+}
+```
 
 ---
 
 ## 4. Search Engine Verification Meta Tags
 
-To add search console verification without uploading files, add the meta tag to `index.html`:
+To add search console verification without uploading files, uncomment the relevant
+lines in `index.html` and paste your verification code:
 
 ```html
-<!-- Uncomment and fill in after registering -->
 <!-- <meta name="google-site-verification" content="YOUR_CODE" /> -->
 <!-- <meta name="msvalidate.01" content="YOUR_CODE" /> -->
-<!-- <meta name="yandex-verification" content="YOUR_CODE" /> -->
+<!-- <meta name="yandex-verification" content="PASTE_YANDEX_CODE_HERE" /> -->
 ```
-
-These are already in `index.html` as comments — just uncomment and paste your code.
 
 ---
 
@@ -220,19 +270,23 @@ PM2 runs the Express server with auto-restart on crash.
 | `autorestart` | true | Restarts if server crashes |
 | `restart_delay` | 3000ms | Prevents restart loop |
 | `max_restarts` | 10 | Stops infinite crash loop |
+| `PM2_HOME` | `/tmp/.pm2` | Render filesystem fix — writable path for PM2 daemon files |
 
-**Logs on Render:** Dashboard → your service → Logs tab
+**Render logs showing PM2 is working:**
 ```
-[PM2] Spawning PM2 daemon...
+[PM2] Spawning PM2 daemon with pm2_home=/tmp/.pm2
+[PM2] PM2 Successfully daemonized
 [PM2] App [patience-ai] launched (1 instances)
 Server listening on 3000
+[IndexNow] Submitted 5 URLs — HTTP 200 — ok
 ```
 
 **Start command (render.yaml):**
 ```
-./node_modules/.bin/pm2-runtime start ecosystem.config.cjs
+PM2_HOME=/tmp/.pm2 ./node_modules/.bin/pm2-runtime start ecosystem.config.cjs
 ```
 Uses local `node_modules` install — not global — so it always works on Render.
+`PM2_HOME=/tmp/.pm2` is required because Render's root filesystem is read-only.
 
 ---
 
@@ -253,10 +307,31 @@ Target scores:
 - Font preconnect in `<head>`
 - Service worker caches shell files
 - Vite builds minified + gzipped JS/CSS
+- Server-side meta injection (no JS wait for crawlers)
 
 ---
 
-## 8. Quick Reference — All Dashboards
+## 8. Current Status Checklist
+
+| Item | Status |
+|---|---|
+| Self-hosted analytics (NeonDB) | ✅ Live — 15 views, 11 unique visitors tracked |
+| Google Analytics 4 (G-3YZ86EQKLG) | ✅ Active |
+| Microsoft Clarity (wdcqmw85yq) | ✅ Active |
+| Server-side meta injection per route | ✅ Live |
+| sitemap.xml | ✅ Live — 5 pages |
+| robots.txt | ✅ Live — 10 crawlers |
+| IndexNow auto-submit on deploy | ✅ Active — Bing/Yandex/DuckDuckGo notified |
+| IndexNow key file | ✅ `public/patienceai2024indexnow.txt` |
+| PM2 with Render fix (PM2_HOME) | ✅ Deployed |
+| og-image.png social preview image | ❌ File not uploaded yet |
+| Google Search Console | ❌ Not registered — do this to get Google indexing |
+| Bing Webmaster Tools | ❌ Not registered (IndexNow covers crawling, not console) |
+| Google indexed pages | ❌ 0 — requires Search Console setup |
+
+---
+
+## 9. Quick Reference — All Dashboards
 
 | Tool | URL | What you monitor |
 |---|---|---|
