@@ -1,21 +1,27 @@
 {
-  "name": "Patience AI",
+  "name": "PatienceAI",
   "short_name": "PatienceAI",
-  "description": "Product-first AI platforms for governance, measurable impact, and enterprise delivery.",
+  "description": "PatienceAI — product-first AI platforms for governance, measurable impact, and enterprise delivery.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f8fafc",
   "theme_color": "#f8fafc",
   "icons": [
     {
-      "src": "/favicon.svg",
-      "sizes": "192x192",
-      "type": "image/svg+xml",
+      "src": "/favicon-32.png",
+      "sizes": "32x32",
+      "type": "image/png",
       "purpose": "any"
     },
     {
+      "src": "/favicon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
       "src": "/favicon.svg",
-      "sizes": "512x512",
+      "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     }

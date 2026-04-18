@@ -1,6 +1,6 @@
 {
   "brand": {
-    "name": "PATIENCE AI",
+    "name": "PatienceAI",
     "homeAction": {
       "type": "route",
       "to": "/"
@@ -37,8 +37,8 @@
       "src": "https://images.unsplash.com/photo-1677442135703-1787eea5ce01?q=80&w=1200&auto=format&fit=crop",
       "alt": "Abstract 3D AI Background"
     },
-    "headline": "Product-first AI services for faster work, clear ownership, and real business impact",
-    "description": "Patience AI builds governed product experiences for teams that need clean requests, clear ownership, and reliable delivery.",
+    "headline": "PatienceAI — Product-first AI for faster work, clear ownership, and real business impact",
+    "description": "PatienceAI builds governed product experiences for teams that need clean requests, clear ownership, and reliable delivery.",
     "cta": {
       "label": "Explore Services",
       "icon": "FiArrowUpRight",
