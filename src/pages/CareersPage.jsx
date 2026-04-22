@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import SafeIcon from '../common/SafeIcon';
 import { iconRegistry } from '../common/iconRegistry';
 import { fetchJson } from '../common/fetchJson';
+import { useNavigate } from 'react-router-dom';
 
 const INITIAL_FORM = {
   name: '',
@@ -12,6 +13,7 @@ const INITIAL_FORM = {
 };
 
 const CareersPage = ({ content, onAction }) => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState('');
@@ -27,7 +29,7 @@ const CareersPage = ({ content, onAction }) => {
     setSubmitStatus('');
 
     try {
-      await fetchJson('/api/contact', {
+      const response = await fetchJson('/api/contact', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -41,7 +43,11 @@ const CareersPage = ({ content, onAction }) => {
         })
       });
 
-      setSubmitStatus('success');
+      if (response?.emailSent === true && response?.userConfirmationSent === true) {
+        setSubmitStatus('success');
+      } else {
+        setSubmitStatus('error');
+      }
       setFormData(INITIAL_FORM);
     } catch {
       setSubmitStatus('error');
@@ -114,7 +120,9 @@ const CareersPage = ({ content, onAction }) => {
                 </div>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.35em] text-emerald-600">Sent</p>
                 <h3 className="mb-3 text-2xl font-medium text-[#171717]">Inquiry received</h3>
-                <p className="mb-8 leading-relaxed text-[#5f5a52]">{content.form.statusMessages.success}</p>
+                <p className="mb-8 leading-relaxed text-[#5f5a52]">
+                  Your job enquiry has been received. We will be back to you once our respective team reviews.
+                </p>
 
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <button
@@ -126,7 +134,13 @@ const CareersPage = ({ content, onAction }) => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => onAction({ type: 'route', to: '/products' })}
+                    onClick={() => {
+                      if (onAction) {
+                        onAction({ type: 'route', to: '/products' });
+                        return;
+                      }
+                      navigate('/products');
+                    }}
                     className="rounded-full border border-[#d8d2c7] px-6 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-[#171717] transition-colors hover:border-[#171717]"
                   >
                     View products
