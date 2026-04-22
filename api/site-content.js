@@ -5,7 +5,8 @@ import { queryDb, isMissingTableError } from './_db.js';
 import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken } from './_security.js';
 
 const TABLE_NAME = 'site_content';
-const SITE_SLUG = 'site';
+const PRIMARY_SITE_SLUG = 'default';
+const LEGACY_SITE_SLUG = 'site';
 const BROKEN_IMAGE_ID = 'photo-1633511090164-b4bfdef39924';
 const BROKEN_IMAGE_URL = 'https://images.unsplash.com/photo-1633511090164-b4bfdef39924?q=80&w=800&auto=format&fit=crop';
 const FIXED_IMAGE_URL = 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=800&auto=format&fit=crop';
@@ -59,25 +60,43 @@ const requireAdmin = (req) => {
 const isLocalFallbackError = (message = '') =>
   /not configured|fetch failed|networkerror|enotfound|econnrefused/i.test(String(message));
 
+const readStoredSiteContent = async () => {
+  const rows = await queryDb(
+    `SELECT slug, data
+     FROM ${TABLE_NAME}
+     WHERE slug IN ($1, $2)
+     ORDER BY CASE WHEN slug = $1 THEN 0 ELSE 1 END
+     LIMIT 1`,
+    [PRIMARY_SITE_SLUG, LEGACY_SITE_SLUG]
+  );
+
+  return rows[0] || null;
+};
+
 export default async function handler(req, res) {
   const defaultContent = readDefaultContent();
   const canonicalContent = normalizeBranding(sanitizeContent(defaultContent));
 
   if (req.method === 'GET') {
     try {
-      const rows = await queryDb(`SELECT data FROM ${TABLE_NAME} WHERE slug = $1 LIMIT 1`, [SITE_SLUG]);
-      const row = rows[0];
+      const row = await readStoredSiteContent();
 
       if (!row) {
         await queryDb(
           `INSERT INTO ${TABLE_NAME} (slug, data, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (slug) DO NOTHING`,
-          [SITE_SLUG, JSON.stringify(canonicalContent)]
+          [PRIMARY_SITE_SLUG, JSON.stringify(canonicalContent)]
         );
         res.setHeader('Cache-Control', 'no-store, max-age=0');
         return res.status(200).json({ content: canonicalContent, source: 'neondb-seeded-default' });
       }
 
       const storedContent = normalizeBranding(sanitizeContent(row.data));
+      if (row.slug === LEGACY_SITE_SLUG) {
+        await queryDb(
+          `INSERT INTO ${TABLE_NAME} (slug, data, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (slug) DO NOTHING`,
+          [PRIMARY_SITE_SLUG, JSON.stringify(storedContent)]
+        );
+      }
       res.setHeader('Cache-Control', 'no-store, max-age=0');
       return res.status(200).json({ content: storedContent, source: 'neondb' });
     } catch (error) {
@@ -108,7 +127,7 @@ export default async function handler(req, res) {
       const sanitizedContent = normalizeBranding(sanitizeContent(content));
       await queryDb(
         `INSERT INTO ${TABLE_NAME} (slug, data, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (slug) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
-        [SITE_SLUG, JSON.stringify(sanitizedContent)]
+        [PRIMARY_SITE_SLUG, JSON.stringify(sanitizedContent)]
       );
       res.setHeader('Cache-Control', 'no-store, max-age=0');
       return res.status(200).json({ content: sanitizedContent });
@@ -120,7 +139,7 @@ export default async function handler(req, res) {
 
   if (req.method === 'DELETE') {
     try {
-      await queryDb(`DELETE FROM ${TABLE_NAME} WHERE slug = $1`, [SITE_SLUG]);
+      await queryDb(`DELETE FROM ${TABLE_NAME} WHERE slug IN ($1, $2)`, [PRIMARY_SITE_SLUG, LEGACY_SITE_SLUG]);
       res.setHeader('Cache-Control', 'no-store, max-age=0');
       return res.status(200).json({ reset: true, content: normalizeBranding(sanitizeContent(defaultContent)) });
     } catch (error) {

@@ -5,7 +5,8 @@ import { queryDb, isMissingTableError } from './_db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SITE_TABLE = 'site_content';
-const SITE_SLUG = 'site';
+const PRIMARY_SITE_SLUG = 'default';
+const LEGACY_SITE_SLUG = 'site';
 const CHAT_TABLE = 'chatbot_messages';
 const GROQ_FALLBACK_NOTE = 'I can help with this website’s products, services, case studies, careers, and contact options. If your request needs deeper support, please use the contact form and our experts will respond within 2 hours.';
 
@@ -107,7 +108,14 @@ const isCodingQuestion = (message = '') => /(write|debug|fix|review|generate|exp
 
 const readSiteContent = async () => {
   try {
-    const rows = await queryDb(`SELECT data FROM ${SITE_TABLE} WHERE slug = $1 LIMIT 1`, [SITE_SLUG]);
+    const rows = await queryDb(
+      `SELECT data
+       FROM ${SITE_TABLE}
+       WHERE slug IN ($1, $2)
+       ORDER BY CASE WHEN slug = $1 THEN 0 ELSE 1 END
+       LIMIT 1`,
+      [PRIMARY_SITE_SLUG, LEGACY_SITE_SLUG]
+    );
     const defaultContent = readDefaultContent();
     const value = rows[0]?.data ? mergeWithDefaults(defaultContent, rows[0].data) : defaultContent;
     return value;

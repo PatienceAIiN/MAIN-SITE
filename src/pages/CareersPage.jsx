@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import FadeIn from '../common/FadeIn';
 import SafeIcon from '../common/SafeIcon';
 import { iconRegistry } from '../common/iconRegistry';
 import { fetchJson } from '../common/fetchJson';
@@ -52,22 +51,21 @@ const CareersPage = ({ content, onAction }) => {
   };
 
   return (
-    <main className="bg-white pt-24">
-      <section className="relative overflow-hidden bg-[#f4f4f4] px-6 pb-20 pt-24 md:pb-28">
-        <div
-          className="absolute inset-0 opacity-[0.04]"
-          style={{ backgroundImage: 'radial-gradient(#000000 1px, transparent 1px)', backgroundSize: '32px 32px' }}
-        />
+    <main className="bg-[#fbfaf7] pt-24">
+      <section className="relative overflow-hidden border-b border-[#e3ddd1] bg-[#f4f1ea] px-6 pb-20 pt-24 md:pb-28">
+        <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'radial-gradient(#171717 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
         <div className="relative mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1.08fr_0.92fr] lg:items-center">
-          <FadeIn className="max-w-3xl">
-            <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.05 }} className="mb-6 inline-block rounded-full border border-[#d1d1d1] bg-white px-4 py-1.5 text-sm font-medium text-[#1a1a1a] shadow-sm">
+          <div className="max-w-3xl">
+            <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.05 }} className="mb-6 inline-block rounded-full border border-[#d8d2c7] bg-white px-5 py-2 text-sm font-semibold uppercase tracking-[0.24em] text-[#171717] shadow-sm">
               {content.hero.eyebrow}
             </motion.div>
-            <motion.h1 initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.12 }} className="mb-6 font-serif text-5xl leading-[1.05] tracking-tight text-[#1a1a1a] md:text-7xl">
+            <motion.h1 initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.12 }} className="mb-6 text-5xl font-medium leading-[0.92] tracking-[-0.06em] text-[#171717] md:text-7xl">
               {content.hero.title}
             </motion.h1>
-            <motion.p initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.22 }} className="text-lg leading-relaxed text-[#666666] md:text-xl">{content.hero.description}</motion.p>
-          </FadeIn>
+            <motion.p initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.22 }} className="text-lg leading-relaxed text-[#5f5a52] md:text-xl">
+              {content.hero.description}
+            </motion.p>
+          </div>
 
           <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
             {content.highlights.map((item, i) => (
@@ -76,31 +74,31 @@ const CareersPage = ({ content, onAction }) => {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.4, delay: 0.15 + i * 0.08 }}
-                className="rounded-[20px] border border-[#e5e5e5] bg-white p-5 shadow-sm"
+                className="rounded-[24px] border border-[#e3ddd1] bg-white p-5 shadow-[0_16px_45px_rgba(23,23,23,0.05)]"
               >
-                <p className="text-sm leading-relaxed text-[#666666]">{item}</p>
+                <p className="text-sm leading-relaxed text-[#5f5a52]">{item}</p>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-8 px-6 py-24 lg:grid-cols-[0.92fr_1.08fr] md:py-32">
-        <FadeIn direction="left" className="rounded-[24px] border border-[#e5e5e5] bg-[#f4f4f4] p-8">
-          <p className="mb-4 text-xs font-bold uppercase tracking-[0.3em] text-[#a3a3a3]">Inquiry</p>
-          <h2 className="mb-4 text-3xl font-medium tracking-tight text-[#1a1a1a]">{content.form.title}</h2>
-          <p className="mb-8 leading-relaxed text-[#666666]">{content.form.description}</p>
+      <section className="mx-auto grid max-w-7xl gap-8 px-6 py-20 lg:grid-cols-[0.92fr_1.08fr] md:py-28">
+        <div className="rounded-[30px] border border-[#e3ddd1] bg-[#f4f1ea] p-8">
+          <p className="mb-4 text-xs font-semibold uppercase tracking-[0.3em] text-[#6f6b63]">Inquiry</p>
+          <h2 className="mb-4 text-3xl font-medium tracking-[-0.04em] text-[#171717]">{content.form.title}</h2>
+          <p className="mb-8 leading-relaxed text-[#5f5a52]">{content.form.description}</p>
 
           <div className="space-y-3">
             {(content.form.highlights || []).map((item) => (
-              <div key={item} className="rounded-2xl border border-[#e5e5e5] bg-white px-5 py-4">
+              <div key={item} className="rounded-2xl border border-[#e3ddd1] bg-white px-5 py-4">
                 <p className="leading-relaxed text-[#4a4a4a]">{item}</p>
               </div>
             ))}
           </div>
-        </FadeIn>
+        </div>
 
-        <FadeIn direction="right" className="rounded-[24px] border border-[#e5e5e5] bg-white p-8 shadow-sm">
+        <div className="rounded-[30px] border border-[#e3ddd1] bg-white p-8 shadow-[0_18px_55px_rgba(23,23,23,0.05)]">
           <AnimatePresence mode="wait">
             {submitStatus === 'success' ? (
               <motion.div
@@ -109,27 +107,27 @@ const CareersPage = ({ content, onAction }) => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="rounded-[24px] border border-[#e5e5e5] bg-[#f4f4f4] p-8"
+                className="rounded-[24px] border border-[#e3ddd1] bg-[#f4f1ea] p-8"
               >
                 <div className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-2xl font-semibold">
                   ✓
                 </div>
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.35em] text-emerald-600">Sent</p>
-                <h3 className="mb-3 text-2xl font-medium text-[#1a1a1a]">Inquiry received</h3>
-                <p className="mb-8 leading-relaxed text-[#666666]">{content.form.statusMessages.success}</p>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.35em] text-emerald-600">Sent</p>
+                <h3 className="mb-3 text-2xl font-medium text-[#171717]">Inquiry received</h3>
+                <p className="mb-8 leading-relaxed text-[#5f5a52]">{content.form.statusMessages.success}</p>
 
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <button
                     type="button"
                     onClick={() => setSubmitStatus('')}
-                    className="rounded-full bg-[#1a1a1a] px-6 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-white transition-colors hover:bg-black"
+                    className="rounded-full bg-[#171717] px-6 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-white transition-colors hover:bg-black"
                   >
                     Send another inquiry
                   </button>
                   <button
                     type="button"
                     onClick={() => onAction({ type: 'route', to: '/products' })}
-                    className="rounded-full border border-[#d1d1d1] px-6 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-[#1a1a1a] transition-colors hover:border-[#1a1a1a]"
+                    className="rounded-full border border-[#d8d2c7] px-6 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-[#171717] transition-colors hover:border-[#171717]"
                   >
                     View products
                   </button>
@@ -159,7 +157,7 @@ const CareersPage = ({ content, onAction }) => {
                         required={field.required}
                         rows={field.rows || 5}
                         placeholder={field.placeholder}
-                        className="w-full rounded-[20px] border border-[#d1d1d1] bg-white px-4 py-3.5 text-[#1a1a1a] placeholder:text-[#a3a3a3] focus:border-[#1a1a1a] focus:outline-none"
+                        className="w-full rounded-[20px] border border-[#d8d2c7] bg-[#fbfaf7] px-4 py-3.5 text-[#1a1a1a] placeholder:text-[#9f988c] focus:border-[#171717] focus:outline-none"
                       />
                     ) : (
                       <input
@@ -170,7 +168,7 @@ const CareersPage = ({ content, onAction }) => {
                         onChange={handleChange}
                         required={field.required}
                         placeholder={field.placeholder}
-                        className="w-full rounded-[20px] border border-[#d1d1d1] bg-white px-4 py-3.5 text-[#1a1a1a] placeholder:text-[#a3a3a3] focus:border-[#1a1a1a] focus:outline-none"
+                        className="w-full rounded-[20px] border border-[#d8d2c7] bg-[#fbfaf7] px-4 py-3.5 text-[#1a1a1a] placeholder:text-[#9f988c] focus:border-[#171717] focus:outline-none"
                       />
                     )}
                   </div>
@@ -185,7 +183,7 @@ const CareersPage = ({ content, onAction }) => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#1a1a1a] px-8 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#171717] px-8 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <SafeIcon
                     icon={iconRegistry[isSubmitting ? content.form.submitButton.loadingIcon : content.form.submitButton.idleIcon]}
@@ -196,7 +194,7 @@ const CareersPage = ({ content, onAction }) => {
               </motion.form>
             )}
           </AnimatePresence>
-        </FadeIn>
+        </div>
       </section>
     </main>
   );

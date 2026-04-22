@@ -16,10 +16,12 @@ const ProductDemoModal = ({ content, isOpen, product, onClose, onBack }) => {
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState('');
+  const [submitMessage, setSubmitMessage] = useState('');
 
   useEffect(() => {
     if (!isOpen) {
       setSubmitStatus('');
+      setSubmitMessage('');
       return;
     }
 
@@ -45,11 +47,12 @@ const ProductDemoModal = ({ content, isOpen, product, onClose, onBack }) => {
     event.preventDefault();
     setIsSubmitting(true);
     setSubmitStatus('');
+    setSubmitMessage('');
 
     const subject = `Demo Request - ${formData.productName || product?.name || 'Product'}`;
 
     try {
-      await fetchJson('/api/contact', {
+      const response = await fetchJson('/api/contact', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -61,13 +64,21 @@ const ProductDemoModal = ({ content, isOpen, product, onClose, onBack }) => {
           productName: formData.productName || product?.name || ''
         })
       });
-      setSubmitStatus('success');
-      setFormData({
-        ...INITIAL_FORM,
-        productName: formData.productName || product?.name || ''
-      });
-    } catch {
+
+      if (response?.emailSent && response?.userConfirmationSent) {
+        setSubmitStatus('success');
+        setFormData({
+          ...INITIAL_FORM,
+          productName: formData.productName || product?.name || ''
+        });
+        return;
+      }
+
+      setSubmitStatus('warning');
+      setSubmitMessage(response?.message || content.statusMessages.error);
+    } catch (error) {
       setSubmitStatus('error');
+      setSubmitMessage(error.message || content.statusMessages.error);
     } finally {
       setIsSubmitting(false);
     }
@@ -198,9 +209,15 @@ const ProductDemoModal = ({ content, isOpen, product, onClose, onBack }) => {
                   </div>
                 )}
 
+                {submitStatus === 'warning' && (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                    <p className="text-amber-900">{submitMessage}</p>
+                  </div>
+                )}
+
                 {submitStatus === 'error' && (
                   <div className="p-4 bg-red-50 border border-red-200 rounded-2xl">
-                    <p className="text-red-800">{content.statusMessages.error}</p>
+                    <p className="text-red-800">{submitMessage || content.statusMessages.error}</p>
                   </div>
                 )}
 

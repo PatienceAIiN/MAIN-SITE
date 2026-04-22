@@ -1,16 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@font-face {
-  font-family: 'Overcame Demo';
-  src: url('./assets/fonts/OvercameDemoBold.ttf') format('truetype');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
 
 * {
   margin: 0;
@@ -18,24 +9,12 @@
   box-sizing: border-box;
 }
 
-html {
-  scroll-behavior: smooth;
-}
-
 body {
   font-family: 'Inter', sans-serif;
-  color: #1a1a1a;
-  background-color: #ffffff;
+  color: #000;
+  background-color: #fff;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
-}
-
-input,
-textarea,
-select {
-  color: #1a1a1a;
-  caret-color: #1a1a1a;
 }
 
 #root {
@@ -43,6 +22,7 @@ select {
   min-height: 100vh;
 }
 
+/* Custom utility to hide scrollbar but keep functionality */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
@@ -50,164 +30,4 @@ select {
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
-}
-
-.marquee-track {
-  display: flex;
-  width: max-content;
-  gap: 1.5rem;
-  padding-right: 1.5rem;
-  animation: marquee 40s linear infinite;
-}
-
-.marquee-track:hover {
-  animation-play-state: paused;
-}
-
-.marquee-card {
-  flex: none;
-  width: 85vw;
-  min-height: 24rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  border-radius: 20px;
-  padding: 2.5rem;
-}
-
-@media (min-width: 768px) {
-  .marquee-card {
-    width: 60vw;
-    padding: 3.5rem;
-  }
-}
-
-@media (min-width: 1024px) {
-  .marquee-card {
-    width: 45vw;
-    padding: 4rem;
-  }
-}
-
-@media (min-width: 1280px) {
-  .marquee-card {
-    width: 35vw;
-  }
-}
-
-.admin-light {
-  color: #0f172a;
-  background: #f8fafc;
-}
-
-.admin-light .bg-slate-950,
-.admin-light .bg-slate-950\/80,
-.admin-light .bg-slate-950\/70 {
-  background-color: #f8fafc !important;
-}
-
-.admin-light .bg-slate-900,
-.admin-light .bg-slate-900\/80,
-.admin-light .bg-slate-900\/70,
-.admin-light .bg-slate-900\/60,
-.admin-light .bg-slate-900\/50 {
-  background-color: #ffffff !important;
-}
-
-.admin-light .bg-white\/5 {
-  background-color: #f8fafc !important;
-}
-
-.admin-light .bg-white\/10 {
-  background-color: #eef2f7 !important;
-}
-
-.admin-light .border-white\/10,
-.admin-light .border-white\/20,
-.admin-light .border-white\/70 {
-  border-color: #dbe3ee !important;
-}
-
-.admin-light .text-white,
-.admin-light .text-white\/90,
-.admin-light .text-white\/80,
-.admin-light .text-white\/70,
-.admin-light .text-white\/65,
-.admin-light .text-white\/60,
-.admin-light .text-white\/55,
-.admin-light .text-white\/50,
-.admin-light .text-white\/45,
-.admin-light .text-white\/40,
-.admin-light .text-white\/35,
-.admin-light .text-white\/30 {
-  color: #0f172a !important;
-}
-
-.admin-light .text-white\/20,
-.admin-light .text-white\/10,
-.admin-light .text-white\/5 {
-  color: #475569 !important;
-}
-
-.admin-light .divide-white\/10 > :not([hidden]) ~ :not([hidden]) {
-  border-color: #dbe3ee !important;
-}
-
-.admin-light .bg-\[linear-gradient\(135deg\2c\#0f172a_0\%\2c\#111827_45\%\2c\#1f2937_100\%\)\] {
-  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 45%, #e2e8f0 100%) !important;
-}
-
-@keyframes marquee {
-  0% {
-    transform: translateX(0%);
-  }
-
-  100% {
-    transform: translateX(-50%);
-  }
-}
-
-@media (max-width: 767px) {
-  html,
-  body,
-  #root {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: hidden;
-  }
-
-  main {
-    width: 100%;
-  }
-
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6,
-  p,
-  a,
-  button {
-    overflow-wrap: break-word;
-  }
-
-  img,
-  video,
-  canvas,
-  svg,
-  iframe {
-    max-width: 100%;
-  }
-
-  .marquee-track {
-    gap: 1rem;
-    padding-right: 1rem;
-  }
-
-  .marquee-card {
-    width: 92vw;
-    min-height: 20rem;
-    padding: 1.5rem;
-  }
 }

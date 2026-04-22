@@ -1,213 +1,108 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import ContentLink from './ContentLink';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { FiMenu, FiX } from 'react-icons/fi';
+import SafeIcon from '../common/SafeIcon';
 
-const Navbar = ({ brand, navigation, onAction, currentPath }) => {
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-  const navRef = useRef(null);
+const Navbar = ({ brand }) => {
+  const location = useLocation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Close on route change
+  const navItems = [
+    { name: 'Product', path: '/product' },
+    { name: 'Services', path: '/services' },
+    { name: 'Use Cases', path: '/use-cases' },
+    { name: 'Contact Us', path: '/contact' }
+  ];
+
   useEffect(() => {
-    setMobileOpen(false);
-  }, [currentPath]);
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
-  // Close on outside click (mobile auto-collapse)
   useEffect(() => {
-    if (!mobileOpen) return;
-    const handleOutside = (e) => {
-      if (navRef.current && !navRef.current.contains(e.target)) {
-        setMobileOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutside);
-    document.addEventListener('touchstart', handleOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleOutside);
-      document.removeEventListener('touchstart', handleOutside);
-    };
-  }, [mobileOpen]);
-
-  // Lock body scroll when mobile menu open
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    if (mobileOpen) document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, [mobileOpen]);
-
-  // Scroll shadow
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-
-  const menuVariants = {
-    hidden: { opacity: 0, height: 0 },
-    visible: {
-      opacity: 1,
-      height: 'auto',
-      transition: { duration: 0.32, ease: [0.4, 0, 0.2, 1] }
-    },
-    exit: {
-      opacity: 0,
-      height: 0,
-      transition: { duration: 0.22, ease: [0.4, 0, 1, 1] }
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
     }
-  };
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isMobileMenuOpen]);
 
-  const itemVariants = {
-    hidden: { opacity: 0, x: -14 },
-    visible: (i) => ({
-      opacity: 1,
-      x: 0,
-      transition: { delay: i * 0.055, duration: 0.28, ease: 'easeOut' }
-    })
-  };
+  const isHome = location.pathname === '/';
+  const brandTextColor = isHome ? 'text-white' : 'text-brand';
+  const brandName = brand?.name || 'PatienceAI';
 
   return (
-    <header
-      ref={navRef}
-      className={`fixed inset-x-0 top-0 z-[160] w-full transition-all duration-300 ${
-        scrolled || mobileOpen
-          ? 'bg-white shadow-[0_1px_24px_rgba(0,0,0,0.08)] border-b border-slate-200/60'
-          : 'bg-white/90 backdrop-blur-xl border-b border-slate-200/40'
-      }`}
-    >
-      <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-3.5 sm:px-6 sm:py-4">
-
-        {/* Brand */}
-        <motion.button
-          type="button"
-          onClick={() => { setMobileOpen(false); onAction(brand.homeAction); }}
-          className="font-serif text-[1.75rem] tracking-tight text-[#1a1a1a] sm:text-[1.85rem]"
-          aria-label={brand.name}
-          initial={{ opacity: 0, x: -18 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.55, ease: [0.25, 0.1, 0.25, 1] }}
-          whileHover={{ opacity: 0.75 }}
-          whileTap={{ scale: 0.97 }}
+    <nav className={`absolute top-0 z-50 w-full transition-all duration-300 ${isMobileMenuOpen ? 'fixed inset-0 h-screen overflow-hidden bg-white' : 'bg-transparent'}`}>
+      <div className="left-0 right-0 mx-auto flex max-w-7xl items-center justify-between px-6 py-6">
+        <Link
+          to="/"
+          className={`relative z-50 text-3xl font-serif tracking-tight transition-opacity hover:opacity-80 ${isMobileMenuOpen ? 'text-brand' : brandTextColor}`}
+          onClick={() => setIsMobileMenuOpen(false)}
         >
-          {brand.name}
-          <sup className="text-[0.6rem] align-super">®</sup>
-        </motion.button>
+          {brandName}
+          <sup className="text-sm">®</sup>
+        </Link>
 
-        {/* Desktop nav */}
-        <motion.nav
-          className="hidden items-center gap-7 md:flex"
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.12, ease: [0.25, 0.1, 0.25, 1] }}
-        >
-          {navigation.map((item) => (
-            <motion.div
-              key={item.label}
-              whileHover={{ y: -1 }}
-              transition={{ duration: 0.15 }}
-            >
-              <ContentLink
-                item={item}
-                onAction={onAction}
-                className="text-sm font-medium transition-colors duration-200 relative group"
-                activeClassName="text-[#1a1a1a]"
-                inactiveClassName="text-[#666666] hover:text-[#1a1a1a]"
-              />
-            </motion.div>
-          ))}
-        </motion.nav>
+        <div className="hidden items-center space-x-8 md:flex">
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.path || (location.pathname === '/' && item.name === 'Product');
 
-        {/* Desktop CTA */}
-        <div className="hidden md:block">
-          <motion.button
-            type="button"
-            onClick={() => onAction({ type: 'modal', target: 'sales' })}
-            className="rounded-full bg-[#1a1a1a] px-6 py-2.5 text-sm font-medium text-white"
-            initial={{ opacity: 0, x: 18 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.55, delay: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-            whileHover={{ scale: 1.04, backgroundColor: '#333333' }}
-            whileTap={{ scale: 0.97 }}
-          >
-            Begin Journey
-          </motion.button>
+            let linkColorClass = '';
+            if (isHome) {
+              linkColorClass = isActive ? 'text-white font-semibold' : 'text-white/70 hover:text-white';
+            } else {
+              linkColorClass = isActive ? 'text-brand font-semibold' : 'text-muted hover:text-brand';
+            }
+
+            return (
+              <Link key={item.name} to={item.path} className={`text-sm font-medium transition-colors duration-300 ${linkColorClass}`}>
+                {item.name}
+              </Link>
+            );
+          })}
         </div>
 
-        {/* Hamburger */}
-        <motion.button
-          type="button"
-          onClick={() => setMobileOpen((v) => !v)}
-          className="relative z-10 flex h-10 w-10 items-center justify-center md:hidden rounded-lg"
-          aria-label="Toggle navigation menu"
-          aria-expanded={mobileOpen}
-          whileTap={{ scale: 0.9 }}
-          transition={{ duration: 0.12 }}
+        <Link
+          to="/contact"
+          className={`relative z-50 hidden rounded-[4px] px-6 py-2.5 text-center text-sm font-medium transition-colors duration-300 md:inline-block ${isHome ? 'bg-white text-black hover:bg-gray-200' : 'bg-[#1a1a1a] text-white hover:bg-black'}`}
         >
-          <span className="relative block h-[14px] w-6">
-            <motion.span
-              className="absolute left-0 h-0.5 w-6 rounded-full bg-[#1a1a1a] origin-center"
-              animate={mobileOpen ? { top: '7px', rotate: 45 } : { top: '0px', rotate: 0 }}
-              transition={{ duration: 0.25, ease: 'easeInOut' }}
-            />
-            <motion.span
-              className="absolute left-0 top-[7px] h-0.5 w-6 rounded-full bg-[#1a1a1a]"
-              animate={mobileOpen ? { opacity: 0, scaleX: 0 } : { opacity: 1, scaleX: 1 }}
-              transition={{ duration: 0.18 }}
-            />
-            <motion.span
-              className="absolute left-0 h-0.5 w-6 rounded-full bg-[#1a1a1a] origin-center"
-              animate={mobileOpen ? { top: '7px', rotate: -45 } : { top: '14px', rotate: 0 }}
-              transition={{ duration: 0.25, ease: 'easeInOut' }}
-            />
-          </span>
-        </motion.button>
+          Begin Journey
+        </Link>
+
+        <button
+          className={`relative z-50 p-2 transition-opacity hover:opacity-70 md:hidden ${isMobileMenuOpen ? 'text-brand' : brandTextColor}`}
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label="Toggle navigation menu"
+        >
+          <SafeIcon icon={isMobileMenuOpen ? FiX : FiMenu} size={28} strokeWidth={1.5} />
+        </button>
       </div>
 
-      {/* Mobile menu */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <motion.div
-            key="mobile-menu"
-            variants={menuVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            className="overflow-hidden border-t border-[#e5e5e5] bg-white md:hidden"
-          >
-            <nav className="flex flex-col px-5 pb-8 pt-6 sm:px-6">
-              {navigation.map((item, i) => (
-                <motion.div
-                  key={`mobile-${item.label}`}
-                  custom={i}
-                  variants={itemVariants}
-                  initial="hidden"
-                  animate="visible"
-                  className="border-b border-slate-100 last:border-none"
-                >
-                  <ContentLink
-                    item={item}
-                    onAction={(action) => { setMobileOpen(false); onAction(action); }}
-                    className="block w-full py-4 text-xl font-medium tracking-tight transition-colors duration-200"
-                    activeClassName="text-[#1a1a1a]"
-                    inactiveClassName="text-[#555555] hover:text-[#1a1a1a]"
-                  />
-                </motion.div>
-              ))}
-              <motion.button
-                type="button"
-                onClick={() => { setMobileOpen(false); onAction({ type: 'modal', target: 'sales' }); }}
-                className="mt-6 w-fit rounded-full bg-[#1a1a1a] px-9 py-3.5 text-base font-medium text-white"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: navigation.length * 0.055 + 0.05, duration: 0.25 }}
-                whileTap={{ scale: 0.97 }}
-              >
-                Begin Journey
-              </motion.button>
-            </nav>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </header>
+      <div className={`absolute left-0 top-[88px] flex h-[calc(100vh-88px)] w-full flex-col items-center gap-8 bg-white pt-16 transition-all duration-400 ease-in-out md:hidden ${isMobileMenuOpen ? 'visible translate-y-0 opacity-100' : 'invisible -translate-y-8 opacity-0'}`}>
+        {navItems.map((item) => {
+          const isActive = location.pathname === item.path || (location.pathname === '/' && item.name === 'Product');
+          return (
+            <Link
+              key={item.name}
+              to={item.path}
+              className={`text-3xl font-sans font-medium tracking-tight transition-colors duration-300 ${isActive ? 'text-brand' : 'text-muted'}`}
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              {item.name}
+            </Link>
+          );
+        })}
+        <Link
+          to="/contact"
+          className="mt-12 rounded-[4px] bg-[#1a1a1a] px-12 py-4 text-center text-lg font-medium text-white shadow-md transition-colors duration-300 hover:bg-black"
+          onClick={() => setIsMobileMenuOpen(false)}
+        >
+          Begin Journey
+        </Link>
+      </div>
+    </nav>
   );
 };
 
