@@ -68,7 +68,7 @@ const ContactUs = ({ content, isOpen, onClose, onBack }) => {
         return;
       }
 
-      setSubmitStatus('error');
+      setSubmitStatus('warning');
       setSubmitMessage(response?.message || content.statusMessages.error);
     } catch {
       setSubmitStatus('error');
@@ -252,6 +252,12 @@ const ContactUs = ({ content, isOpen, onClose, onBack }) => {
                           placeholder={messageField.placeholder}
                         />
                       </div>
+
+                      {submitStatus === 'warning' && (
+                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl" role="status" aria-live="polite">
+                          <p className="text-amber-900">{submitMessage}</p>
+                        </div>
+                      )}
 
                       {submitStatus === 'error' && (
                         <div className="p-4 bg-red-50 border border-red-200 rounded-2xl" role="status" aria-live="polite">

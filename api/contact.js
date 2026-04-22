@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import SibApiV3Sdk from 'sib-api-v3-sdk';
 import { queryDb, isMissingTableError } from './_db.js';
 
 const escapeHtml = (value = '') =>
@@ -31,6 +32,21 @@ const parseEmailList = (rawValue = '') => {
       seen.add(normalized);
       return true;
     });
+};
+
+const normalizeRecipient = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    const email = normalizeEmailAddress(value);
+    return email ? { email } : null;
+  }
+
+  const email = normalizeEmailAddress(value.email || '');
+  if (!email) return null;
+  return {
+    email,
+    name: value.name ? String(value.name).trim() : undefined
+  };
 };
 
 const getInquiryMeta = ({ source, productName }) => {
@@ -83,6 +99,83 @@ const createTransporter = () => {
   });
 };
 
+const getEmailProvider = () => {
+  const smtpUser = (process.env.SMTP_USER || '').trim();
+  const smtpPass = (process.env.SMTP_PASS || '').trim();
+  if (smtpUser && smtpPass) {
+    return {
+      kind: 'smtp',
+      senderEmail: smtpUser,
+      senderName: (process.env.SMTP_SENDER_NAME || 'PATIENCE AI').trim()
+    };
+  }
+
+  const brevoApiKey = (process.env.BREVO_API_KEY || '').trim();
+  const brevoSenderEmail = normalizeEmailAddress(process.env.BREVO_SENDER_EMAIL || '');
+  if (brevoApiKey && brevoSenderEmail) {
+    return {
+      kind: 'brevo',
+      senderEmail: brevoSenderEmail,
+      senderName: (process.env.BREVO_SENDER_NAME || 'PATIENCE AI').trim(),
+      apiKey: brevoApiKey
+    };
+  }
+
+  return null;
+};
+
+const sendBrevoEmail = async ({ apiKey, senderEmail, senderName, to, replyTo, subject, html }) => {
+  const apiClient = SibApiV3Sdk.ApiClient.instance;
+  apiClient.authentications['api-key'].apiKey = apiKey;
+
+  const emailApi = new SibApiV3Sdk.TransactionalEmailsApi();
+  const request = new SibApiV3Sdk.SendSmtpEmail();
+  request.sender = { email: senderEmail, name: senderName };
+  request.to = to.map((address) => normalizeRecipient(address)).filter(Boolean);
+  request.subject = subject;
+  request.htmlContent = html;
+
+  if (replyTo) {
+    request.replyTo = normalizeRecipient(replyTo);
+  }
+
+  await emailApi.sendTransacEmail(request);
+};
+
+const sendEmail = async ({ provider, to, replyTo, subject, html, fromAddress }) => {
+  if (provider.kind === 'smtp') {
+    const transporter = createTransporter();
+    const smtpRecipients = (Array.isArray(to) ? to : [to])
+      .map((entry) => normalizeRecipient(entry))
+      .filter(Boolean)
+      .map((entry) => (entry.name ? `"${entry.name}" <${entry.email}>` : entry.email));
+    const smtpReplyToRecipient = replyTo ? normalizeRecipient(replyTo) : null;
+    await transporter.sendMail({
+      from: fromAddress,
+      to: smtpRecipients.join(', '),
+      replyTo: smtpReplyToRecipient ? (smtpReplyToRecipient.name ? `"${smtpReplyToRecipient.name}" <${smtpReplyToRecipient.email}>` : smtpReplyToRecipient.email) : undefined,
+      subject,
+      html
+    });
+    return;
+  }
+
+  await sendBrevoEmail({
+    apiKey: provider.apiKey,
+    senderEmail: provider.senderEmail,
+    senderName: provider.senderName,
+    to: Array.isArray(to) ? to : [to],
+    replyTo: replyTo
+      ? {
+          email: typeof replyTo === 'string' ? replyTo : replyTo.email,
+          name: typeof replyTo === 'string' ? undefined : replyTo.name
+        }
+      : null,
+    subject,
+    html
+  });
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -111,15 +204,12 @@ export default async function handler(req, res) {
       }
     }
 
-    const SMTP_USER = (process.env.SMTP_USER || '').trim();
-    const SMTP_PASS = (process.env.SMTP_PASS || '').trim();
-    const SENDER_NAME = (process.env.SMTP_SENDER_NAME || 'PATIENCE AI').trim();
     const CONTACT_TO_EMAIL_CONFIG = process.env.CONTACT_TO_EMAIL || process.env.SMTP_TO_EMAIL || '';
     const CONTACT_TO_EMAILS = parseEmailList(CONTACT_TO_EMAIL_CONFIG).filter(isValidEmail);
+    const emailProvider = getEmailProvider();
 
     const configIssues = [];
-    if (!SMTP_USER) configIssues.push('SMTP_USER is missing');
-    if (!SMTP_PASS) configIssues.push('SMTP_PASS is missing');
+    if (!emailProvider) configIssues.push('No configured email provider found');
     if (CONTACT_TO_EMAILS.length === 0) configIssues.push('CONTACT_TO_EMAIL must contain at least one valid recipient');
 
     if (configIssues.length > 0) {
@@ -132,6 +222,8 @@ export default async function handler(req, res) {
 
     const inquiryMeta = getInquiryMeta({ source, productName });
     const normalizedUserEmail = normalizeEmailAddress(email);
+    const senderName = emailProvider.senderName;
+    const senderEmail = emailProvider.senderEmail;
 
     const summaryRows = [
       `<p><strong>Name:</strong> ${escapeHtml(name)}</p>`,
@@ -185,8 +277,7 @@ export default async function handler(req, res) {
       </div>
     `;
 
-    const transporter = createTransporter();
-    const fromAddress = `"${SENDER_NAME}" <${SMTP_USER}>`;
+    const fromAddress = `"${senderName}" <${senderEmail}>`;
 
     let ownerEmailSent = false;
     let userConfirmationSent = false;
@@ -194,10 +285,11 @@ export default async function handler(req, res) {
     let userError;
 
     try {
-      await transporter.sendMail({
-        from: fromAddress,
-        to: CONTACT_TO_EMAILS.join(', '),
-        replyTo: isValidEmail(normalizedUserEmail) ? `"${name.trim()}" <${normalizedUserEmail}>` : undefined,
+      await sendEmail({
+        provider: emailProvider,
+        fromAddress,
+        to: CONTACT_TO_EMAILS,
+        replyTo: isValidEmail(normalizedUserEmail) ? { email: normalizedUserEmail, name: name.trim() } : null,
         subject: inquiryMeta.ownerSubject,
         html: ownerHtml
       });
@@ -209,10 +301,11 @@ export default async function handler(req, res) {
 
     try {
       if (isValidEmail(normalizedUserEmail)) {
-        await transporter.sendMail({
-          from: fromAddress,
-          to: `"${name.trim()}" <${normalizedUserEmail}>`,
-          replyTo: fromAddress,
+        await sendEmail({
+          provider: emailProvider,
+          fromAddress,
+          to: [{ email: normalizedUserEmail, name: name.trim() }],
+          replyTo: { email: senderEmail, name: senderName },
           subject: inquiryMeta.userSubject,
           html: userHtml
         });
