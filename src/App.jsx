@@ -7,6 +7,7 @@ import ProductDetail from './pages/ProductDetail';
 import Services from './pages/Services';
 import UseCases from './pages/UseCases';
 import ContactPage from './pages/ContactPage';
+import CareersPage from './pages/CareersPage';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import AdminPage from './pages/AdminPage';
@@ -86,7 +87,8 @@ function App() {
                 <Route path="/platform" element={<Services siteContent={siteContent} />} />
                 <Route path="/use-cases" element={<UseCases siteContent={siteContent} />} />
                 <Route path="/company/blog" element={<UseCases siteContent={siteContent} />} />
-                <Route path="/company/careers" element={<ContactPage siteContent={siteContent} />} />
+                <Route path="/careers" element={<CareersPage content={siteContent?.careersPage} />} />
+                <Route path="/company/careers" element={<CareersPage content={siteContent?.careersPage} />} />
                 <Route path="/contact" element={<ContactPage siteContent={siteContent} />} />
                 <Route path="/privacy" element={<PrivacyPolicy />} />
                 <Route path="/legal/privacy-policy" element={<PrivacyPolicy />} />

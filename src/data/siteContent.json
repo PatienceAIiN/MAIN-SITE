@@ -271,7 +271,7 @@
       "loadingIcon": "FiLoader"
     },
     "statusMessages": {
-      "success": "Your demo request has been sent to the owner.",
+      "success": "Your demo request has been received. We will get back to you shortly.",
       "error": "Something went wrong. Please try again later."
     },
     "closeLabel": "Close modal"
@@ -488,7 +488,7 @@
       "description": "Send role-specific inquiries for open positions, internships, or contract work. We review every submission with the relevant team."
     },
     "highlights": [
-      "Remote-first hiring with async-friendly collaboration.",
+      "Remote-based roles only with async-friendly collaboration.",
       "Clear ownership, quick response routing, and a strong focus on product craft.",
       "Open to contributors who can work independently across time zones."
     ],
@@ -497,7 +497,7 @@
       "description": "Share the role you want, your background, and a short note about the kind of work you are looking for.",
       "source": "careers",
       "highlights": [
-        "Remote-first roles with async-friendly collaboration",
+        "Remote-based roles only with async-friendly collaboration",
         "Fast review path for product, design, engineering, and growth roles",
         "Simple inquiry flow for jobs, contracts, and internships"
       ],
@@ -539,7 +539,7 @@
         "loadingIcon": "FiLoader"
       },
       "statusMessages": {
-        "success": "Thanks. Your inquiry is in and we will review it with the team.",
+        "success": "Your job enquiry has been received. We will be back to you once our respective team reviews.",
         "error": "Something went wrong. Please try again later."
       }
     }

@@ -50,6 +50,16 @@ const normalizeRecipient = (value) => {
 };
 
 const getInquiryMeta = ({ source, productName }) => {
+  if (source === 'careers') {
+    return {
+      label: 'Career enquiry',
+      accent: '#1a1a1a',
+      ownerSubject: 'New Career Enquiry from Website',
+      userSubject: 'Your job enquiry has been received',
+      ownerSummary: 'A candidate submitted a career enquiry via the website.',
+      userSummary: 'Your job enquiry has been received. We will be back to you once our respective team reviews.'
+    };
+  }
   if (source === 'job-inquiry-chat') {
     return {
       label: 'Job enquiry',
@@ -68,6 +78,26 @@ const getInquiryMeta = ({ source, productName }) => {
       userSubject: `Your demo request for ${productName} is received`,
       ownerSummary: 'A prospect requested a product demo from the website.',
       userSummary: 'Thanks for requesting a demo. Our team will follow up shortly.'
+    };
+  }
+  if (source === 'newsletter') {
+    return {
+      label: 'Newsletter signup',
+      accent: '#0f766e',
+      ownerSubject: 'New Newsletter Signup',
+      userSubject: 'Newsletter signup received',
+      ownerSummary: 'A visitor subscribed to the newsletter.',
+      userSummary: 'Successfully saved your newsletter. We will be back to you.'
+    };
+  }
+  if (source === 'contact') {
+    return {
+      label: 'Contact enquiry',
+      accent: '#4338ca',
+      ownerSubject: 'New Contact Enquiry from Website',
+      userSubject: 'Your contact request has been received',
+      ownerSummary: 'A visitor submitted a contact enquiry from the website.',
+      userSummary: 'Thanks for contacting us. Our team will get back to you shortly.'
     };
   }
   return {
