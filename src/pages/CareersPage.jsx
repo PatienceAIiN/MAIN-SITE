@@ -89,21 +89,7 @@ const CareersPage = ({ content, onAction }) => {
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-8 px-6 py-20 lg:grid-cols-[0.92fr_1.08fr] md:py-28">
-        <div className="rounded-[30px] border border-[#e3ddd1] bg-[#f4f1ea] p-8">
-          <p className="mb-4 text-xs font-semibold uppercase tracking-[0.3em] text-[#6f6b63]">Inquiry</p>
-          <h2 className="mb-4 text-3xl font-medium tracking-[-0.04em] text-[#171717]">{content.form.title}</h2>
-          <p className="mb-8 leading-relaxed text-[#5f5a52]">{content.form.description}</p>
-
-          <div className="space-y-3">
-            {(content.form.highlights || []).map((item) => (
-              <div key={item} className="rounded-2xl border border-[#e3ddd1] bg-white px-5 py-4">
-                <p className="leading-relaxed text-[#4a4a4a]">{item}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
+      <section className="mx-auto max-w-3xl px-6 py-20 md:py-28">
         <div className="rounded-[30px] border border-[#e3ddd1] bg-white p-8 shadow-[0_18px_55px_rgba(23,23,23,0.05)]">
           <AnimatePresence mode="wait">
             {submitStatus === 'success' ? (

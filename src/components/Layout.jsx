@@ -1,9 +1,20 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import ChatWidget from './ChatWidget';
 
 const Layout = ({ children, siteContent, onBeginJourney }) => {
+  const location = useLocation();
+  const mainRef = useRef(null);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.requestAnimationFrame(() => {
+      mainRef.current?.focus();
+    });
+  }, [location.pathname]);
+
   const handleContactClick = (event) => {
     const target = event.target instanceof Element ? event.target : null;
     const link = target?.closest('a[href]');
@@ -22,7 +33,7 @@ const Layout = ({ children, siteContent, onBeginJourney }) => {
   return (
     <div className="flex min-h-screen flex-col bg-white" onClickCapture={handleContactClick}>
       <Navbar brand={siteContent?.brand} />
-      <main className="flex-grow">{children}</main>
+      <main ref={mainRef} tabIndex={-1} className="flex-grow focus:outline-none">{children}</main>
       <Footer brand={siteContent?.brand} footerContent={siteContent?.footer} />
       <ChatWidget brand={siteContent?.brand} />
     </div>

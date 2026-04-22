@@ -7,8 +7,6 @@ import { fetchJson } from '../common/fetchJson';
 const Footer = ({ brand, footerContent }) => {
   const [currentTime, setCurrentTime] = useState('');
   const [email, setEmail] = useState('');
-  const [statusMessage, setStatusMessage] = useState('');
-  const [showNewsletterDialog, setShowNewsletterDialog] = useState(false);
 
   useEffect(() => {
     const updateTime = () => {
@@ -29,10 +27,9 @@ const Footer = ({ brand, footerContent }) => {
 
   const handleNewsletterSubmit = async (event) => {
     event.preventDefault();
-    setStatusMessage('');
 
     try {
-      const response = await fetchJson('/api/contact', {
+      await fetchJson('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -43,21 +40,11 @@ const Footer = ({ brand, footerContent }) => {
           source: 'newsletter'
         })
       });
-      setStatusMessage(response?.message || 'Request received successfully.');
-      if (response?.emailSent || response?.userConfirmationSent || response?.message) {
-        setShowNewsletterDialog(true);
-      }
       setEmail('');
-    } catch (error) {
-      setStatusMessage(error.message || 'Unable to submit right now.');
+    } catch {
+      // Silent failure by design: no success/error text shown for newsletter submission.
     }
   };
-
-  useEffect(() => {
-    if (!showNewsletterDialog) return undefined;
-    const timeoutId = window.setTimeout(() => setShowNewsletterDialog(false), 10000);
-    return () => window.clearTimeout(timeoutId);
-  }, [showNewsletterDialog]);
 
   const brandName = brand?.name || 'PatienceAI';
   const footerDescription =
@@ -110,7 +97,6 @@ const Footer = ({ brand, footerContent }) => {
             </button>
           </form>
           <p className="max-w-sm text-[15px] leading-relaxed text-[#666666]">{footerDescription}</p>
-          {statusMessage ? <p className="mt-3 text-sm text-[#666666]">{statusMessage}</p> : null}
         </div>
       </div>
 
@@ -123,23 +109,6 @@ const Footer = ({ brand, footerContent }) => {
           <li><Link to="/contact" className="transition-colors hover:text-[#666666]">Contact</Link></li>
         </ul>
       </div>
-
-      {showNewsletterDialog && (
-        <div className="fixed bottom-6 right-6 z-[220] w-[min(92vw,28rem)] rounded-2xl border border-[#e5e5e5] bg-white p-4 shadow-xl">
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-sm leading-relaxed text-[#1a1a1a]">
-              Successfully saved your newsletter. We will be back to you.
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowNewsletterDialog(false)}
-              className="rounded-full border border-[#d1d1d1] px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-[#666666] transition-colors hover:border-[#1a1a1a] hover:text-[#1a1a1a]"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
 
       <div className="pointer-events-none select-none overflow-hidden bg-white px-6 pb-6 pt-10 md:pb-8">
         <h1 className="flex w-full items-center justify-between text-[14.4vw] font-bold uppercase leading-none text-[#1a1a1a] sm:text-[14.9vw] md:text-[15.4vw] lg:text-[15.9vw]">
