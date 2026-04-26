@@ -581,7 +581,7 @@ const ChatWidget = ({ brand }) => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 260, damping: 24, mass: 0.7 }}
-            className="fixed bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] left-3 right-3 z-[140] w-auto max-w-[calc(100vw-1.5rem)] md:bottom-24 md:left-auto md:right-6 md:w-[min(calc(100vw-3rem),380px)] md:max-w-[420px] max-h-[calc(100dvh-8rem)] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
+            className="fixed bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] left-3 right-3 z-[140] flex w-auto max-w-[calc(100vw-1.5rem)] flex-col md:bottom-24 md:left-auto md:right-6 md:w-[min(calc(100vw-3rem),380px)] md:max-w-[420px] max-h-[calc(100dvh-8rem)] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
           >
             <div className="bg-slate-50 text-slate-900 p-4 relative flex items-center justify-between border-b border-slate-200">
               <div className="flex items-center gap-3 min-w-0">
@@ -633,7 +633,7 @@ const ChatWidget = ({ brand }) => {
               )}
             </div>
 
-            <div ref={scrollAreaRef} className={`h-[clamp(260px,45vh,360px)] overflow-y-auto p-4 space-y-3 bg-slate-50 ${showInfo ? 'pt-16' : ''}`}>
+            <div ref={scrollAreaRef} className={`min-h-[220px] flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50 ${showInfo ? 'pt-16' : ''}`}>
               {!hasUserMessaged && !showContactForm && !showJobForm && (
                 <div className="flex flex-wrap gap-2">
                   {suggestionPrompts.map((prompt, index) => (
@@ -739,7 +739,7 @@ const ChatWidget = ({ brand }) => {
             </div>
 
             {(showContactForm || showJobForm) && (
-              <div className="border-t border-slate-200 bg-white p-3">
+              <div className="max-h-[min(42dvh,340px)] shrink-0 overflow-y-auto border-t border-slate-200 bg-white p-3">
                 {showContactForm && (
                   <form onSubmit={submitLead} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
                     <p className="text-xs font-semibold text-slate-700">Sales contact form</p>
