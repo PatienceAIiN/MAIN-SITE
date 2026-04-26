@@ -46,6 +46,18 @@ const normalizeMessageContent = (value) => {
   return '';
 };
 
+const TypingDots = () => (
+  <span className="inline-flex items-center gap-1" aria-label="Loading response">
+    {[0, 1, 2, 3].map((dot) => (
+      <span
+        key={dot}
+        className="h-1.5 w-1.5 rounded-full bg-slate-500/80 animate-bounce"
+        style={{ animationDelay: `${dot * 0.12}s`, animationDuration: '0.8s' }}
+      />
+    ))}
+  </span>
+);
+
 
 const LAUNCHER_SIZE = 64;
 const LAUNCHER_MARGIN = 24;
@@ -138,7 +150,6 @@ const ChatWidget = ({ brand }) => {
   const [leadForm, setLeadForm] = useState({ name: '', email: '', subject: 'Sales inquiry via AI chat', message: '' });
   const [jobForm, setJobForm] = useState({ name: '', email: '', role: '', message: '' });
   const [messages, setMessages] = useState([]);
-  const [liveResponse, setLiveResponse] = useState('');
   const [isStreamingResponse, setIsStreamingResponse] = useState(false);
   const [routeActions, setRouteActions] = useState([]);
   const [assistantSuggestions, setAssistantSuggestions] = useState([]);
@@ -146,7 +157,6 @@ const ChatWidget = ({ brand }) => {
   const scrollAreaRef = useRef(null);
   const inputRef = useRef(null);
   const abortControllerRef = useRef(null);
-  const liveResponseRef = useRef('');
   const launcherStackRef = useRef(null);
   const chatPanelRef = useRef(null);
   const [launcherPosition, setLauncherPosition] = useState(() => getDefaultLauncherPosition());
@@ -222,11 +232,7 @@ const ChatWidget = ({ brand }) => {
     const panel = scrollAreaRef.current;
     if (!panel) return;
     panel.scrollTop = panel.scrollHeight;
-  }, [messages, busy, showContactForm, showJobForm, liveResponse, isOpen]);
-
-  useEffect(() => {
-    liveResponseRef.current = liveResponse;
-  }, [liveResponse]);
+  }, [messages, busy, isOpen]);
 
 
   useEffect(() => {
@@ -410,7 +416,6 @@ const ChatWidget = ({ brand }) => {
     abortControllerRef.current = null;
     setMessages([]);
     setInput('');
-    setLiveResponse('');
     setIsStreamingResponse(false);
     setBusy(false);
     setShowContactForm(false);
@@ -424,11 +429,6 @@ const ChatWidget = ({ brand }) => {
   const stopResponse = () => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
-    const partial = liveResponseRef.current.trim();
-    if (partial) {
-      setMessages((current) => [...current, { role: 'assistant', content: partial }]);
-    }
-    setLiveResponse('');
     setIsStreamingResponse(false);
     setBusy(false);
   };
@@ -447,7 +447,6 @@ const ChatWidget = ({ brand }) => {
     if (!presetQuestion) {
       setInput('');
     }
-    setLiveResponse('');
     setIsStreamingResponse(false);
     setRouteActions([]);
     setAssistantSuggestions([]);
@@ -516,15 +515,8 @@ const ChatWidget = ({ brand }) => {
         signal: controller.signal
       });
       const fullAnswer = normalizeMessageContent(payload.answer || payload.message || '');
-      let visibleAnswer = '';
       setIsStreamingResponse(true);
-
-      for (let index = 0; index < fullAnswer.length; index += 1) {
-        if (controller.signal.aborted) break;
-        visibleAnswer += fullAnswer[index];
-        setLiveResponse(visibleAnswer);
-        await new Promise((resolve) => setTimeout(resolve, 8));
-      }
+      await new Promise((resolve) => setTimeout(resolve, 260));
 
       if (!controller.signal.aborted) {
         setMessages((current) => [...current, { role: 'assistant', content: fullAnswer }]);
@@ -534,14 +526,12 @@ const ChatWidget = ({ brand }) => {
           setShowJobForm(false);
         }
       }
-      setLiveResponse('');
       setIsStreamingResponse(false);
     } catch (error) {
       if (error?.name === 'AbortError') {
         return;
       }
       setMessages((current) => [...current, { role: 'assistant', content: `Sorry, I couldn't respond right now. ${error.message}` }]);
-      setLiveResponse('');
       setIsStreamingResponse(false);
     } finally {
       abortControllerRef.current = null;
@@ -743,40 +733,42 @@ const ChatWidget = ({ brand }) => {
 
               {isStreamingResponse && (
                 <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words bg-white text-slate-800 border border-slate-200">
-                  {liveResponse || 'Generating response...'}
+                  <TypingDots />
                 </div>
               )}
-
-              {showContactForm && (
-                <form onSubmit={submitLead} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
-                  <p className="text-xs font-semibold text-slate-700">Sales contact form</p>
-                  <input value={leadForm.name} onChange={(e) => setLeadForm((c) => ({ ...c, name: e.target.value }))} required placeholder="Name" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
-                  <input type="email" value={leadForm.email} onChange={(e) => setLeadForm((c) => ({ ...c, email: e.target.value }))} required placeholder="Email" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
-                  <input value={leadForm.subject} onChange={(e) => setLeadForm((c) => ({ ...c, subject: e.target.value }))} required placeholder="Subject" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
-                  <textarea value={leadForm.message} onChange={(e) => setLeadForm((c) => ({ ...c, message: e.target.value }))} required placeholder="How can our team help you?" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500 min-h-20" />
-                  {leadError && <p className="text-xs text-red-600">{leadError}</p>}
-                  <button type="submit" disabled={leadStatus === 'submitting'} className="w-full rounded-lg bg-slate-900 text-white py-2 text-sm disabled:opacity-60">
-                    {leadStatus === 'submitting' ? 'Submitting...' : 'Submit form'}
-                  </button>
-                </form>
-              )}
-
-              {showJobForm && (
-                <form onSubmit={submitJobEnquiry} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
-                  <p className="text-xs font-semibold text-slate-700">Job enquiry form</p>
-                  <input value={jobForm.name} onChange={(e) => setJobForm((c) => ({ ...c, name: e.target.value }))} required placeholder="Name" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
-                  <input type="email" value={jobForm.email} onChange={(e) => setJobForm((c) => ({ ...c, email: e.target.value }))} required placeholder="Email" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
-                  <input value={jobForm.role} onChange={(e) => setJobForm((c) => ({ ...c, role: e.target.value }))} required placeholder="Role you're applying for" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
-                  <textarea value={jobForm.message} onChange={(e) => setJobForm((c) => ({ ...c, message: e.target.value }))} required placeholder="Tell us about your profile" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500 min-h-20" />
-                  {leadError && <p className="text-xs text-red-600">{leadError}</p>}
-                  <button type="submit" disabled={leadStatus === 'submitting'} className="w-full rounded-lg bg-slate-900 text-white py-2 text-sm disabled:opacity-60">
-                    {leadStatus === 'submitting' ? 'Submitting...' : 'Submit form'}
-                  </button>
-                </form>
-              )}
-
-              {busy && <div className="text-xs text-slate-500">{isStreamingResponse ? 'Generating response in real time...' : 'Generating response...'}</div>}
             </div>
+
+            {(showContactForm || showJobForm) && (
+              <div className="border-t border-slate-200 bg-white p-3">
+                {showContactForm && (
+                  <form onSubmit={submitLead} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
+                    <p className="text-xs font-semibold text-slate-700">Sales contact form</p>
+                    <input value={leadForm.name} onChange={(e) => setLeadForm((c) => ({ ...c, name: e.target.value }))} required placeholder="Name" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
+                    <input type="email" value={leadForm.email} onChange={(e) => setLeadForm((c) => ({ ...c, email: e.target.value }))} required placeholder="Email" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
+                    <input value={leadForm.subject} onChange={(e) => setLeadForm((c) => ({ ...c, subject: e.target.value }))} required placeholder="Subject" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
+                    <textarea value={leadForm.message} onChange={(e) => setLeadForm((c) => ({ ...c, message: e.target.value }))} required placeholder="How can our team help you?" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500 min-h-20" />
+                    {leadError && <p className="text-xs text-red-600">{leadError}</p>}
+                    <button type="submit" disabled={leadStatus === 'submitting'} className="w-full rounded-lg bg-slate-900 text-white py-2 text-sm disabled:opacity-60">
+                      {leadStatus === 'submitting' ? 'Submitting...' : 'Submit form'}
+                    </button>
+                  </form>
+                )}
+
+                {showJobForm && (
+                  <form onSubmit={submitJobEnquiry} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
+                    <p className="text-xs font-semibold text-slate-700">Job enquiry form</p>
+                    <input value={jobForm.name} onChange={(e) => setJobForm((c) => ({ ...c, name: e.target.value }))} required placeholder="Name" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
+                    <input type="email" value={jobForm.email} onChange={(e) => setJobForm((c) => ({ ...c, email: e.target.value }))} required placeholder="Email" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
+                    <input value={jobForm.role} onChange={(e) => setJobForm((c) => ({ ...c, role: e.target.value }))} required placeholder="Role you're applying for" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
+                    <textarea value={jobForm.message} onChange={(e) => setJobForm((c) => ({ ...c, message: e.target.value }))} required placeholder="Tell us about your profile" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500 min-h-20" />
+                    {leadError && <p className="text-xs text-red-600">{leadError}</p>}
+                    <button type="submit" disabled={leadStatus === 'submitting'} className="w-full rounded-lg bg-slate-900 text-white py-2 text-sm disabled:opacity-60">
+                      {leadStatus === 'submitting' ? 'Submitting...' : 'Submit form'}
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
 
             <div className="p-3 border-t border-slate-200 bg-white flex items-center gap-2">
               <div className="flex-1 space-y-1">
