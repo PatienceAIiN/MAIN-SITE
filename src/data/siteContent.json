@@ -53,7 +53,10 @@
     "cards": [
       {
         "variant": "support",
-        "tags": ["Services", "Governance"],
+        "tags": [
+          "Services",
+          "Governance"
+        ],
         "title": "Policy-safe automation for support and operations without exposing internal workflows",
         "image": {
           "src": "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=800&auto=format&fit=crop",
@@ -678,7 +681,11 @@
         "by": "Patience AI Team",
         "publishedAt": "2026-04-10T09:30:00+05:30",
         "excerpt": "How we keep demo requests contextual, fast, and routed to the right owner without adding friction.",
-        "tags": ["Product", "Growth", "Operations"],
+        "tags": [
+          "Product",
+          "Growth",
+          "Operations"
+        ],
         "content": [
           "Enterprise buyers need context before they commit. The demo flow should capture enough detail to route the request correctly, but not so much that it becomes a form abandonment problem.",
           "We keep the primary request short, prefill the product name, and store the submission with clear routing metadata so the owner can follow up quickly.",
@@ -692,7 +699,11 @@
         "by": "Patience AI Team",
         "publishedAt": "2026-04-09T15:10:00+05:30",
         "excerpt": "A single JSON-backed content source makes updates faster, safer, and easier to audit.",
-        "tags": ["Engineering", "Content", "Ops"],
+        "tags": [
+          "Engineering",
+          "Content",
+          "Ops"
+        ],
         "content": [
           "When the same content powers the homepage, products, and blog, the admin surface needs to be predictable. A single source of truth removes hidden hard-coding and reduces drift.",
           "We prefer storing the whole site in one structured document so product launches, blog posts, and CTA changes can be published together.",
@@ -700,5 +711,120 @@
         ]
       }
     ]
+  },
+  "legal": {
+    "privacyPolicy": {
+      "title": "Privacy Policy",
+      "updatedLabel": "LAST UPDATED",
+      "updatedValue": "AUGUST 2026",
+      "sections": [
+        {
+          "paragraphs": [
+            "At PatienceAI, we are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy outlines how we collect, use, and safeguard the data you provide to us when accessing our website and utilizing our services."
+          ]
+        },
+        {
+          "heading": "1. Information We Collect",
+          "paragraphs": [
+            "We collect information to provide better services to all our users. The types of personal information we collect may include:"
+          ],
+          "bullets": [
+            "Contact Information: Name, email address, phone number, and company details when you fill out contact forms or request a demo.",
+            "Usage Data: Information on how you interact with our website, including IP addresses, browser types, and pages visited, collected via cookies and analytics tools.",
+            "Service Data: Data provided securely during the execution of our services to audit, consult, or build infrastructure on your behalf."
+          ]
+        },
+        {
+          "heading": "2. How We Use Your Information",
+          "paragraphs": [
+            "The data we collect is strictly used to enhance your experience and deliver our services:"
+          ],
+          "bullets": [
+            "To provide, maintain, and improve our technical solutions.",
+            "To communicate with you regarding project updates, support, and promotional materials (only if opted-in).",
+            "To analyze site usage to optimize our website performance and design.",
+            "To comply with legal obligations and enforce our terms of service."
+          ]
+        },
+        {
+          "heading": "3. Data Sharing and Security",
+          "paragraphs": [
+            "We do not sell, trade, or rent your personal information to third parties. We may share generic aggregated demographic information not linked to any personal identification information regarding visitors and users with our business partners.",
+            "We adopt appropriate data collection, storage, and processing practices and security measures to protect against unauthorized access, alteration, disclosure, or destruction of your personal information."
+          ]
+        },
+        {
+          "heading": "4. Your Data Rights",
+          "paragraphs": [
+            "Depending on your location, you may have the right to access, update, or delete the information we have on you. Please contact us through the details provided on this website to exercise your data rights."
+          ]
+        },
+        {
+          "heading": "5. Changes to This Policy",
+          "paragraphs": [
+            "PatienceAI may update this privacy policy from time to time. When we do, we revise the updated date at the top of this page."
+          ]
+        }
+      ]
+    },
+    "termsOfService": {
+      "title": "Terms of Service",
+      "updatedLabel": "LAST UPDATED",
+      "updatedValue": "AUGUST 2026",
+      "sections": [
+        {
+          "paragraphs": [
+            "Welcome to PatienceAI. By accessing our website and utilizing our services, you agree to be bound by the following Terms of Service. Please read them carefully before engaging with our platform or contracting our services."
+          ]
+        },
+        {
+          "heading": "1. Acceptance of Terms",
+          "paragraphs": [
+            "By accessing or using the PatienceAI website and services, you agree to comply with and be bound by these Terms. If you do not agree to these terms, you may not access or use our services."
+          ]
+        },
+        {
+          "heading": "2. Description of Services",
+          "paragraphs": [
+            "PatienceAI provides enterprise-grade technical solutions and AI-powered digital services. Specific scope, deliverables, and timelines for client projects are governed by separate agreements."
+          ]
+        },
+        {
+          "heading": "3. User Responsibilities",
+          "paragraphs": [
+            "When interacting with our platform or team, you agree to:"
+          ],
+          "bullets": [
+            "Provide accurate and complete information when requesting audits, demos, or services.",
+            "Maintain confidentiality of proprietary methods or systems shared during consultations.",
+            "Use our services only for lawful purposes and in accordance with applicable regulations."
+          ]
+        },
+        {
+          "heading": "4. Intellectual Property Rights",
+          "paragraphs": [
+            "The content, design, graphics, and underlying code of the PatienceAI website are the intellectual property of PatienceAI unless otherwise stated by written agreement."
+          ]
+        },
+        {
+          "heading": "5. Limitation of Liability",
+          "paragraphs": [
+            "To the maximum extent permitted by law, PatienceAI shall not be liable for indirect, incidental, special, consequential, or punitive damages resulting from your access to or use of our website."
+          ]
+        },
+        {
+          "heading": "6. Governing Law",
+          "paragraphs": [
+            "These Terms are governed by applicable laws and jurisdiction stated in your governing agreement with PatienceAI."
+          ]
+        },
+        {
+          "heading": "7. Contact Information",
+          "paragraphs": [
+            "If you have any questions about these Terms, please contact us through the details provided on this website."
+          ]
+        }
+      ]
+    }
   }
 }
