@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { FiEye, FiEyeOff } from 'react-icons/fi';
+import React, { useEffect, useMemo, useState } from 'react';
+import { FiChevronDown, FiChevronUp, FiEye, FiEyeOff, FiSearch, FiX } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import Button from '../components/ui/Button';
 import { fetchJson } from '../common/fetchJson';
@@ -35,6 +35,50 @@ const createEmptyBlogDraft = () => ({
 const formatDate = (value) =>
   value ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : 'Unknown';
 
+const SubmissionDetailDialog = ({ submission, onClose }) => {
+  if (!submission) return null;
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/80 px-4" role="dialog" aria-modal="true">
+      <div className="w-full max-w-2xl rounded-[1.75rem] border border-white/10 bg-slate-900 p-6 md:p-7 max-h-[85vh] overflow-y-auto">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/80 mb-2">User response details</p>
+            <h3 className="text-2xl font-semibold">{submission.name || 'Unknown user'}</h3>
+            <p className="text-white/60 mt-1">{submission.email || 'No email provided'}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-lg p-2 text-white/70 hover:bg-white/10 hover:text-white" aria-label="Close">
+            <FiX size={18} />
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-3 text-sm">
+          {[
+            ['Subject', submission.subject],
+            ['Message', submission.message],
+            ['Source', submission.source],
+            ['Status', submission.status],
+            ['Company', submission.company],
+            ['Product', submission.product_name],
+            ['Created at', formatDate(submission.created_at)]
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+              <p className="text-white/45 mb-1">{label}</p>
+              <p className="text-white whitespace-pre-wrap">{value || '—'}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 flex justify-end">
+          <Button variant="secondary" className="rounded-xl px-5 py-2.5" onClick={onClose}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSource, onContentSaved }) => {
   const [authenticated, setAuthenticated] = useState(false);
   const [username, setUsername] = useState('');
@@ -48,6 +92,9 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [contentJson, setContentJson] = useState(JSON.stringify(currentContent || defaultContent, null, 2));
   const [contentError, setContentError] = useState('');
   const [contentSaving, setContentSaving] = useState(false);
+  const [jsonSearchOpen, setJsonSearchOpen] = useState(false);
+  const [jsonSearchTerm, setJsonSearchTerm] = useState('');
+  const [jsonSearchIndex, setJsonSearchIndex] = useState(0);
   const [blogDraft, setBlogDraft] = useState(createEmptyBlogDraft());
   const [submissions, setSubmissions] = useState([]);
   const [counts, setCounts] = useState({ total: 0, new: 0, reviewing: 0, replied: 0, archived: 0 });
@@ -57,6 +104,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [submissionError, setSubmissionError] = useState('');
   const [submissionLoading, setSubmissionLoading] = useState(false);
   const [savingId, setSavingId] = useState(null);
+  const [selectedSubmissionForDialog, setSelectedSubmissionForDialog] = useState(null);
 
   const [conversations, setConversations] = useState([]);
   const [conversationSearch, setConversationSearch] = useState('');
@@ -70,6 +118,24 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState('');
   const selectedSubmission = submissions.find((item) => item.id === selectedId) || submissions[0] || null;
+  const jsonMatches = useMemo(() => {
+    const query = jsonSearchTerm.trim().toLowerCase();
+    if (!query) return [];
+
+    const source = contentJson.toLowerCase();
+    const matches = [];
+    let start = 0;
+
+    while (start < source.length) {
+      const matchIndex = source.indexOf(query, start);
+      if (matchIndex === -1) break;
+      matches.push(matchIndex);
+      start = matchIndex + query.length;
+      if (matches.length >= 1500) break;
+    }
+
+    return matches;
+  }, [contentJson, jsonSearchTerm]);
 
   const loadSiteContent = async () => {
     try {
@@ -176,6 +242,14 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
     if (!authenticated || activeTab !== 'analytics') return;
     loadAnalytics();
   }, [activeTab, authenticated]);
+
+  useEffect(() => {
+    if (!jsonMatches.length) {
+      setJsonSearchIndex(0);
+      return;
+    }
+    setJsonSearchIndex((current) => Math.min(current, jsonMatches.length - 1));
+  }, [jsonMatches.length]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -432,6 +506,21 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
     return search.trim() ? haystack.includes(search.trim().toLowerCase()) : true;
   });
 
+  const jumpToJsonMatch = (nextIndex) => {
+    if (!jsonMatches.length || !jsonSearchTerm.trim()) return;
+
+    const bounded = (nextIndex + jsonMatches.length) % jsonMatches.length;
+    setJsonSearchIndex(bounded);
+
+    const textarea = document.querySelector('textarea[data-json-editor="true"]');
+    if (!textarea) return;
+
+    const start = jsonMatches[bounded];
+    const end = start + jsonSearchTerm.length;
+    textarea.focus();
+    textarea.setSelectionRange(start, end);
+  };
+
   if (loadingAuth) {
     return (
       <main className="bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10 min-h-[70vh] flex items-center justify-center">
@@ -582,19 +671,75 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                       </Button>
                     </div>
                   </div>
+                  <div className="mb-4 rounded-2xl border border-white/10 bg-slate-950/40">
+                    <button
+                      type="button"
+                      onClick={() => setJsonSearchOpen((current) => !current)}
+                      className="w-full flex items-center justify-between px-4 py-3 text-sm text-white/85 hover:bg-white/5 rounded-2xl"
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <FiSearch size={15} />
+                        Search inside site JSON
+                      </span>
+                      {jsonSearchOpen ? <FiChevronUp size={16} /> : <FiChevronDown size={16} />}
+                    </button>
+                    {jsonSearchOpen && (
+                      <div className="px-4 pb-4 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <input
+                            value={jsonSearchTerm}
+                            onChange={(event) => setJsonSearchTerm(event.target.value)}
+                            placeholder="Find any key, paragraph, URL, label…"
+                            className="flex-1 rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm"
+                          />
+                          <Button
+                            variant="secondary"
+                            className="rounded-xl px-3 py-2"
+                            onClick={() => jumpToJsonMatch(jsonSearchIndex - 1)}
+                            disabled={!jsonMatches.length}
+                          >
+                            Prev
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            className="rounded-xl px-3 py-2"
+                            onClick={() => jumpToJsonMatch(jsonSearchIndex + 1)}
+                            disabled={!jsonMatches.length}
+                          >
+                            Next
+                          </Button>
+                        </div>
+                        <p className="text-xs text-white/50">
+                          {jsonSearchTerm.trim()
+                            ? jsonMatches.length
+                              ? `${jsonSearchIndex + 1} of ${jsonMatches.length} matches`
+                              : 'No match found'
+                            : 'Search is collapsed by default for clean editing. Expand when needed.'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
 
                   {contentError && (
                     <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-red-100 mb-4">
                       {contentError}
                     </div>
                   )}
-
-                  <textarea
-                    value={contentJson}
-                    onChange={(e) => setContentJson(e.target.value)}
-                    spellCheck={false}
-                    className="w-full min-h-[520px] rounded-[1.5rem] border border-white/10 bg-slate-950/80 px-4 py-4 font-mono text-sm text-white/90 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
-                  />
+                  <div className="relative">
+                    <textarea
+                      data-json-editor="true"
+                      value={contentJson}
+                      onChange={(e) => setContentJson(e.target.value)}
+                      spellCheck={false}
+                      className="w-full min-h-[520px] rounded-[1.5rem] border border-white/10 bg-slate-950/80 px-4 py-4 font-mono text-sm text-white/90 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
+                    />
+                    {contentSaving && (
+                      <div className="absolute inset-0 rounded-[1.5rem] bg-slate-950/65 flex items-center justify-center gap-2 text-white/85">
+                        <Spinner size={18} />
+                        <span className="text-sm">Saving changes…</span>
+                      </div>
+                    )}
+                  </div>
 
                   {!contentObject && (
                     <div className="mt-4 text-sm text-amber-200">
@@ -904,7 +1049,10 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                         <button
                           key={item.id}
                           type="button"
-                          onClick={() => setSelectedId(item.id)}
+                          onClick={() => {
+                            setSelectedId(item.id);
+                            setSelectedSubmissionForDialog(item);
+                          }}
                           className={`w-full text-left p-5 transition-colors ${
                             selectedSubmission?.id === item.id ? 'bg-white/10' : 'hover:bg-white/5'
                           }`}
@@ -1214,6 +1362,10 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
           </div>
         </div>
       </section>
+      <SubmissionDetailDialog
+        submission={selectedSubmissionForDialog}
+        onClose={() => setSelectedSubmissionForDialog(null)}
+      />
     </main>
   );
 };

@@ -90,10 +90,10 @@ function App() {
                 <Route path="/careers" element={<CareersPage content={siteContent?.careersPage} />} />
                 <Route path="/company/careers" element={<CareersPage content={siteContent?.careersPage} />} />
                 <Route path="/contact" element={<ContactPage siteContent={siteContent} />} />
-                <Route path="/privacy" element={<PrivacyPolicy />} />
-                <Route path="/legal/privacy-policy" element={<PrivacyPolicy />} />
-                <Route path="/terms" element={<TermsOfService />} />
-                <Route path="/legal/terms-of-service" element={<TermsOfService />} />
+                <Route path="/privacy" element={<PrivacyPolicy content={siteContent?.legal?.privacyPolicy} />} />
+                <Route path="/legal/privacy-policy" element={<PrivacyPolicy content={siteContent?.legal?.privacyPolicy} />} />
+                <Route path="/terms" element={<TermsOfService content={siteContent?.legal?.termsOfService} />} />
+                <Route path="/legal/terms-of-service" element={<TermsOfService content={siteContent?.legal?.termsOfService} />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Layout>
