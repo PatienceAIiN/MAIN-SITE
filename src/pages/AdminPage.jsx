@@ -20,6 +20,53 @@ const Spinner = ({ size = 16 }) => (
   </svg>
 );
 const STATUS_OPTIONS = ['all', 'new', 'reviewing', 'replied', 'archived'];
+const PAGE_SIZES = {
+  submissions: 10,
+  conversations: 8,
+  messages: 10,
+  topPages: 6,
+  topReferrers: 6,
+  devices: 6,
+  browsers: 6,
+  recent: 10
+};
+
+const paginateItems = (items = [], page = 1, pageSize = 10) => {
+  const safePageSize = Math.max(1, Number(pageSize) || 10);
+  const totalPages = Math.max(1, Math.ceil(items.length / safePageSize));
+  const safePage = Math.min(Math.max(1, Number(page) || 1), totalPages);
+  const start = (safePage - 1) * safePageSize;
+  return {
+    pageItems: items.slice(start, start + safePageSize),
+    totalPages,
+    safePage
+  };
+};
+
+const PaginationControls = ({ page, totalPages, onPageChange }) => {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="mt-3 flex items-center justify-between text-xs text-white/60">
+      <button
+        type="button"
+        className="rounded-full border border-white/15 px-3 py-1.5 hover:bg-white/10 disabled:opacity-40"
+        disabled={page <= 1}
+        onClick={() => onPageChange(page - 1)}
+      >
+        Previous
+      </button>
+      <span>{page} / {totalPages}</span>
+      <button
+        type="button"
+        className="rounded-full border border-white/15 px-3 py-1.5 hover:bg-white/10 disabled:opacity-40"
+        disabled={page >= totalPages}
+        onClick={() => onPageChange(page + 1)}
+      >
+        Next
+      </button>
+    </div>
+  );
+};
 
 const createEmptyBlogDraft = () => ({
   slug: '',
@@ -105,18 +152,28 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [submissionLoading, setSubmissionLoading] = useState(false);
   const [savingId, setSavingId] = useState(null);
   const [selectedSubmissionForDialog, setSelectedSubmissionForDialog] = useState(null);
+  const [submissionPage, setSubmissionPage] = useState(1);
 
   const [conversations, setConversations] = useState([]);
   const [conversationSearch, setConversationSearch] = useState('');
   const [conversationLoading, setConversationLoading] = useState(false);
   const [conversationError, setConversationError] = useState('');
   const [selectedConversationId, setSelectedConversationId] = useState('');
+  const [conversationPage, setConversationPage] = useState(1);
+  const [conversationMessagePage, setConversationMessagePage] = useState(1);
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingMessage, setEditingMessage] = useState('');
 
   const [analyticsData, setAnalyticsData] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState('');
+  const [analyticsPages, setAnalyticsPages] = useState({
+    topPages: 1,
+    topReferrers: 1,
+    devices: 1,
+    browsers: 1,
+    recent: 1
+  });
   const selectedSubmission = submissions.find((item) => item.id === selectedId) || submissions[0] || null;
   const jsonMatches = useMemo(() => {
     const query = jsonSearchTerm.trim().toLowerCase();
@@ -156,6 +213,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
     try {
       const data = await fetchJson('/api/analytics');
       setAnalyticsData(data);
+      setAnalyticsPages({ topPages: 1, topReferrers: 1, devices: 1, browsers: 1, recent: 1 });
     } catch (err) {
       setAnalyticsError(err.message);
     } finally {
@@ -193,6 +251,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       setSubmissions(payload.items || []);
       setCounts(payload.counts || { total: 0, new: 0, reviewing: 0, replied: 0, archived: 0 });
       setSelectedId((current) => current || payload.items?.[0]?.id || null);
+      setSubmissionPage(1);
     } catch (error) {
       setSubmissionError(error.message);
     } finally {
@@ -242,6 +301,14 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
     if (!authenticated || activeTab !== 'analytics') return;
     loadAnalytics();
   }, [activeTab, authenticated]);
+
+  useEffect(() => {
+    setSubmissionPage(1);
+  }, [search, submissionFilter]);
+
+  useEffect(() => {
+    setConversationPage(1);
+  }, [conversationSearch]);
 
   useEffect(() => {
     if (!jsonMatches.length) {
@@ -457,6 +524,8 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       const next = payload.conversations || [];
       setConversations(next);
       setSelectedConversationId((current) => current || next[0]?.conversationId || '');
+      setConversationPage(1);
+      setConversationMessagePage(1);
     } catch (error) {
       setConversationError(error.message);
     } finally {
@@ -505,6 +574,17 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       .toLowerCase();
     return search.trim() ? haystack.includes(search.trim().toLowerCase()) : true;
   });
+
+  const { pageItems: paginatedSubmissions, totalPages: submissionTotalPages, safePage: safeSubmissionPage } = paginateItems(
+    filteredSubmissions,
+    submissionPage,
+    PAGE_SIZES.submissions
+  );
+  const { pageItems: paginatedConversations, totalPages: conversationTotalPages, safePage: safeConversationPage } = paginateItems(
+    conversations,
+    conversationPage,
+    PAGE_SIZES.conversations
+  );
 
   const jumpToJsonMatch = (nextIndex) => {
     if (!jsonMatches.length || !jsonSearchTerm.trim()) return;
@@ -790,11 +870,14 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                   {conversationLoading && <p className="text-white/60 text-sm">Loading conversations...</p>}
 
                   <div className="space-y-2 max-h-[420px] overflow-y-auto">
-                    {(conversations || []).map((conversation) => (
+                    {paginatedConversations.map((conversation) => (
                       <button
                         type="button"
                         key={conversation.conversationId}
-                        onClick={() => setSelectedConversationId(conversation.conversationId)}
+                        onClick={() => {
+                          setSelectedConversationId(conversation.conversationId);
+                          setConversationMessagePage(1);
+                        }}
                         className={`w-full rounded-xl border text-left px-3 py-3 transition-colors ${
                           selectedConversationId === conversation.conversationId
                             ? 'border-cyan-300/60 bg-cyan-300/10'
@@ -806,6 +889,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                       </button>
                     ))}
                   </div>
+                  <PaginationControls page={safeConversationPage} totalPages={conversationTotalPages} onPageChange={setConversationPage} />
                 </div>
 
                 <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
@@ -814,6 +898,12 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                     if (!activeConversation) {
                       return <p className="text-white/60">No conversations found.</p>;
                     }
+
+                    const { pageItems: paginatedMessages, totalPages: messageTotalPages, safePage: safeMessagePage } = paginateItems(
+                      activeConversation.messages || [],
+                      conversationMessagePage,
+                      PAGE_SIZES.messages
+                    );
 
                     return (
                       <div>
@@ -828,7 +918,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                         </div>
 
                         <div className="space-y-3 max-h-[440px] overflow-y-auto pr-1">
-                          {activeConversation.messages.map((item) => (
+                          {paginatedMessages.map((item) => (
                             <div key={item.id} className="rounded-xl border border-white/10 bg-slate-900/60 p-3">
                               <p className="text-xs uppercase tracking-wide text-white/40 mb-2">{item.role} • {formatDate(item.created_at)}</p>
                               {editingMessageId === item.id ? (
@@ -859,6 +949,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                             </div>
                           ))}
                         </div>
+                        <PaginationControls page={safeMessagePage} totalPages={messageTotalPages} onPageChange={setConversationMessagePage} />
                       </div>
                     );
                   })()}
@@ -1002,7 +1093,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                 <div className="rounded-[1.75rem] border border-white/10 bg-white/5 overflow-hidden">
                   <div className="px-5 py-4 border-b border-white/10 text-sm text-white/55 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                     <span>Submissions</span>
-                    <span>{filteredSubmissions.length} shown</span>
+                    <span>{filteredSubmissions.length} total</span>
                   </div>
 
                   <div className="p-4 flex flex-col lg:flex-row gap-4 lg:items-center lg:justify-between">
@@ -1044,8 +1135,8 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                   <div className="divide-y divide-white/10">
                     {submissionLoading ? (
                       <div className="p-6 text-white/60">Loading submissions...</div>
-                    ) : filteredSubmissions.length ? (
-                      filteredSubmissions.map((item) => (
+                    ) : paginatedSubmissions.length ? (
+                      paginatedSubmissions.map((item) => (
                         <button
                           key={item.id}
                           type="button"
@@ -1084,6 +1175,9 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                     ) : (
                       <div className="p-6 text-white/60">No submissions match your filters.</div>
                     )}
+                  </div>
+                  <div className="px-4 pb-4">
+                    <PaginationControls page={safeSubmissionPage} totalPages={submissionTotalPages} onPageChange={setSubmissionPage} />
                   </div>
                 </div>
 
@@ -1189,6 +1283,14 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
 
                 {analyticsData && (
                   <>
+                    {(() => {
+                      const topPagesPager = paginateItems(analyticsData.topPages || [], analyticsPages.topPages, PAGE_SIZES.topPages);
+                      const topRefPager = paginateItems(analyticsData.topReferrers || [], analyticsPages.topReferrers, PAGE_SIZES.topReferrers);
+                      const devicesPager = paginateItems(analyticsData.devices || [], analyticsPages.devices, PAGE_SIZES.devices);
+                      const browsersPager = paginateItems(analyticsData.browsers || [], analyticsPages.browsers, PAGE_SIZES.browsers);
+                      const recentPager = paginateItems(analyticsData.recent || [], analyticsPages.recent, PAGE_SIZES.recent);
+                      return (
+                        <>
                     {/* KPI Row */}
                     <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
                       {[
@@ -1214,7 +1316,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                           <p className="text-white/40 text-sm">No data yet.</p>
                         ) : (
                           <div className="space-y-2">
-                            {analyticsData.topPages.map((row, i) => {
+                            {topPagesPager.pageItems.map((row, i) => {
                               const max = analyticsData.topPages[0]?.count || 1;
                               const pct = Math.round((row.count / max) * 100);
                               return (
@@ -1229,6 +1331,11 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                                 </div>
                               );
                             })}
+                            <PaginationControls
+                              page={topPagesPager.safePage}
+                              totalPages={topPagesPager.totalPages}
+                              onPageChange={(page) => setAnalyticsPages((current) => ({ ...current, topPages: page }))}
+                            />
                           </div>
                         )}
                       </div>
@@ -1240,7 +1347,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                           <p className="text-white/40 text-sm">No referrer data yet — mostly direct traffic.</p>
                         ) : (
                           <div className="space-y-2">
-                            {analyticsData.topReferrers.map((row, i) => {
+                            {topRefPager.pageItems.map((row, i) => {
                               const max = analyticsData.topReferrers[0]?.count || 1;
                               const pct = Math.round((row.count / max) * 100);
                               const label = row.referrer.replace(/^https?:\/\//, '').split('/')[0];
@@ -1256,6 +1363,11 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                                 </div>
                               );
                             })}
+                            <PaginationControls
+                              page={topRefPager.safePage}
+                              totalPages={topRefPager.totalPages}
+                              onPageChange={(page) => setAnalyticsPages((current) => ({ ...current, topReferrers: page }))}
+                            />
                           </div>
                         )}
                       </div>
@@ -1267,7 +1379,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                           {analyticsData.devices.length === 0 ? (
                             <p className="text-white/40 text-sm">No data yet.</p>
                           ) : (
-                            analyticsData.devices.map((row, i) => (
+                            devicesPager.pageItems.map((row, i) => (
                               <div key={i} className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-center min-w-[90px]">
                                 <p className="text-2xl font-bold text-emerald-300">{row.count}</p>
                                 <p className="text-xs text-white/50 capitalize mt-1">{row.device}</p>
@@ -1275,6 +1387,11 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                             ))
                           )}
                         </div>
+                        <PaginationControls
+                          page={devicesPager.safePage}
+                          totalPages={devicesPager.totalPages}
+                          onPageChange={(page) => setAnalyticsPages((current) => ({ ...current, devices: page }))}
+                        />
                       </div>
 
                       {/* Browsers */}
@@ -1284,7 +1401,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                           {analyticsData.browsers.length === 0 ? (
                             <p className="text-white/40 text-sm">No data yet.</p>
                           ) : (
-                            analyticsData.browsers.map((row, i) => (
+                            browsersPager.pageItems.map((row, i) => (
                               <div key={i} className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-center min-w-[90px]">
                                 <p className="text-2xl font-bold text-amber-300">{row.count}</p>
                                 <p className="text-xs text-white/50 mt-1">{row.browser}</p>
@@ -1292,6 +1409,11 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                             ))
                           )}
                         </div>
+                        <PaginationControls
+                          page={browsersPager.safePage}
+                          totalPages={browsersPager.totalPages}
+                          onPageChange={(page) => setAnalyticsPages((current) => ({ ...current, browsers: page }))}
+                        />
                       </div>
                     </div>
 
@@ -1310,7 +1432,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-white/5">
-                            {analyticsData.recent.map((row, i) => (
+                            {recentPager.pageItems.map((row, i) => (
                               <tr key={i} className="hover:bg-white/5">
                                 <td className="py-2 pr-4 max-w-[200px] truncate">{row.page}</td>
                                 <td className="py-2 pr-4 max-w-[160px] truncate text-white/45">
@@ -1327,6 +1449,11 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                           <p className="text-white/40 text-sm py-4 text-center">No visits tracked yet — deploy and visit the site to start tracking.</p>
                         )}
                       </div>
+                      <PaginationControls
+                        page={recentPager.safePage}
+                        totalPages={recentPager.totalPages}
+                        onPageChange={(page) => setAnalyticsPages((current) => ({ ...current, recent: page }))}
+                      />
                     </div>
 
                     {/* Free Tools Quicklinks */}
@@ -1354,6 +1481,9 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                         ))}
                       </div>
                     </div>
+                        </>
+                      );
+                    })()}
                   </>
                 )}
               </div>

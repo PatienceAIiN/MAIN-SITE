@@ -64,6 +64,11 @@ const LAUNCHER_MARGIN = 24;
 const MOBILE_EDGE_GAP = 12;
 const DESKTOP_EDGE_GAP = 16;
 const MOBILE_BREAKPOINT = 768;
+const PANEL_MAX_WIDTH = 420;
+const PANEL_DEFAULT_WIDTH = 380;
+const PANEL_MIN_HEIGHT = 360;
+const PANEL_DEFAULT_HEIGHT = 620;
+const DRAG_THRESHOLD = 8;
 
 const getViewportSize = () => {
   if (typeof window === 'undefined') {
@@ -101,6 +106,18 @@ const getDefaultLauncherPosition = () => {
   };
 };
 
+const clampPanelPosition = (x, y, panelWidth, panelHeight) => {
+  const { width: viewportWidth, height: viewportHeight } = getViewportSize();
+  const edgeGap = isMobileViewport(viewportWidth) ? MOBILE_EDGE_GAP : DESKTOP_EDGE_GAP;
+  const maxX = Math.max(edgeGap, viewportWidth - panelWidth - edgeGap);
+  const maxY = Math.max(edgeGap, viewportHeight - panelHeight - edgeGap);
+
+  return {
+    x: Math.min(Math.max(x, edgeGap), maxX),
+    y: Math.min(Math.max(y, edgeGap), maxY)
+  };
+};
+
 const isAtPageEnd = () => {
   if (typeof window === 'undefined' || typeof document === 'undefined') return false;
   const scrollBottom = window.scrollY + window.innerHeight;
@@ -111,18 +128,12 @@ const isAtPageEnd = () => {
 const clampLauncherPosition = (x, y, width = LAUNCHER_SIZE, height = LAUNCHER_SIZE) => {
   if (typeof window === 'undefined') return { x, y };
   const { width: viewportWidth, height: viewportHeight } = getViewportSize();
-
-  if (isMobileViewport(viewportWidth)) {
-    const anchoredX = Math.max(MOBILE_EDGE_GAP, viewportWidth - width - DESKTOP_EDGE_GAP);
-    const mobileY = Math.max(MOBILE_EDGE_GAP, viewportHeight - height - DESKTOP_EDGE_GAP);
-    return { x: anchoredX, y: mobileY };
-  }
-
-  const maxX = Math.max(LAUNCHER_MARGIN, viewportWidth - width - LAUNCHER_MARGIN);
-  const maxY = Math.max(LAUNCHER_MARGIN, viewportHeight - height - LAUNCHER_MARGIN);
+  const edgeGap = isMobileViewport(viewportWidth) ? MOBILE_EDGE_GAP : LAUNCHER_MARGIN;
+  const maxX = Math.max(edgeGap, viewportWidth - width - edgeGap);
+  const maxY = Math.max(edgeGap, viewportHeight - height - edgeGap);
   return {
-    x: Math.min(Math.max(x, LAUNCHER_MARGIN), maxX),
-    y: Math.min(Math.max(y, LAUNCHER_MARGIN), maxY)
+    x: Math.min(Math.max(x, edgeGap), maxX),
+    y: Math.min(Math.max(y, edgeGap), maxY)
   };
 };
 
@@ -159,7 +170,10 @@ const ChatWidget = ({ brand }) => {
   const abortControllerRef = useRef(null);
   const launcherStackRef = useRef(null);
   const chatPanelRef = useRef(null);
+  const dragStateRef = useRef({ dragging: false, offsetX: 0, offsetY: 0, originX: 0, originY: 0, moved: false });
   const [launcherPosition, setLauncherPosition] = useState(() => getDefaultLauncherPosition());
+  const [hasManualPosition, setHasManualPosition] = useState(false);
+  const [panelSize, setPanelSize] = useState({ width: PANEL_DEFAULT_WIDTH, height: PANEL_DEFAULT_HEIGHT });
 
   const conversationId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_conversation_id', 'PatienceAI') : 'PatienceAI-local'), []);
   const sessionId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_session_id', 'session') : 'session-local'), []);
@@ -253,6 +267,11 @@ const ChatWidget = ({ brand }) => {
         stackHeight
       );
 
+      if (hasManualPosition) {
+        setLauncherPosition((current) => clampLauncherPosition(current.x, current.y, stackWidth, stackHeight));
+        return;
+      }
+
       if (isMobileViewport(viewportWidth) || !isAtPageEnd()) {
         setLauncherPosition(defaultPosition);
         return;
@@ -285,7 +304,34 @@ const ChatWidget = ({ brand }) => {
       window.visualViewport?.removeEventListener('resize', scheduleSync);
       window.removeEventListener('scroll', scheduleSync);
     };
-  }, [isOpen, showWave]);
+  }, [hasManualPosition, isOpen, showWave]);
+
+  useEffect(() => {
+    if (!chatPanelRef.current || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const width = Math.round(entry.contentRect.width);
+      const height = Math.round(entry.contentRect.height);
+      setPanelSize((current) => (current.width === width && current.height === height ? current : { width, height }));
+    });
+    observer.observe(chatPanelRef.current);
+    return () => observer.disconnect();
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handleMove = (event) => onDragMove(event);
+    const handleUp = () => endDrag();
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    window.addEventListener('pointercancel', handleUp);
+    return () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('pointercancel', handleUp);
+    };
+  }, []);
 
   const launcherMonogram = 'PA';
 
@@ -542,6 +588,99 @@ const ChatWidget = ({ brand }) => {
   const onSuggestionClick = (prompt) => {
     ask(prompt);
   };
+
+  const messageLinksFromText = (text) => {
+    const actions = buildRouteActions(text);
+    return actions.slice(0, 3);
+  };
+
+  const panelPosition = useMemo(() => {
+    const width = Math.min(PANEL_MAX_WIDTH, Math.max(320, panelSize.width || PANEL_DEFAULT_WIDTH));
+    const height = Math.max(PANEL_MIN_HEIGHT, panelSize.height || PANEL_DEFAULT_HEIGHT);
+    const launcherWidth = launcherStackRef.current?.getBoundingClientRect()?.width || LAUNCHER_SIZE;
+    const launcherHeight = launcherStackRef.current?.getBoundingClientRect()?.height || LAUNCHER_SIZE;
+    const preferredX = launcherPosition.x + launcherWidth - width;
+    const preferredY = launcherPosition.y - height - 12;
+    const fallbackY = launcherPosition.y + launcherHeight + 10;
+    const clampedPrimary = clampPanelPosition(preferredX, preferredY, width, height);
+    const hasRoomAbove = preferredY >= DESKTOP_EDGE_GAP;
+    if (hasRoomAbove) return clampedPrimary;
+    return clampPanelPosition(preferredX, fallbackY, width, height);
+  }, [launcherPosition.x, launcherPosition.y, panelSize.height, panelSize.width]);
+
+  const parseMessageWithLinks = (content) => {
+    const text = normalizeMessageContent(content);
+    const parts = [];
+    const urlRegex = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = urlRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push({ type: 'text', value: text.slice(lastIndex, match.index) });
+      }
+      const rawUrl = match[0];
+      const href = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`;
+      parts.push({ type: 'link', value: rawUrl, href });
+      lastIndex = match.index + rawUrl.length;
+    }
+
+    if (lastIndex < text.length) {
+      parts.push({ type: 'text', value: text.slice(lastIndex) });
+    }
+
+    return parts.length ? parts : [{ type: 'text', value: text }];
+  };
+
+  const startDrag = (event) => {
+    if (typeof window === 'undefined') return;
+    const target = event.target;
+    const handle = event.currentTarget;
+    if (target instanceof HTMLElement && handle instanceof HTMLElement && !handle.contains(target)) return;
+    if (
+      target instanceof HTMLElement &&
+      handle instanceof HTMLElement &&
+      !target.closest('[data-drag-handle]') &&
+      target.closest('button, input, textarea, a')
+    ) return;
+    const stackRect = launcherStackRef.current?.getBoundingClientRect();
+    if (!stackRect) return;
+    const pointX = event.clientX;
+    const pointY = event.clientY;
+    dragStateRef.current = {
+      dragging: true,
+      offsetX: pointX - stackRect.left,
+      offsetY: pointY - stackRect.top,
+      originX: pointX,
+      originY: pointY,
+      moved: false
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const onDragMove = (event) => {
+    const state = dragStateRef.current;
+    if (!state.dragging) return;
+    const deltaX = Math.abs(event.clientX - state.originX);
+    const deltaY = Math.abs(event.clientY - state.originY);
+    const moved = deltaX > DRAG_THRESHOLD || deltaY > DRAG_THRESHOLD;
+    if (!moved && !state.moved) return;
+    dragStateRef.current.moved = true;
+    setHasManualPosition(true);
+    setLauncherPosition(clampLauncherPosition(event.clientX - state.offsetX, event.clientY - state.offsetY));
+  };
+
+  const endDrag = () => {
+    dragStateRef.current.dragging = false;
+  };
+
+  const onLauncherClick = () => {
+    if (dragStateRef.current.moved) {
+      dragStateRef.current.moved = false;
+      return;
+    }
+    toggleChat();
+  };
   return (
     <>
       <motion.div
@@ -562,10 +701,12 @@ const ChatWidget = ({ brand }) => {
         )}
 
         <motion.button
+          data-drag-handle="true"
           type="button"
           whileHover={{ scale: 1.04 }}
           whileTap={{ scale: 0.96 }}
-          onClick={toggleChat}
+          onPointerDown={startDrag}
+          onClick={onLauncherClick}
           className="h-16 w-16 rounded-full border border-slate-200 bg-white text-slate-900 shadow-2xl flex items-center justify-center"
           aria-label="Open AI chat"
         >
@@ -581,9 +722,10 @@ const ChatWidget = ({ brand }) => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 260, damping: 24, mass: 0.7 }}
-            className="fixed bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] left-3 right-3 z-[140] flex w-auto max-w-[calc(100vw-1.5rem)] flex-col md:bottom-24 md:left-auto md:right-6 md:w-[min(calc(100vw-3rem),380px)] md:max-w-[420px] max-h-[calc(100dvh-8rem)] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
+            style={{ left: panelPosition.x, top: panelPosition.y }}
+            className="fixed z-[140] flex w-[min(calc(100vw-1.25rem),420px)] max-w-[420px] flex-col max-h-[calc(100dvh-1.25rem)] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
           >
-            <div className="bg-slate-50 text-slate-900 p-4 relative flex items-center justify-between border-b border-slate-200">
+            <div data-drag-handle="true" onPointerDown={startDrag} className="cursor-grab active:cursor-grabbing bg-slate-50 text-slate-900 p-4 relative flex items-center justify-between border-b border-slate-200">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="h-10 w-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-xs font-bold shrink-0"><span className="site-brand site-brand--dark text-base leading-none tracking-normal">{launcherMonogram}</span></div>
                 <div className="flex items-center gap-2 min-w-0">
@@ -659,7 +801,38 @@ const ChatWidget = ({ brand }) => {
                   key={`${item.role}-${index}`}
                   className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words ${item.role === 'user' ? 'ml-auto bg-slate-900 text-white' : 'bg-white text-slate-800 border border-slate-200'}`}
                 >
-                  {normalizeMessageContent(item.content)}
+                  {parseMessageWithLinks(item.content).map((part, partIndex) =>
+                    part.type === 'link' ? (
+                      <a
+                        key={`${index}-link-${partIndex}`}
+                        href={part.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-cyan-700 underline decoration-cyan-300 underline-offset-2"
+                      >
+                        {part.value}
+                      </a>
+                    ) : (
+                      <span key={`${index}-txt-${partIndex}`}>{part.value}</span>
+                    )
+                  )}
+                  {item.role === 'assistant' && messageLinksFromText(item.content).length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {messageLinksFromText(item.content).map((action) => (
+                        <button
+                          key={`${index}-${action.path}`}
+                          type="button"
+                          onClick={() => {
+                            navigate(action.path);
+                            setIsOpen(false);
+                          }}
+                          className="rounded-full bg-cyan-50 px-2.5 py-1 text-[11px] font-semibold text-cyan-800 ring-1 ring-cyan-200"
+                        >
+                          {action.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -731,44 +904,55 @@ const ChatWidget = ({ brand }) => {
                 </div>
               )}
 
+              {(showContactForm || showJobForm) && (
+                <div className="max-w-[96%] rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-xs font-semibold text-slate-700">{showContactForm ? 'Sales contact form' : 'Job enquiry form'}</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowContactForm(false);
+                        setShowJobForm(false);
+                        setLeadError('');
+                      }}
+                      className="rounded-md px-2 py-1 text-[11px] font-medium text-slate-500 hover:bg-slate-100"
+                    >
+                      Hide form
+                    </button>
+                  </div>
+                  {showContactForm && (
+                    <form onSubmit={submitLead} className="space-y-2">
+                      <input value={leadForm.name} onChange={(e) => setLeadForm((c) => ({ ...c, name: e.target.value }))} required placeholder="Name" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
+                      <input type="email" value={leadForm.email} onChange={(e) => setLeadForm((c) => ({ ...c, email: e.target.value }))} required placeholder="Email" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
+                      <input value={leadForm.subject} onChange={(e) => setLeadForm((c) => ({ ...c, subject: e.target.value }))} required placeholder="Subject" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
+                      <textarea value={leadForm.message} onChange={(e) => setLeadForm((c) => ({ ...c, message: e.target.value }))} required placeholder="How can our team help you?" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500 min-h-20" />
+                      {leadError && <p className="text-xs text-red-600">{leadError}</p>}
+                      <button type="submit" disabled={leadStatus === 'submitting'} className="w-full rounded-lg bg-slate-900 text-white py-2 text-sm disabled:opacity-60">
+                        {leadStatus === 'submitting' ? 'Submitting...' : 'Submit form'}
+                      </button>
+                    </form>
+                  )}
+                  {showJobForm && (
+                    <form onSubmit={submitJobEnquiry} className="space-y-2">
+                      <input value={jobForm.name} onChange={(e) => setJobForm((c) => ({ ...c, name: e.target.value }))} required placeholder="Name" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
+                      <input type="email" value={jobForm.email} onChange={(e) => setJobForm((c) => ({ ...c, email: e.target.value }))} required placeholder="Email" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
+                      <input value={jobForm.role} onChange={(e) => setJobForm((c) => ({ ...c, role: e.target.value }))} required placeholder="Role you're applying for" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
+                      <textarea value={jobForm.message} onChange={(e) => setJobForm((c) => ({ ...c, message: e.target.value }))} required placeholder="Tell us about your profile" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500 min-h-20" />
+                      {leadError && <p className="text-xs text-red-600">{leadError}</p>}
+                      <button type="submit" disabled={leadStatus === 'submitting'} className="w-full rounded-lg bg-slate-900 text-white py-2 text-sm disabled:opacity-60">
+                        {leadStatus === 'submitting' ? 'Submitting...' : 'Submit form'}
+                      </button>
+                    </form>
+                  )}
+                </div>
+              )}
+
               {isStreamingResponse && (
                 <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words bg-white text-slate-800 border border-slate-200">
                   <TypingDots />
                 </div>
               )}
             </div>
-
-            {(showContactForm || showJobForm) && (
-              <div className="max-h-[min(42dvh,340px)] shrink-0 overflow-y-auto border-t border-slate-200 bg-white p-3">
-                {showContactForm && (
-                  <form onSubmit={submitLead} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
-                    <p className="text-xs font-semibold text-slate-700">Sales contact form</p>
-                    <input value={leadForm.name} onChange={(e) => setLeadForm((c) => ({ ...c, name: e.target.value }))} required placeholder="Name" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
-                    <input type="email" value={leadForm.email} onChange={(e) => setLeadForm((c) => ({ ...c, email: e.target.value }))} required placeholder="Email" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
-                    <input value={leadForm.subject} onChange={(e) => setLeadForm((c) => ({ ...c, subject: e.target.value }))} required placeholder="Subject" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
-                    <textarea value={leadForm.message} onChange={(e) => setLeadForm((c) => ({ ...c, message: e.target.value }))} required placeholder="How can our team help you?" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500 min-h-20" />
-                    {leadError && <p className="text-xs text-red-600">{leadError}</p>}
-                    <button type="submit" disabled={leadStatus === 'submitting'} className="w-full rounded-lg bg-slate-900 text-white py-2 text-sm disabled:opacity-60">
-                      {leadStatus === 'submitting' ? 'Submitting...' : 'Submit form'}
-                    </button>
-                  </form>
-                )}
-
-                {showJobForm && (
-                  <form onSubmit={submitJobEnquiry} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
-                    <p className="text-xs font-semibold text-slate-700">Job enquiry form</p>
-                    <input value={jobForm.name} onChange={(e) => setJobForm((c) => ({ ...c, name: e.target.value }))} required placeholder="Name" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
-                    <input type="email" value={jobForm.email} onChange={(e) => setJobForm((c) => ({ ...c, email: e.target.value }))} required placeholder="Email" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
-                    <input value={jobForm.role} onChange={(e) => setJobForm((c) => ({ ...c, role: e.target.value }))} required placeholder="Role you're applying for" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
-                    <textarea value={jobForm.message} onChange={(e) => setJobForm((c) => ({ ...c, message: e.target.value }))} required placeholder="Tell us about your profile" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500 min-h-20" />
-                    {leadError && <p className="text-xs text-red-600">{leadError}</p>}
-                    <button type="submit" disabled={leadStatus === 'submitting'} className="w-full rounded-lg bg-slate-900 text-white py-2 text-sm disabled:opacity-60">
-                      {leadStatus === 'submitting' ? 'Submitting...' : 'Submit form'}
-                    </button>
-                  </form>
-                )}
-              </div>
-            )}
 
             <div className="p-3 border-t border-slate-200 bg-white flex items-center gap-2">
               <div className="flex-1 space-y-1">
