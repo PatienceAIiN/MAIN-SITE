@@ -177,6 +177,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [supportExecutives, setSupportExecutives] = useState([]);
   const [supportLoading, setSupportLoading] = useState(false);
   const [supportError, setSupportError] = useState('');
+  const [supportNotice, setSupportNotice] = useState('');
   const [supportForm, setSupportForm] = useState({ email: '', displayName: '' });
   const selectedSubmission = submissions.find((item) => item.id === selectedId) || submissions[0] || null;
   const jsonMatches = useMemo(() => {
@@ -558,9 +559,10 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const createSupportExecutive = async () => {
     if (!supportForm.email.trim()) return;
     setSupportError('');
+    setSupportNotice('');
     setSupportLoading(true);
     try {
-      await fetchJson('/api/support-executives', {
+      const payload = await fetchJson('/api/support-executives', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -568,6 +570,11 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
           displayName: supportForm.displayName.trim()
         })
       });
+      if (payload?.warning) {
+        setSupportNotice(payload.warning);
+      } else {
+        setSupportNotice('Support executive added successfully.');
+      }
       setSupportForm({ email: '', displayName: '' });
       await loadSupportExecutives();
     } catch (error) {
@@ -579,6 +586,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
 
   const updateSupportExecutive = async (id, action) => {
     setSupportError('');
+    setSupportNotice('');
     setSupportLoading(true);
     try {
       if (action === 'delete') {
@@ -588,11 +596,14 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
           body: JSON.stringify({ id })
         });
       } else {
-        await fetchJson('/api/support-executives', {
+        const payload = await fetchJson('/api/support-executives', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id, action })
         });
+        if (payload?.warning) {
+          setSupportNotice(payload.warning);
+        }
       }
       await loadSupportExecutives();
     } catch (error) {
@@ -1047,6 +1058,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                     Add & send invite
                   </Button>
                   {supportError && <p className="text-red-200 text-sm">{supportError}</p>}
+                  {supportNotice && <p className="text-emerald-200 text-sm">{supportNotice}</p>}
                 </div>
 
                 <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">

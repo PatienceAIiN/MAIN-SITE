@@ -11,6 +11,7 @@ import CareersPage from './pages/CareersPage';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import AdminPage from './pages/AdminPage';
+import SupportExecutivePage from './pages/SupportExecutivePage';
 import ContactUs from './components/ContactUs';
 import ProductDemoModal from './components/ProductDemoModal';
 import defaultSiteContent from './data/siteContent.json';
@@ -74,6 +75,8 @@ function App() {
             />
           }
         />
+        <Route path="/support/executive" element={<SupportExecutivePage />} />
+        <Route path="/support/accept-invite" element={<SupportExecutivePage inviteMode />} />
         <Route
           path="/*"
           element={
