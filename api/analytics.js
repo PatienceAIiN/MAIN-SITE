@@ -62,7 +62,7 @@ export default async function analyticsHandler(req, res) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     try {
-      const [total, today, week, month, topPages, topRefs, devices, browsers, recent, uniqueToday, uniqueWeek] =
+      const [total, today, week, month, topPages, topRefs, devices, browsers, recent, uniqueToday, uniqueWeek, supportChats, supportChatPeople] =
         await Promise.all([
           queryDb(`SELECT COUNT(*) as c FROM public.page_views`),
           queryDb(`SELECT COUNT(*) as c FROM public.page_views WHERE created_at >= NOW() - INTERVAL '1 day'`),
@@ -74,7 +74,9 @@ export default async function analyticsHandler(req, res) {
           queryDb(`SELECT browser, COUNT(*) as c FROM public.page_views GROUP BY browser ORDER BY c DESC`),
           queryDb(`SELECT page, referrer, device_type, browser, created_at FROM public.page_views ORDER BY created_at DESC LIMIT 50`),
           queryDb(`SELECT COUNT(DISTINCT ip_hash) as c FROM public.page_views WHERE created_at >= NOW() - INTERVAL '1 day'`),
-          queryDb(`SELECT COUNT(DISTINCT ip_hash) as c FROM public.page_views WHERE created_at >= NOW() - INTERVAL '7 days'`)
+          queryDb(`SELECT COUNT(DISTINCT ip_hash) as c FROM public.page_views WHERE created_at >= NOW() - INTERVAL '7 days'`),
+          queryDb(`SELECT COUNT(*) as c FROM public.support_chat_conversations`),
+          queryDb(`SELECT conversation_id, customer_name, executive_email, status, updated_at FROM public.support_chat_conversations ORDER BY updated_at DESC LIMIT 100`)
         ]);
 
       return res.json({
@@ -88,11 +90,21 @@ export default async function analyticsHandler(req, res) {
         topReferrers: topRefs.map(r => ({ referrer: r.referrer, count: Number(r.c) })),
         devices: devices.map(r => ({ device: r.device_type, count: Number(r.c) })),
         browsers: browsers.map(r => ({ browser: r.browser, count: Number(r.c) })),
-        recent: recent
+        recent: recent,
+        support: {
+          totalChats: Number(supportChats[0]?.c || 0),
+          items: supportChatPeople.map((item) => ({
+            conversationId: item.conversation_id,
+            customerName: item.customer_name || 'Unknown',
+            executiveEmail: item.executive_email || 'Unassigned',
+            status: item.status,
+            updatedAt: item.updated_at
+          }))
+        }
       });
     } catch (err) {
       if (isMissingTableError(err.message)) {
-        return res.json({ total: 0, today: 0, week: 0, month: 0, uniqueToday: 0, uniqueWeek: 0, topPages: [], topReferrers: [], devices: [], browsers: [], recent: [] });
+        return res.json({ total: 0, today: 0, week: 0, month: 0, uniqueToday: 0, uniqueWeek: 0, topPages: [], topReferrers: [], devices: [], browsers: [], recent: [], support: { totalChats: 0, items: [] } });
       }
       console.error('Analytics GET error:', err.message);
       return res.status(500).json({ error: 'Failed to fetch analytics' });

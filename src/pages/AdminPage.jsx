@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import Button from '../components/ui/Button';
 import { fetchJson } from '../common/fetchJson';
 
-const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations'];
+const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support'];
 
 const Spinner = ({ size = 16 }) => (
   <svg
@@ -174,6 +174,10 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
     browsers: 1,
     recent: 1
   });
+  const [supportExecutives, setSupportExecutives] = useState([]);
+  const [supportLoading, setSupportLoading] = useState(false);
+  const [supportError, setSupportError] = useState('');
+  const [supportForm, setSupportForm] = useState({ email: '', displayName: '' });
   const selectedSubmission = submissions.find((item) => item.id === selectedId) || submissions[0] || null;
   const jsonMatches = useMemo(() => {
     const query = jsonSearchTerm.trim().toLowerCase();
@@ -266,7 +270,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       if (payload.authenticated) {
         setAuthenticated(true);
         setUsername(payload.user?.username || '');
-        await Promise.all([loadSiteContent(), loadSubmissions(), loadConversations()]);
+        await Promise.all([loadSiteContent(), loadSubmissions(), loadConversations(), loadSupportExecutives()]);
       } else {
         setAuthenticated(false);
       }
@@ -303,6 +307,11 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   }, [activeTab, authenticated]);
 
   useEffect(() => {
+    if (!authenticated || activeTab !== 'support') return;
+    loadSupportExecutives();
+  }, [activeTab, authenticated]);
+
+  useEffect(() => {
     setSubmissionPage(1);
   }, [search, submissionFilter]);
 
@@ -333,7 +342,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       if (payload.authenticated) {
         setLoginSuccess(true);
         setUsername(payload.user?.username || loginForm.username);
-        await Promise.all([loadSiteContent(), loadSubmissions(), loadConversations()]);
+        await Promise.all([loadSiteContent(), loadSubmissions(), loadConversations(), loadSupportExecutives()]);
         window.setTimeout(() => {
           setLoginSuccess(false);
           setAuthenticated(true);
@@ -530,6 +539,66 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       setConversationError(error.message);
     } finally {
       setConversationLoading(false);
+    }
+  };
+
+  const loadSupportExecutives = async () => {
+    setSupportLoading(true);
+    setSupportError('');
+    try {
+      const payload = await fetchJson('/api/support-executives');
+      setSupportExecutives(payload.items || []);
+    } catch (error) {
+      setSupportError(error.message);
+    } finally {
+      setSupportLoading(false);
+    }
+  };
+
+  const createSupportExecutive = async () => {
+    if (!supportForm.email.trim()) return;
+    setSupportError('');
+    setSupportLoading(true);
+    try {
+      await fetchJson('/api/support-executives', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: supportForm.email.trim(),
+          displayName: supportForm.displayName.trim()
+        })
+      });
+      setSupportForm({ email: '', displayName: '' });
+      await loadSupportExecutives();
+    } catch (error) {
+      setSupportError(error.message);
+    } finally {
+      setSupportLoading(false);
+    }
+  };
+
+  const updateSupportExecutive = async (id, action) => {
+    setSupportError('');
+    setSupportLoading(true);
+    try {
+      if (action === 'delete') {
+        await fetchJson('/api/support-executives', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id })
+        });
+      } else {
+        await fetchJson('/api/support-executives', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, action })
+        });
+      }
+      await loadSupportExecutives();
+    } catch (error) {
+      setSupportError(error.message);
+    } finally {
+      setSupportLoading(false);
     }
   };
 
@@ -953,6 +1022,55 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                       </div>
                     );
                   })()}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'support' && (
+              <div className="grid grid-cols-1 xl:grid-cols-[0.9fr_1.1fr] gap-6">
+                <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6 space-y-3">
+                  <h2 className="text-2xl font-semibold">Add support executive</h2>
+                  <p className="text-sm text-white/60">Only <code>@patienceai.in</code> email addresses are accepted. Invite mail is sent instantly.</p>
+                  <input
+                    value={supportForm.displayName}
+                    onChange={(event) => setSupportForm((current) => ({ ...current, displayName: event.target.value }))}
+                    placeholder="Display name"
+                    className="w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm"
+                  />
+                  <input
+                    value={supportForm.email}
+                    onChange={(event) => setSupportForm((current) => ({ ...current, email: event.target.value }))}
+                    placeholder="name@patienceai.in"
+                    className="w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm"
+                  />
+                  <Button variant="white" className="rounded-xl px-4 py-2" onClick={createSupportExecutive} disabled={supportLoading}>
+                    Add & send invite
+                  </Button>
+                  {supportError && <p className="text-red-200 text-sm">{supportError}</p>}
+                </div>
+
+                <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
+                  <h3 className="text-xl font-semibold mb-3">Support executive list</h3>
+                  {supportLoading && <p className="text-sm text-white/60 mb-3">Loading support users…</p>}
+                  <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
+                    {supportExecutives.map((item) => (
+                      <div key={item.id} className="rounded-xl border border-white/10 bg-slate-900/60 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <p className="font-medium">{item.display_name || item.email}</p>
+                            <p className="text-xs text-white/50">{item.email}</p>
+                          </div>
+                          <span className="rounded-full border border-white/20 px-2 py-1 text-[11px] uppercase tracking-wide text-white/75">{item.status}</span>
+                        </div>
+                        <p className="text-xs text-white/50 mt-2">Invite: {item.invite_sent_at ? formatDate(item.invite_sent_at) : 'Not sent'}</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button variant="secondary" className="rounded-lg px-3 py-1.5" onClick={() => updateSupportExecutive(item.id, 'resendInvite')}>Resend invite</Button>
+                          <Button variant="secondary" className="rounded-lg px-3 py-1.5" onClick={() => updateSupportExecutive(item.id, 'delete')}>Delete</Button>
+                        </div>
+                      </div>
+                    ))}
+                    {!supportExecutives.length && !supportLoading && <p className="text-white/55 text-sm">No support executives yet.</p>}
+                  </div>
                 </div>
               </div>
             )}
