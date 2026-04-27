@@ -7,15 +7,33 @@ const requireAdmin = (req) => verifySessionToken(getCookieValue(req, SESSION_COO
 const validEmail = (email = '') => /^[^\s@]+@patienceai\.in$/i.test(String(email).trim());
 const toHash = (value) => crypto.createHash('sha256').update(String(value)).digest('hex');
 
-const buildInviteLink = (email, token) => {
-  const base = process.env.SITE_URL || 'http://localhost:3000';
-  const url = new URL('/support/accept-invite', base);
+const normalizeBaseUrl = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return `https://${raw}`;
+};
+
+const inferBaseFromRequest = (req) => {
+  const host = String(req?.headers?.['x-forwarded-host'] || req?.headers?.host || '').trim();
+  if (!host) return '';
+  const proto = String(req?.headers?.['x-forwarded-proto'] || '').split(',')[0].trim() || 'https';
+  return `${proto}://${host}`;
+};
+
+const buildInviteLink = (req, email, token) => {
+  const baseCandidate = normalizeBaseUrl(process.env.SITE_URL)
+    || normalizeBaseUrl(process.env.PUBLIC_SITE_URL)
+    || normalizeBaseUrl(process.env.RENDER_EXTERNAL_URL)
+    || inferBaseFromRequest(req)
+    || 'http://localhost:3000';
+  const url = new URL('/support/accept-invite', baseCandidate);
   url.searchParams.set('email', email);
   url.searchParams.set('token', token);
   return url.toString();
 };
 
-const sendInvite = async ({ email, adminName }) => {
+const sendInvite = async ({ req, email, adminName }) => {
   const token = crypto.randomBytes(24).toString('hex');
   const inviteTokenHash = toHash(token);
   await queryDb(
@@ -25,8 +43,19 @@ const sendInvite = async ({ email, adminName }) => {
     [inviteTokenHash, email]
   );
 
-  const inviteLink = buildInviteLink(email, token);
+  const inviteLink = buildInviteLink(req, email, token);
   await sendInviteMail({ to: email, inviteLink, invitedBy: adminName });
+};
+
+const formatInviteError = (error) => {
+  const message = String(error?.message || '').trim();
+  if (!message) {
+    return 'Invite email could not be sent right now. You can resend it later from Admin.';
+  }
+  if (/SMTP is not configured/i.test(message)) {
+    return 'Support executive was added, but SMTP is not configured so invite email was not sent.';
+  }
+  return `Support executive was added, but invite email failed: ${message}`;
 };
 
 export default async function supportExecutivesHandler(req, res) {
@@ -67,8 +96,16 @@ export default async function supportExecutivesHandler(req, res) {
       [normalized, displayName || null, admin.username || 'admin']
     );
 
-    await sendInvite({ email: normalized, adminName: admin.username || 'admin' });
-    return res.status(200).json({ ok: true, message: 'Invite sent' });
+    try {
+      await sendInvite({ req, email: normalized, adminName: admin.username || 'admin' });
+      return res.status(200).json({ ok: true, message: 'Invite sent' });
+    } catch (error) {
+      return res.status(200).json({
+        ok: true,
+        inviteSent: false,
+        warning: formatInviteError(error)
+      });
+    }
   }
 
   if (req.method === 'PATCH') {
@@ -78,8 +115,16 @@ export default async function supportExecutivesHandler(req, res) {
     if (action === 'resendInvite') {
       const rows = await queryDb('SELECT email FROM public.support_executives WHERE id = $1 LIMIT 1', [id]);
       if (!rows[0]) return res.status(404).json({ error: 'Support executive not found' });
-      await sendInvite({ email: rows[0].email, adminName: admin.username || 'admin' });
-      return res.status(200).json({ ok: true, message: 'Invite resent' });
+      try {
+        await sendInvite({ req, email: rows[0].email, adminName: admin.username || 'admin' });
+        return res.status(200).json({ ok: true, message: 'Invite resent' });
+      } catch (error) {
+        return res.status(200).json({
+          ok: true,
+          inviteSent: false,
+          warning: formatInviteError(error)
+        });
+      }
     }
 
     const updates = [];

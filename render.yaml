@@ -11,6 +11,8 @@ services:
         value: production
       - key: SITE_URL
         value: https://patienceai.in
+      - key: PUBLIC_SITE_URL
+        value: https://patienceai.in
       - key: DATABASE_URL
         sync: false
       - key: ADMIN_USERNAME
@@ -30,6 +32,18 @@ services:
       - key: SMTP_PASS
         sync: false
       - key: SMTP_FROM
+        sync: false
+      - key: GODADDY_SMTP_HOST
+        sync: false
+      - key: GODADDY_SMTP_PORT
+        sync: false
+      - key: GODADDY_SMTP_SECURE
+        sync: false
+      - key: GODADDY_SMTP_USER
+        sync: false
+      - key: GODADDY_SMTP_PASS
+        sync: false
+      - key: GODADDY_SMTP_FROM
         sync: false
       - key: SUPPORT_APP_NAME
         value: PatienceAI Support

@@ -30,8 +30,15 @@ All variables are loaded from `.env` (local dev) or the Render dashboard (produc
 | `SMTP_SECURE` | Yes | `true` | `true` for port 465 (SSL). `false` for port 587 (STARTTLS). |
 | `SMTP_USER` | Yes | `growth@patienceai.in` | Full email address used as the sender. |
 | `SMTP_PASS` | Yes | `YourEmailPassword` | Password for the sender email account. |
+| `SMTP_FROM` | No | `no-reply@patienceai.in` | Sender address for invite emails. Defaults to `SMTP_USER`. |
 | `SMTP_SENDER_NAME` | No | `Patience AI` | Display name shown in From field. Defaults to `PATIENCE AI`. |
 | `CONTACT_TO_EMAIL` | Yes | `support@patienceai.in` | Recipient for contact form notifications. Supports comma-separated list. |
+| `GODADDY_SMTP_HOST` | No | `smtpout.secureserver.net` | Alias for `SMTP_HOST` when you keep GoDaddy-specific env names. |
+| `GODADDY_SMTP_PORT` | No | `465` | Alias for `SMTP_PORT`. |
+| `GODADDY_SMTP_SECURE` | No | `true` | Alias for `SMTP_SECURE`. |
+| `GODADDY_SMTP_USER` | No | `growth@patienceai.in` | Alias for `SMTP_USER`. |
+| `GODADDY_SMTP_PASS` | No | `YourEmailPassword` | Alias for `SMTP_PASS`. |
+| `GODADDY_SMTP_FROM` | No | `no-reply@patienceai.in` | Alias for `SMTP_FROM`. |
 
 ### AI
 
@@ -44,7 +51,8 @@ All variables are loaded from `.env` (local dev) or the Render dashboard (produc
 
 | Variable | Required | Example | Description |
 |---|---|---|---|
-| `SITE_URL` | No | `patienceai.in` | Public domain (no https://). Used for canonical URLs. |
+| `SITE_URL` | No | `patienceai.in` | Public domain. `patienceai.in` and `https://patienceai.in` are both accepted. |
+| `PUBLIC_SITE_URL` | No | `https://patienceai.in` | Optional explicit base URL used for support invite links. |
 | `PORT` | No | `3000` | Express server port. Render sets this automatically. |
 | `NODE_ENV` | No | `production` | Set to `production` in Render. |
 
@@ -69,6 +77,7 @@ SMTP_PORT=465
 SMTP_SECURE=true
 SMTP_USER=growth@patienceai.in
 SMTP_PASS=
+SMTP_FROM=no-reply@patienceai.in
 SMTP_SENDER_NAME=Patience AI
 CONTACT_TO_EMAIL=support@patienceai.in
 
@@ -77,6 +86,7 @@ GROQ_API_KEY=
 
 # General
 SITE_URL=patienceai.in
+PUBLIC_SITE_URL=https://patienceai.in
 ```
 
 ---
