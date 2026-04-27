@@ -48,6 +48,9 @@ import chatAdminHandler from './api/chat-admin.js';
 import chatHandler from './api/chat.js';
 import contactHandler from './api/contact.js';
 import siteContentHandler from './api/site-content.js';
+import supportAuthHandler from './api/support-auth.js';
+import supportExecutivesHandler from './api/support-executives.js';
+import supportChatHandler from './api/support-chat.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, 'dist');
@@ -268,7 +271,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '12mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ── Rate limiters ──────────────────────────────────────────────────────────────
@@ -283,6 +286,9 @@ app.all('/api/chat-admin', wrap(chatAdminHandler));
 app.all('/api/chat', wrap(chatHandler));
 app.all('/api/contact', contactLimiter, wrap(contactHandler));
 app.all('/api/site-content', wrap(siteContentHandler));
+app.all('/api/support-auth', authLimiter, wrap(supportAuthHandler));
+app.all('/api/support-executives', wrap(supportExecutivesHandler));
+app.all('/api/support-chat', wrap(supportChatHandler));
 
 // Dynamic sitemap.xml
 app.get('/sitemap.xml', (req, res) => {
