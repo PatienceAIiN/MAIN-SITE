@@ -29,6 +29,17 @@ const sendInvite = async ({ email, adminName }) => {
   await sendInviteMail({ to: email, inviteLink, invitedBy: adminName });
 };
 
+const formatInviteError = (error) => {
+  const message = String(error?.message || '').trim();
+  if (!message) {
+    return 'Invite email could not be sent right now. You can resend it later from Admin.';
+  }
+  if (/SMTP is not configured/i.test(message)) {
+    return 'Support executive was added, but SMTP is not configured so invite email was not sent.';
+  }
+  return `Support executive was added, but invite email failed: ${message}`;
+};
+
 export default async function supportExecutivesHandler(req, res) {
   const admin = requireAdmin(req);
   if (!admin) {
@@ -67,8 +78,16 @@ export default async function supportExecutivesHandler(req, res) {
       [normalized, displayName || null, admin.username || 'admin']
     );
 
-    await sendInvite({ email: normalized, adminName: admin.username || 'admin' });
-    return res.status(200).json({ ok: true, message: 'Invite sent' });
+    try {
+      await sendInvite({ email: normalized, adminName: admin.username || 'admin' });
+      return res.status(200).json({ ok: true, message: 'Invite sent' });
+    } catch (error) {
+      return res.status(200).json({
+        ok: true,
+        inviteSent: false,
+        warning: formatInviteError(error)
+      });
+    }
   }
 
   if (req.method === 'PATCH') {
@@ -78,8 +97,16 @@ export default async function supportExecutivesHandler(req, res) {
     if (action === 'resendInvite') {
       const rows = await queryDb('SELECT email FROM public.support_executives WHERE id = $1 LIMIT 1', [id]);
       if (!rows[0]) return res.status(404).json({ error: 'Support executive not found' });
-      await sendInvite({ email: rows[0].email, adminName: admin.username || 'admin' });
-      return res.status(200).json({ ok: true, message: 'Invite resent' });
+      try {
+        await sendInvite({ email: rows[0].email, adminName: admin.username || 'admin' });
+        return res.status(200).json({ ok: true, message: 'Invite resent' });
+      } catch (error) {
+        return res.status(200).json({
+          ok: true,
+          inviteSent: false,
+          warning: formatInviteError(error)
+        });
+      }
     }
 
     const updates = [];

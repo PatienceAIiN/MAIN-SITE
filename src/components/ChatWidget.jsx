@@ -8,6 +8,7 @@ const YES_PATTERN = /^(yes|yeah|yep|sure|ok|okay|please|why not|go ahead)$/i;
 const CONTACT_FORM_PATTERN = /\b(show|open|fill|need|want).{0,24}\b(contact|sales)\s+form\b|\bcontact\s+form\b/i;
 const JOB_FORM_PATTERN = /\b(job|career|hiring|apply|application|job\s*enquiry|job\s*inquiry)\b.*\b(form|enquiry|inquiry|apply)\b|\bjob\s*enquiry\b|\bjob\s*inquiry\b/i;
 const NAVIGATION_REQUEST_PATTERN = /\b(open|go to|navigate|take me to|redirect|show me)\b/i;
+const LIVE_SUPPORT_PATTERN = /\b(customer support|support team|live chat|human agent|support executive|connect me|talk to (someone|human|agent)|speak to (someone|human|agent)|representative)\b/i;
 const buildRouteActions = (message = '') => {
   const text = String(message).toLowerCase();
   const actions = [];
@@ -165,7 +166,16 @@ const ChatWidget = ({ brand }) => {
   const [routeActions, setRouteActions] = useState([]);
   const [assistantSuggestions, setAssistantSuggestions] = useState([]);
   const [showContactCta, setShowContactCta] = useState(false);
+  const [showLiveSupportModal, setShowLiveSupportModal] = useState(false);
+  const [supportConversationId, setSupportConversationId] = useState('');
+  const [supportCustomer, setSupportCustomer] = useState({ name: '', email: '' });
+  const [supportMessages, setSupportMessages] = useState([]);
+  const [supportInput, setSupportInput] = useState('');
+  const [supportBusy, setSupportBusy] = useState(false);
+  const [supportError, setSupportError] = useState('');
+  const [supportPolling, setSupportPolling] = useState(false);
   const scrollAreaRef = useRef(null);
+  const supportScrollRef = useRef(null);
   const inputRef = useRef(null);
   const abortControllerRef = useRef(null);
   const launcherStackRef = useRef(null);
@@ -208,6 +218,7 @@ const ChatWidget = ({ brand }) => {
       const isInsideLauncher = launcherStackRef.current?.contains(event.target);
       const isInsideChat = chatPanelRef.current?.contains(event.target);
       if (!isInsideLauncher && !isInsideChat) {
+        if (showLiveSupportModal) return;
         setIsOpen(false);
         setShowInfo(false);
       }
@@ -215,7 +226,7 @@ const ChatWidget = ({ brand }) => {
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
+  }, [isOpen, showLiveSupportModal]);
 
   useEffect(() => {
     if (typeof document === 'undefined' || typeof window === 'undefined') {
@@ -223,6 +234,7 @@ const ChatWidget = ({ brand }) => {
     }
 
     const collapse = () => {
+      if (showLiveSupportModal) return;
       setIsOpen(false);
       setShowInfo(false);
     };
@@ -240,7 +252,7 @@ const ChatWidget = ({ brand }) => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('blur', collapse);
     };
-  }, []);
+  }, [showLiveSupportModal]);
 
   useEffect(() => {
     const panel = scrollAreaRef.current;
@@ -479,6 +491,92 @@ const ChatWidget = ({ brand }) => {
     setBusy(false);
   };
 
+  const openLiveSupportModal = () => {
+    setShowLiveSupportModal(true);
+    setSupportError('');
+  };
+
+  const createLiveSupportConversation = async () => {
+    if (supportConversationId || supportBusy) return;
+    setSupportBusy(true);
+    setSupportError('');
+    try {
+      const payload = await fetchJson('/api/support-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'createConversation',
+          customerName: supportCustomer.name.trim() || null,
+          customerEmail: supportCustomer.email.trim() || null
+        })
+      });
+      setSupportConversationId(payload?.conversationId || '');
+      setSupportPolling(true);
+    } catch (error) {
+      setSupportError(error.message || 'Unable to connect live support right now.');
+    } finally {
+      setSupportBusy(false);
+    }
+  };
+
+  const sendLiveSupportMessage = async () => {
+    if (!supportConversationId || !supportInput.trim() || supportBusy) return;
+    const message = supportInput.trim();
+    setSupportInput('');
+    setSupportBusy(true);
+    setSupportError('');
+    try {
+      await fetchJson('/api/support-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'sendMessage',
+          conversationId: supportConversationId,
+          senderRole: 'customer',
+          message
+        })
+      });
+      setSupportPolling(true);
+    } catch (error) {
+      setSupportError(error.message || 'Failed to send message.');
+      setSupportInput(message);
+    } finally {
+      setSupportBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!supportPolling || !showLiveSupportModal || !supportConversationId) return undefined;
+    let stopped = false;
+
+    const poll = async () => {
+      try {
+        const payload = await fetchJson(`/api/support-chat?conversationId=${encodeURIComponent(supportConversationId)}`);
+        if (!stopped) {
+          setSupportMessages(payload?.messages || []);
+        }
+      } catch (error) {
+        if (!stopped) {
+          setSupportError(error.message || 'Live support is currently unavailable.');
+        }
+      }
+    };
+
+    poll();
+    const timer = window.setInterval(poll, 2500);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [showLiveSupportModal, supportConversationId, supportPolling]);
+
+  useEffect(() => {
+    if (!showLiveSupportModal) return;
+    const node = supportScrollRef.current;
+    if (!node) return;
+    node.scrollTop = node.scrollHeight;
+  }, [showLiveSupportModal, supportMessages]);
+
   const ask = async (presetQuestion = null) => {
     const sourceQuestion = typeof presetQuestion === 'string' ? presetQuestion : input;
     const question = normalizeMessageContent(sourceQuestion).trim();
@@ -487,6 +585,7 @@ const ChatWidget = ({ brand }) => {
     const openForm = shouldOpenContactForm(question, messages);
     const wantsContactForm = CONTACT_FORM_PATTERN.test(question);
     const wantsJobForm = JOB_FORM_PATTERN.test(question);
+    const wantsLiveSupport = LIVE_SUPPORT_PATTERN.test(question);
     const userMessage = { role: 'user', content: question };
     const nextMessages = [...messages, userMessage];
     setMessages(nextMessages);
@@ -497,6 +596,18 @@ const ChatWidget = ({ brand }) => {
     setRouteActions([]);
     setAssistantSuggestions([]);
     setShowContactCta(false);
+
+    if (wantsLiveSupport) {
+      openLiveSupportModal();
+      setMessages((current) => [
+        ...current,
+        {
+          role: 'assistant',
+          content: 'Sure — I opened live customer support chat for you. Please share your name/email and start messaging.'
+        }
+      ]);
+      return;
+    }
 
     if (openForm) {
       setShowContactForm(true);
@@ -989,6 +1100,109 @@ const ChatWidget = ({ brand }) => {
                 <p className="text-[11px] text-slate-500 px-1">Responses are AI-generated and may be imperfect.</p>
               </div>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showLiveSupportModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[160] bg-slate-950/70 p-3 md:p-8"
+          >
+            <motion.div
+              initial={{ y: 18, opacity: 0.9 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 18, opacity: 0.9 }}
+              className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/15 bg-white shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                <div>
+                  <h3 className="text-xl font-semibold text-slate-900">Live customer support</h3>
+                  <p className="text-xs text-slate-500">Connected with support executives in real time.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLiveSupportModal(false)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100"
+                  aria-label="Close live support chat"
+                >
+                  <FiX size={18} />
+                </button>
+              </div>
+
+              {!supportConversationId ? (
+                <div className="mx-auto my-auto w-full max-w-xl space-y-3 px-4 py-8">
+                  <p className="text-sm text-slate-700">Add basic details so a support executive can identify your chat.</p>
+                  <input
+                    value={supportCustomer.name}
+                    onChange={(event) => setSupportCustomer((current) => ({ ...current, name: event.target.value }))}
+                    placeholder="Your name (optional)"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="email"
+                    value={supportCustomer.email}
+                    onChange={(event) => setSupportCustomer((current) => ({ ...current, email: event.target.value }))}
+                    placeholder="Your email (optional)"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  />
+                  {supportError && <p className="text-sm text-red-600">{supportError}</p>}
+                  <button
+                    type="button"
+                    onClick={createLiveSupportConversation}
+                    disabled={supportBusy}
+                    className="w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60"
+                  >
+                    {supportBusy ? 'Connecting…' : 'Start live chat'}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div ref={supportScrollRef} className="flex-1 space-y-3 overflow-y-auto bg-slate-50 px-4 py-4">
+                    {supportMessages.map((item) => (
+                      <div
+                        key={item.id}
+                        className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
+                          item.sender_role === 'customer' ? 'ml-auto bg-slate-900 text-white' : 'bg-white text-slate-800 border border-slate-200'
+                        }`}
+                      >
+                        <p className="whitespace-pre-wrap break-words">{item.message}</p>
+                        <p className="mt-1 text-[10px] uppercase tracking-wide opacity-60">{item.sender_role}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="border-t border-slate-200 p-3">
+                    <div className="mb-2 text-[11px] text-slate-500">Conversation ID: {supportConversationId}</div>
+                    {supportError && <p className="mb-2 text-xs text-red-600">{supportError}</p>}
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={supportInput}
+                        onChange={(event) => setSupportInput(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            sendLiveSupportMessage();
+                          }
+                        }}
+                        placeholder="Type message for support executive..."
+                        className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={sendLiveSupportMessage}
+                        disabled={!supportInput.trim() || supportBusy}
+                        className="h-10 w-10 rounded-xl bg-slate-900 text-white disabled:opacity-50"
+                      >
+                        <FiSend size={15} className="mx-auto" />
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
