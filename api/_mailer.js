@@ -5,18 +5,28 @@ const readInt = (value, fallback) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const readEnv = (primaryKey, fallbackKey = '') => {
+  const primary = String(process.env[primaryKey] || '').trim();
+  if (primary) return primary;
+  if (!fallbackKey) return '';
+  return String(process.env[fallbackKey] || '').trim();
+};
+
 const getTransportConfig = () => {
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+  const host = readEnv('SMTP_HOST', 'GODADDY_SMTP_HOST');
+  const user = readEnv('SMTP_USER', 'GODADDY_SMTP_USER');
+  const pass = readEnv('SMTP_PASS', 'GODADDY_SMTP_PASS');
+  if (!host || !user || !pass) {
     return null;
   }
 
   return {
-    host: process.env.SMTP_HOST,
-    port: readInt(process.env.SMTP_PORT, 587),
-    secure: String(process.env.SMTP_SECURE || 'false') === 'true',
+    host,
+    port: readInt(readEnv('SMTP_PORT', 'GODADDY_SMTP_PORT'), 587),
+    secure: String(readEnv('SMTP_SECURE', 'GODADDY_SMTP_SECURE') || 'false') === 'true',
     auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
+      user,
+      pass
     }
   };
 };
@@ -34,10 +44,10 @@ const getTransporter = () => {
 export const sendInviteMail = async ({ to, inviteLink, invitedBy }) => {
   const mailer = getTransporter();
   if (!mailer) {
-    throw new Error('SMTP is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS.');
+    throw new Error('SMTP is not configured. Set SMTP_* or GODADDY_SMTP_* env values.');
   }
 
-  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+  const from = readEnv('SMTP_FROM', 'GODADDY_SMTP_FROM') || readEnv('SMTP_USER', 'GODADDY_SMTP_USER');
   const appLabel = process.env.SUPPORT_APP_NAME || 'PatienceAI Support';
 
   await mailer.sendMail({

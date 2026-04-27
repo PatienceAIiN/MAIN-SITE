@@ -6,6 +6,7 @@ import {
   SESSION_COOKIE_NAME,
   verifySessionToken
 } from './_security.js';
+import { queryDb } from './_db.js';
 
 const getJsonBody = (req) => req.body || {};
 
@@ -40,6 +41,23 @@ const clearAuthCookie = (res) => {
   );
 };
 
+const logAdminAuth = async (req, identifier, status) => {
+  try {
+    await queryDb(
+      `INSERT INTO public.auth_login_events (role, identifier, status, ip_address, user_agent)
+       VALUES ('admin', $1, $2, $3, $4)`,
+      [
+        String(identifier || 'unknown'),
+        status,
+        String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim() || null,
+        String(req.headers['user-agent'] || '').trim() || null
+      ]
+    );
+  } catch {
+    // Ignore auth logging failures.
+  }
+};
+
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     const token = getCookieValue(req, SESSION_COOKIE_NAME);
@@ -71,11 +89,13 @@ export default async function handler(req, res) {
     }
 
     if (!secureEqual(username, adminUser) || !secureEqual(password, adminPass)) {
+      await logAdminAuth(req, username, 'failure');
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const token = createSessionToken({ username: adminUser });
     setAuthCookie(res, token);
+    await logAdminAuth(req, adminUser, 'success');
     return res.status(200).json({ authenticated: true, user: { username: adminUser } });
   }
 

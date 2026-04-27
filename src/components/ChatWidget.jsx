@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FiCheck, FiCopy, FiInfo, FiSend, FiSquare, FiTrash2, FiX } from 'react-icons/fi';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { fetchJson } from '../common/fetchJson';
 
 const YES_PATTERN = /^(yes|yeah|yep|sure|ok|okay|please|why not|go ahead)$/i;
@@ -149,6 +149,7 @@ const getOrCreateId = (storageKey, prefix) => {
 
 const ChatWidget = ({ brand }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [input, setInput] = useState('');
@@ -168,14 +169,19 @@ const ChatWidget = ({ brand }) => {
   const [showContactCta, setShowContactCta] = useState(false);
   const [showLiveSupportModal, setShowLiveSupportModal] = useState(false);
   const [supportConversationId, setSupportConversationId] = useState('');
+  const [supportConversationInput, setSupportConversationInput] = useState('');
   const [supportCustomer, setSupportCustomer] = useState({ name: '', email: '' });
   const [supportMessages, setSupportMessages] = useState([]);
   const [supportInput, setSupportInput] = useState('');
   const [supportBusy, setSupportBusy] = useState(false);
   const [supportError, setSupportError] = useState('');
   const [supportPolling, setSupportPolling] = useState(false);
+  const [showSupportInfo, setShowSupportInfo] = useState(false);
+  const [copiedSupportConversationId, setCopiedSupportConversationId] = useState(false);
   const scrollAreaRef = useRef(null);
   const supportScrollRef = useRef(null);
+  const supportInfoRef = useRef(null);
+  const supportInfoButtonRef = useRef(null);
   const inputRef = useRef(null);
   const abortControllerRef = useRef(null);
   const launcherStackRef = useRef(null);
@@ -494,10 +500,15 @@ const ChatWidget = ({ brand }) => {
   const openLiveSupportModal = () => {
     setShowLiveSupportModal(true);
     setSupportError('');
+    setShowSupportInfo(false);
   };
 
   const createLiveSupportConversation = async () => {
     if (supportConversationId || supportBusy) return;
+    if (!supportCustomer.name.trim() || !supportCustomer.email.trim()) {
+      setSupportError('Name and email are required to start live chat.');
+      return;
+    }
     setSupportBusy(true);
     setSupportError('');
     try {
@@ -511,9 +522,38 @@ const ChatWidget = ({ brand }) => {
         })
       });
       setSupportConversationId(payload?.conversationId || '');
+      setSupportConversationInput(payload?.conversationId || '');
       setSupportPolling(true);
     } catch (error) {
       setSupportError(error.message || 'Unable to connect live support right now.');
+    } finally {
+      setSupportBusy(false);
+    }
+  };
+
+  const loadExistingSupportConversation = async () => {
+    if (!supportConversationInput.trim() || supportBusy) return;
+    if (!supportCustomer.name.trim() || !supportCustomer.email.trim()) {
+      setSupportError('Name and email are required.');
+      return;
+    }
+    setSupportBusy(true);
+    setSupportError('');
+    try {
+      const payload = await fetchJson('/api/support-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'restoreConversation',
+          conversationId: supportConversationInput.trim(),
+          customerEmail: supportCustomer.email.trim()
+        })
+      });
+      setSupportConversationId(payload?.conversation?.conversation_id || supportConversationInput.trim());
+      setSupportMessages(payload?.messages || []);
+      setSupportPolling(true);
+    } catch (error) {
+      setSupportError(error.message || 'Unable to load this conversation.');
     } finally {
       setSupportBusy(false);
     }
@@ -532,6 +572,7 @@ const ChatWidget = ({ brand }) => {
         body: JSON.stringify({
           action: 'sendMessage',
           conversationId: supportConversationId,
+          customerEmail: supportCustomer.email.trim(),
           senderRole: 'customer',
           message
         })
@@ -551,7 +592,7 @@ const ChatWidget = ({ brand }) => {
 
     const poll = async () => {
       try {
-        const payload = await fetchJson(`/api/support-chat?conversationId=${encodeURIComponent(supportConversationId)}`);
+        const payload = await fetchJson(`/api/support-chat?conversationId=${encodeURIComponent(supportConversationId)}&customerEmail=${encodeURIComponent(supportCustomer.email.trim())}`);
         if (!stopped) {
           setSupportMessages(payload?.messages || []);
         }
@@ -568,7 +609,18 @@ const ChatWidget = ({ brand }) => {
       stopped = true;
       window.clearInterval(timer);
     };
-  }, [showLiveSupportModal, supportConversationId, supportPolling]);
+  }, [showLiveSupportModal, supportConversationId, supportPolling, supportCustomer.email]);
+
+  const copySupportConversationId = async () => {
+    if (typeof navigator === 'undefined' || !navigator.clipboard || !supportConversationId) return;
+    try {
+      await navigator.clipboard.writeText(supportConversationId);
+      setCopiedSupportConversationId(true);
+      window.setTimeout(() => setCopiedSupportConversationId(false), 1400);
+    } catch {
+      setCopiedSupportConversationId(false);
+    }
+  };
 
   useEffect(() => {
     if (!showLiveSupportModal) return;
@@ -576,6 +628,20 @@ const ChatWidget = ({ brand }) => {
     if (!node) return;
     node.scrollTop = node.scrollHeight;
   }, [showLiveSupportModal, supportMessages]);
+
+  useEffect(() => {
+    if (!showSupportInfo) return undefined;
+    const closeSupportInfo = (event) => {
+      if (supportInfoRef.current?.contains(event.target) || supportInfoButtonRef.current?.contains(event.target)) return;
+      setShowSupportInfo(false);
+    };
+    document.addEventListener('mousedown', closeSupportInfo);
+    return () => document.removeEventListener('mousedown', closeSupportInfo);
+  }, [showSupportInfo]);
+
+  useEffect(() => {
+    setShowSupportInfo(false);
+  }, [location.pathname]);
 
   const ask = async (presetQuestion = null) => {
     const sourceQuestion = typeof presetQuestion === 'string' ? presetQuestion : input;
@@ -1120,44 +1186,87 @@ const ChatWidget = ({ brand }) => {
             >
               <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                 <div>
-                  <h3 className="text-xl font-semibold text-slate-900">Live customer support</h3>
-                  <p className="text-xs text-slate-500">Connected with support executives in real time.</p>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-semibold text-slate-900">Live customer support</h3>
+                    <button
+                      ref={supportInfoButtonRef}
+                      type="button"
+                      onClick={() => setShowSupportInfo((current) => !current)}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100"
+                      aria-label="Support conversation info"
+                    >
+                      <FiInfo size={14} />
+                    </button>
+                  </div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowLiveSupportModal(false)}
+                  onClick={() => { setShowLiveSupportModal(false); setShowSupportInfo(false); }}
                   className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100"
                   aria-label="Close live support chat"
                 >
                   <FiX size={18} />
                 </button>
               </div>
+              {showSupportInfo && (
+                <div ref={supportInfoRef} className="mx-5 mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="break-all">Conversation ID: <span className="font-semibold">{supportConversationId || 'Not created yet'}</span></p>
+                    <button
+                      type="button"
+                      onClick={copySupportConversationId}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-300 text-slate-600 hover:bg-white"
+                      aria-label="Copy support conversation ID"
+                    >
+                      {copiedSupportConversationId ? <FiCheck size={13} /> : <FiCopy size={13} />}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {!supportConversationId ? (
                 <div className="mx-auto my-auto w-full max-w-xl space-y-3 px-4 py-8">
-                  <p className="text-sm text-slate-700">Add basic details so a support executive can identify your chat.</p>
+                  <p className="text-sm text-slate-700">Provide your name and email to start, or enter an existing conversation ID to continue.</p>
                   <input
                     value={supportCustomer.name}
                     onChange={(event) => setSupportCustomer((current) => ({ ...current, name: event.target.value }))}
-                    placeholder="Your name (optional)"
+                    placeholder="Your name *"
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                    required
                   />
                   <input
                     type="email"
                     value={supportCustomer.email}
                     onChange={(event) => setSupportCustomer((current) => ({ ...current, email: event.target.value }))}
-                    placeholder="Your email (optional)"
+                    placeholder="Your email *"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                    required
+                  />
+                  <input
+                    value={supportConversationInput}
+                    onChange={(event) => setSupportConversationInput(event.target.value)}
+                    placeholder="Existing conversation ID (optional)"
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
                   />
                   {supportError && <p className="text-sm text-red-600">{supportError}</p>}
-                  <button
-                    type="button"
-                    onClick={createLiveSupportConversation}
-                    disabled={supportBusy}
-                    className="w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60"
-                  >
-                    {supportBusy ? 'Connecting…' : 'Start live chat'}
-                  </button>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={createLiveSupportConversation}
+                      disabled={supportBusy}
+                      className="w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60"
+                    >
+                      {supportBusy ? 'Connecting…' : 'Start new chat'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={loadExistingSupportConversation}
+                      disabled={supportBusy || !supportConversationInput.trim()}
+                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 disabled:opacity-60"
+                    >
+                      Continue chat
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <>

@@ -2,7 +2,10 @@ import net from 'node:net';
 import tls from 'node:tls';
 
 const getRedisConfig = () => {
-  const redisUrl = process.env.REDIS_URL;
+  const rawRedisUrl = String(process.env.REDIS_URL || '').trim();
+  const redisUrl = rawRedisUrl.startsWith('redis-cli -u ')
+    ? rawRedisUrl.slice('redis-cli -u '.length).trim()
+    : rawRedisUrl;
   if (!redisUrl) return null;
 
   const parsed = new URL(redisUrl);

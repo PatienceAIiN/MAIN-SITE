@@ -29,6 +29,23 @@ const clearCookie = (res) => {
   }));
 };
 
+const logSupportAuth = async (req, identifier, status) => {
+  try {
+    await queryDb(
+      `INSERT INTO public.auth_login_events (role, identifier, status, ip_address, user_agent)
+       VALUES ('support', $1, $2, $3, $4)`,
+      [
+        String(identifier || 'unknown'),
+        status,
+        String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim() || null,
+        String(req.headers['user-agent'] || '').trim() || null
+      ]
+    );
+  } catch {
+    // Ignore auth logging failures.
+  }
+};
+
 export const requireSupport = (req) => {
   const token = getCookieValue(req, COOKIE_NAME);
   const session = verifySessionToken(token);
@@ -59,7 +76,10 @@ export default async function supportAuthHandler(req, res) {
       const rows = await queryDb('SELECT * FROM public.support_executives WHERE email = $1 LIMIT 1', [String(email).trim().toLowerCase()]);
       const executive = rows[0];
       if (!executive || !executive.invite_token_hash) return res.status(404).json({ error: 'Invite not found' });
-      if (executive.invite_token_hash !== hashToken(inviteToken)) return res.status(401).json({ error: 'Invalid invite token' });
+      if (executive.invite_token_hash !== hashToken(inviteToken)) {
+        await logSupportAuth(req, email, 'failure');
+        return res.status(401).json({ error: 'Invalid invite token' });
+      }
       if (!executive.invite_sent_at || (Date.now() - new Date(executive.invite_sent_at).getTime()) > 48 * 60 * 60 * 1000) {
         return res.status(401).json({ error: 'Invite expired. Ask admin to resend invite.' });
       }
@@ -74,6 +94,7 @@ export default async function supportAuthHandler(req, res) {
 
       const token = createSessionToken({ email: executive.email, role: 'support' });
       setCookie(res, token);
+      await logSupportAuth(req, executive.email, 'success');
       return res.status(200).json({ authenticated: true, accepted: true, user: { email: executive.email, role: 'support' } });
     }
 
@@ -83,16 +104,21 @@ export default async function supportAuthHandler(req, res) {
     const rows = await queryDb('SELECT * FROM public.support_executives WHERE email = $1 LIMIT 1', [String(email).trim().toLowerCase()]);
     const executive = rows[0];
     if (!executive || !executive.password_hash || executive.status === 'disabled') {
+      await logSupportAuth(req, email, 'failure');
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const ok = verifyPassword(password, executive.password_salt, executive.password_hash);
-    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!ok) {
+      await logSupportAuth(req, email, 'failure');
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
 
     await queryDb('UPDATE public.support_executives SET status = $1, updated_at = NOW() WHERE id = $2', ['active', executive.id]);
 
     const token = createSessionToken({ email: executive.email, role: 'support' });
     setCookie(res, token);
+    await logSupportAuth(req, executive.email, 'success');
     return res.status(200).json({ authenticated: true, user: { email: executive.email, role: 'support' } });
   }
 

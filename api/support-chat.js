@@ -6,7 +6,8 @@ import { redisGetJson, redisPublish, redisSetJson } from './_redis.js';
 
 const requireAdmin = (req) => verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME));
 
-const createConversationId = () => `conv_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+const createConversationId = () => `PatienceAILive-${crypto.randomBytes(3).toString('hex')}`;
+const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
 
 const saveMessage = async ({ conversationId, role, email, message, messageType = 'text', attachment = null }) => {
   await queryDb(
@@ -27,14 +28,35 @@ export default async function supportChatHandler(req, res) {
 
     if (action === 'createConversation') {
       const { customerName, customerEmail } = req.body || {};
+      const safeName = String(customerName || '').trim();
+      const safeEmail = normalizeEmail(customerEmail);
+      if (!safeName || !safeEmail) {
+        return res.status(400).json({ error: 'Name and email are required' });
+      }
       const conversationId = createConversationId();
       await queryDb(
         `INSERT INTO public.support_chat_conversations (conversation_id, customer_name, customer_email, status)
          VALUES ($1,$2,$3,'waiting')`,
-        [conversationId, customerName || null, customerEmail || null]
+        [conversationId, safeName, safeEmail]
       );
       await saveMessage({ conversationId, role: 'system', messageType: 'system', message: 'Conversation created. Waiting for executive.' });
       return res.status(200).json({ conversationId, status: 'waiting' });
+    }
+
+    if (action === 'restoreConversation') {
+      const { conversationId, customerEmail } = req.body || {};
+      const safeEmail = normalizeEmail(customerEmail);
+      if (!conversationId || !safeEmail) {
+        return res.status(400).json({ error: 'conversationId and email are required' });
+      }
+      const convoRows = await queryDb('SELECT * FROM public.support_chat_conversations WHERE conversation_id = $1 LIMIT 1', [conversationId]);
+      const convo = convoRows[0];
+      if (!convo) return res.status(404).json({ error: 'Conversation not found' });
+      if (normalizeEmail(convo.customer_email) !== safeEmail) {
+        return res.status(403).json({ error: 'Conversation/email does not match' });
+      }
+      const messages = await queryDb('SELECT * FROM public.support_chat_messages WHERE conversation_id = $1 ORDER BY created_at ASC LIMIT 500', [conversationId]);
+      return res.status(200).json({ conversation: convo, messages });
     }
 
     if (action === 'joinConversation') {
@@ -65,7 +87,7 @@ export default async function supportChatHandler(req, res) {
     if (action === 'sendMessage') {
       const support = requireSupport(req);
       const admin = requireAdmin(req);
-      const { conversationId, message, senderRole = 'customer', attachment } = req.body || {};
+      const { conversationId, message, senderRole = 'customer', attachment, customerEmail } = req.body || {};
       if (!conversationId || (!message && !attachment)) return res.status(400).json({ error: 'conversationId and message/attachment required' });
 
       let effectiveRole = senderRole;
@@ -78,6 +100,15 @@ export default async function supportChatHandler(req, res) {
         senderEmail = admin.username;
       } else if (senderRole !== 'customer') {
         return res.status(401).json({ error: 'Unauthorized sender' });
+      }
+
+      if (effectiveRole === 'customer') {
+        const convoRows = await queryDb('SELECT customer_email FROM public.support_chat_conversations WHERE conversation_id = $1 LIMIT 1', [conversationId]);
+        const convo = convoRows[0];
+        if (!convo) return res.status(404).json({ error: 'Conversation not found' });
+        if (!normalizeEmail(customerEmail) || normalizeEmail(convo.customer_email) !== normalizeEmail(customerEmail)) {
+          return res.status(403).json({ error: 'Conversation/email does not match' });
+        }
       }
 
       if (attachment && Number(attachment.size || 0) > 10 * 1024 * 1024) {
@@ -111,13 +142,14 @@ export default async function supportChatHandler(req, res) {
   if (req.method === 'GET') {
     const admin = requireAdmin(req);
     const support = requireSupport(req);
-    const { conversationId } = req.query || {};
+    const { conversationId, customerEmail } = req.query || {};
 
     if (conversationId) {
       const convoRows = await queryDb('SELECT * FROM public.support_chat_conversations WHERE conversation_id = $1 LIMIT 1', [conversationId]);
       const convo = convoRows[0];
       if (!convo) return res.status(404).json({ error: 'Conversation not found' });
-      if (!admin && (!support || (convo.executive_email && convo.executive_email !== support.email))) {
+      const isCustomer = normalizeEmail(customerEmail) && normalizeEmail(convo.customer_email) === normalizeEmail(customerEmail);
+      if (!admin && !isCustomer && (!support || (convo.executive_email && convo.executive_email !== support.email))) {
         return res.status(403).json({ error: 'Forbidden' });
       }
       const messages = await queryDb('SELECT * FROM public.support_chat_messages WHERE conversation_id = $1 ORDER BY created_at ASC LIMIT 500', [conversationId]);
@@ -129,7 +161,13 @@ export default async function supportChatHandler(req, res) {
 
     const rows = admin
       ? await queryDb('SELECT * FROM public.support_chat_conversations ORDER BY updated_at DESC LIMIT 200')
-      : await queryDb('SELECT * FROM public.support_chat_conversations WHERE executive_email = $1 ORDER BY updated_at DESC LIMIT 200', [support.email]);
+      : await queryDb(
+        `SELECT * FROM public.support_chat_conversations
+         WHERE executive_email = $1 OR status = 'waiting'
+         ORDER BY updated_at DESC
+         LIMIT 200`,
+        [support.email]
+      );
 
     return res.status(200).json({ conversations: rows });
   }
