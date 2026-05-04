@@ -1723,7 +1723,8 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                         </div>
                       )}
                     </div>
-                  )}
+                  </div>
+                )}
               </div>
             )}
           </div>
