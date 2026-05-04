@@ -329,7 +329,10 @@ export default function SupportExecutivePage() {
   useEffect(() => {
     if (inviteToken && !activated) { setAuthLoading(false); return; }
     fetchJson('/api/support-executives/me')
-      .then(d => setExecutive(d.executive))
+      .then(d => {
+        setExecutive(d.executive);
+        setOnlineStatus(d.executive?.online_status || 'offline');
+      })
       .catch(() => {})
       .finally(() => setAuthLoading(false));
   }, [inviteToken, activated]);
@@ -534,12 +537,16 @@ export default function SupportExecutivePage() {
     const nextStatus = session.status === 'closed' ? 'waiting' : 'closed';
 
     try {
-      await fetchJson('/api/support-chat', {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationId: convId, status: nextStatus })
-      });
-      await loadSessions();
+      await setSessionStatus(convId, nextStatus);
     } catch (e) { setError(e.message); }
+  };
+
+  const setSessionStatus = async (convId, nextStatus) => {
+    await fetchJson('/api/support-chat', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversationId: convId, status: nextStatus })
+    });
+    await loadSessions();
   };
 
   const stopTranscription = useCallback(() => {

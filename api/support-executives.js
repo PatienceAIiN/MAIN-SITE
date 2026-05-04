@@ -145,9 +145,9 @@ export default async function handler(req, res) {
         await logSupportAuthEvent(req, exec.email, 'failure');
         return res.status(401).json({ error: 'Invalid credentials' });
       }
-      // update last_seen and set online status
-      await queryDb(`UPDATE ${TABLE} SET last_seen_at=NOW(), online_status='online', updated_at=NOW() WHERE id=$1`, [exec.id]);
-      await logExecutiveActivity(exec.id, 'login', null, 'online');
+      // update last_seen only; online status is controlled manually by executive
+      await queryDb(`UPDATE ${TABLE} SET last_seen_at=NOW(), updated_at=NOW() WHERE id=$1`, [exec.id]);
+      await logExecutiveActivity(exec.id, 'login', null, null, { status_preserved: true });
       await logSupportAuthEvent(req, exec.email, 'success');
       const token = createExecSessionToken({ id: exec.id, email: exec.email, name: exec.name });
       const isSecure = process.env.NODE_ENV === 'production';
@@ -196,6 +196,9 @@ export default async function handler(req, res) {
     if (!exec) return res.status(401).json({ error: 'Not authenticated' });
     try {
       await queryDb(`UPDATE ${TABLE} SET last_seen_at=NOW() WHERE email=$1`, [exec.email]);
+      const rows = await queryDb(`SELECT id, email, name, online_status FROM ${TABLE} WHERE email=$1 LIMIT 1`, [exec.email]);
+      const dbExec = rows[0];
+      if (dbExec) return res.status(200).json({ executive: dbExec });
     } catch { /* ignore */ }
     return res.status(200).json({ executive: exec });
   }
