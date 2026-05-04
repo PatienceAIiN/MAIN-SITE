@@ -341,9 +341,9 @@ export default function SupportExecutivePage() {
       const d = await fetchJson('/api/support-chat?listSessions=1');
       const newSessions = d.sessions || [];
       
-      // Check if new sessions arrived (excluding closed ones)
-      const activeNewSessions = newSessions.filter(s => s.status !== 'closed');
-      const activePreviousSessions = sessions.filter(s => s.status !== 'closed');
+      // Check if new actionable sessions arrived (waiting/active)
+      const activeNewSessions = newSessions.filter(s => !['closed', 'ended'].includes(s.status));
+      const activePreviousSessions = sessions.filter(s => !['closed', 'ended'].includes(s.status));
       
       // Play notification if new active sessions arrived
       if (activeNewSessions.length > activePreviousSessions.length && activePreviousSessions.length > 0) {
@@ -351,12 +351,12 @@ export default function SupportExecutivePage() {
       }
       
       setSessions(newSessions);
-      // Only auto-select first chat if not previously closed by executive
-      const chatClosedByExecutive = localStorage.getItem('pa_executive_chat_closed') === 'true';
       setSelectedId(id => {
-        if (id) return id; // Keep existing selection
-        if (chatClosedByExecutive) return ''; // Don't auto-select if closed before
-        return d.sessions?.[0]?.conversation_id || ''; // Auto-select first chat
+        const exists = newSessions.some((session) => session.conversation_id === id);
+        if (id && exists) return id; // Keep existing valid selection
+
+        const latestActionable = newSessions.find((session) => !['closed', 'ended'].includes(session.status));
+        return latestActionable?.conversation_id || '';
       });
 
       // Handle persistent notifications for unattended chats
@@ -528,16 +528,15 @@ export default function SupportExecutivePage() {
     finally { setSending(false); }
   };
 
-  const closeSession = async (convId) => {
+  const setSessionStatus = async (convId, status) => {
     try {
       await fetchJson('/api/support-chat', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationId: convId, status: 'closed' })
+        body: JSON.stringify({ conversationId: convId, status })
       });
-      // Store that executive closed chat to prevent auto-opening
-      localStorage.setItem('pa_executive_chat_closed', 'true');
       await loadSessions();
-      if (selectedId === convId) setSelectedId('');
+      if (status === 'closed' && selectedId === convId) setSelectedId('');
+      if (status === 'open') setSelectedId(convId);
     } catch (e) { setError(e.message); }
   };
 
@@ -863,8 +862,6 @@ export default function SupportExecutivePage() {
                 onClick={() => { 
                   setSelectedId(s.conversation_id); 
                   userScrolled.current = false;
-                  // Clear closed state since executive manually opened chat
-                  localStorage.removeItem('pa_executive_chat_closed');
                 }}
                 className={`w-full text-left px-3 py-3 border-b border-slate-100 transition-colors ${
                   selectedId === s.conversation_id
@@ -876,9 +873,28 @@ export default function SupportExecutivePage() {
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
                     s.status === 'waiting'
                       ? selectedId === s.conversation_id ? 'bg-amber-400/30 text-amber-200' : 'bg-amber-100 text-amber-700'
-                      : selectedId === s.conversation_id ? 'bg-emerald-400/30 text-emerald-200' : 'bg-emerald-100 text-emerald-700'
-                  }`}>{s.status}</span>
-                  <span className={`text-[10px] ${selectedId === s.conversation_id ? 'text-white/40' : 'text-slate-400'}`}>{fmt(s.updated_at)}</span>
+                      : (s.status === 'open' || s.status === 'active')
+                        ? selectedId === s.conversation_id ? 'bg-emerald-400/30 text-emerald-200' : 'bg-emerald-100 text-emerald-700'
+                        : selectedId === s.conversation_id ? 'bg-slate-500/30 text-slate-200' : 'bg-slate-100 text-slate-600'
+                  }`}>{s.status === 'active' ? 'open' : s.status}</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const next = ['closed', 'ended'].includes(s.status) ? 'open' : 'closed';
+                        setSessionStatus(s.conversation_id, next);
+                      }}
+                      className={`text-[10px] px-1.5 py-0.5 rounded-full border transition-colors ${
+                        ['closed', 'ended'].includes(s.status)
+                          ? (selectedId === s.conversation_id ? 'border-emerald-300 text-emerald-200' : 'border-emerald-300 text-emerald-700 bg-emerald-50')
+                          : (selectedId === s.conversation_id ? 'border-slate-300 text-slate-200' : 'border-slate-300 text-slate-600 bg-white')
+                      }`}
+                    >
+                      {['closed', 'ended'].includes(s.status) ? 'Open' : 'Close'}
+                    </button>
+                    <span className={`text-[10px] ${selectedId === s.conversation_id ? 'text-white/40' : 'text-slate-400'}`}>{fmt(s.updated_at)}</span>
+                  </div>
                 </div>
                 <p className="text-xs font-mono font-medium truncate">{s.conversation_id}</p>
                 <p className={`text-xs truncate mt-0.5 ${selectedId === s.conversation_id ? 'text-white/60' : 'text-slate-500'}`}>
@@ -928,9 +944,13 @@ export default function SupportExecutivePage() {
                       <FiPhone size={12}/> Call customer
                     </button>
                   )}
-                  <button onClick={() => closeSession(selectedId)}
-                    className="text-xs text-slate-500 hover:text-slate-900 px-3 py-1.5 rounded-lg hover:bg-slate-100 border border-slate-200 transition-colors">
-                    Close chat
+                  <button onClick={() => setSessionStatus(selectedId, ['closed', 'ended'].includes(selectedSession?.status) ? 'open' : 'closed')}
+                    className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                      ['closed', 'ended'].includes(selectedSession?.status)
+                        ? 'text-emerald-700 border-emerald-300 bg-emerald-50 hover:bg-emerald-100'
+                        : 'text-slate-500 hover:text-slate-900 border-slate-200 hover:bg-slate-100'
+                    }`}>
+                    {['closed', 'ended'].includes(selectedSession?.status) ? 'Open chat' : 'Close chat'}
                   </button>
                 </div>
               </div>
