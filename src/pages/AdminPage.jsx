@@ -35,6 +35,14 @@ const createEmptyBlogDraft = () => ({
 const formatDate = (value) =>
   value ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : 'Unknown';
 
+const formatCustomerIdentity = (session) => {
+  if (!session) return 'Anonymous customer';
+  const name = session.customer_name?.trim();
+  const email = session.customer_email?.trim();
+  if (name && email) return `${name} (${email})`;
+  return name || email || 'Anonymous customer';
+};
+
 const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSource, onContentSaved }) => {
   const [authenticated, setAuthenticated] = useState(false);
   const [username, setUsername] = useState('');
@@ -232,7 +240,8 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
     e.preventDefault();
     setExecInviteSending(true); setExecError(''); setExecInviteSuccess('');
     const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), 18000);
+    // Keep this above SMTP timeout on the API (30s) so client doesn't abort first.
+    const timer = window.setTimeout(() => controller.abort(), 45000);
     try {
       const data = await fetchJson('/api/support-executives', {
         method: 'POST',
@@ -1466,7 +1475,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                                 {session.status}
                               </span>
                             </div>
-                            <p className="text-xs text-white/50">{session.customer_name || session.customer_email || 'Anonymous customer'}</p>
+                            <p className="text-xs text-white/50">{formatCustomerIdentity(session)}</p>
                             {session.assigned_executive && (
                               <p className="text-xs text-cyan-300/70 mt-0.5">Assigned: {session.assigned_executive}</p>
                             )}
@@ -1496,7 +1505,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                             <div className="flex items-center justify-between gap-3">
                               <div>
                                 <h3 className="font-semibold text-base">{selectedSupportId}</h3>
-                                <p className="text-xs text-white/50">{session?.customer_name || session?.customer_email || 'No name'}</p>
+                                <p className="text-xs text-white/50">{formatCustomerIdentity(session)}</p>
                               </div>
                               <div className="flex gap-2">
                                 <Button

@@ -22,6 +22,23 @@ const logExecutiveActivity = async (executiveId, action, oldStatus = null, newSt
   }
 };
 
+const logSupportAuthEvent = async (req, identifier, status) => {
+  try {
+    await queryDb(
+      `INSERT INTO public.auth_login_events (role, identifier, status, ip_address, user_agent)
+       VALUES ('support', $1, $2, $3, $4)`,
+      [
+        String(identifier || 'unknown'),
+        String(status || 'unknown'),
+        String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim() || null,
+        String(req.headers['user-agent'] || '').trim() || null
+      ]
+    );
+  } catch (err) {
+    console.error('[auth-log] support auth log failed:', err.message);
+  }
+};
+
 const getSiteBase = () => {
   const url = process.env.SITE_URL || '';
   if (url.startsWith('http')) return url.replace(/\/$/, '');
@@ -94,13 +111,22 @@ export default async function handler(req, res) {
     try {
       const rows = await queryDb(`SELECT * FROM ${TABLE} WHERE email = $1 LIMIT 1`, [email.trim().toLowerCase()]);
       const exec = rows[0];
-      if (!exec) return res.status(401).json({ error: 'Invalid credentials' });
-      if (exec.status === 'invited') return res.status(403).json({ error: 'Account not activated. Check your invite email.' });
-      if (!verifyPassword(password, exec.password_salt, exec.password_hash))
+      if (!exec) {
+        await logSupportAuthEvent(req, email, 'failure');
         return res.status(401).json({ error: 'Invalid credentials' });
+      }
+      if (exec.status === 'invited') {
+        await logSupportAuthEvent(req, exec.email, 'failure');
+        return res.status(403).json({ error: 'Account not activated. Check your invite email.' });
+      }
+      if (!verifyPassword(password, exec.password_salt, exec.password_hash)) {
+        await logSupportAuthEvent(req, exec.email, 'failure');
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
       // update last_seen and set online status
       await queryDb(`UPDATE ${TABLE} SET last_seen_at=NOW(), online_status='online', updated_at=NOW() WHERE id=$1`, [exec.id]);
       await logExecutiveActivity(exec.id, 'login', null, 'online');
+      await logSupportAuthEvent(req, exec.email, 'success');
       const token = createExecSessionToken({ id: exec.id, email: exec.email, name: exec.name });
       const isSecure = process.env.NODE_ENV === 'production';
       res.setHeader('Set-Cookie', serializeCookie(EXEC_SESSION_COOKIE_NAME, token, {
@@ -124,13 +150,18 @@ export default async function handler(req, res) {
         `SELECT * FROM ${TABLE} WHERE invite_token=$1 AND invite_expires_at > NOW() LIMIT 1`, [token]
       );
       const exec = rows[0];
-      if (!exec) return res.status(400).json({ error: 'Invalid or expired invite link' });
+      if (!exec) {
+        await logSupportAuthEvent(req, 'invite', 'failure');
+        return res.status(400).json({ error: 'Invalid or expired invite link' });
+      }
       const { salt, hash } = hashPassword(password);
       await queryDb(
         `UPDATE ${TABLE} SET password_salt=$1, password_hash=$2, status='active', invite_token=NULL,
-         invite_expires_at=NULL, updated_at=NOW() WHERE id=$3`,
+         invite_expires_at=NULL, online_status='offline', updated_at=NOW() WHERE id=$3`,
         [salt, hash, exec.id]
       );
+      await logExecutiveActivity(exec.id, 'status_change', 'invited', 'active', { source: 'invite_accept' });
+      await logSupportAuthEvent(req, exec.email, 'success');
       return res.status(200).json({ ok: true, email: exec.email });
     } catch (err) {
       return res.status(500).json({ error: err.message });
