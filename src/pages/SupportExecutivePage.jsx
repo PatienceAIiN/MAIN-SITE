@@ -528,14 +528,17 @@ export default function SupportExecutivePage() {
     finally { setSending(false); }
   };
 
-  const closeSession = async (convId) => {
+  const toggleSessionStatus = async (convId) => {
+    const session = sessions.find((s) => s.conversation_id === convId);
+    if (!session) return;
+    const nextStatus = session.status === 'closed' ? 'waiting' : 'closed';
+
     try {
       await fetchJson('/api/support-chat', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationId: convId, status: 'closed' })
+        body: JSON.stringify({ conversationId: convId, status: nextStatus })
       });
       await loadSessions();
-      if (selectedId === convId) setSelectedId('');
     } catch (e) { setError(e.message); }
   };
 
@@ -924,9 +927,9 @@ export default function SupportExecutivePage() {
                       <FiPhone size={12}/> Call customer
                     </button>
                   )}
-                  <button onClick={() => closeSession(selectedId)}
+                  <button onClick={() => toggleSessionStatus(selectedId)}
                     className="text-xs text-slate-500 hover:text-slate-900 px-3 py-1.5 rounded-lg hover:bg-slate-100 border border-slate-200 transition-colors">
-                    Close chat
+                    {selectedSession?.status === 'closed' ? 'Open chat' : 'Close chat'}
                   </button>
                 </div>
               </div>
