@@ -1,20 +1,30 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiPhone, FiPhoneOff, FiPhoneIncoming, FiMic, FiMicOff, FiSend, FiLogOut, FiUser, FiRefreshCw, FiCheck, FiEye, FiEyeOff } from 'react-icons/fi';
+import {
+  FiPhone, FiPhoneOff, FiPhoneIncoming, FiMic, FiMicOff, FiSend,
+  FiLogOut, FiUser, FiRefreshCw, FiCheck, FiEye, FiEyeOff, FiChevronLeft, FiChevronRight, FiSearch
+} from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 
-/* ── helpers ─────────────────────────────────────────────────────────────── */
 const fmt = (v) => v ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(v)) : '—';
+const PAGE_SIZE = 10;
 
-const STUN = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+const getIceServers = async () => {
+  try {
+    const d = await fetchJson('/api/voice-room/ice-servers');
+    return d.iceServers || [];
+  } catch {
+    return [{ urls: 'stun:stun.l.google.com:19302' }];
+  }
+};
 
-/* ── Activate account form (from invite link) ───────────────────────────── */
+/* ── Activate account form ───────────────────────────────────────────────── */
 function ActivateForm({ token, onActivated }) {
   const [password, setPassword] = useState('');
-  const [confirm, setConfirm]   = useState('');
-  const [show, setShow]         = useState(false);
-  const [err, setErr]           = useState('');
-  const [loading, setLoading]   = useState(false);
+  const [confirm,  setConfirm]  = useState('');
+  const [show,     setShow]     = useState(false);
+  const [err,      setErr]      = useState('');
+  const [loading,  setLoading]  = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -22,8 +32,7 @@ function ActivateForm({ token, onActivated }) {
     setLoading(true); setErr('');
     try {
       await fetchJson('/api/support-executives/activate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, password })
       });
       onActivated();
@@ -32,26 +41,27 @@ function ActivateForm({ token, onActivated }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white/5 border border-white/10 rounded-3xl p-8">
-        <p className="text-xs uppercase tracking-widest text-emerald-400 mb-2">Activate account</p>
-        <h1 className="text-2xl font-bold text-white mb-6">Set your password</h1>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
+        <p className="text-xs uppercase tracking-widest text-emerald-600 mb-2 font-medium">Activate account</p>
+        <h1 className="text-2xl font-bold text-slate-900 mb-6">Set your password</h1>
         <form onSubmit={submit} className="space-y-4">
           <div className="relative">
-            <input type={show ? 'text' : 'password'} value={password} onChange={e=>setPassword(e.target.value)}
+            <input type={show ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
               required placeholder="New password (min 8 chars)"
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 pr-12" />
-            <button type="button" onClick={()=>setShow(s=>!s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white">
-              {show ? <FiEyeOff/> : <FiEye/>}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20 pr-12 text-sm" />
+            <button type="button" onClick={() => setShow(s => !s)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
+              {show ? <FiEyeOff size={16}/> : <FiEye size={16}/>}
             </button>
           </div>
-          <input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)}
+          <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
             required placeholder="Confirm password"
-            className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-emerald-400/60" />
-          {err && <p className="text-red-300 text-sm">{err}</p>}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20 text-sm" />
+          {err && <p className="text-red-500 text-sm">{err}</p>}
           <button type="submit" disabled={loading}
-            className="w-full rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-semibold py-3 disabled:opacity-50 transition-colors">
-            {loading ? 'Activating…' : 'Activate & Login'}
+            className="w-full rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold py-3 disabled:opacity-50 transition-colors text-sm">
+            {loading ? 'Activating…' : 'Activate & sign in'}
           </button>
         </form>
       </div>
@@ -59,19 +69,18 @@ function ActivateForm({ token, onActivated }) {
   );
 }
 
-/* ── Login form ─────────────────────────────────────────────────────────── */
+/* ── Login form ──────────────────────────────────────────────────────────── */
 function LoginForm({ onLogin }) {
-  const [form, setForm]   = useState({ email: '', password: '' });
-  const [show, setShow]   = useState(false);
-  const [err, setErr]     = useState('');
+  const [form,    setForm]    = useState({ email: '', password: '' });
+  const [show,    setShow]    = useState(false);
+  const [err,     setErr]     = useState('');
   const [loading, setLoading] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault(); setErr(''); setLoading(true);
     try {
       const data = await fetchJson('/api/support-executives/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
       });
       onLogin(data.executive);
@@ -80,25 +89,26 @@ function LoginForm({ onLogin }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white/5 border border-white/10 rounded-3xl p-8">
-        <p className="text-xs uppercase tracking-widest text-cyan-400 mb-2">Support executive</p>
-        <h1 className="text-2xl font-bold text-white mb-6">Sign in</h1>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
+        <p className="text-xs uppercase tracking-widest text-slate-500 mb-2 font-medium">Support executive</p>
+        <h1 className="text-2xl font-bold text-slate-900 mb-6">Sign in</h1>
         <form onSubmit={submit} className="space-y-4">
-          <input type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))}
+          <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
             required placeholder="Email"
-            className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-400/60" />
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20 text-sm" />
           <div className="relative">
-            <input type={show?'text':'password'} value={form.password} onChange={e=>setForm(f=>({...f,password:e.target.value}))}
+            <input type={show ? 'text' : 'password'} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
               required placeholder="Password"
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-400/60 pr-12" />
-            <button type="button" onClick={()=>setShow(s=>!s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white">
-              {show ? <FiEyeOff/> : <FiEye/>}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20 pr-12 text-sm" />
+            <button type="button" onClick={() => setShow(s => !s)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
+              {show ? <FiEyeOff size={16}/> : <FiEye size={16}/>}
             </button>
           </div>
-          {err && <p className="text-red-300 text-sm">{err}</p>}
+          {err && <p className="text-red-500 text-sm">{err}</p>}
           <button type="submit" disabled={loading}
-            className="w-full rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white font-semibold py-3 disabled:opacity-50 transition-colors">
+            className="w-full rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold py-3 disabled:opacity-50 transition-colors text-sm">
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
@@ -111,72 +121,48 @@ function LoginForm({ onLogin }) {
 function CallingScreen({ state, peerName, onAccept, onEnd, muted, onMute }) {
   const isIncoming = state === 'incoming';
   const isActive   = state === 'active';
-  const isCalling  = state === 'calling';
-
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950"
-    >
-      {/* Pulsing rings */}
+    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       <div className="relative flex items-center justify-center mb-10">
         {[1,2,3].map(i => (
-          <motion.div key={i}
-            className="absolute rounded-full border border-emerald-400/30"
+          <motion.div key={i} className="absolute rounded-full border border-emerald-400/30"
             animate={{ scale: [1, 1.4+i*0.3, 1], opacity: [0.5, 0, 0.5] }}
             transition={{ duration: 2, repeat: Infinity, delay: i * 0.4, ease: 'easeInOut' }}
-            style={{ width: 80 + i*48, height: 80 + i*48 }}
-          />
+            style={{ width: 80 + i*48, height: 80 + i*48 }} />
         ))}
         <div className="h-20 w-20 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center z-10">
           <FiUser size={32} className="text-emerald-300" />
         </div>
       </div>
-
       <p className="text-white/60 text-sm uppercase tracking-widest mb-2">
-        {isIncoming ? 'Incoming voice call' : isActive ? 'On call' : 'Calling…'}
+        {isIncoming ? 'Incoming call' : isActive ? 'On call' : 'Calling…'}
       </p>
       <h2 className="text-3xl font-bold text-white mb-10">{peerName || 'Customer'}</h2>
-
       <div className="flex items-center gap-6">
-        {/* Mute */}
-        {(isActive) && (
+        {isActive && (
           <button onClick={onMute}
             className={`h-14 w-14 rounded-full flex items-center justify-center transition-colors ${muted ? 'bg-red-500/30 border border-red-400 text-red-300' : 'bg-white/10 border border-white/20 text-white'}`}>
             {muted ? <FiMicOff size={22}/> : <FiMic size={22}/>}
           </button>
         )}
-
-        {/* Accept (incoming only) */}
         {isIncoming && (
-          <motion.button
-            whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}
-            onClick={onAccept}
+          <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }} onClick={onAccept}
             className="h-16 w-16 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/40">
             <FiPhone size={26} className="text-white" />
           </motion.button>
         )}
-
-        {/* End / Reject */}
-        <motion.button
-          whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}
-          onClick={onEnd}
+        <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }} onClick={onEnd}
           className="h-16 w-16 rounded-full bg-red-500 flex items-center justify-center shadow-lg shadow-red-500/40">
           <FiPhoneOff size={26} className="text-white" />
         </motion.button>
       </div>
-
-      {/* Soundwave bar (active only) */}
       {isActive && (
         <div className="flex items-end gap-1 mt-12 h-8">
-          {Array.from({length:12}).map((_,i)=>(
-            <motion.div key={i}
-              className="w-1.5 rounded-full bg-emerald-400"
+          {Array.from({length:12}).map((_,i) => (
+            <motion.div key={i} className="w-1.5 rounded-full bg-emerald-400"
               animate={{ height: [8, 4+Math.random()*24, 8] }}
-              transition={{ duration: 0.5+Math.random()*0.5, repeat: Infinity, delay: i*0.07 }}
-            />
+              transition={{ duration: 0.5+Math.random()*0.5, repeat: Infinity, delay: i*0.07 }} />
           ))}
         </div>
       )}
@@ -184,51 +170,60 @@ function CallingScreen({ state, peerName, onAccept, onEnd, muted, onMute }) {
   );
 }
 
-/* ── Main panel ─────────────────────────────────────────────────────────── */
+/* ── Main panel ──────────────────────────────────────────────────────────── */
 export default function SupportExecutivePage() {
-  const urlParams  = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const urlParams   = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
   const inviteToken = urlParams.get('invite');
 
-  const [executive, setExecutive]   = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [activated, setActivated]   = useState(false);
+  const [executive,    setExecutive]    = useState(null);
+  const [authLoading,  setAuthLoading]  = useState(true);
+  const [activated,    setActivated]    = useState(false);
 
-  const [sessions, setSessions]         = useState([]);
-  const [selectedId, setSelectedId]     = useState('');
-  const [messages, setMessages]         = useState([]);
-  const [reply, setReply]               = useState('');
-  const [sending, setSending]           = useState(false);
-  const [sessLoading, setSessLoading]   = useState(false);
-  const [error, setError]               = useState('');
+  const [sessions,     setSessions]     = useState([]);
+  const [selectedId,   setSelectedId]   = useState('');
+  const [messages,     setMessages]     = useState([]);
+  const [reply,        setReply]        = useState('');
+  const [sending,      setSending]      = useState(false);
+  const [sessLoading,  setSessLoading]  = useState(false);
+  const [error,        setError]        = useState('');
 
-  // Voice call state
-  const [callState, setCallState]   = useState(null); // null | 'incoming' | 'calling' | 'active'
+  // Sidebar pagination + search
+  const [sessPage,   setSessPage]   = useState(1);
+  const [sessSearch, setSessSearch] = useState('');
+
+  // Voice call
+  const [callState,  setCallState]  = useState(null);
   const [callRoomId, setCallRoomId] = useState(null);
-  const [muted, setMuted]           = useState(false);
-  const pcRef       = useRef(null);
-  const localStream = useRef(null);
-  const remoteAudio = useRef(null);
-  const pollRoomRef = useRef(null);
-  const msgPollRef  = useRef(null);
+  const [muted,      setMuted]      = useState(false);
+  const pcRef        = useRef(null);
+  const localStream  = useRef(null);
+  const remoteAudio  = useRef(null);
+  const pollRoomRef  = useRef(null);
+  const msgPollRef   = useRef(null);
   const messagesEndRef = useRef(null);
+  const msgListRef   = useRef(null);
+  const callRoomIdRef = useRef(null);
+  const userScrolled = useRef(false);
+  const prevMsgCount = useRef(0);
 
-  /* ── Auth check ─────────────────────────────────────────────────────── */
+  callRoomIdRef.current = callRoomId;
+
+  /* ── Auth ───────────────────────────────────────────────────────────── */
   useEffect(() => {
     if (inviteToken && !activated) { setAuthLoading(false); return; }
     fetchJson('/api/support-executives/me')
-      .then(d => { setExecutive(d.executive); })
+      .then(d => setExecutive(d.executive))
       .catch(() => {})
       .finally(() => setAuthLoading(false));
   }, [inviteToken, activated]);
 
-  /* ── Session polling ────────────────────────────────────────────────── */
+  /* ── Session polling ─────────────────────────────────────────────────── */
   const loadSessions = useCallback(async () => {
     setSessLoading(true);
     try {
       const d = await fetchJson('/api/support-chat?listSessions=1');
-      const list = (d.sessions || []).filter(s => s.status !== 'closed');
-      setSessions(list);
-      setSelectedId(id => id || list[0]?.conversation_id || '');
+      setSessions(d.sessions || []);
+      setSelectedId(id => id || d.sessions?.[0]?.conversation_id || '');
     } catch (e) { setError(e.message); }
     finally { setSessLoading(false); }
   }, []);
@@ -236,11 +231,40 @@ export default function SupportExecutivePage() {
   useEffect(() => {
     if (!executive) return;
     loadSessions();
-    const id = setInterval(loadSessions, 8000);
+    const id = setInterval(loadSessions, 6000);
     return () => clearInterval(id);
   }, [executive, loadSessions]);
 
-  /* ── Message polling for selected session ───────────────────────────── */
+  /* ── Filtered + paginated sessions ──────────────────────────────────── */
+  const filteredSessions = useMemo(() => {
+    const q = sessSearch.toLowerCase();
+    return sessions.filter(s =>
+      !q ||
+      s.conversation_id?.toLowerCase().includes(q) ||
+      s.customer_email?.toLowerCase().includes(q) ||
+      s.assigned_executive?.toLowerCase().includes(q)
+    );
+  }, [sessions, sessSearch]);
+
+  const totalPages    = Math.max(1, Math.ceil(filteredSessions.length / PAGE_SIZE));
+  const pagedSessions = filteredSessions.slice((sessPage - 1) * PAGE_SIZE, sessPage * PAGE_SIZE);
+
+  /* ── Smart scroll ────────────────────────────────────────────────────── */
+  const handleMsgScroll = () => {
+    const el = msgListRef.current;
+    if (!el) return;
+    userScrolled.current = (el.scrollHeight - el.scrollTop - el.clientHeight) > 80;
+  };
+
+  useEffect(() => {
+    const newCount = messages.length;
+    if (newCount > prevMsgCount.current && !userScrolled.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+    prevMsgCount.current = newCount;
+  }, [messages]);
+
+  /* ── Message polling ─────────────────────────────────────────────────── */
   const loadMessages = useCallback(async (convId) => {
     if (!convId) return;
     try {
@@ -252,23 +276,37 @@ export default function SupportExecutivePage() {
   useEffect(() => {
     if (msgPollRef.current) clearInterval(msgPollRef.current);
     if (!selectedId || !executive) return;
+    userScrolled.current = false;
     loadMessages(selectedId);
-    msgPollRef.current = setInterval(() => loadMessages(selectedId), 3000);
+    msgPollRef.current = setInterval(() => loadMessages(selectedId), 2000);
     return () => clearInterval(msgPollRef.current);
   }, [selectedId, executive, loadMessages]);
 
+  /* ── Poll for incoming customer call ─────────────────────────────────── */
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (!selectedId || !executive || callState) return;
+    const poll = async () => {
+      try {
+        const d = await fetchJson(`/api/voice-room?conversationId=${encodeURIComponent(selectedId)}`);
+        const room = d.room;
+        if (room && room.status === 'calling' && room.initiator === 'customer' && room.offer) {
+          setCallRoomId(room.room_id);
+          setCallState('incoming');
+        }
+      } catch { /* ignore */ }
+    };
+    const id = setInterval(poll, 3000);
+    return () => clearInterval(id);
+  }, [selectedId, executive, callState]);
 
-  /* ── Send reply ─────────────────────────────────────────────────────── */
+  /* ── Send reply ──────────────────────────────────────────────────────── */
   const sendReply = async () => {
     if (!reply.trim() || sending || !selectedId) return;
     setSending(true);
+    userScrolled.current = false;
     try {
       await fetchJson('/api/support-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationId: selectedId, message: reply.trim(), sender: 'executive' })
       });
       setReply('');
@@ -288,87 +326,105 @@ export default function SupportExecutivePage() {
     } catch (e) { setError(e.message); }
   };
 
-  /* ── WebRTC helpers ─────────────────────────────────────────────────── */
+  /* ── WebRTC ──────────────────────────────────────────────────────────── */
   const stopCall = useCallback(async (roomId) => {
     if (pollRoomRef.current) { clearInterval(pollRoomRef.current); pollRoomRef.current = null; }
     if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
     localStream.current?.getTracks().forEach(t => t.stop());
     localStream.current = null;
-    if (roomId || callRoomId) {
-      await fetchJson('/api/voice-room', { method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ action: 'end', roomId: roomId || callRoomId }) }).catch(()=>{});
-    }
-    setCallState(null);
-    setCallRoomId(null);
-    setMuted(false);
-  }, [callRoomId]);
+    const r = roomId || callRoomIdRef.current;
+    if (r) await fetchJson('/api/voice-room', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'end', roomId: r }) }).catch(() => {});
+    setCallState(null); setCallRoomId(null); setMuted(false);
+  }, []);
 
-  // Executive: poll for incoming call offers on selected conversation
-  useEffect(() => {
-    if (!selectedId || !executive || callState) return;
-    const poll = async () => {
-      try {
-        const d = await fetchJson(`/api/voice-room?conversationId=${encodeURIComponent(selectedId)}`);
-        const room = d.room;
-        if (room && room.status === 'calling' && room.offer) {
-          setCallRoomId(room.room_id);
-          setCallState('incoming');
-        }
-      } catch { /* ignore */ }
-    };
-    const id = setInterval(poll, 4000);
-    return () => clearInterval(id);
-  }, [selectedId, executive, callState]);
-
-  const acceptCall = async () => {
-    if (!callRoomId) return;
+  // Executive initiates call to customer
+  const startVoiceCall = async () => {
+    if (!selectedId) return;
     try {
+      const iceServers = await getIceServers();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStream.current = stream;
-      const pc = new RTCPeerConnection(STUN);
+      const pc = new RTCPeerConnection({ iceServers });
       pcRef.current = pc;
       stream.getTracks().forEach(t => pc.addTrack(t, stream));
-
-      pc.ontrack = (e) => {
-        if (remoteAudio.current) { remoteAudio.current.srcObject = e.streams[0]; }
-      };
+      pc.ontrack = (e) => { if (remoteAudio.current) remoteAudio.current.srcObject = e.streams[0]; };
+      const pendingCandidates = [];
+      let newRoomId = null;
       pc.onicecandidate = async ({ candidate }) => {
         if (!candidate) return;
-        await fetchJson('/api/voice-room', { method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ action:'ice', roomId: callRoomId, candidate, side:'callee' }) }).catch(()=>{});
+        if (newRoomId) {
+          await fetchJson('/api/voice-room', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'ice', roomId: newRoomId, candidate, side: 'caller' }) }).catch(() => {});
+        } else { pendingCandidates.push(candidate); }
       };
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      const d = await fetchJson('/api/voice-room', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create', conversationId: selectedId, offer, initiator: 'executive' }) });
+      newRoomId = d.room?.room_id;
+      setCallRoomId(newRoomId);
+      setCallState('calling');
+      for (const c of pendingCandidates) {
+        await fetchJson('/api/voice-room', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'ice', roomId: newRoomId, candidate: c, side: 'caller' }) }).catch(() => {});
+      }
+      pollRoomRef.current = setInterval(async () => {
+        try {
+          const upd = await fetchJson(`/api/voice-room?roomId=${newRoomId}`);
+          const room = upd.room;
+          if (!room || room.status === 'ended') { stopCall(newRoomId); return; }
+          if (room.answer && pc.signalingState !== 'stable') {
+            await pc.setRemoteDescription(new RTCSessionDescription(room.answer));
+            for (const c of room.callee_candidates || []) {
+              await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+            }
+            setCallState('active');
+          }
+        } catch { /* ignore */ }
+      }, 1500);
+    } catch (e) { console.error('exec startVoiceCall', e); }
+  };
 
-      // Get offer
-      const d = await fetchJson(`/api/voice-room?roomId=${callRoomId}`);
+  // Executive accepts customer-initiated call
+  const acceptCall = async () => {
+    const rid = callRoomIdRef.current;
+    if (!rid) return;
+    try {
+      const iceServers = await getIceServers();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      localStream.current = stream;
+      const pc = new RTCPeerConnection({ iceServers });
+      pcRef.current = pc;
+      stream.getTracks().forEach(t => pc.addTrack(t, stream));
+      pc.ontrack = (e) => { if (remoteAudio.current) remoteAudio.current.srcObject = e.streams[0]; };
+      pc.onicecandidate = async ({ candidate }) => {
+        if (!candidate) return;
+        await fetchJson('/api/voice-room', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'ice', roomId: rid, candidate, side: 'callee' }) }).catch(() => {});
+      };
+      const d = await fetchJson(`/api/voice-room?roomId=${rid}`);
       const offer = d.room?.offer;
       if (!offer) return;
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
-
-      // Add caller ICE candidates
-      const callerCands = d.room?.caller_candidates || [];
-      for (const c of callerCands) {
-        await pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});
+      for (const c of d.room?.caller_candidates || []) {
+        await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
       }
-
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      await fetchJson('/api/voice-room', { method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ action:'answer', roomId: callRoomId, answer }) });
-
+      await fetchJson('/api/voice-room', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'answer', roomId: rid, answer }) });
       setCallState('active');
-
-      // Poll for callee candidates from caller side
       pollRoomRef.current = setInterval(async () => {
         try {
-          const upd = await fetchJson(`/api/voice-room?roomId=${callRoomId}`);
-          if (upd.room?.status === 'ended') { stopCall(callRoomId); return; }
-          const newCands = upd.room?.caller_candidates || [];
-          for (const c of newCands) {
-            await pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});
+          const upd = await fetchJson(`/api/voice-room?roomId=${rid}`);
+          if (upd.room?.status === 'ended') { stopCall(rid); return; }
+          for (const c of upd.room?.caller_candidates || []) {
+            await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
           }
         } catch { /* ignore */ }
-      }, 2000);
-    } catch (e) { console.error('acceptCall error', e); stopCall(callRoomId); }
+      }, 1500);
+    } catch (e) { console.error('acceptCall', e); stopCall(rid); }
   };
 
   const toggleMute = () => {
@@ -377,29 +433,21 @@ export default function SupportExecutivePage() {
     setMuted(m => !m);
   };
 
-  /* ── Logout ─────────────────────────────────────────────────────────── */
   const logout = async () => {
-    await fetchJson('/api/support-executives/logout', { method: 'DELETE' }).catch(()=>{});
+    await fetchJson('/api/support-executives/logout', { method: 'DELETE' }).catch(() => {});
     setExecutive(null);
   };
 
-  /* ── Render guards ──────────────────────────────────────────────────── */
+  /* ── Render guards ───────────────────────────────────────────────────── */
   if (authLoading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white/50">
-        Loading…
-      </div>
-    );
+    return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-400 text-sm">Loading…</div>;
   }
-
   if (inviteToken && !activated && !executive) {
     return <ActivateForm token={inviteToken} onActivated={() => setActivated(true)} />;
   }
-
   if (activated && !executive) {
     return <LoginForm onLogin={(exec) => { setExecutive(exec); setActivated(false); }} />;
   }
-
   if (!executive) {
     return <LoginForm onLogin={setExecutive} />;
   }
@@ -407,16 +455,14 @@ export default function SupportExecutivePage() {
   const selectedSession = sessions.find(s => s.conversation_id === selectedId);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col">
-      {/* Hidden audio element for remote stream */}
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
       <audio ref={remoteAudio} autoPlay playsInline style={{ display: 'none' }} />
 
-      {/* Voice call overlay */}
       <AnimatePresence>
         {callState && (
           <CallingScreen
             state={callState}
-            peerName={selectedSession?.customer_email || 'Customer'}
+            peerName={selectedSession?.customer_email || selectedId || 'Customer'}
             muted={muted}
             onAccept={acceptCall}
             onEnd={() => stopCall()}
@@ -426,110 +472,131 @@ export default function SupportExecutivePage() {
       </AnimatePresence>
 
       {/* Header */}
-      <header className="border-b border-white/10 bg-slate-900/80 backdrop-blur px-6 py-4 flex items-center justify-between">
+      <header className="border-b border-slate-200 bg-white px-6 py-4 flex items-center justify-between shrink-0 shadow-sm">
         <div>
-          <p className="text-xs uppercase tracking-widest text-emerald-400">Support Executive Panel</p>
-          <h1 className="text-lg font-bold">{executive.name}</h1>
+          <p className="text-xs uppercase tracking-widest text-slate-400 font-medium">Support Executive</p>
+          <h1 className="text-lg font-bold text-slate-900">{executive.name}</h1>
         </div>
         <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1.5 text-sm text-emerald-400">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" /> Online
+          <span className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Online
           </span>
-          <button onClick={loadSessions} className="text-white/50 hover:text-white p-2 rounded-lg hover:bg-white/5 transition-colors">
+          <button onClick={loadSessions} className="text-slate-400 hover:text-slate-700 p-2 rounded-lg hover:bg-slate-100 transition-colors">
             <FiRefreshCw size={16} />
           </button>
-          <button onClick={logout} className="flex items-center gap-2 text-sm text-white/60 hover:text-white px-3 py-2 rounded-lg hover:bg-white/5 transition-colors">
+          <button onClick={logout} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors">
             <FiLogOut size={15} /> Logout
           </button>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Session list */}
-        <aside className="w-80 border-r border-white/10 bg-slate-900/50 flex flex-col">
-          <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-            <h2 className="font-semibold text-sm text-white/70">Live sessions</h2>
-            <span className="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full">{sessions.length}</span>
+        {/* Session sidebar */}
+        <aside className="w-72 border-r border-slate-200 bg-white flex flex-col shrink-0">
+          <div className="p-3 border-b border-slate-100">
+            <div className="relative">
+              <FiSearch size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input value={sessSearch} onChange={e => { setSessSearch(e.target.value); setSessPage(1); }}
+                placeholder="Search sessions…"
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 py-2 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900/20" />
+            </div>
           </div>
+          <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
+            <p className="text-xs font-medium text-slate-500">Sessions <span className="ml-1 text-slate-400">({filteredSessions.length})</span></p>
+            {sessLoading && <span className="text-[10px] text-slate-400 animate-pulse">Refreshing…</span>}
+          </div>
+
           <div className="flex-1 overflow-y-auto">
-            {sessLoading && sessions.length === 0 && (
-              <p className="text-white/40 text-sm p-4">Loading…</p>
+            {!sessLoading && filteredSessions.length === 0 && (
+              <p className="text-slate-400 text-xs p-4 text-center">No sessions found.</p>
             )}
-            {!sessLoading && sessions.length === 0 && (
-              <p className="text-white/40 text-sm p-4">No active sessions.</p>
-            )}
-            {sessions.map(s => (
+            {pagedSessions.map(s => (
               <button key={s.conversation_id} type="button"
-                onClick={() => setSelectedId(s.conversation_id)}
-                className={`w-full text-left px-4 py-3 border-b border-white/5 transition-colors ${
-                  selectedId === s.conversation_id ? 'bg-emerald-500/10 border-l-2 border-l-emerald-400' : 'hover:bg-white/5'
+                onClick={() => { setSelectedId(s.conversation_id); userScrolled.current = false; }}
+                className={`w-full text-left px-3 py-3 border-b border-slate-100 transition-colors ${
+                  selectedId === s.conversation_id
+                    ? 'bg-slate-900 text-white border-l-4 border-l-emerald-500'
+                    : 'hover:bg-slate-50 text-slate-800'
                 }`}
               >
                 <div className="flex items-center justify-between gap-2 mb-1">
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                    s.status === 'waiting' ? 'bg-amber-400/20 text-amber-300' : 'bg-emerald-400/20 text-emerald-300'
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                    s.status === 'waiting'
+                      ? selectedId === s.conversation_id ? 'bg-amber-400/30 text-amber-200' : 'bg-amber-100 text-amber-700'
+                      : selectedId === s.conversation_id ? 'bg-emerald-400/30 text-emerald-200' : 'bg-emerald-100 text-emerald-700'
                   }`}>{s.status}</span>
-                  <span className="text-[10px] text-white/30">{fmt(s.updated_at)}</span>
+                  <span className={`text-[10px] ${selectedId === s.conversation_id ? 'text-white/40' : 'text-slate-400'}`}>{fmt(s.updated_at)}</span>
                 </div>
-                <p className="text-sm font-medium truncate">{s.conversation_id}</p>
-                <p className="text-xs text-white/45 truncate">{s.customer_email || 'Anonymous'}</p>
+                <p className="text-xs font-mono font-medium truncate">{s.conversation_id}</p>
+                <p className={`text-xs truncate mt-0.5 ${selectedId === s.conversation_id ? 'text-white/60' : 'text-slate-500'}`}>
+                  {s.customer_email || 'Anonymous'}
+                </p>
                 {s.assigned_executive && (
-                  <p className="text-xs text-cyan-400/70 mt-0.5 flex items-center gap-1"><FiCheck size={10}/>{s.assigned_executive}</p>
+                  <p className={`text-[10px] mt-0.5 flex items-center gap-1 ${selectedId === s.conversation_id ? 'text-emerald-300' : 'text-emerald-600'}`}>
+                    <FiCheck size={9}/>{s.assigned_executive}
+                  </p>
                 )}
               </button>
             ))}
           </div>
+
+          {totalPages > 1 && (
+            <div className="px-3 py-2 border-t border-slate-100 flex items-center justify-between">
+              <button disabled={sessPage <= 1} onClick={() => setSessPage(p => p - 1)}
+                className="p-1.5 rounded-lg disabled:opacity-30 hover:bg-slate-100 transition-colors text-slate-600">
+                <FiChevronLeft size={14}/>
+              </button>
+              <span className="text-xs text-slate-500 font-medium">{sessPage} / {totalPages}</span>
+              <button disabled={sessPage >= totalPages} onClick={() => setSessPage(p => p + 1)}
+                className="p-1.5 rounded-lg disabled:opacity-30 hover:bg-slate-100 transition-colors text-slate-600">
+                <FiChevronRight size={14}/>
+              </button>
+            </div>
+          )}
         </aside>
 
         {/* Chat panel */}
         <main className="flex-1 flex flex-col overflow-hidden">
           {!selectedId ? (
-            <div className="flex-1 flex items-center justify-center text-white/30 text-sm">
+            <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
               Select a session to start chatting
             </div>
           ) : (
             <>
-              {/* Chat header */}
-              <div className="border-b border-white/10 px-6 py-3 flex items-center justify-between bg-slate-900/50">
-                <div>
-                  <p className="font-semibold">{selectedId}</p>
-                  <p className="text-xs text-white/50">{selectedSession?.customer_email || 'Anonymous customer'}</p>
+              <div className="border-b border-slate-200 px-6 py-3 flex items-center justify-between bg-white shrink-0">
+                <div className="min-w-0">
+                  <p className="font-semibold text-slate-900 text-sm font-mono truncate">{selectedId}</p>
+                  <p className="text-xs text-slate-500 truncate">{selectedSession?.customer_email || 'Anonymous customer'}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  {/* Incoming call indicator */}
-                  {callState === 'incoming' && !callState && (
-                    <motion.button
-                      animate={{ scale: [1, 1.08, 1] }} transition={{ repeat: Infinity, duration: 1 }}
-                      onClick={() => setCallState('incoming')}
-                      className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-sm"
-                    >
-                      <FiPhoneIncoming size={15}/> Incoming call
-                    </motion.button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {!callState && (
+                    <button onClick={startVoiceCall}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors">
+                      <FiPhone size={12}/> Call customer
+                    </button>
                   )}
-                  <button
-                    onClick={() => closeSession(selectedId)}
-                    className="text-xs text-white/50 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 border border-white/10 transition-colors"
-                  >
+                  <button onClick={() => closeSession(selectedId)}
+                    className="text-xs text-slate-500 hover:text-slate-900 px-3 py-1.5 rounded-lg hover:bg-slate-100 border border-slate-200 transition-colors">
                     Close chat
                   </button>
                 </div>
               </div>
 
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                {error && <p className="text-red-300 text-xs">{error}</p>}
+              <div ref={msgListRef} onScroll={handleMsgScroll}
+                className="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50">
+                {error && <p className="text-red-500 text-xs mb-2">{error}</p>}
                 {messages.length === 0 && (
-                  <p className="text-white/30 text-sm text-center py-8">No messages yet. Customer is waiting.</p>
+                  <p className="text-slate-400 text-sm text-center py-8">No messages yet.</p>
                 )}
                 {messages.map(msg => (
                   <div key={msg.id}
-                    className={`max-w-[75%] rounded-2xl px-3.5 py-2.5 text-sm ${
+                    className={`max-w-[75%] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm ${
                       msg.sender === 'executive'
-                        ? 'ml-auto bg-cyan-500/20 border border-cyan-400/20 text-white'
-                        : 'bg-white/5 border border-white/10 text-white/85'
+                        ? 'ml-auto bg-slate-900 text-white'
+                        : 'bg-white border border-slate-200 text-slate-800'
                     }`}
                   >
-                    <p className="text-[10px] uppercase tracking-wider text-white/35 mb-1">
+                    <p className={`text-[10px] uppercase tracking-wider mb-1 ${msg.sender === 'executive' ? 'text-white/40' : 'text-slate-400'}`}>
                       {msg.sender === 'executive' ? (msg.executive_name || 'You') : 'Customer'} · {fmt(msg.created_at)}
                     </p>
                     <p className="whitespace-pre-wrap leading-snug">{msg.message}</p>
@@ -538,19 +605,15 @@ export default function SupportExecutivePage() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Reply bar */}
-              <div className="border-t border-white/10 p-3 bg-slate-900/50 flex items-end gap-2">
-                <textarea
-                  value={reply}
-                  onChange={e => setReply(e.target.value)}
+              <div className="border-t border-slate-200 p-3 bg-white flex items-end gap-2 shrink-0">
+                <textarea value={reply} onChange={e => setReply(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply(); }}}
                   placeholder="Type a reply… (Enter to send)"
                   rows={2}
-                  className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-400/60 resize-none"
-                />
+                  className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900/20 resize-none" />
                 <button onClick={sendReply} disabled={sending || !reply.trim()}
-                  className="h-10 w-10 rounded-xl bg-cyan-500 hover:bg-cyan-400 flex items-center justify-center disabled:opacity-50 transition-colors self-end">
-                  <FiSend size={16} />
+                  className="h-10 w-10 rounded-xl bg-slate-900 hover:bg-slate-800 flex items-center justify-center disabled:opacity-40 transition-colors self-end">
+                  <FiSend size={15} className="text-white"/>
                 </button>
               </div>
             </>

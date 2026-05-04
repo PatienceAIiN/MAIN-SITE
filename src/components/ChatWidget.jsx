@@ -147,6 +147,7 @@ const ChatWidget = ({ brand }) => {
   // Live support chat state
   const [isLiveChat, setIsLiveChat] = useState(false);
   const [showLiveChatEntry, setShowLiveChatEntry] = useState(false);
+  const [liveNameInput, setLiveNameInput] = useState('');
   const [liveEmailInput, setLiveEmailInput] = useState('');
   const [liveMessages, setLiveMessages] = useState([]);
   const [liveInput, setLiveInput] = useState('');
@@ -450,6 +451,8 @@ const ChatWidget = ({ brand }) => {
     }
     setIsLiveChat(false);
     setShowLiveChatEntry(false);
+    setLiveNameInput('');
+    setLiveEmailInput('');
     setLiveMessages([]);
     setLiveInput('');
     setLiveConversationId('');
@@ -470,10 +473,12 @@ const ChatWidget = ({ brand }) => {
   };
 
   const startLiveChat = async () => {
+    const name = liveNameInput.trim();
     const email = liveEmailInput.trim();
+    if (!name || !email || !liveConversationId) return;
     setShowLiveChatEntry(false);
     setShowContactCta(false);
-    openLiveChatPopup(email);
+    openLiveChatPopup({ conversationId: liveConversationId, name, email, mode: 'new' });
   };
 
   const sendLiveMessage = async () => {
@@ -600,7 +605,7 @@ const ChatWidget = ({ brand }) => {
         if (controller.signal.aborted) break;
         visibleAnswer += fullAnswer[index];
         setLiveResponse(visibleAnswer);
-        await new Promise((resolve) => setTimeout(resolve, 8));
+        await new Promise((resolve) => setTimeout(resolve, 3));
       }
 
       if (!controller.signal.aborted) {
@@ -626,11 +631,22 @@ const ChatWidget = ({ brand }) => {
     }
   };
 
-  const openLiveChatPopup = (emailPrefill = '') => {
+  const createLiveConversationId = () => {
     const raw = window.crypto?.randomUUID?.().replace(/-/g,'').slice(0,6) || `${Date.now().toString(36).slice(-4)}`;
-    const convId = `PatienceAILive-${raw}`;
-    const params = new URLSearchParams({ conversationId: convId });
-    if (emailPrefill) params.set('customerEmail', emailPrefill);
+    return `PatienceAILive-${raw}`;
+  };
+
+  const showLiveChatStart = () => {
+    setLiveConversationId((current) => current || createLiveConversationId());
+    setShowLiveChatEntry(true);
+    setShowContactCta(false);
+  };
+
+  const openLiveChatPopup = ({ conversationId: convId, name = '', email = '', mode = 'new' } = {}) => {
+    const params = new URLSearchParams({ conversationId: convId || createLiveConversationId() });
+    params.set('mode', mode);
+    if (email) params.set('customerEmail', email);
+    if (name) params.set('customerName', name);
     const url = `/live-chat?${params.toString()}`;
     const popup = window.open(url, 'pa_live_chat',
       'width=420,height=680,resizable=yes,scrollbars=yes,status=no,toolbar=no,menubar=no,location=no');
@@ -642,7 +658,7 @@ const ChatWidget = ({ brand }) => {
 
   const onSuggestionClick = (prompt) => {
     if (prompt === 'Talk to a live agent') {
-      openLiveChatPopup();
+      showLiveChatStart();
       return;
     }
     ask(prompt);
@@ -836,7 +852,7 @@ const ChatWidget = ({ brand }) => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setShowContactCta(false); openLiveChatPopup(); }}
+                      onClick={showLiveChatStart}
                       className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-slate-800 shadow-sm"
                     >
                       Chat with a live agent
@@ -848,18 +864,40 @@ const ChatWidget = ({ brand }) => {
               {showLiveChatEntry && (
                 <div className="max-w-[95%] rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3 shadow-sm space-y-2">
                   <p className="text-xs font-semibold text-slate-700">Start live chat</p>
+                  <div className="rounded-xl border border-emerald-100 bg-white px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400">Conversation ID</p>
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <p className="font-mono text-xs font-semibold text-slate-800 break-all">{liveConversationId}</p>
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard?.writeText(liveConversationId).catch(() => {})}
+                        className="h-7 w-7 shrink-0 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 flex items-center justify-center"
+                        aria-label="Copy live chat conversation ID"
+                      >
+                        <FiCopy size={12} />
+                      </button>
+                    </div>
+                    <p className="mt-1 text-[11px] text-slate-500">Save this ID to continue this chat later.</p>
+                  </div>
+                  <input
+                    value={liveNameInput}
+                    onChange={(e) => setLiveNameInput(e.target.value)}
+                    placeholder="Your name *"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500"
+                  />
                   <input
                     type="email"
                     value={liveEmailInput}
                     onChange={(e) => setLiveEmailInput(e.target.value)}
-                    placeholder="Your email (optional)"
+                    placeholder="Your email *"
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500"
                   />
                   <div className="flex gap-2">
                     <button
                       type="button"
                       onClick={startLiveChat}
-                      className="rounded-full bg-emerald-600 text-white px-3 py-1.5 text-xs font-medium"
+                      disabled={!liveNameInput.trim() || !liveEmailInput.trim()}
+                      className="rounded-full bg-emerald-600 text-white px-3 py-1.5 text-xs font-medium disabled:opacity-50"
                     >
                       Connect
                     </button>
@@ -1008,7 +1046,7 @@ const ChatWidget = ({ brand }) => {
                 {!isLiveChat && !showLiveChatEntry && (
                   <button
                     type="button"
-                    onClick={() => openLiveChatPopup()}
+                    onClick={showLiveChatStart}
                     className="text-[10px] text-emerald-600 hover:text-emerald-800 shrink-0 font-medium"
                   >
                     Talk to a person

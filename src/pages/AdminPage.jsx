@@ -229,11 +229,14 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
     e.preventDefault();
     setExecInviteSending(true); setExecError(''); setExecInviteSuccess('');
     try {
-      await fetchJson('/api/support-executives', {
+      const data = await fetchJson('/api/support-executives', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(execInviteForm)
       });
+      if (data.emailSent === false) {
+        throw new Error(data.emailError || 'Invite created but email was not sent.');
+      }
       setExecInviteSuccess(`Invite sent to ${execInviteForm.email}`);
       setExecInviteForm({ name: '', email: '' });
       await loadExecutives();
@@ -569,6 +572,22 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationId, status: 'closed' })
       });
+      await loadSupportSessions();
+    } catch (error) {
+      setSupportError(error.message);
+    }
+  };
+
+  const deleteSupportSession = async (conversationId) => {
+    if (!conversationId) return;
+    try {
+      await fetchJson('/api/support-chat', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId })
+      });
+      setSupportMessages([]);
+      setSelectedSupportId('');
       await loadSupportSessions();
     } catch (error) {
       setSupportError(error.message);
@@ -1398,32 +1417,43 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                     )}
                     <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
                       {supportSessions.map((session) => (
-                        <button
+                        <div
                           key={session.conversation_id}
-                          type="button"
-                          onClick={() => setSelectedSupportId(session.conversation_id)}
                           className={`w-full rounded-xl border text-left px-3 py-3 transition-colors ${
                             selectedSupportId === session.conversation_id
                               ? 'border-emerald-400/60 bg-emerald-400/10'
                               : 'border-white/10 bg-slate-900/50 hover:bg-white/5'
                           }`}
                         >
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <p className="font-medium text-sm truncate">{session.conversation_id}</p>
-                            <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${
-                              session.status === 'waiting' ? 'bg-amber-400/20 text-amber-300' :
-                              session.status === 'active' ? 'bg-emerald-400/20 text-emerald-300' :
-                              'bg-white/10 text-white/40'
-                            }`}>
-                              {session.status}
-                            </span>
-                          </div>
-                          <p className="text-xs text-white/50">{session.customer_email || 'No email'}</p>
-                          {session.assigned_executive && (
-                            <p className="text-xs text-cyan-300/70 mt-0.5">Assigned: {session.assigned_executive}</p>
-                          )}
-                          <p className="text-xs text-white/35 mt-1">{formatDate(session.updated_at)}</p>
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSupportId(session.conversation_id)}
+                            className="w-full text-left"
+                          >
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <p className="font-medium text-sm truncate">{session.conversation_id}</p>
+                              <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${
+                                session.status === 'waiting' ? 'bg-amber-400/20 text-amber-300' :
+                                session.status === 'active' ? 'bg-emerald-400/20 text-emerald-300' :
+                                'bg-white/10 text-white/40'
+                              }`}>
+                                {session.status}
+                              </span>
+                            </div>
+                            <p className="text-xs text-white/50">{session.customer_email || 'No email'}</p>
+                            {session.assigned_executive && (
+                              <p className="text-xs text-cyan-300/70 mt-0.5">Assigned: {session.assigned_executive}</p>
+                            )}
+                            <p className="text-xs text-white/35 mt-1">{formatDate(session.updated_at)}</p>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteSupportSession(session.conversation_id)}
+                            className="mt-2 text-xs text-red-300/80 hover:text-red-200"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -1459,6 +1489,13 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                                     Close chat
                                   </Button>
                                 )}
+                                <Button
+                                  variant="secondary"
+                                  className="rounded-xl px-3 py-2 text-xs text-red-700"
+                                  onClick={() => deleteSupportSession(selectedSupportId)}
+                                >
+                                  Delete
+                                </Button>
                               </div>
                             </div>
                           );

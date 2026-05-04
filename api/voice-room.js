@@ -3,25 +3,59 @@ import { queryDb, isMissingTableError } from './_db.js';
 import { getExecSession, getCookieValue, SESSION_COOKIE_NAME, verifySessionToken } from './_security.js';
 
 const TABLE = 'voice_rooms';
-
-const isAdmin  = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
-const isExec   = (req) => Boolean(getExecSession(req));
+const isAdmin    = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
+const isExec     = (req) => Boolean(getExecSession(req));
 const authorized = (req) => isAdmin(req) || isExec(req);
 
-export default async function handler(req, res) {
-  // ── POST /api/voice-room — create or update room ─────────────────────────
-  if (req.method === 'POST') {
-    const { conversationId, offer, answer, callerCandidates, calleeCandidates, action } = req.body || {};
+// Production-safe ICE config with free TURN relays for firewall/NAT traversal
+const getIceServers = () => {
+  const servers = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+  ];
+  const turnUrl  = process.env.TURN_URL;
+  const turnUser = process.env.TURN_USERNAME;
+  const turnCred = process.env.TURN_CREDENTIAL;
+  if (turnUrl && turnUser && turnCred) {
+    servers.push({ urls: turnUrl, username: turnUser, credential: turnCred });
+  }
+  // Free open TURN (metered.ca openrelay) — improves prod connectivity behind NAT/firewalls
+  servers.push(
+    { urls: 'turn:openrelay.metered.ca:80',  username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+  );
+  return servers;
+};
 
-    // Customer creates room with offer
+export default async function handler(req, res) {
+  // ── GET /api/voice-room/ice-servers ──────────────────────────────────────
+  if (req.method === 'GET' && req.url?.includes('/ice-servers')) {
+    return res.status(200).json({ iceServers: getIceServers() });
+  }
+
+  // ── POST /api/voice-room ──────────────────────────────────────────────────
+  if (req.method === 'POST') {
+    const { action } = req.body || {};
+
+    // Customer OR executive creates a room with an offer
     if (action === 'create') {
+      const { conversationId, offer, initiator } = req.body;
       if (!conversationId || !offer) return res.status(400).json({ error: 'conversationId and offer required' });
+      if (initiator === 'executive' && !authorized(req))
+        return res.status(401).json({ error: 'Unauthorized' });
       const roomId = crypto.randomBytes(8).toString('hex');
       try {
+        // End any lingering calling rooms for this conversation
+        await queryDb(
+          `UPDATE ${TABLE} SET status='ended', updated_at=NOW() WHERE conversation_id=$1 AND status='calling'`,
+          [conversationId]
+        ).catch(() => {});
         const rows = await queryDb(
-          `INSERT INTO ${TABLE} (room_id, conversation_id, offer, caller_candidates, status, created_at, updated_at)
-           VALUES ($1,$2,$3,'[]','calling',NOW(),NOW()) RETURNING *`,
-          [roomId, conversationId, JSON.stringify(offer)]
+          `INSERT INTO ${TABLE} (room_id, conversation_id, offer, caller_candidates, status, initiator, created_at, updated_at)
+           VALUES ($1,$2,$3,'[]','calling',$4,NOW(),NOW()) RETURNING *`,
+          [roomId, conversationId, JSON.stringify(offer), initiator || 'customer']
         );
         return res.status(200).json({ room: rows[0] });
       } catch (err) {
@@ -30,10 +64,9 @@ export default async function handler(req, res) {
       }
     }
 
-    // Executive answers
+    // Answerer responds (exec answers customer-initiated; customer answers exec-initiated)
     if (action === 'answer') {
-      if (!authorized(req)) return res.status(401).json({ error: 'Unauthorized' });
-      const { roomId } = req.body;
+      const { roomId, answer } = req.body;
       if (!roomId || !answer) return res.status(400).json({ error: 'roomId and answer required' });
       try {
         const rows = await queryDb(
@@ -46,7 +79,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // Add ICE candidate
+    // ICE candidate exchange
     if (action === 'ice') {
       const { roomId, candidate, side } = req.body; // side: 'caller' | 'callee'
       if (!roomId || !candidate || !side) return res.status(400).json({ error: 'roomId, candidate, side required' });
@@ -78,9 +111,9 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Unknown action' });
   }
 
-  // ── GET /api/voice-room?roomId=X  or  ?conversationId=X ─────────────────
+  // ── GET /api/voice-room ───────────────────────────────────────────────────
   if (req.method === 'GET') {
-    const roomId = String(req.query.roomId || '').trim();
+    const roomId         = String(req.query.roomId         || '').trim();
     const conversationId = String(req.query.conversationId || '').trim();
     try {
       let rows;
@@ -88,7 +121,7 @@ export default async function handler(req, res) {
         rows = await queryDb(`SELECT * FROM ${TABLE} WHERE room_id=$1 LIMIT 1`, [roomId]);
       } else if (conversationId) {
         rows = await queryDb(
-          `SELECT * FROM ${TABLE} WHERE conversation_id=$1 ORDER BY created_at DESC LIMIT 1`,
+          `SELECT * FROM ${TABLE} WHERE conversation_id=$1 AND status IN ('calling','active') ORDER BY created_at DESC LIMIT 1`,
           [conversationId]
         );
       } else {

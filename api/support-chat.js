@@ -7,7 +7,6 @@ const SESSIONS_TABLE = 'support_sessions';
 const EXEC_TABLE = 'support_executives';
 
 const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
-const isExec = (req) => Boolean(getExecSession(req));
 const getExec = (req) => getExecSession(req);
 
 const createTransporter = () => nodemailer.createTransport({
@@ -75,10 +74,14 @@ export default async function handler(req, res) {
     if (listSessions) {
       if (!authorized) return res.status(401).json({ error: 'Unauthorized' });
       try {
+        const limit = Math.min(Math.max(parseInt(req.query.limit || '100', 10) || 100, 1), 100);
+        const offset = Math.max(parseInt(req.query.offset || '0', 10) || 0, 0);
         const sessions = await queryDb(
-          `SELECT * FROM ${SESSIONS_TABLE} ORDER BY updated_at DESC LIMIT 100`
+          `SELECT * FROM ${SESSIONS_TABLE} ORDER BY updated_at DESC LIMIT $1 OFFSET $2`,
+          [limit, offset]
         );
-        return res.status(200).json({ sessions });
+        const totalRows = await queryDb(`SELECT COUNT(*)::int AS total FROM ${SESSIONS_TABLE}`);
+        return res.status(200).json({ sessions, total: totalRows[0]?.total || sessions.length });
       } catch (err) {
         if (isMissingTableError(err.message)) return res.status(200).json({ sessions: [] });
         return res.status(500).json({ error: err.message });
@@ -90,7 +93,6 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Forbidden' });
 
     try {
-      await ensureSession(conversationId, customerEmail || null);
       const rows = since
         ? await queryDb(
             `SELECT * FROM ${CHATS_TABLE} WHERE conversation_id=$1 AND created_at>$2 ORDER BY created_at ASC LIMIT 100`,
@@ -177,6 +179,20 @@ export default async function handler(req, res) {
         params
       );
       return res.status(200).json({ session: rows[0] || null });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  if (req.method === 'DELETE') {
+    if (!authorized) return res.status(401).json({ error: 'Unauthorized' });
+    const { conversationId } = req.body || {};
+    if (!conversationId) return res.status(400).json({ error: 'conversationId required' });
+    try {
+      await queryDb(`DELETE FROM ${CHATS_TABLE} WHERE conversation_id=$1`, [conversationId]);
+      await queryDb(`DELETE FROM ${SESSIONS_TABLE} WHERE conversation_id=$1`, [conversationId]);
+      await queryDb(`UPDATE voice_rooms SET status='ended', updated_at=NOW() WHERE conversation_id=$1`, [conversationId]).catch(() => {});
+      return res.status(200).json({ ok: true, conversationId });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }

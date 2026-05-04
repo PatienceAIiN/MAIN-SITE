@@ -147,10 +147,12 @@ const SCHEMA_QUERIES = [
     answer jsonb,
     caller_candidates jsonb not null default '[]',
     callee_candidates jsonb not null default '[]',
+    initiator text not null default 'customer' check (initiator in ('customer', 'executive')),
     status text not null default 'calling' check (status in ('calling', 'active', 'ended')),
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
   )`,
+  `alter table public.voice_rooms add column if not exists initiator text not null default 'customer'`,
   `create index if not exists voice_rooms_room_id_idx on public.voice_rooms (room_id)`,
   `create index if not exists voice_rooms_conversation_id_idx on public.voice_rooms (conversation_id)`
 ];

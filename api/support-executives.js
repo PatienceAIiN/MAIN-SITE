@@ -9,33 +9,47 @@ const TTL_HOURS = 72;
 
 const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
 
-const createTransporter = () => nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtpout.secureserver.net',
-  port: parseInt(process.env.SMTP_PORT || '465', 10),
-  secure: process.env.SMTP_SECURE !== 'false',
-  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-  tls: { rejectUnauthorized: process.env.NODE_ENV === 'production' }
-});
+const getSiteBase = () => {
+  const url = process.env.SITE_URL || '';
+  if (url.startsWith('http')) return url.replace(/\/$/, '');
+  return `https://${url || 'patienceai.in'}`;
+};
 
 const sendInviteEmail = async (email, name, token) => {
-  const base = process.env.SITE_URL?.startsWith('http')
-    ? process.env.SITE_URL
-    : `https://${process.env.SITE_URL || 'patienceai.in'}`;
-  const link = `${base}/support-executive?invite=${token}`;
-  const transporter = createTransporter();
-  await transporter.sendMail({
-    from: `"${process.env.SMTP_SENDER_NAME || 'Patience AI'}" <${process.env.SMTP_USER}>`,
-    to: email,
-    subject: 'You\'re invited as a Support Executive — Patience AI',
-    html: `
-      <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px">
-        <h2 style="color:#0f172a">Welcome, ${name}!</h2>
-        <p style="color:#475569">You've been added as a <strong>Support Executive</strong> for Patience AI Live Support.</p>
-        <p style="color:#475569">Click the button below to set your password and activate your account. This link expires in ${TTL_HOURS} hours.</p>
-        <a href="${link}" style="display:inline-block;margin:24px 0;padding:12px 28px;background:#0f172a;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Set Password &amp; Activate</a>
-        <p style="color:#94a3b8;font-size:12px">If you didn't expect this, ignore this email.</p>
-      </div>`
+  const host = process.env.SMTP_HOST || 'smtpout.secureserver.net';
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const port = parseInt(process.env.SMTP_PORT || '465', 10);
+  const secure = process.env.SMTP_SECURE === 'false' ? false : (port === 465);
+
+  if (!user || !pass) {
+    throw new Error('SMTP is not configured. Set SMTP_USER and SMTP_PASS.');
+  }
+
+  const transporter = nodemailer.createTransport({
+    host, port, secure,
+    auth: { user, pass },
+    tls: { rejectUnauthorized: false } // GoDaddy certs sometimes chain-fail in prod
   });
+
+  const link = `${getSiteBase()}/support-executive?invite=${token}`;
+  const fromName = process.env.SMTP_SENDER_NAME || 'Patience AI';
+  const fromAddress = process.env.SMTP_FROM || user;
+
+  await transporter.sendMail({
+    from: `"${fromName}" <${fromAddress}>`,
+    to: email,
+    subject: `You're invited as a Support Executive — Patience AI`,
+    html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px">
+      <h2 style="color:#0f172a">Welcome, ${name}!</h2>
+      <p style="color:#475569">You've been added as a <strong>Support Executive</strong> for Patience AI Live Support.</p>
+      <p style="color:#475569">Click the button below to set your password and activate your account. This link expires in ${TTL_HOURS} hours.</p>
+      <a href="${link}" style="display:inline-block;margin:24px 0;padding:12px 28px;background:#0f172a;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Set Password &amp; Activate</a>
+      <p style="color:#94a3b8;font-size:12px">If you didn't expect this, ignore this email.</p>
+    </div>`,
+    text: `Welcome ${name}!\n\nYou've been invited as a Support Executive.\n\nSet your password here:\n${link}\n\nThis link expires in ${TTL_HOURS} hours.`
+  });
+  console.log('[invite] email sent to', email);
 };
 
 // Ensure seed executive exists (called at server startup via ensureSchema side-effect)
@@ -163,11 +177,17 @@ export default async function handler(req, res) {
         );
         exec = rows[0];
       }
-      // Send invite email (don't fail the request if email fails)
+      let emailError = null;
       try { await sendInviteEmail(email, name, inviteToken); } catch (e) {
-        console.error('invite email failed:', e.message);
+        emailError = e.message;
+        console.error('[invite] email send failed:', e.message);
       }
-      return res.status(200).json({ ok: true, executive: { id: exec.id, email: exec.email, name: exec.name, status: exec.status } });
+      return res.status(200).json({
+        ok: true,
+        executive: { id: exec.id, email: exec.email, name: exec.name, status: exec.status },
+        emailSent: !emailError,
+        emailError: emailError || undefined
+      });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }

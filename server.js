@@ -247,7 +247,7 @@ app.use((req, res, next) => {
   // Control referrer info sent to third parties
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   // Disable browser features not needed
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(self), geolocation=(), payment=()');
   // Basic XSS protection for older browsers
   res.setHeader('X-XSS-Protection', '1; mode=block');
   // Content Security Policy
@@ -296,6 +296,7 @@ app.all('/api/support-executives/activate', wrap(supportExecutivesHandler));
 app.all('/api/support-executives/me',       wrap(supportExecutivesHandler));
 app.all('/api/support-executives/logout',   wrap(supportExecutivesHandler));
 app.all('/api/support-executives',          wrap(supportExecutivesHandler));
+app.all('/api/voice-room/ice-servers',      wrap(voiceRoomHandler));
 app.all('/api/voice-room',                  wrap(voiceRoomHandler));
 
 // Dynamic sitemap.xml
