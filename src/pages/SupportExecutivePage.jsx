@@ -341,9 +341,9 @@ export default function SupportExecutivePage() {
       const d = await fetchJson('/api/support-chat?listSessions=1');
       const newSessions = d.sessions || [];
       
-      // Check if new sessions arrived (excluding closed ones)
-      const activeNewSessions = newSessions.filter(s => s.status !== 'closed');
-      const activePreviousSessions = sessions.filter(s => s.status !== 'closed');
+      // Check if new actionable sessions arrived (waiting/active)
+      const activeNewSessions = newSessions.filter(s => !['closed', 'ended'].includes(s.status));
+      const activePreviousSessions = sessions.filter(s => !['closed', 'ended'].includes(s.status));
       
       // Play notification if new active sessions arrived
       if (activeNewSessions.length > activePreviousSessions.length && activePreviousSessions.length > 0) {
@@ -351,12 +351,12 @@ export default function SupportExecutivePage() {
       }
       
       setSessions(newSessions);
-      // Only auto-select first chat if not previously closed by executive
-      const chatClosedByExecutive = localStorage.getItem('pa_executive_chat_closed') === 'true';
       setSelectedId(id => {
-        if (id) return id; // Keep existing selection
-        if (chatClosedByExecutive) return ''; // Don't auto-select if closed before
-        return d.sessions?.[0]?.conversation_id || ''; // Auto-select first chat
+        const exists = newSessions.some((session) => session.conversation_id === id);
+        if (id && exists) return id; // Keep existing valid selection
+
+        const latestActionable = newSessions.find((session) => !['closed', 'ended'].includes(session.status));
+        return latestActionable?.conversation_id || '';
       });
 
       // Handle persistent notifications for unattended chats
@@ -534,8 +534,6 @@ export default function SupportExecutivePage() {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationId: convId, status: 'closed' })
       });
-      // Store that executive closed chat to prevent auto-opening
-      localStorage.setItem('pa_executive_chat_closed', 'true');
       await loadSessions();
       if (selectedId === convId) setSelectedId('');
     } catch (e) { setError(e.message); }
@@ -863,8 +861,6 @@ export default function SupportExecutivePage() {
                 onClick={() => { 
                   setSelectedId(s.conversation_id); 
                   userScrolled.current = false;
-                  // Clear closed state since executive manually opened chat
-                  localStorage.removeItem('pa_executive_chat_closed');
                 }}
                 className={`w-full text-left px-3 py-3 border-b border-slate-100 transition-colors ${
                   selectedId === s.conversation_id
