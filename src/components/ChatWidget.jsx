@@ -8,6 +8,7 @@ const YES_PATTERN = /^(yes|yeah|yep|sure|ok|okay|please|why not|go ahead)$/i;
 const CONTACT_FORM_PATTERN = /\b(show|open|fill|need|want).{0,24}\b(contact|sales)\s+form\b|\bcontact\s+form\b/i;
 const JOB_FORM_PATTERN = /\b(job|career|hiring|apply|application|job\s*enquiry|job\s*inquiry)\b.*\b(form|enquiry|inquiry|apply)\b|\bjob\s*enquiry\b|\bjob\s*inquiry\b/i;
 const NAVIGATION_REQUEST_PATTERN = /\b(open|go to|navigate|take me to|redirect|show me)\b/i;
+const HUMAN_AGENT_PATTERN = /\b(connect.*human|human.*agent|talk.*human|speak.*human|live.*agent|real.*agent|customer.*service|support.*agent|agent.*help|help.*agent)\b/i;
 const buildRouteActions = (message = '') => {
   const text = String(message).toLowerCase();
   const actions = [];
@@ -143,6 +144,8 @@ const ChatWidget = ({ brand }) => {
   const [routeActions, setRouteActions] = useState([]);
   const [assistantSuggestions, setAssistantSuggestions] = useState([]);
   const [showContactCta, setShowContactCta] = useState(false);
+  const [showHumanAgentPopup, setShowHumanAgentPopup] = useState(false);
+  const [humanAgentETA, setHumanAgentETA] = useState('2-5 minutes');
 
   // Live support chat state
   const [isLiveChat, setIsLiveChat] = useState(false);
@@ -571,6 +574,29 @@ const ChatWidget = ({ brand }) => {
           content: 'Sure — please fill this quick contact form in chat.'
         }
       ]);
+      return;
+    }
+
+    // Check for human agent request
+    if (HUMAN_AGENT_PATTERN.test(question)) {
+      setMessages((current) => [
+        ...current,
+        {
+          role: 'assistant',
+          content: 'I\'ll connect you to a live human agent right away. Let me check availability and get you connected.'
+        }
+      ]);
+      setShowHumanAgentPopup(true);
+      // Trigger notification to all active executives
+      fetchJson('/api/support-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'trigger_agent_alert',
+          conversationId,
+          customerMessage: question
+        })
+      }).catch(() => {});
       return;
     }
 
@@ -1058,6 +1084,62 @@ const ChatWidget = ({ brand }) => {
               </div>
               </div>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Human Agent Connection Popup */}
+      <AnimatePresence>
+        {showHumanAgentPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-[150] flex items-center justify-center p-4"
+            onClick={() => setShowHumanAgentPopup(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: 'spring', damping: 20 }}
+              className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center mb-4">
+                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <div className="w-8 h-8 bg-emerald-500 rounded-full animate-pulse" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">Connecting to Human Agent</h3>
+                <p className="text-sm text-slate-600 mb-4">
+                  We're finding the best available agent to help you. This usually takes {humanAgentETA}.
+                </p>
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowHumanAgentPopup(false)}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowHumanAgentPopup(false);
+                    showLiveChatStart();
+                  }}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition-colors"
+                >
+                  Open Chat Now
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

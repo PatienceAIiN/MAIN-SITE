@@ -76,6 +76,34 @@ const stopDialTone = (ref) => {
   ref.current = null;
 };
 
+const playNotificationTone = () => {
+  if (typeof window === 'undefined') return;
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return;
+  try {
+    const ctx = new AudioContext();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(800, ctx.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.1);
+    
+    gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    oscillator.start();
+    oscillator.stop(ctx.currentTime + 0.3);
+    
+    oscillator.onended = () => {
+      ctx.close().catch(() => {});
+    };
+  } catch { /* ignore */ }
+};
+
 /* ── Activate account form ───────────────────────────────────────────────── */
 function ActivateForm({ token, onActivated }) {
   const [password, setPassword] = useState('');
@@ -253,10 +281,13 @@ export default function SupportExecutivePage() {
   const [executive,    setExecutive]    = useState(null);
   const [authLoading,  setAuthLoading]  = useState(true);
   const [activated,    setActivated]    = useState(false);
+  const [onlineStatus, setOnlineStatus] = useState('offline');
 
   const [sessions,     setSessions]     = useState([]);
   const [selectedId,   setSelectedId]   = useState('');
+  const [previousSessionCount, setPreviousSessionCount] = useState(0);
   const [messages,     setMessages]     = useState([]);
+  const [unattendedNotificationRef, setUnattendedNotificationRef] = useState(null);
   const [reply,        setReply]        = useState('');
   const [sending,      setSending]      = useState(false);
   const [sessLoading,  setSessLoading]  = useState(false);
@@ -301,18 +332,61 @@ export default function SupportExecutivePage() {
     setSessLoading(true);
     try {
       const d = await fetchJson('/api/support-chat?listSessions=1');
-      setSessions(d.sessions || []);
-      setSelectedId(id => id || d.sessions?.[0]?.conversation_id || '');
+      const newSessions = d.sessions || [];
+      
+      // Check if new sessions arrived (excluding closed ones)
+      const activeNewSessions = newSessions.filter(s => s.status !== 'closed');
+      const activePreviousSessions = sessions.filter(s => s.status !== 'closed');
+      
+      // Play notification if new active sessions arrived
+      if (activeNewSessions.length > activePreviousSessions.length && activePreviousSessions.length > 0) {
+        playNotificationTone();
+      }
+      
+      setSessions(newSessions);
+      // Only auto-select first chat if not previously closed by executive
+      const chatClosedByExecutive = localStorage.getItem('pa_executive_chat_closed') === 'true';
+      setSelectedId(id => {
+        if (id) return id; // Keep existing selection
+        if (chatClosedByExecutive) return ''; // Don't auto-select if closed before
+        return d.sessions?.[0]?.conversation_id || ''; // Auto-select first chat
+      });
+
+      // Handle persistent notifications for unattended chats
+      const unattendedChats = newSessions.filter(s => 
+        s.status === 'waiting' && onlineStatus === 'online'
+      );
+      
+      if (unattendedChats.length > 0 && !selectedId) {
+        // Start persistent notification if there are unattended chats and executive is online
+        if (!unattendedNotificationRef) {
+          const interval = setInterval(() => {
+            playNotificationTone();
+          }, 5000); // Play every 5 seconds
+          setUnattendedNotificationRef(interval);
+        }
+      } else {
+        // Stop persistent notification if no unattended chats or executive is busy/offline
+        if (unattendedNotificationRef) {
+          clearInterval(unattendedNotificationRef);
+          setUnattendedNotificationRef(null);
+        }
+      }
     } catch (e) { setError(e.message); }
     finally { setSessLoading(false); }
-  }, []);
+  }, [sessions, onlineStatus, selectedId, unattendedNotificationRef]);
 
   useEffect(() => {
     if (!executive) return;
     loadSessions();
     const id = setInterval(loadSessions, 6000);
-    return () => clearInterval(id);
-  }, [executive, loadSessions]);
+    return () => {
+      clearInterval(id);
+      if (unattendedNotificationRef) {
+        clearInterval(unattendedNotificationRef);
+      }
+    };
+  }, [executive, loadSessions, unattendedNotificationRef]);
 
   /* ── Filtered + paginated sessions ──────────────────────────────────── */
   const filteredSessions = useMemo(() => {
@@ -419,6 +493,10 @@ export default function SupportExecutivePage() {
         if (room && room.status === 'calling' && room.initiator === 'customer' && room.offer) {
           setCallRoomId(room.room_id);
           setCallState('incoming');
+        } else if (room && room.status === 'ended') {
+          // Client ended the call before executive joined
+          setCallState(null);
+          setCallRoomId(null);
         }
       } catch { /* ignore */ }
     };
@@ -448,6 +526,8 @@ export default function SupportExecutivePage() {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationId: convId, status: 'closed' })
       });
+      // Store that executive closed chat to prevent auto-opening
+      localStorage.setItem('pa_executive_chat_closed', 'true');
       await loadSessions();
       if (selectedId === convId) setSelectedId('');
     } catch (e) { setError(e.message); }
@@ -457,6 +537,18 @@ export default function SupportExecutivePage() {
     if (!speechRef.current) return;
     speechRef.current.active = false;
     speechRef.current.recognition?.stop?.();
+    if (speechRef.current.bulkSendInterval) {
+      clearInterval(speechRef.current.bulkSendInterval);
+    }
+    // Send any remaining transcripts before stopping
+    if (speechRef.current.transcripts.length > 0) {
+      const bulkText = speechRef.current.transcripts.join(' ');
+      fetchJson('/api/voice-room', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'bulk_transcript', roomId: speechRef.current.roomId, side: speechRef.current.side, text: bulkText })
+      }).catch(() => {});
+    }
     speechRef.current = null;
   }, []);
 
@@ -465,11 +557,26 @@ export default function SupportExecutivePage() {
     if (!roomId || !SpeechRecognition) return;
     stopTranscription();
     const recognition = new SpeechRecognition();
-    const holder = { active: true, recognition };
+    const holder = { active: true, recognition, transcripts: [], roomId, side };
     speechRef.current = holder;
     recognition.continuous = true;
     recognition.interimResults = false;
     recognition.lang = 'en-US';
+    
+    // Send bulk transcriptions every 10 seconds
+    const bulkSendInterval = setInterval(() => {
+      if (holder.transcripts.length > 0) {
+        const bulkText = holder.transcripts.join(' ');
+        holder.transcripts = [];
+        fetchJson('/api/voice-room', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'bulk_transcript', roomId, side, text: bulkText })
+        }).catch(() => {});
+      }
+    }, 10000);
+    holder.bulkSendInterval = bulkSendInterval;
+    
     recognition.onresult = (event) => {
       const text = Array.from(event.results)
         .slice(event.resultIndex)
@@ -477,11 +584,7 @@ export default function SupportExecutivePage() {
         .join(' ')
         .trim();
       if (text) {
-        fetchJson('/api/voice-room', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'transcript', roomId, side, text })
-        }).catch(() => {});
+        holder.transcripts.push(text);
       }
     };
     recognition.onend = () => {
@@ -611,6 +714,19 @@ export default function SupportExecutivePage() {
     });
   };
 
+  const updateStatus = async (newStatus) => {
+    try {
+      await fetchJson('/api/support-executives/status', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      setOnlineStatus(newStatus);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const logout = async () => {
     await fetchJson('/api/support-executives/logout', { method: 'DELETE' }).catch(() => {});
     setExecutive(null);
@@ -660,9 +776,26 @@ export default function SupportExecutivePage() {
           <h1 className="text-lg font-bold text-slate-900">{executive.name}</h1>
         </div>
         <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Online
-          </span>
+          {/* Status Toggle */}
+          <div className="flex items-center bg-slate-100 rounded-lg p-1">
+            {['online', 'away', 'offline'].map((status) => (
+              <button
+                key={status}
+                onClick={() => updateStatus(status)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  onlineStatus === status
+                    ? status === 'online' 
+                      ? 'bg-emerald-500 text-white'
+                      : status === 'away'
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-slate-300 text-slate-700'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {status.charAt(0).toUpperCase() + status.slice(1)}
+              </button>
+            ))}
+          </div>
           <button onClick={loadSessions} className="text-slate-400 hover:text-slate-700 p-2 rounded-lg hover:bg-slate-100 transition-colors">
             <FiRefreshCw size={16} />
           </button>
@@ -694,7 +827,12 @@ export default function SupportExecutivePage() {
             )}
             {pagedSessions.map(s => (
               <button key={s.conversation_id} type="button"
-                onClick={() => { setSelectedId(s.conversation_id); userScrolled.current = false; }}
+                onClick={() => { 
+                  setSelectedId(s.conversation_id); 
+                  userScrolled.current = false;
+                  // Clear closed state since executive manually opened chat
+                  localStorage.removeItem('pa_executive_chat_closed');
+                }}
                 className={`w-full text-left px-3 py-3 border-b border-slate-100 transition-colors ${
                   selectedId === s.conversation_id
                     ? 'bg-slate-900 text-white border-l-4 border-l-emerald-500'

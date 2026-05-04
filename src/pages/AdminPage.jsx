@@ -89,6 +89,9 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [execInviteForm, setExecInviteForm]     = useState({ name: '', email: '' });
   const [execInviteSending, setExecInviteSending] = useState(false);
   const [execInviteSuccess, setExecInviteSuccess] = useState('');
+  const [activityLogs, setActivityLogs]         = useState([]);
+  const [activityLoading, setActivityLoading]   = useState(false);
+  const [selectedExecId, setSelectedExecId]     = useState(null);
   const selectedSubmission = submissions.find((item) => item.id === selectedId) || submissions[0] || null;
 
   const loadSiteContent = async () => {
@@ -273,6 +276,21 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       await loadExecutives();
     } catch (e) { setExecError(e.message); }
   };
+
+  const loadActivityLogs = async (execId) => {
+    setActivityLoading(true);
+    try {
+      const data = await fetchJson(`/api/support-executives/activity?executiveId=${execId}`);
+      setActivityLogs(data.logs || []);
+    } catch (e) { setExecError(e.message); }
+    finally { setActivityLoading(false); }
+  };
+
+  useEffect(() => {
+    if (selectedExecId) {
+      loadActivityLogs(selectedExecId);
+    }
+  }, [selectedExecId]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -1592,7 +1610,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                         <p className="text-white/40 text-sm p-5">No executives added yet.</p>
                       )}
                       {executives.map(exec => (
-                        <div key={exec.id} className="px-5 py-4 flex items-center justify-between gap-4">
+                        <div key={exec.id} className="px-5 py-4 flex items-center justify-between gap-4 cursor-pointer hover:bg-white/5" onClick={() => setSelectedExecId(exec.id)}>
                           <div className="min-w-0">
                             <p className="font-medium text-white truncate">{exec.name}</p>
                             <p className="text-sm text-white/55 truncate">{exec.email}</p>
@@ -1655,10 +1673,59 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                       <p>Once activated they can log in at <span className="text-cyan-300">/support-executive</span>.</p>
                     </div>
                   </div>
-                </div>
+                
+                {/* Activity Logs Section */}
+                {selectedExecId && (
+                  <div className="rounded-[1.75rem] border border-white/10 bg-white/5 overflow-hidden mt-6">
+                    <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                      <h3 className="font-semibold">Activity Logs</h3>
+                      <button onClick={() => loadActivityLogs(selectedExecId)} className="text-xs text-white/50 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 border border-white/10">
+                        {activityLoading ? 'Loading…' : 'Refresh'}
+                      </button>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto">
+                      {activityLoading ? (
+                        <div className="p-5 text-center text-white/40">
+                          <Spinner size={20} className="mx-auto mb-2" />
+                          <p className="text-sm">Loading activity logs...</p>
+                        </div>
+                      ) : activityLogs.length === 0 ? (
+                        <p className="text-white/40 text-sm p-5 text-center">No activity logs found.</p>
+                      ) : (
+                        <div className="divide-y divide-white/5">
+                          {activityLogs.map((log, index) => (
+                            <div key={index} className="px-5 py-3">
+                              <div className="flex items-center justify-between gap-4 mb-1">
+                                <span className={`text-xs px-2 py-1 rounded font-medium ${
+                                  log.action === 'login' ? 'bg-emerald-400/20 text-emerald-300' :
+                                  log.action === 'logout' ? 'bg-red-400/20 text-red-300' :
+                                  log.action === 'status_change' ? 'bg-amber-400/20 text-amber-300' :
+                                  log.action === 'chat_assigned' ? 'bg-blue-400/20 text-blue-300' :
+                                  log.action === 'chat_closed' ? 'bg-slate-400/20 text-slate-300' :
+                                  'bg-purple-400/20 text-purple-300'
+                                }`}>
+                                  {log.action.replace('_', ' ')}
+                                </span>
+                                <span className="text-xs text-white/40">{formatDate(log.created_at)}</span>
+                              </div>
+                              {log.old_status && log.new_status && (
+                                <p className="text-xs text-white/50 mb-1">
+                                  Status: {log.old_status} → {log.new_status}
+                                </p>
+                              )}
+                              {log.metadata && (
+                                <p className="text-xs text-white/40">
+                                  {typeof log.metadata === 'string' ? log.metadata : JSON.stringify(log.metadata)}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
               </div>
             )}
-
           </div>
         </div>
       </section>

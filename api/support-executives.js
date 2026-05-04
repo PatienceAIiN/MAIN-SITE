@@ -6,9 +6,21 @@ import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, hashPassword, 
 
 const TABLE = 'support_executives';
 const TTL_HOURS = 72;
-const SMTP_TIMEOUT_MS = 12000;
+const SMTP_TIMEOUT_MS = 30000;
 
 const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
+
+const logExecutiveActivity = async (executiveId, action, oldStatus = null, newStatus = null, metadata = null) => {
+  try {
+    await queryDb(
+      `INSERT INTO executive_activity_logs (executive_id, action, old_status, new_status, metadata)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [executiveId, action, oldStatus, newStatus, metadata ? JSON.stringify(metadata) : null]
+    );
+  } catch (err) {
+    console.error('[activity] log failed:', err.message);
+  }
+};
 
 const getSiteBase = () => {
   const url = process.env.SITE_URL || '';
@@ -86,8 +98,9 @@ export default async function handler(req, res) {
       if (exec.status === 'invited') return res.status(403).json({ error: 'Account not activated. Check your invite email.' });
       if (!verifyPassword(password, exec.password_salt, exec.password_hash))
         return res.status(401).json({ error: 'Invalid credentials' });
-      // update last_seen
-      await queryDb(`UPDATE ${TABLE} SET last_seen_at=NOW(), updated_at=NOW() WHERE id=$1`, [exec.id]);
+      // update last_seen and set online status
+      await queryDb(`UPDATE ${TABLE} SET last_seen_at=NOW(), online_status='online', updated_at=NOW() WHERE id=$1`, [exec.id]);
+      await logExecutiveActivity(exec.id, 'login', null, 'online');
       const token = createExecSessionToken({ id: exec.id, email: exec.email, name: exec.name });
       const isSecure = process.env.NODE_ENV === 'production';
       res.setHeader('Set-Cookie', serializeCookie(EXEC_SESSION_COOKIE_NAME, token, {
@@ -134,10 +147,70 @@ export default async function handler(req, res) {
     return res.status(200).json({ executive: exec });
   }
 
-  // ── DELETE /api/support-executives/logout ────────────────────────────────
+  // ── DELETE /api/support-executives/logout ───────────────────────────────────
   if (req.method === 'DELETE' && req.url?.includes('/logout')) {
+    const exec = getExecSession(req);
+    if (exec) {
+      await queryDb(`UPDATE ${TABLE} SET online_status='offline', updated_at=NOW() WHERE id=$1`, [exec.id]);
+      await logExecutiveActivity(exec.id, 'logout', 'online', 'offline');
+    }
     res.setHeader('Set-Cookie', serializeCookie(EXEC_SESSION_COOKIE_NAME, '', { maxAge: 0 }));
     return res.status(200).json({ ok: true });
+  }
+
+  // ── PATCH /api/support-executives/status ───────────────────────────────────
+  if (req.method === 'PATCH' && req.url?.includes('/status')) {
+    const exec = getExecSession(req);
+    if (!exec) return res.status(401).json({ error: 'Not authenticated' });
+    const { status } = req.body || {};
+    if (!status || !['online', 'away', 'offline'].includes(status)) {
+      return res.status(400).json({ error: 'Valid status required (online, away, offline)' });
+    }
+    try {
+      const rows = await queryDb(`SELECT online_status FROM ${TABLE} WHERE id=$1 LIMIT 1`, [exec.id]);
+      const oldStatus = rows[0]?.online_status || 'offline';
+      await queryDb(`UPDATE ${TABLE} SET online_status=$1, updated_at=NOW() WHERE id=$2`, [status, exec.id]);
+      await logExecutiveActivity(exec.id, 'status_change', oldStatus, status);
+      return res.status(200).json({ ok: true, status });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  // ── GET /api/support-executives/activity ───────────────────────────────
+  if (req.method === 'GET' && req.url?.includes('/activity')) {
+    const exec = getExecSession(req);
+    if (!exec && !isAdmin(req)) return res.status(401).json({ error: 'Not authenticated' });
+    const executiveId = req.query.executiveId;
+    try {
+      let query = `SELECT 
+        eal.action, 
+        eal.old_status, 
+        eal.new_status, 
+        eal.metadata,
+        eal.created_at,
+        se.name as executive_name,
+        se.email as executive_email
+        FROM executive_activity_logs eal
+        JOIN support_executives se ON eal.executive_id = se.id`;
+      const params = [];
+      
+      if (executiveId) {
+        query += ` WHERE eal.executive_id = $1`;
+        params.push(executiveId);
+      } else if (exec && !isAdmin(req)) {
+        // Executive can only see their own logs
+        query += ` WHERE eal.executive_id = (SELECT id FROM support_executives WHERE email = $1)`;
+        params.push(exec.email);
+      }
+      
+      query += ` ORDER BY eal.created_at DESC LIMIT 100`;
+      
+      const rows = await queryDb(query, params);
+      return res.status(200).json({ logs: rows });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
   }
 
   // ── Admin-only routes below ───────────────────────────────────────────────
@@ -158,40 +231,62 @@ export default async function handler(req, res) {
 
   // POST — invite a new executive (or re-invite)
   if (req.method === 'POST') {
-    const { email, name } = req.body || {};
+    const { email, name, activateImmediately = false } = req.body || {};
     if (!email || !name) return res.status(400).json({ error: 'email and name required' });
+    
+    // Validate email domain
+    if (!email.endsWith('@patienceai.in')) {
+      return res.status(400).json({ error: 'Only @patienceai.in email addresses are allowed' });
+    }
+    
     const inviteToken = crypto.randomBytes(24).toString('hex');
     const expiresAt = new Date(Date.now() + TTL_HOURS * 3600 * 1000).toISOString();
-    const { salt, hash } = hashPassword(crypto.randomBytes(16).toString('hex')); // placeholder pwd
+    
+    // Generate random human-readable password if activating immediately
+    const dogWords = ['puppy', 'doggo', 'pupper', 'woof', 'bark', 'fetch', 'treat', 'bone', 'leash', 'collar'];
+    const foodWords = ['pizza', 'burger', 'taco', 'pasta', 'salad', 'soup', 'bread', 'cheese', 'apple', 'banana'];
+    const randomPassword = activateImmediately 
+      ? `${dogWords[Math.floor(Math.random() * dogWords.length)]}${foodWords[Math.floor(Math.random() * foodWords.length)]}${Math.floor(Math.random() * 100)}`
+      : crypto.randomBytes(16).toString('hex');
+    
+    const { salt, hash } = hashPassword(randomPassword);
     try {
       const existing = await queryDb(`SELECT id, status FROM ${TABLE} WHERE email=$1 LIMIT 1`, [email.toLowerCase()]);
       let exec;
       if (existing.length > 0) {
-        // re-invite
+        // re-invite or activate
         const rows = await queryDb(
-          `UPDATE ${TABLE} SET name=$1, invite_token=$2, invite_expires_at=$3, status='invited', updated_at=NOW()
-           WHERE email=$4 RETURNING *`,
-          [name, inviteToken, expiresAt, email.toLowerCase()]
+          `UPDATE ${TABLE} SET name=$1, invite_token=$2, invite_expires_at=$3, status=$4, 
+           password_salt=$5, password_hash=$6, updated_at=NOW()
+           WHERE email=$7 RETURNING *`,
+          [name, inviteToken, expiresAt, activateImmediately ? 'active' : 'invited', salt, hash, email.toLowerCase()]
         );
         exec = rows[0];
       } else {
         const rows = await queryDb(
           `INSERT INTO ${TABLE} (email, name, password_salt, password_hash, status, invite_token, invite_expires_at)
-           VALUES ($1,$2,$3,$4,'invited',$5,$6) RETURNING *`,
-          [email.toLowerCase(), name, salt, hash, inviteToken, expiresAt]
+           VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+          [email.toLowerCase(), name, salt, hash, activateImmediately ? 'active' : 'invited', inviteToken, expiresAt]
         );
         exec = rows[0];
       }
+      
       let emailError = null;
-      try { await sendInviteEmail(email, name, inviteToken); } catch (e) {
-        emailError = e.message;
-        console.error('[invite] email send failed:', e.message);
+      if (!activateImmediately) {
+        try { 
+          await sendInviteEmail(email, name, inviteToken); 
+        } catch (e) {
+          emailError = e.message;
+          console.error('[invite] email send failed:', e.message);
+        }
       }
+      
       return res.status(200).json({
         ok: true,
         executive: { id: exec.id, email: exec.email, name: exec.name, status: exec.status },
-        emailSent: !emailError,
-        emailError: emailError || undefined
+        emailSent: !emailError && !activateImmediately,
+        emailError: emailError || undefined,
+        generatedPassword: activateImmediately ? randomPassword : undefined
       });
     } catch (err) {
       return res.status(500).json({ error: err.message });

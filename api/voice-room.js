@@ -134,6 +134,20 @@ export default async function handler(req, res) {
       }
     }
 
+    if (action === 'bulk_transcript') {
+      const { roomId, text, side } = req.body;
+      if (!roomId || !text) return res.status(400).json({ error: 'roomId and text required' });
+      try {
+        const rows = await queryDb(`SELECT conversation_id FROM ${TABLE} WHERE room_id=$1 LIMIT 1`, [roomId]);
+        if (!rows.length) return res.status(404).json({ error: 'Room not found' });
+        const speaker = side === 'executive' ? 'Support' : 'Customer';
+        await logCallMessage(rows[0].conversation_id, `Bulk Transcript (${speaker}): ${String(text).slice(0, 2000)}`);
+        return res.status(200).json({ ok: true });
+      } catch (err) {
+        return res.status(500).json({ error: err.message });
+      }
+    }
+
     return res.status(400).json({ error: 'Unknown action' });
   }
 
