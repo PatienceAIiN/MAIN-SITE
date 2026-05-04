@@ -49,8 +49,9 @@ import chatHandler from './api/chat.js';
 import contactHandler from './api/contact.js';
 import siteContentHandler from './api/site-content.js';
 import supportAuthHandler from './api/support-auth.js';
-import supportExecutivesHandler from './api/support-executives.js';
 import supportChatHandler from './api/support-chat.js';
+import supportExecutivesHandler, { seedExecutive } from './api/support-executives.js';
+import voiceRoomHandler from './api/voice-room.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, 'dist');
@@ -212,6 +213,8 @@ const submitIndexNow = async () => {
 
 // Submit on startup (runs once per deploy — notifies Bing + Yandex immediately)
 setTimeout(submitIndexNow, 5000);
+// Seed default support executive
+setTimeout(seedExecutive, 6000);
 
 const wrap = (handler) => async (req, res, next) => {
   try {
@@ -287,8 +290,13 @@ app.all('/api/chat', wrap(chatHandler));
 app.all('/api/contact', contactLimiter, wrap(contactHandler));
 app.all('/api/site-content', wrap(siteContentHandler));
 app.all('/api/support-auth', authLimiter, wrap(supportAuthHandler));
-app.all('/api/support-executives', wrap(supportExecutivesHandler));
 app.all('/api/support-chat', wrap(supportChatHandler));
+app.all('/api/support-executives/login',    wrap(supportExecutivesHandler));
+app.all('/api/support-executives/activate', wrap(supportExecutivesHandler));
+app.all('/api/support-executives/me',       wrap(supportExecutivesHandler));
+app.all('/api/support-executives/logout',   wrap(supportExecutivesHandler));
+app.all('/api/support-executives',          wrap(supportExecutivesHandler));
+app.all('/api/voice-room',                  wrap(voiceRoomHandler));
 
 // Dynamic sitemap.xml
 app.get('/sitemap.xml', (req, res) => {

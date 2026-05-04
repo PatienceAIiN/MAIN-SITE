@@ -1,189 +1,185 @@
-import crypto from 'node:crypto';
-import { queryDb } from './_db.js';
-import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken } from './_security.js';
-import { requireSupport } from './support-auth.js';
-import { redisGetJson, redisPublish, redisSetJson } from './_redis.js';
+import nodemailer from 'nodemailer';
+import { queryDb, isMissingTableError } from './_db.js';
+import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, getExecSession } from './_security.js';
 
-const requireAdmin = (req) => verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME));
+const CHATS_TABLE = 'support_chats';
+const SESSIONS_TABLE = 'support_sessions';
+const EXEC_TABLE = 'support_executives';
 
-const createConversationId = () => `PatienceAILive-${crypto.randomBytes(3).toString('hex')}`;
-const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
+const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
+const isExec = (req) => Boolean(getExecSession(req));
+const getExec = (req) => getExecSession(req);
 
-const saveMessage = async ({ conversationId, role, email, message, messageType = 'text', attachment = null }) => {
+const createTransporter = () => nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtpout.secureserver.net',
+  port: parseInt(process.env.SMTP_PORT || '465', 10),
+  secure: process.env.SMTP_SECURE !== 'false',
+  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  tls: { rejectUnauthorized: process.env.NODE_ENV === 'production' }
+});
+
+const notifyExecutives = async (conversationId, customerEmail) => {
+  try {
+    const execs = await queryDb(
+      `SELECT email, name FROM ${EXEC_TABLE} WHERE status='active'`
+    );
+    if (!execs.length) return;
+    const base = process.env.SITE_URL?.startsWith('http')
+      ? process.env.SITE_URL
+      : `https://${process.env.SITE_URL || 'patienceai.in'}`;
+    const link = `${base}/support-executive`;
+    const transporter = createTransporter();
+    for (const exec of execs) {
+      await transporter.sendMail({
+        from: `"${process.env.SMTP_SENDER_NAME || 'Patience AI'}" <${process.env.SMTP_USER}>`,
+        to: exec.email,
+        subject: `New live chat request — ${conversationId}`,
+        html: `
+          <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px">
+            <h2 style="color:#0f172a">New support chat request</h2>
+            <p style="color:#475569">A customer is waiting for live support.</p>
+            <table style="margin:16px 0;color:#475569">
+              <tr><td style="padding:4px 12px 4px 0;font-weight:600">Conversation ID</td><td>${conversationId}</td></tr>
+              ${customerEmail ? `<tr><td style="padding:4px 12px 4px 0;font-weight:600">Customer email</td><td>${customerEmail}</td></tr>` : ''}
+            </table>
+            <a href="${link}" style="display:inline-block;padding:12px 28px;background:#0f172a;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Open Support Panel</a>
+          </div>`
+      }).catch((e) => console.error('exec notify email failed:', e.message));
+    }
+  } catch (e) {
+    console.error('notifyExecutives error:', e.message);
+  }
+};
+
+const ensureSession = async (conversationId, customerEmail) => {
   await queryDb(
-    `INSERT INTO public.support_chat_messages
-    (conversation_id, sender_role, sender_email, message_type, message, attachment_name, attachment_url, attachment_size)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-    [conversationId, role, email || null, messageType, message, attachment?.name || null, attachment?.url || null, attachment?.size || null]
+    `INSERT INTO ${SESSIONS_TABLE} (conversation_id, customer_email, status, created_at, updated_at)
+     VALUES ($1,$2,'waiting',NOW(),NOW()) ON CONFLICT (conversation_id) DO NOTHING`,
+    [conversationId, customerEmail || null]
   );
 };
 
-const updateConversationTouch = async (conversationId) => {
-  await queryDb('UPDATE public.support_chat_conversations SET updated_at = NOW() WHERE conversation_id = $1', [conversationId]);
-};
+export default async function handler(req, res) {
+  const admin = isAdmin(req);
+  const exec = getExec(req);
+  const authorized = admin || exec;
 
-export default async function supportChatHandler(req, res) {
+  // ── GET ──────────────────────────────────────────────────────────────────
+  if (req.method === 'GET') {
+    const conversationId = String(req.query.conversationId || '').trim();
+    const customerEmail  = String(req.query.customerEmail  || '').trim();
+    const since          = String(req.query.since          || '').trim();
+    const listSessions   = req.query.listSessions === '1';
+
+    // Admin/exec: list all sessions
+    if (listSessions) {
+      if (!authorized) return res.status(401).json({ error: 'Unauthorized' });
+      try {
+        const sessions = await queryDb(
+          `SELECT * FROM ${SESSIONS_TABLE} ORDER BY updated_at DESC LIMIT 100`
+        );
+        return res.status(200).json({ sessions });
+      } catch (err) {
+        if (isMissingTableError(err.message)) return res.status(200).json({ sessions: [] });
+        return res.status(500).json({ error: err.message });
+      }
+    }
+
+    if (!conversationId) return res.status(400).json({ error: 'conversationId is required' });
+    if (!authorized && !conversationId.startsWith('PatienceAILive-'))
+      return res.status(403).json({ error: 'Forbidden' });
+
+    try {
+      await ensureSession(conversationId, customerEmail || null);
+      const rows = since
+        ? await queryDb(
+            `SELECT * FROM ${CHATS_TABLE} WHERE conversation_id=$1 AND created_at>$2 ORDER BY created_at ASC LIMIT 100`,
+            [conversationId, since]
+          )
+        : await queryDb(
+            `SELECT * FROM ${CHATS_TABLE} WHERE conversation_id=$1 ORDER BY created_at ASC LIMIT 200`,
+            [conversationId]
+          );
+      const sessionRows = await queryDb(
+        `SELECT * FROM ${SESSIONS_TABLE} WHERE conversation_id=$1 LIMIT 1`,
+        [conversationId]
+      );
+      return res.status(200).json({ messages: rows, session: sessionRows[0] || null });
+    } catch (err) {
+      if (isMissingTableError(err.message)) return res.status(200).json({ messages: [], session: null });
+      console.error('support-chat GET error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  // ── POST — send message ───────────────────────────────────────────────────
   if (req.method === 'POST') {
-    const { action } = req.body || {};
+    const { conversationId, customerEmail, message, sender, executiveName } = req.body || {};
+    if (!conversationId || !message || !sender)
+      return res.status(400).json({ error: 'conversationId, message, sender required' });
+    if (!['customer', 'executive'].includes(sender))
+      return res.status(400).json({ error: 'sender must be customer or executive' });
+    if (sender === 'executive' && !authorized)
+      return res.status(401).json({ error: 'Unauthorized' });
+    if (sender === 'customer' && !conversationId.startsWith('PatienceAILive-'))
+      return res.status(400).json({ error: 'Invalid conversation ID format' });
 
-    if (action === 'createConversation') {
-      const { customerName, customerEmail } = req.body || {};
-      const safeName = String(customerName || '').trim();
-      const safeEmail = normalizeEmail(customerEmail);
-      if (!safeName || !safeEmail) {
-        return res.status(400).json({ error: 'Name and email are required' });
-      }
-      const conversationId = createConversationId();
-      await queryDb(
-        `INSERT INTO public.support_chat_conversations (conversation_id, customer_name, customer_email, status)
-         VALUES ($1,$2,$3,'waiting')`,
-        [conversationId, safeName, safeEmail]
+    try {
+      const isNew = await queryDb(
+        `SELECT id FROM ${SESSIONS_TABLE} WHERE conversation_id=$1 LIMIT 1`,
+        [conversationId]
       );
-      await saveMessage({ conversationId, role: 'system', messageType: 'system', message: 'Conversation created. Waiting for executive.' });
-      return res.status(200).json({ conversationId, status: 'waiting' });
-    }
+      const firstMessage = isNew.length === 0;
 
-    if (action === 'restoreConversation') {
-      const { conversationId, customerEmail } = req.body || {};
-      const safeEmail = normalizeEmail(customerEmail);
-      if (!conversationId || !safeEmail) {
-        return res.status(400).json({ error: 'conversationId and email are required' });
-      }
-      const convoRows = await queryDb('SELECT * FROM public.support_chat_conversations WHERE conversation_id = $1 LIMIT 1', [conversationId]);
-      const convo = convoRows[0];
-      if (!convo) return res.status(404).json({ error: 'Conversation not found' });
-      if (normalizeEmail(convo.customer_email) !== safeEmail) {
-        return res.status(403).json({ error: 'Conversation/email does not match' });
-      }
-      const messages = await queryDb('SELECT * FROM public.support_chat_messages WHERE conversation_id = $1 ORDER BY created_at ASC LIMIT 500', [conversationId]);
-      return res.status(200).json({ conversation: convo, messages });
-    }
-
-    if (action === 'joinConversation') {
-      const support = requireSupport(req);
-      if (!support) return res.status(401).json({ error: 'Unauthorized support session' });
-      const { conversationId } = req.body || {};
-      const rows = await queryDb('SELECT * FROM public.support_chat_conversations WHERE conversation_id = $1 LIMIT 1', [conversationId]);
-      const convo = rows[0];
-      if (!convo) return res.status(404).json({ error: 'Conversation not found' });
-
-      if (convo.status === 'active' && convo.executive_email && convo.executive_email !== support.email) {
-        return res.status(409).json({ error: 'Chat already in progress with another executive' });
-      }
-
-      await queryDb(
-        `UPDATE public.support_chat_conversations
-         SET executive_email = $1, status = 'active', assigned_at = COALESCE(assigned_at, NOW()), updated_at = NOW()
-         WHERE conversation_id = $2`,
-        [support.email, conversationId]
+      await ensureSession(conversationId, customerEmail || null);
+      const rows = await queryDb(
+        `INSERT INTO ${CHATS_TABLE} (conversation_id, customer_email, sender, message, executive_name, created_at)
+         VALUES ($1,$2,$3,$4,$5,NOW()) RETURNING *`,
+        [conversationId, customerEmail || null, sender, String(message).slice(0, 4000),
+          sender === 'executive' ? (exec?.name || executiveName || 'Support Team') : null]
       );
 
-      await saveMessage({ conversationId, role: 'system', messageType: 'system', message: `${support.email} joined the chat` });
-      await redisSetJson(`support:presence:${conversationId}`, { executiveEmail: support.email, updatedAt: Date.now() }, 600);
-      await redisPublish(`support:chat:${conversationId}`, { type: 'joined', executiveEmail: support.email });
-      return res.status(200).json({ joined: true });
-    }
-
-    if (action === 'sendMessage') {
-      const support = requireSupport(req);
-      const admin = requireAdmin(req);
-      const { conversationId, message, senderRole = 'customer', attachment, customerEmail } = req.body || {};
-      if (!conversationId || (!message && !attachment)) return res.status(400).json({ error: 'conversationId and message/attachment required' });
-
-      let effectiveRole = senderRole;
-      let senderEmail = null;
-      if (support) {
-        effectiveRole = 'executive';
-        senderEmail = support.email;
-      } else if (admin) {
-        effectiveRole = 'admin';
-        senderEmail = admin.username;
-      } else if (senderRole !== 'customer') {
-        return res.status(401).json({ error: 'Unauthorized sender' });
-      }
-
-      if (effectiveRole === 'customer') {
-        const convoRows = await queryDb('SELECT customer_email FROM public.support_chat_conversations WHERE conversation_id = $1 LIMIT 1', [conversationId]);
-        const convo = convoRows[0];
-        if (!convo) return res.status(404).json({ error: 'Conversation not found' });
-        if (!normalizeEmail(customerEmail) || normalizeEmail(convo.customer_email) !== normalizeEmail(customerEmail)) {
-          return res.status(403).json({ error: 'Conversation/email does not match' });
+      if (sender === 'executive') {
+        await queryDb(
+          `UPDATE ${SESSIONS_TABLE} SET status='active', assigned_executive=$1, updated_at=NOW() WHERE conversation_id=$2`,
+          [exec?.name || executiveName || 'Support Team', conversationId]
+        );
+      } else {
+        await queryDb(`UPDATE ${SESSIONS_TABLE} SET updated_at=NOW() WHERE conversation_id=$1`, [conversationId]);
+        // Notify executives only on the very first customer message
+        if (firstMessage) {
+          notifyExecutives(conversationId, customerEmail || null); // fire-and-forget
         }
       }
-
-      if (attachment && Number(attachment.size || 0) > 10 * 1024 * 1024) {
-        return res.status(400).json({ error: 'Attachment exceeds 10MB limit' });
-      }
-
-      await saveMessage({
-        conversationId,
-        role: effectiveRole,
-        email: senderEmail,
-        message: message || `Attachment shared: ${attachment.name || 'file'}`,
-        messageType: attachment ? 'file' : 'text',
-        attachment
-      });
-      await updateConversationTouch(conversationId);
-      await redisPublish(`support:chat:${conversationId}`, { type: 'message', role: effectiveRole, message: message || '', attachment: attachment || null });
-      return res.status(200).json({ sent: true });
+      return res.status(200).json({ message: rows[0] });
+    } catch (err) {
+      if (isMissingTableError(err.message)) return res.status(500).json({ error: 'Support chat table not ready. Try again.' });
+      console.error('support-chat POST error:', err.message);
+      return res.status(500).json({ error: err.message });
     }
-
-    if (action === 'typing') {
-      const { conversationId, role = 'customer', typing = true } = req.body || {};
-      if (!conversationId) return res.status(400).json({ error: 'conversationId required' });
-      await redisSetJson(`support:typing:${conversationId}:${role}`, { typing: Boolean(typing), ts: Date.now() }, 20);
-      await redisPublish(`support:chat:${conversationId}`, { type: 'typing', role, typing: Boolean(typing) });
-      return res.status(200).json({ ok: true });
-    }
-
-    return res.status(400).json({ error: 'Unsupported action' });
   }
 
-  if (req.method === 'GET') {
-    const admin = requireAdmin(req);
-    const support = requireSupport(req);
-    const { conversationId, customerEmail } = req.query || {};
-
-    if (conversationId) {
-      const convoRows = await queryDb('SELECT * FROM public.support_chat_conversations WHERE conversation_id = $1 LIMIT 1', [conversationId]);
-      const convo = convoRows[0];
-      if (!convo) return res.status(404).json({ error: 'Conversation not found' });
-      const isCustomer = normalizeEmail(customerEmail) && normalizeEmail(convo.customer_email) === normalizeEmail(customerEmail);
-      if (!admin && !isCustomer && (!support || (convo.executive_email && convo.executive_email !== support.email))) {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-      const messages = await queryDb('SELECT * FROM public.support_chat_messages WHERE conversation_id = $1 ORDER BY created_at ASC LIMIT 500', [conversationId]);
-      const presence = await redisGetJson(`support:presence:${conversationId}`);
-      return res.status(200).json({ conversation: convo, messages, presence });
-    }
-
-    if (!admin && !support) return res.status(401).json({ error: 'Unauthorized' });
-
-    const rows = admin
-      ? await queryDb('SELECT * FROM public.support_chat_conversations ORDER BY updated_at DESC LIMIT 200')
-      : await queryDb(
-        `SELECT * FROM public.support_chat_conversations
-         WHERE executive_email = $1 OR status = 'waiting'
-         ORDER BY updated_at DESC
-         LIMIT 200`,
-        [support.email]
+  // ── PATCH — update session (admin/exec only) ──────────────────────────────
+  if (req.method === 'PATCH') {
+    if (!authorized) return res.status(401).json({ error: 'Unauthorized' });
+    const { conversationId, status, assignedExecutive } = req.body || {};
+    if (!conversationId) return res.status(400).json({ error: 'conversationId required' });
+    try {
+      const sets = [];
+      const params = [];
+      let i = 1;
+      if (status)               { sets.push(`status=$${i++}`);               params.push(status); }
+      if (assignedExecutive !== undefined) { sets.push(`assigned_executive=$${i++}`); params.push(assignedExecutive); }
+      sets.push('updated_at=NOW()');
+      params.push(conversationId);
+      const rows = await queryDb(
+        `UPDATE ${SESSIONS_TABLE} SET ${sets.join(',')} WHERE conversation_id=$${i} RETURNING *`,
+        params
       );
-
-    return res.status(200).json({ conversations: rows });
-  }
-
-  if (req.method === 'DELETE') {
-    const { id, conversationId } = req.body || {};
-    if (!id && !conversationId) return res.status(400).json({ error: 'id or conversationId required' });
-
-    if (id) {
-      await queryDb('DELETE FROM public.support_chat_messages WHERE id = $1', [id]);
-      return res.status(200).json({ deleted: true, id });
+      return res.status(200).json({ session: rows[0] || null });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
     }
-
-    await queryDb('DELETE FROM public.support_chat_messages WHERE conversation_id = $1', [conversationId]);
-    await queryDb('DELETE FROM public.support_chat_conversations WHERE conversation_id = $1', [conversationId]);
-    return res.status(200).json({ deleted: true, conversationId });
   }
 
   return res.status(405).json({ error: 'Method not allowed' });

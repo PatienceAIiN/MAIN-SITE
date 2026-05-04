@@ -113,3 +113,30 @@ export const serializeCookie = (name, value, options = {}) => {
 };
 
 export const SESSION_COOKIE_NAME = SESSION_COOKIE;
+
+// ── Support Executive session ─────────────────────────────────────────────────
+const EXEC_SESSION_COOKIE = 'pa_exec_session';
+
+export const EXEC_SESSION_COOKIE_NAME = EXEC_SESSION_COOKIE;
+
+export const createExecSessionToken = (payload) => {
+  const body = base64UrlEncode(
+    JSON.stringify({
+      ...payload,
+      role: 'executive',
+      exp: Date.now() + SESSION_TTL_SECONDS * 1000
+    })
+  );
+  return `${body}.${sign(body)}`;
+};
+
+export const verifyExecSessionToken = (token) => {
+  const payload = verifySessionToken(token); // reuse same sig logic
+  if (!payload || payload.role !== 'executive') return null;
+  return payload;
+};
+
+export const getExecSession = (req) => {
+  const token = getCookieValue(req, EXEC_SESSION_COOKIE);
+  return verifyExecSessionToken(token);
+};

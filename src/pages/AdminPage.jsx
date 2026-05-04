@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { FiChevronDown, FiChevronUp, FiEye, FiEyeOff, FiSearch, FiX } from 'react-icons/fi';
+import React, { useEffect, useState } from 'react';
+import { FiEye, FiEyeOff } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import Button from '../components/ui/Button';
 import { fetchJson } from '../common/fetchJson';
 
-const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support'];
+const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support', 'executives'];
 
 const Spinner = ({ size = 16 }) => (
   <svg
@@ -20,53 +20,6 @@ const Spinner = ({ size = 16 }) => (
   </svg>
 );
 const STATUS_OPTIONS = ['all', 'new', 'reviewing', 'replied', 'archived'];
-const PAGE_SIZES = {
-  submissions: 10,
-  conversations: 8,
-  messages: 10,
-  topPages: 6,
-  topReferrers: 6,
-  devices: 6,
-  browsers: 6,
-  recent: 10
-};
-
-const paginateItems = (items = [], page = 1, pageSize = 10) => {
-  const safePageSize = Math.max(1, Number(pageSize) || 10);
-  const totalPages = Math.max(1, Math.ceil(items.length / safePageSize));
-  const safePage = Math.min(Math.max(1, Number(page) || 1), totalPages);
-  const start = (safePage - 1) * safePageSize;
-  return {
-    pageItems: items.slice(start, start + safePageSize),
-    totalPages,
-    safePage
-  };
-};
-
-const PaginationControls = ({ page, totalPages, onPageChange }) => {
-  if (totalPages <= 1) return null;
-  return (
-    <div className="mt-3 flex items-center justify-between text-xs text-white/60">
-      <button
-        type="button"
-        className="rounded-full border border-white/15 px-3 py-1.5 hover:bg-white/10 disabled:opacity-40"
-        disabled={page <= 1}
-        onClick={() => onPageChange(page - 1)}
-      >
-        Previous
-      </button>
-      <span>{page} / {totalPages}</span>
-      <button
-        type="button"
-        className="rounded-full border border-white/15 px-3 py-1.5 hover:bg-white/10 disabled:opacity-40"
-        disabled={page >= totalPages}
-        onClick={() => onPageChange(page + 1)}
-      >
-        Next
-      </button>
-    </div>
-  );
-};
 
 const createEmptyBlogDraft = () => ({
   slug: '',
@@ -82,50 +35,6 @@ const createEmptyBlogDraft = () => ({
 const formatDate = (value) =>
   value ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : 'Unknown';
 
-const SubmissionDetailDialog = ({ submission, onClose }) => {
-  if (!submission) return null;
-
-  return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/80 px-4" role="dialog" aria-modal="true">
-      <div className="w-full max-w-2xl rounded-[1.75rem] border border-white/10 bg-slate-900 p-6 md:p-7 max-h-[85vh] overflow-y-auto">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/80 mb-2">User response details</p>
-            <h3 className="text-2xl font-semibold">{submission.name || 'Unknown user'}</h3>
-            <p className="text-white/60 mt-1">{submission.email || 'No email provided'}</p>
-          </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-2 text-white/70 hover:bg-white/10 hover:text-white" aria-label="Close">
-            <FiX size={18} />
-          </button>
-        </div>
-
-        <div className="mt-5 space-y-3 text-sm">
-          {[
-            ['Subject', submission.subject],
-            ['Message', submission.message],
-            ['Source', submission.source],
-            ['Status', submission.status],
-            ['Company', submission.company],
-            ['Product', submission.product_name],
-            ['Created at', formatDate(submission.created_at)]
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-              <p className="text-white/45 mb-1">{label}</p>
-              <p className="text-white whitespace-pre-wrap">{value || '—'}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-6 flex justify-end">
-          <Button variant="secondary" className="rounded-xl px-5 py-2.5" onClick={onClose}>
-            Cancel
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSource, onContentSaved }) => {
   const [authenticated, setAuthenticated] = useState(false);
   const [username, setUsername] = useState('');
@@ -139,9 +48,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [contentJson, setContentJson] = useState(JSON.stringify(currentContent || defaultContent, null, 2));
   const [contentError, setContentError] = useState('');
   const [contentSaving, setContentSaving] = useState(false);
-  const [jsonSearchOpen, setJsonSearchOpen] = useState(false);
-  const [jsonSearchTerm, setJsonSearchTerm] = useState('');
-  const [jsonSearchIndex, setJsonSearchIndex] = useState(0);
   const [blogDraft, setBlogDraft] = useState(createEmptyBlogDraft());
   const [submissions, setSubmissions] = useState([]);
   const [counts, setCounts] = useState({ total: 0, new: 0, reviewing: 0, replied: 0, archived: 0 });
@@ -151,53 +57,39 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [submissionError, setSubmissionError] = useState('');
   const [submissionLoading, setSubmissionLoading] = useState(false);
   const [savingId, setSavingId] = useState(null);
-  const [selectedSubmissionForDialog, setSelectedSubmissionForDialog] = useState(null);
-  const [submissionPage, setSubmissionPage] = useState(1);
 
   const [conversations, setConversations] = useState([]);
   const [conversationSearch, setConversationSearch] = useState('');
   const [conversationLoading, setConversationLoading] = useState(false);
   const [conversationError, setConversationError] = useState('');
   const [selectedConversationId, setSelectedConversationId] = useState('');
-  const [conversationPage, setConversationPage] = useState(1);
-  const [conversationMessagePage, setConversationMessagePage] = useState(1);
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingMessage, setEditingMessage] = useState('');
 
   const [analyticsData, setAnalyticsData] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState('');
-  const [analyticsPages, setAnalyticsPages] = useState({
-    topPages: 1,
-    topReferrers: 1,
-    devices: 1,
-    browsers: 1,
-    recent: 1
-  });
-  const [supportExecutives, setSupportExecutives] = useState([]);
-  const [supportLoading, setSupportLoading] = useState(false);
+
+  const [supportSessions, setSupportSessions] = useState([]);
+  const [supportSessionsLoading, setSupportSessionsLoading] = useState(false);
+  const [selectedSupportId, setSelectedSupportId] = useState('');
+  const [supportMessages, setSupportMessages] = useState([]);
+  const [supportMessagesLoading, setSupportMessagesLoading] = useState(false);
+  const [supportReply, setSupportReply] = useState('');
+  const [supportReplySending, setSupportReplySending] = useState(false);
   const [supportError, setSupportError] = useState('');
-  const [supportNotice, setSupportNotice] = useState('');
-  const [supportForm, setSupportForm] = useState({ email: '', displayName: '' });
+  const [executiveName, setExecutiveName] = useState(() => {
+    try { return window.localStorage.getItem('pa_exec_name') || ''; } catch { return ''; }
+  });
+
+  // Executives management tab
+  const [executives, setExecutives]             = useState([]);
+  const [execLoading, setExecLoading]           = useState(false);
+  const [execError, setExecError]               = useState('');
+  const [execInviteForm, setExecInviteForm]     = useState({ name: '', email: '' });
+  const [execInviteSending, setExecInviteSending] = useState(false);
+  const [execInviteSuccess, setExecInviteSuccess] = useState('');
   const selectedSubmission = submissions.find((item) => item.id === selectedId) || submissions[0] || null;
-  const jsonMatches = useMemo(() => {
-    const query = jsonSearchTerm.trim().toLowerCase();
-    if (!query) return [];
-
-    const source = contentJson.toLowerCase();
-    const matches = [];
-    let start = 0;
-
-    while (start < source.length) {
-      const matchIndex = source.indexOf(query, start);
-      if (matchIndex === -1) break;
-      matches.push(matchIndex);
-      start = matchIndex + query.length;
-      if (matches.length >= 1500) break;
-    }
-
-    return matches;
-  }, [contentJson, jsonSearchTerm]);
 
   const loadSiteContent = async () => {
     try {
@@ -218,7 +110,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
     try {
       const data = await fetchJson('/api/analytics');
       setAnalyticsData(data);
-      setAnalyticsPages({ topPages: 1, topReferrers: 1, devices: 1, browsers: 1, recent: 1 });
     } catch (err) {
       setAnalyticsError(err.message);
     } finally {
@@ -256,7 +147,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       setSubmissions(payload.items || []);
       setCounts(payload.counts || { total: 0, new: 0, reviewing: 0, replied: 0, archived: 0 });
       setSelectedId((current) => current || payload.items?.[0]?.id || null);
-      setSubmissionPage(1);
     } catch (error) {
       setSubmissionError(error.message);
     } finally {
@@ -271,7 +161,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       if (payload.authenticated) {
         setAuthenticated(true);
         setUsername(payload.user?.username || '');
-        await Promise.all([loadSiteContent(), loadSubmissions(), loadConversations(), loadSupportExecutives()]);
+        await Promise.all([loadSiteContent(), loadSubmissions(), loadConversations()]);
       } else {
         setAuthenticated(false);
       }
@@ -309,24 +199,69 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
 
   useEffect(() => {
     if (!authenticated || activeTab !== 'support') return;
-    loadSupportExecutives();
+    loadSupportSessions();
   }, [activeTab, authenticated]);
 
   useEffect(() => {
-    setSubmissionPage(1);
-  }, [search, submissionFilter]);
+    if (!selectedSupportId) return;
+    loadSupportMessages(selectedSupportId);
+  }, [selectedSupportId]);
 
   useEffect(() => {
-    setConversationPage(1);
-  }, [conversationSearch]);
+    try { window.localStorage.setItem('pa_exec_name', executiveName); } catch (e) { /* ignore */ }
+  }, [executiveName]);
 
   useEffect(() => {
-    if (!jsonMatches.length) {
-      setJsonSearchIndex(0);
-      return;
-    }
-    setJsonSearchIndex((current) => Math.min(current, jsonMatches.length - 1));
-  }, [jsonMatches.length]);
+    if (!authenticated || activeTab !== 'executives') return;
+    loadExecutives();
+  }, [activeTab, authenticated]);
+
+  const loadExecutives = async () => {
+    setExecLoading(true); setExecError('');
+    try {
+      const data = await fetchJson('/api/support-executives');
+      setExecutives(data.executives || []);
+    } catch (e) { setExecError(e.message); }
+    finally { setExecLoading(false); }
+  };
+
+  const inviteExecutive = async (e) => {
+    e.preventDefault();
+    setExecInviteSending(true); setExecError(''); setExecInviteSuccess('');
+    try {
+      await fetchJson('/api/support-executives', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(execInviteForm)
+      });
+      setExecInviteSuccess(`Invite sent to ${execInviteForm.email}`);
+      setExecInviteForm({ name: '', email: '' });
+      await loadExecutives();
+    } catch (e) { setExecError(e.message); }
+    finally { setExecInviteSending(false); }
+  };
+
+  const updateExecStatus = async (id, status) => {
+    try {
+      await fetchJson('/api/support-executives', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status })
+      });
+      await loadExecutives();
+    } catch (e) { setExecError(e.message); }
+  };
+
+  const deleteExecutive = async (id) => {
+    try {
+      await fetchJson('/api/support-executives', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      await loadExecutives();
+    } catch (e) { setExecError(e.message); }
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -343,7 +278,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       if (payload.authenticated) {
         setLoginSuccess(true);
         setUsername(payload.user?.username || loginForm.username);
-        await Promise.all([loadSiteContent(), loadSubmissions(), loadConversations(), loadSupportExecutives()]);
+        await Promise.all([loadSiteContent(), loadSubmissions(), loadConversations()]);
         window.setTimeout(() => {
           setLoginSuccess(false);
           setAuthenticated(true);
@@ -534,82 +469,10 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       const next = payload.conversations || [];
       setConversations(next);
       setSelectedConversationId((current) => current || next[0]?.conversationId || '');
-      setConversationPage(1);
-      setConversationMessagePage(1);
     } catch (error) {
       setConversationError(error.message);
     } finally {
       setConversationLoading(false);
-    }
-  };
-
-  const loadSupportExecutives = async () => {
-    setSupportLoading(true);
-    setSupportError('');
-    try {
-      const payload = await fetchJson('/api/support-executives');
-      setSupportExecutives(payload.items || []);
-    } catch (error) {
-      setSupportError(error.message);
-    } finally {
-      setSupportLoading(false);
-    }
-  };
-
-  const createSupportExecutive = async () => {
-    if (!supportForm.email.trim()) return;
-    setSupportError('');
-    setSupportNotice('');
-    setSupportLoading(true);
-    try {
-      const payload = await fetchJson('/api/support-executives', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: supportForm.email.trim(),
-          displayName: supportForm.displayName.trim()
-        })
-      });
-      if (payload?.warning) {
-        setSupportNotice(payload.warning);
-      } else {
-        setSupportNotice('Support executive added successfully.');
-      }
-      setSupportForm({ email: '', displayName: '' });
-      await loadSupportExecutives();
-    } catch (error) {
-      setSupportError(error.message);
-    } finally {
-      setSupportLoading(false);
-    }
-  };
-
-  const updateSupportExecutive = async (id, action) => {
-    setSupportError('');
-    setSupportNotice('');
-    setSupportLoading(true);
-    try {
-      if (action === 'delete') {
-        await fetchJson('/api/support-executives', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id })
-        });
-      } else {
-        const payload = await fetchJson('/api/support-executives', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, action })
-        });
-        if (payload?.warning) {
-          setSupportNotice(payload.warning);
-        }
-      }
-      await loadSupportExecutives();
-    } catch (error) {
-      setSupportError(error.message);
-    } finally {
-      setSupportLoading(false);
     }
   };
 
@@ -647,6 +510,71 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
     await loadConversations(conversationSearch.trim());
   };
 
+  const loadSupportSessions = async () => {
+    setSupportSessionsLoading(true);
+    setSupportError('');
+    try {
+      const payload = await fetchJson('/api/support-chat?listSessions=1');
+      const sessions = payload.sessions || [];
+      setSupportSessions(sessions);
+      setSelectedSupportId((current) => current || sessions[0]?.conversation_id || '');
+    } catch (error) {
+      setSupportError(error.message);
+    } finally {
+      setSupportSessionsLoading(false);
+    }
+  };
+
+  const loadSupportMessages = async (conversationId) => {
+    if (!conversationId) return;
+    setSupportMessagesLoading(true);
+    try {
+      const payload = await fetchJson(`/api/support-chat?conversationId=${encodeURIComponent(conversationId)}`);
+      setSupportMessages(payload.messages || []);
+    } catch (error) {
+      setSupportError(error.message);
+    } finally {
+      setSupportMessagesLoading(false);
+    }
+  };
+
+  const sendSupportReply = async () => {
+    if (!supportReply.trim() || !selectedSupportId) return;
+    setSupportReplySending(true);
+    setSupportError('');
+    try {
+      await fetchJson('/api/support-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId: selectedSupportId,
+          message: supportReply.trim(),
+          sender: 'executive',
+          executiveName: executiveName.trim() || 'Support Team'
+        })
+      });
+      setSupportReply('');
+      await loadSupportMessages(selectedSupportId);
+    } catch (error) {
+      setSupportError(error.message);
+    } finally {
+      setSupportReplySending(false);
+    }
+  };
+
+  const closeSupportSession = async (conversationId) => {
+    try {
+      await fetchJson('/api/support-chat', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId, status: 'closed' })
+      });
+      await loadSupportSessions();
+    } catch (error) {
+      setSupportError(error.message);
+    }
+  };
+
   const filteredSubmissions = submissions.filter((item) => {
     const haystack = [item.name, item.email, item.subject, item.message, item.status, item.source, item.company, item.product_name]
       .filter(Boolean)
@@ -654,32 +582,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       .toLowerCase();
     return search.trim() ? haystack.includes(search.trim().toLowerCase()) : true;
   });
-
-  const { pageItems: paginatedSubmissions, totalPages: submissionTotalPages, safePage: safeSubmissionPage } = paginateItems(
-    filteredSubmissions,
-    submissionPage,
-    PAGE_SIZES.submissions
-  );
-  const { pageItems: paginatedConversations, totalPages: conversationTotalPages, safePage: safeConversationPage } = paginateItems(
-    conversations,
-    conversationPage,
-    PAGE_SIZES.conversations
-  );
-
-  const jumpToJsonMatch = (nextIndex) => {
-    if (!jsonMatches.length || !jsonSearchTerm.trim()) return;
-
-    const bounded = (nextIndex + jsonMatches.length) % jsonMatches.length;
-    setJsonSearchIndex(bounded);
-
-    const textarea = document.querySelector('textarea[data-json-editor="true"]');
-    if (!textarea) return;
-
-    const start = jsonMatches[bounded];
-    const end = start + jsonSearchTerm.length;
-    textarea.focus();
-    textarea.setSelectionRange(start, end);
-  };
 
   if (loadingAuth) {
     return (
@@ -831,75 +733,19 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                       </Button>
                     </div>
                   </div>
-                  <div className="mb-4 rounded-2xl border border-white/10 bg-slate-950/40">
-                    <button
-                      type="button"
-                      onClick={() => setJsonSearchOpen((current) => !current)}
-                      className="w-full flex items-center justify-between px-4 py-3 text-sm text-white/85 hover:bg-white/5 rounded-2xl"
-                    >
-                      <span className="inline-flex items-center gap-2">
-                        <FiSearch size={15} />
-                        Search inside site JSON
-                      </span>
-                      {jsonSearchOpen ? <FiChevronUp size={16} /> : <FiChevronDown size={16} />}
-                    </button>
-                    {jsonSearchOpen && (
-                      <div className="px-4 pb-4 space-y-3">
-                        <div className="flex items-center gap-2">
-                          <input
-                            value={jsonSearchTerm}
-                            onChange={(event) => setJsonSearchTerm(event.target.value)}
-                            placeholder="Find any key, paragraph, URL, label…"
-                            className="flex-1 rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm"
-                          />
-                          <Button
-                            variant="secondary"
-                            className="rounded-xl px-3 py-2"
-                            onClick={() => jumpToJsonMatch(jsonSearchIndex - 1)}
-                            disabled={!jsonMatches.length}
-                          >
-                            Prev
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            className="rounded-xl px-3 py-2"
-                            onClick={() => jumpToJsonMatch(jsonSearchIndex + 1)}
-                            disabled={!jsonMatches.length}
-                          >
-                            Next
-                          </Button>
-                        </div>
-                        <p className="text-xs text-white/50">
-                          {jsonSearchTerm.trim()
-                            ? jsonMatches.length
-                              ? `${jsonSearchIndex + 1} of ${jsonMatches.length} matches`
-                              : 'No match found'
-                            : 'Search is collapsed by default for clean editing. Expand when needed.'}
-                        </p>
-                      </div>
-                    )}
-                  </div>
 
                   {contentError && (
                     <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-red-100 mb-4">
                       {contentError}
                     </div>
                   )}
-                  <div className="relative">
-                    <textarea
-                      data-json-editor="true"
-                      value={contentJson}
-                      onChange={(e) => setContentJson(e.target.value)}
-                      spellCheck={false}
-                      className="w-full min-h-[520px] rounded-[1.5rem] border border-white/10 bg-slate-950/80 px-4 py-4 font-mono text-sm text-white/90 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
-                    />
-                    {contentSaving && (
-                      <div className="absolute inset-0 rounded-[1.5rem] bg-slate-950/65 flex items-center justify-center gap-2 text-white/85">
-                        <Spinner size={18} />
-                        <span className="text-sm">Saving changes…</span>
-                      </div>
-                    )}
-                  </div>
+
+                  <textarea
+                    value={contentJson}
+                    onChange={(e) => setContentJson(e.target.value)}
+                    spellCheck={false}
+                    className="w-full min-h-[520px] rounded-[1.5rem] border border-white/10 bg-slate-950/80 px-4 py-4 font-mono text-sm text-white/90 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
+                  />
 
                   {!contentObject && (
                     <div className="mt-4 text-sm text-amber-200">
@@ -950,14 +796,11 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                   {conversationLoading && <p className="text-white/60 text-sm">Loading conversations...</p>}
 
                   <div className="space-y-2 max-h-[420px] overflow-y-auto">
-                    {paginatedConversations.map((conversation) => (
+                    {(conversations || []).map((conversation) => (
                       <button
                         type="button"
                         key={conversation.conversationId}
-                        onClick={() => {
-                          setSelectedConversationId(conversation.conversationId);
-                          setConversationMessagePage(1);
-                        }}
+                        onClick={() => setSelectedConversationId(conversation.conversationId)}
                         className={`w-full rounded-xl border text-left px-3 py-3 transition-colors ${
                           selectedConversationId === conversation.conversationId
                             ? 'border-cyan-300/60 bg-cyan-300/10'
@@ -969,7 +812,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                       </button>
                     ))}
                   </div>
-                  <PaginationControls page={safeConversationPage} totalPages={conversationTotalPages} onPageChange={setConversationPage} />
                 </div>
 
                 <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
@@ -978,12 +820,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                     if (!activeConversation) {
                       return <p className="text-white/60">No conversations found.</p>;
                     }
-
-                    const { pageItems: paginatedMessages, totalPages: messageTotalPages, safePage: safeMessagePage } = paginateItems(
-                      activeConversation.messages || [],
-                      conversationMessagePage,
-                      PAGE_SIZES.messages
-                    );
 
                     return (
                       <div>
@@ -998,7 +834,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                         </div>
 
                         <div className="space-y-3 max-h-[440px] overflow-y-auto pr-1">
-                          {paginatedMessages.map((item) => (
+                          {activeConversation.messages.map((item) => (
                             <div key={item.id} className="rounded-xl border border-white/10 bg-slate-900/60 p-3">
                               <p className="text-xs uppercase tracking-wide text-white/40 mb-2">{item.role} • {formatDate(item.created_at)}</p>
                               {editingMessageId === item.id ? (
@@ -1029,60 +865,9 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                             </div>
                           ))}
                         </div>
-                        <PaginationControls page={safeMessagePage} totalPages={messageTotalPages} onPageChange={setConversationMessagePage} />
                       </div>
                     );
                   })()}
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'support' && (
-              <div className="grid grid-cols-1 xl:grid-cols-[0.9fr_1.1fr] gap-6">
-                <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6 space-y-3">
-                  <h2 className="text-2xl font-semibold">Add support executive</h2>
-                  <p className="text-sm text-white/60">Only <code>@patienceai.in</code> email addresses are accepted. Invite mail is sent instantly.</p>
-                  <input
-                    value={supportForm.displayName}
-                    onChange={(event) => setSupportForm((current) => ({ ...current, displayName: event.target.value }))}
-                    placeholder="Display name"
-                    className="w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm"
-                  />
-                  <input
-                    value={supportForm.email}
-                    onChange={(event) => setSupportForm((current) => ({ ...current, email: event.target.value }))}
-                    placeholder="name@patienceai.in"
-                    className="w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm"
-                  />
-                  <Button variant="white" className="rounded-xl px-4 py-2" onClick={createSupportExecutive} disabled={supportLoading}>
-                    Add & send invite
-                  </Button>
-                  {supportError && <p className="text-red-200 text-sm">{supportError}</p>}
-                  {supportNotice && <p className="text-emerald-200 text-sm">{supportNotice}</p>}
-                </div>
-
-                <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
-                  <h3 className="text-xl font-semibold mb-3">Support executive list</h3>
-                  {supportLoading && <p className="text-sm text-white/60 mb-3">Loading support users…</p>}
-                  <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
-                    {supportExecutives.map((item) => (
-                      <div key={item.id} className="rounded-xl border border-white/10 bg-slate-900/60 p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <div>
-                            <p className="font-medium">{item.display_name || item.email}</p>
-                            <p className="text-xs text-white/50">{item.email}</p>
-                          </div>
-                          <span className="rounded-full border border-white/20 px-2 py-1 text-[11px] uppercase tracking-wide text-white/75">{item.status}</span>
-                        </div>
-                        <p className="text-xs text-white/50 mt-2">Invite: {item.invite_sent_at ? formatDate(item.invite_sent_at) : 'Not sent'}</p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Button variant="secondary" className="rounded-lg px-3 py-1.5" onClick={() => updateSupportExecutive(item.id, 'resendInvite')}>Resend invite</Button>
-                          <Button variant="secondary" className="rounded-lg px-3 py-1.5" onClick={() => updateSupportExecutive(item.id, 'delete')}>Delete</Button>
-                        </div>
-                      </div>
-                    ))}
-                    {!supportExecutives.length && !supportLoading && <p className="text-white/55 text-sm">No support executives yet.</p>}
-                  </div>
                 </div>
               </div>
             )}
@@ -1223,7 +1008,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                 <div className="rounded-[1.75rem] border border-white/10 bg-white/5 overflow-hidden">
                   <div className="px-5 py-4 border-b border-white/10 text-sm text-white/55 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                     <span>Submissions</span>
-                    <span>{filteredSubmissions.length} total</span>
+                    <span>{filteredSubmissions.length} shown</span>
                   </div>
 
                   <div className="p-4 flex flex-col lg:flex-row gap-4 lg:items-center lg:justify-between">
@@ -1265,15 +1050,12 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                   <div className="divide-y divide-white/10">
                     {submissionLoading ? (
                       <div className="p-6 text-white/60">Loading submissions...</div>
-                    ) : paginatedSubmissions.length ? (
-                      paginatedSubmissions.map((item) => (
+                    ) : filteredSubmissions.length ? (
+                      filteredSubmissions.map((item) => (
                         <button
                           key={item.id}
                           type="button"
-                          onClick={() => {
-                            setSelectedId(item.id);
-                            setSelectedSubmissionForDialog(item);
-                          }}
+                          onClick={() => setSelectedId(item.id)}
                           className={`w-full text-left p-5 transition-colors ${
                             selectedSubmission?.id === item.id ? 'bg-white/10' : 'hover:bg-white/5'
                           }`}
@@ -1305,9 +1087,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                     ) : (
                       <div className="p-6 text-white/60">No submissions match your filters.</div>
                     )}
-                  </div>
-                  <div className="px-4 pb-4">
-                    <PaginationControls page={safeSubmissionPage} totalPages={submissionTotalPages} onPageChange={setSubmissionPage} />
                   </div>
                 </div>
 
@@ -1413,14 +1192,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
 
                 {analyticsData && (
                   <>
-                    {(() => {
-                      const topPagesPager = paginateItems(analyticsData.topPages || [], analyticsPages.topPages, PAGE_SIZES.topPages);
-                      const topRefPager = paginateItems(analyticsData.topReferrers || [], analyticsPages.topReferrers, PAGE_SIZES.topReferrers);
-                      const devicesPager = paginateItems(analyticsData.devices || [], analyticsPages.devices, PAGE_SIZES.devices);
-                      const browsersPager = paginateItems(analyticsData.browsers || [], analyticsPages.browsers, PAGE_SIZES.browsers);
-                      const recentPager = paginateItems(analyticsData.recent || [], analyticsPages.recent, PAGE_SIZES.recent);
-                      return (
-                        <>
                     {/* KPI Row */}
                     <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
                       {[
@@ -1446,7 +1217,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                           <p className="text-white/40 text-sm">No data yet.</p>
                         ) : (
                           <div className="space-y-2">
-                            {topPagesPager.pageItems.map((row, i) => {
+                            {analyticsData.topPages.map((row, i) => {
                               const max = analyticsData.topPages[0]?.count || 1;
                               const pct = Math.round((row.count / max) * 100);
                               return (
@@ -1461,11 +1232,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                                 </div>
                               );
                             })}
-                            <PaginationControls
-                              page={topPagesPager.safePage}
-                              totalPages={topPagesPager.totalPages}
-                              onPageChange={(page) => setAnalyticsPages((current) => ({ ...current, topPages: page }))}
-                            />
                           </div>
                         )}
                       </div>
@@ -1477,7 +1243,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                           <p className="text-white/40 text-sm">No referrer data yet — mostly direct traffic.</p>
                         ) : (
                           <div className="space-y-2">
-                            {topRefPager.pageItems.map((row, i) => {
+                            {analyticsData.topReferrers.map((row, i) => {
                               const max = analyticsData.topReferrers[0]?.count || 1;
                               const pct = Math.round((row.count / max) * 100);
                               const label = row.referrer.replace(/^https?:\/\//, '').split('/')[0];
@@ -1493,11 +1259,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                                 </div>
                               );
                             })}
-                            <PaginationControls
-                              page={topRefPager.safePage}
-                              totalPages={topRefPager.totalPages}
-                              onPageChange={(page) => setAnalyticsPages((current) => ({ ...current, topReferrers: page }))}
-                            />
                           </div>
                         )}
                       </div>
@@ -1509,7 +1270,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                           {analyticsData.devices.length === 0 ? (
                             <p className="text-white/40 text-sm">No data yet.</p>
                           ) : (
-                            devicesPager.pageItems.map((row, i) => (
+                            analyticsData.devices.map((row, i) => (
                               <div key={i} className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-center min-w-[90px]">
                                 <p className="text-2xl font-bold text-emerald-300">{row.count}</p>
                                 <p className="text-xs text-white/50 capitalize mt-1">{row.device}</p>
@@ -1517,11 +1278,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                             ))
                           )}
                         </div>
-                        <PaginationControls
-                          page={devicesPager.safePage}
-                          totalPages={devicesPager.totalPages}
-                          onPageChange={(page) => setAnalyticsPages((current) => ({ ...current, devices: page }))}
-                        />
                       </div>
 
                       {/* Browsers */}
@@ -1531,7 +1287,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                           {analyticsData.browsers.length === 0 ? (
                             <p className="text-white/40 text-sm">No data yet.</p>
                           ) : (
-                            browsersPager.pageItems.map((row, i) => (
+                            analyticsData.browsers.map((row, i) => (
                               <div key={i} className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-center min-w-[90px]">
                                 <p className="text-2xl font-bold text-amber-300">{row.count}</p>
                                 <p className="text-xs text-white/50 mt-1">{row.browser}</p>
@@ -1539,11 +1295,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                             ))
                           )}
                         </div>
-                        <PaginationControls
-                          page={browsersPager.safePage}
-                          totalPages={browsersPager.totalPages}
-                          onPageChange={(page) => setAnalyticsPages((current) => ({ ...current, browsers: page }))}
-                        />
                       </div>
                     </div>
 
@@ -1562,7 +1313,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-white/5">
-                            {recentPager.pageItems.map((row, i) => (
+                            {analyticsData.recent.map((row, i) => (
                               <tr key={i} className="hover:bg-white/5">
                                 <td className="py-2 pr-4 max-w-[200px] truncate">{row.page}</td>
                                 <td className="py-2 pr-4 max-w-[160px] truncate text-white/45">
@@ -1579,11 +1330,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                           <p className="text-white/40 text-sm py-4 text-center">No visits tracked yet — deploy and visit the site to start tracking.</p>
                         )}
                       </div>
-                      <PaginationControls
-                        page={recentPager.safePage}
-                        totalPages={recentPager.totalPages}
-                        onPageChange={(page) => setAnalyticsPages((current) => ({ ...current, recent: page }))}
-                      />
                     </div>
 
                     {/* Free Tools Quicklinks */}
@@ -1611,21 +1357,266 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                         ))}
                       </div>
                     </div>
-                        </>
-                      );
-                    })()}
                   </>
                 )}
+              </div>
+            )}
+
+            {activeTab === 'support' && (
+              <div className="space-y-5">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-semibold">Live Support Chat</h2>
+                    <p className="text-white/55 text-sm mt-1">View and reply to customer live support requests.</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input
+                      value={executiveName}
+                      onChange={(e) => setExecutiveName(e.target.value)}
+                      placeholder="Your name (shown to customer)"
+                      className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70 w-52"
+                    />
+                    <Button variant="secondary" className="rounded-xl px-4 py-2" onClick={loadSupportSessions}>
+                      {supportSessionsLoading ? 'Loading…' : 'Refresh'}
+                    </Button>
+                  </div>
+                </div>
+
+                {supportError && (
+                  <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-red-100 text-sm">
+                    {supportError}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 xl:grid-cols-[0.9fr_1.1fr] gap-6">
+                  {/* Sessions list */}
+                  <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
+                    <h3 className="text-base font-semibold mb-3 text-white/70">Conversations</h3>
+                    {supportSessionsLoading && <p className="text-white/50 text-sm">Loading sessions…</p>}
+                    {!supportSessionsLoading && supportSessions.length === 0 && (
+                      <p className="text-white/50 text-sm">No live chat sessions yet.</p>
+                    )}
+                    <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
+                      {supportSessions.map((session) => (
+                        <button
+                          key={session.conversation_id}
+                          type="button"
+                          onClick={() => setSelectedSupportId(session.conversation_id)}
+                          className={`w-full rounded-xl border text-left px-3 py-3 transition-colors ${
+                            selectedSupportId === session.conversation_id
+                              ? 'border-emerald-400/60 bg-emerald-400/10'
+                              : 'border-white/10 bg-slate-900/50 hover:bg-white/5'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <p className="font-medium text-sm truncate">{session.conversation_id}</p>
+                            <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${
+                              session.status === 'waiting' ? 'bg-amber-400/20 text-amber-300' :
+                              session.status === 'active' ? 'bg-emerald-400/20 text-emerald-300' :
+                              'bg-white/10 text-white/40'
+                            }`}>
+                              {session.status}
+                            </span>
+                          </div>
+                          <p className="text-xs text-white/50">{session.customer_email || 'No email'}</p>
+                          {session.assigned_executive && (
+                            <p className="text-xs text-cyan-300/70 mt-0.5">Assigned: {session.assigned_executive}</p>
+                          )}
+                          <p className="text-xs text-white/35 mt-1">{formatDate(session.updated_at)}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Chat thread + reply */}
+                  <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5 flex flex-col gap-4">
+                    {!selectedSupportId ? (
+                      <p className="text-white/50 text-sm">Select a session to view the chat.</p>
+                    ) : (
+                      <>
+                        {(() => {
+                          const session = supportSessions.find((s) => s.conversation_id === selectedSupportId);
+                          return (
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <h3 className="font-semibold text-base">{selectedSupportId}</h3>
+                                <p className="text-xs text-white/50">{session?.customer_email || 'No email'}</p>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="secondary"
+                                  className="rounded-xl px-3 py-2 text-xs"
+                                  onClick={() => loadSupportMessages(selectedSupportId)}
+                                >
+                                  Refresh
+                                </Button>
+                                {session?.status !== 'closed' && (
+                                  <Button
+                                    variant="secondary"
+                                    className="rounded-xl px-3 py-2 text-xs"
+                                    onClick={() => closeSupportSession(selectedSupportId)}
+                                  >
+                                    Close chat
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        <div className="flex-1 space-y-2 max-h-[340px] overflow-y-auto pr-1">
+                          {supportMessagesLoading && <p className="text-white/50 text-sm">Loading…</p>}
+                          {!supportMessagesLoading && supportMessages.length === 0 && (
+                            <p className="text-white/50 text-sm">No messages yet.</p>
+                          )}
+                          {supportMessages.map((msg) => (
+                            <div
+                              key={msg.id}
+                              className={`rounded-xl px-3 py-2.5 text-sm max-w-[88%] ${
+                                msg.sender === 'executive'
+                                  ? 'ml-auto bg-cyan-300/15 border border-cyan-300/20 text-white'
+                                  : 'bg-white/5 border border-white/10 text-white/85'
+                              }`}
+                            >
+                              <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1">
+                                {msg.sender === 'executive' ? (msg.executive_name || 'Support Team') : 'Customer'} • {formatDate(msg.created_at)}
+                              </p>
+                              <p className="whitespace-pre-wrap leading-snug">{msg.message}</p>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="flex gap-2 pt-1">
+                          <textarea
+                            value={supportReply}
+                            onChange={(e) => setSupportReply(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendSupportReply(); }
+                            }}
+                            placeholder="Type a reply… (Enter to send, Shift+Enter for newline)"
+                            rows={2}
+                            className="flex-1 rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70 resize-none"
+                          />
+                          <Button
+                            variant="white"
+                            className="rounded-xl px-4 py-2 self-end"
+                            onClick={sendSupportReply}
+                            disabled={supportReplySending || !supportReply.trim()}
+                          >
+                            {supportReplySending ? 'Sending…' : 'Send'}
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'executives' && (
+              <div className="space-y-6">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-semibold">Support Executives</h2>
+                    <p className="text-white/55 text-sm mt-1">Manage who can handle live support chats.</p>
+                  </div>
+                  <a href="/support-executive" target="_blank" rel="noopener noreferrer"
+                    className="text-sm text-cyan-300 hover:text-cyan-100 underline underline-offset-2">
+                    Open executive panel ↗
+                  </a>
+                </div>
+
+                {execError && (
+                  <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-red-100 text-sm">{execError}</div>
+                )}
+                {execInviteSuccess && (
+                  <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-emerald-100 text-sm">{execInviteSuccess}</div>
+                )}
+
+                <div className="grid grid-cols-1 xl:grid-cols-[1fr_0.7fr] gap-6">
+                  {/* List */}
+                  <div className="rounded-[1.75rem] border border-white/10 bg-white/5 overflow-hidden">
+                    <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                      <h3 className="font-semibold">All executives</h3>
+                      <button onClick={loadExecutives} className="text-xs text-white/50 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 border border-white/10">
+                        {execLoading ? 'Loading…' : 'Refresh'}
+                      </button>
+                    </div>
+                    <div className="divide-y divide-white/5">
+                      {executives.length === 0 && !execLoading && (
+                        <p className="text-white/40 text-sm p-5">No executives added yet.</p>
+                      )}
+                      {executives.map(exec => (
+                        <div key={exec.id} className="px-5 py-4 flex items-center justify-between gap-4">
+                          <div className="min-w-0">
+                            <p className="font-medium text-white truncate">{exec.name}</p>
+                            <p className="text-sm text-white/55 truncate">{exec.email}</p>
+                            {exec.last_seen_at && (
+                              <p className="text-xs text-white/30 mt-0.5">Last seen {formatDate(exec.last_seen_at)}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                              exec.status === 'active' ? 'bg-emerald-400/20 text-emerald-300' :
+                              exec.status === 'invited' ? 'bg-amber-400/20 text-amber-300' :
+                              'bg-white/10 text-white/40'
+                            }`}>{exec.status}</span>
+                            {exec.status !== 'active' && (
+                              <button onClick={() => updateExecStatus(exec.id, 'active')}
+                                className="text-xs px-3 py-1.5 rounded-lg border border-white/10 text-white/60 hover:text-white hover:bg-white/5 transition-colors">
+                                Activate
+                              </button>
+                            )}
+                            {exec.status === 'active' && (
+                              <button onClick={() => updateExecStatus(exec.id, 'inactive')}
+                                className="text-xs px-3 py-1.5 rounded-lg border border-white/10 text-white/60 hover:text-white hover:bg-white/5 transition-colors">
+                                Deactivate
+                              </button>
+                            )}
+                            <button onClick={() => deleteExecutive(exec.id)}
+                              className="text-xs px-3 py-1.5 rounded-lg border border-red-400/20 text-red-300/70 hover:text-red-200 hover:bg-red-500/10 transition-colors">
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Invite form */}
+                  <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
+                    <h3 className="font-semibold mb-4">Invite executive</h3>
+                    <form onSubmit={inviteExecutive} className="space-y-3">
+                      <div>
+                        <label className="block text-sm text-white/70 mb-1.5">Name</label>
+                        <input value={execInviteForm.name}
+                          onChange={e => setExecInviteForm(f => ({...f, name: e.target.value}))}
+                          required placeholder="Full name"
+                          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70" />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-white/70 mb-1.5">Email</label>
+                        <input type="email" value={execInviteForm.email}
+                          onChange={e => setExecInviteForm(f => ({...f, email: e.target.value}))}
+                          required placeholder="email@company.com"
+                          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70" />
+                      </div>
+                      <Button variant="white" className="rounded-2xl px-5 py-3 w-full gap-2" disabled={execInviteSending}>
+                        {execInviteSending ? 'Sending invite…' : 'Send invite email'}
+                      </Button>
+                    </form>
+                    <div className="mt-4 rounded-xl bg-slate-900/60 border border-white/10 p-4 text-xs text-white/50 space-y-1">
+                      <p>The executive will receive an email with a link to set their password.</p>
+                      <p>Once activated they can log in at <span className="text-cyan-300">/support-executive</span>.</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
           </div>
         </div>
       </section>
-      <SubmissionDetailDialog
-        submission={selectedSubmissionForDialog}
-        onClose={() => setSelectedSubmissionForDialog(null)}
-      />
     </main>
   );
 };

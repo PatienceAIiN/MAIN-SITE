@@ -1,160 +1,203 @@
 import crypto from 'node:crypto';
-import { queryDb } from './_db.js';
-import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken } from './_security.js';
-import { sendInviteMail } from './_mailer.js';
+import nodemailer from 'nodemailer';
+import { queryDb, isMissingTableError } from './_db.js';
+import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, hashPassword, verifyPassword,
+  createExecSessionToken, EXEC_SESSION_COOKIE_NAME, serializeCookie, getExecSession } from './_security.js';
 
-const requireAdmin = (req) => verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME));
-const validEmail = (email = '') => /^[^\s@]+@patienceai\.in$/i.test(String(email).trim());
-const toHash = (value) => crypto.createHash('sha256').update(String(value)).digest('hex');
+const TABLE = 'support_executives';
+const TTL_HOURS = 72;
 
-const normalizeBaseUrl = (value) => {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  if (/^https?:\/\//i.test(raw)) return raw;
-  return `https://${raw}`;
+const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
+
+const createTransporter = () => nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtpout.secureserver.net',
+  port: parseInt(process.env.SMTP_PORT || '465', 10),
+  secure: process.env.SMTP_SECURE !== 'false',
+  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  tls: { rejectUnauthorized: process.env.NODE_ENV === 'production' }
+});
+
+const sendInviteEmail = async (email, name, token) => {
+  const base = process.env.SITE_URL?.startsWith('http')
+    ? process.env.SITE_URL
+    : `https://${process.env.SITE_URL || 'patienceai.in'}`;
+  const link = `${base}/support-executive?invite=${token}`;
+  const transporter = createTransporter();
+  await transporter.sendMail({
+    from: `"${process.env.SMTP_SENDER_NAME || 'Patience AI'}" <${process.env.SMTP_USER}>`,
+    to: email,
+    subject: 'You\'re invited as a Support Executive — Patience AI',
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px">
+        <h2 style="color:#0f172a">Welcome, ${name}!</h2>
+        <p style="color:#475569">You've been added as a <strong>Support Executive</strong> for Patience AI Live Support.</p>
+        <p style="color:#475569">Click the button below to set your password and activate your account. This link expires in ${TTL_HOURS} hours.</p>
+        <a href="${link}" style="display:inline-block;margin:24px 0;padding:12px 28px;background:#0f172a;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Set Password &amp; Activate</a>
+        <p style="color:#94a3b8;font-size:12px">If you didn't expect this, ignore this email.</p>
+      </div>`
+  });
 };
 
-const inferBaseFromRequest = (req) => {
-  const host = String(req?.headers?.['x-forwarded-host'] || req?.headers?.host || '').trim();
-  if (!host) return '';
-  const proto = String(req?.headers?.['x-forwarded-proto'] || '').split(',')[0].trim() || 'https';
-  return `${proto}://${host}`;
-};
-
-const buildInviteLink = (req, email, token) => {
-  const baseCandidate = normalizeBaseUrl(process.env.SITE_URL)
-    || normalizeBaseUrl(process.env.PUBLIC_SITE_URL)
-    || normalizeBaseUrl(process.env.RENDER_EXTERNAL_URL)
-    || inferBaseFromRequest(req)
-    || 'http://localhost:3000';
-  const url = new URL('/support/accept-invite', baseCandidate);
-  url.searchParams.set('email', email);
-  url.searchParams.set('token', token);
-  return url.toString();
-};
-
-const sendInvite = async ({ req, email, adminName }) => {
-  const token = crypto.randomBytes(24).toString('hex');
-  const inviteTokenHash = toHash(token);
-  await queryDb(
-    `UPDATE public.support_executives
-     SET invite_token_hash = $1, invite_sent_at = NOW(), status = 'invited', updated_at = NOW()
-     WHERE email = $2`,
-    [inviteTokenHash, email]
-  );
-
-  const inviteLink = buildInviteLink(req, email, token);
-  await sendInviteMail({ to: email, inviteLink, invitedBy: adminName });
-};
-
-const formatInviteError = (error) => {
-  const message = String(error?.message || '').trim();
-  if (!message) {
-    return 'Invite email could not be sent right now. You can resend it later from Admin.';
-  }
-  if (/SMTP is not configured/i.test(message)) {
-    return 'Support executive was added, but SMTP is not configured so invite email was not sent.';
-  }
-  return `Support executive was added, but invite email failed: ${message}`;
-};
-
-export default async function supportExecutivesHandler(req, res) {
-  const admin = requireAdmin(req);
-  if (!admin) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  if (req.method === 'GET') {
-    const rows = await queryDb(
-      `SELECT id, email, status, display_name, invite_sent_at, invite_accepted_at, created_at, updated_at
-       FROM public.support_executives
-       ORDER BY created_at DESC`
-    );
-
-    const summary = rows.reduce((acc, row) => {
-      if (row.status === 'active') acc.active += 1;
-      else if (row.status === 'invited') acc.invited += 1;
-      else if (row.status === 'accepted') acc.accepted += 1;
-      return acc;
-    }, { active: 0, invited: 0, accepted: 0, total: rows.length });
-
-    return res.status(200).json({ items: rows, summary });
-  }
-
-  if (req.method === 'POST') {
-    const { email, displayName } = req.body || {};
-    const normalized = String(email || '').trim().toLowerCase();
-    if (!validEmail(normalized)) {
-      return res.status(400).json({ error: 'Only @patienceai.in support emails are allowed' });
-    }
-
+// Ensure seed executive exists (called at server startup via ensureSchema side-effect)
+export const seedExecutive = async () => {
+  try {
+    const existing = await queryDb(`SELECT id FROM ${TABLE} WHERE email = $1 LIMIT 1`, ['harsh@patienceai.in']);
+    if (existing.length > 0) return;
+    const { salt, hash } = hashPassword('Admin@110426');
     await queryDb(
-      `INSERT INTO public.support_executives (email, display_name, created_by)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (email)
-       DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW()`,
-      [normalized, displayName || null, admin.username || 'admin']
+      `INSERT INTO ${TABLE} (email, name, password_salt, password_hash, status, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,'active',NOW(),NOW())`,
+      ['harsh@patienceai.in', 'Harsh', salt, hash]
     );
+    console.log('[seed] support executive harsh@patienceai.in created');
+  } catch (err) {
+    if (!isMissingTableError(err.message)) console.error('[seed] executive seed error:', err.message);
+  }
+};
 
+export default async function handler(req, res) {
+  // ── POST /api/support-executives/login ───────────────────────────────────
+  if (req.method === 'POST' && req.url?.includes('/login')) {
+    const { email, password } = req.body || {};
+    if (!email || !password) return res.status(400).json({ error: 'email and password required' });
     try {
-      await sendInvite({ req, email: normalized, adminName: admin.username || 'admin' });
-      return res.status(200).json({ ok: true, message: 'Invite sent' });
-    } catch (error) {
-      return res.status(200).json({
-        ok: true,
-        inviteSent: false,
-        warning: formatInviteError(error)
-      });
+      const rows = await queryDb(`SELECT * FROM ${TABLE} WHERE email = $1 LIMIT 1`, [email.trim().toLowerCase()]);
+      const exec = rows[0];
+      if (!exec) return res.status(401).json({ error: 'Invalid credentials' });
+      if (exec.status === 'invited') return res.status(403).json({ error: 'Account not activated. Check your invite email.' });
+      if (!verifyPassword(password, exec.password_salt, exec.password_hash))
+        return res.status(401).json({ error: 'Invalid credentials' });
+      // update last_seen
+      await queryDb(`UPDATE ${TABLE} SET last_seen_at=NOW(), updated_at=NOW() WHERE id=$1`, [exec.id]);
+      const token = createExecSessionToken({ id: exec.id, email: exec.email, name: exec.name });
+      const isSecure = process.env.NODE_ENV === 'production';
+      res.setHeader('Set-Cookie', serializeCookie(EXEC_SESSION_COOKIE_NAME, token, {
+        maxAge: 60 * 60 * 24 * 7,
+        secure: isSecure,
+        sameSite: 'Lax'
+      }));
+      return res.status(200).json({ ok: true, executive: { id: exec.id, email: exec.email, name: exec.name } });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
     }
   }
 
-  if (req.method === 'PATCH') {
-    const { id, action, displayName, status } = req.body || {};
-    if (!id) return res.status(400).json({ error: 'id is required' });
+  // ── POST /api/support-executives/activate ────────────────────────────────
+  if (req.method === 'POST' && req.url?.includes('/activate')) {
+    const { token, password } = req.body || {};
+    if (!token || !password) return res.status(400).json({ error: 'token and password required' });
+    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    try {
+      const rows = await queryDb(
+        `SELECT * FROM ${TABLE} WHERE invite_token=$1 AND invite_expires_at > NOW() LIMIT 1`, [token]
+      );
+      const exec = rows[0];
+      if (!exec) return res.status(400).json({ error: 'Invalid or expired invite link' });
+      const { salt, hash } = hashPassword(password);
+      await queryDb(
+        `UPDATE ${TABLE} SET password_salt=$1, password_hash=$2, status='active', invite_token=NULL,
+         invite_expires_at=NULL, updated_at=NOW() WHERE id=$3`,
+        [salt, hash, exec.id]
+      );
+      return res.status(200).json({ ok: true, email: exec.email });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
 
-    if (action === 'resendInvite') {
-      const rows = await queryDb('SELECT email FROM public.support_executives WHERE id = $1 LIMIT 1', [id]);
-      if (!rows[0]) return res.status(404).json({ error: 'Support executive not found' });
-      try {
-        await sendInvite({ req, email: rows[0].email, adminName: admin.username || 'admin' });
-        return res.status(200).json({ ok: true, message: 'Invite resent' });
-      } catch (error) {
-        return res.status(200).json({
-          ok: true,
-          inviteSent: false,
-          warning: formatInviteError(error)
-        });
+  // ── GET /api/support-executives/me ───────────────────────────────────────
+  if (req.method === 'GET' && req.url?.includes('/me')) {
+    const exec = getExecSession(req);
+    if (!exec) return res.status(401).json({ error: 'Not authenticated' });
+    try {
+      await queryDb(`UPDATE ${TABLE} SET last_seen_at=NOW() WHERE email=$1`, [exec.email]);
+    } catch { /* ignore */ }
+    return res.status(200).json({ executive: exec });
+  }
+
+  // ── DELETE /api/support-executives/logout ────────────────────────────────
+  if (req.method === 'DELETE' && req.url?.includes('/logout')) {
+    res.setHeader('Set-Cookie', serializeCookie(EXEC_SESSION_COOKIE_NAME, '', { maxAge: 0 }));
+    return res.status(200).json({ ok: true });
+  }
+
+  // ── Admin-only routes below ───────────────────────────────────────────────
+  if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
+
+  // GET — list all executives
+  if (req.method === 'GET') {
+    try {
+      const rows = await queryDb(
+        `SELECT id, email, name, status, last_seen_at, created_at FROM ${TABLE} ORDER BY created_at DESC`
+      );
+      return res.status(200).json({ executives: rows });
+    } catch (err) {
+      if (isMissingTableError(err.message)) return res.status(200).json({ executives: [] });
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  // POST — invite a new executive (or re-invite)
+  if (req.method === 'POST') {
+    const { email, name } = req.body || {};
+    if (!email || !name) return res.status(400).json({ error: 'email and name required' });
+    const inviteToken = crypto.randomBytes(24).toString('hex');
+    const expiresAt = new Date(Date.now() + TTL_HOURS * 3600 * 1000).toISOString();
+    const { salt, hash } = hashPassword(crypto.randomBytes(16).toString('hex')); // placeholder pwd
+    try {
+      const existing = await queryDb(`SELECT id, status FROM ${TABLE} WHERE email=$1 LIMIT 1`, [email.toLowerCase()]);
+      let exec;
+      if (existing.length > 0) {
+        // re-invite
+        const rows = await queryDb(
+          `UPDATE ${TABLE} SET name=$1, invite_token=$2, invite_expires_at=$3, status='invited', updated_at=NOW()
+           WHERE email=$4 RETURNING *`,
+          [name, inviteToken, expiresAt, email.toLowerCase()]
+        );
+        exec = rows[0];
+      } else {
+        const rows = await queryDb(
+          `INSERT INTO ${TABLE} (email, name, password_salt, password_hash, status, invite_token, invite_expires_at)
+           VALUES ($1,$2,$3,$4,'invited',$5,$6) RETURNING *`,
+          [email.toLowerCase(), name, salt, hash, inviteToken, expiresAt]
+        );
+        exec = rows[0];
       }
+      // Send invite email (don't fail the request if email fails)
+      try { await sendInviteEmail(email, name, inviteToken); } catch (e) {
+        console.error('invite email failed:', e.message);
+      }
+      return res.status(200).json({ ok: true, executive: { id: exec.id, email: exec.email, name: exec.name, status: exec.status } });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
     }
-
-    const updates = [];
-    const params = [];
-    if (displayName !== undefined) {
-      params.push(String(displayName || '').trim() || null);
-      updates.push(`display_name = $${params.length}`);
-    }
-    if (status && ['invited', 'accepted', 'active', 'disabled'].includes(status)) {
-      params.push(status);
-      updates.push(`status = $${params.length}`);
-    }
-    if (!updates.length) {
-      return res.status(400).json({ error: 'No supported fields to update' });
-    }
-
-    params.push(id);
-    const rows = await queryDb(
-      `UPDATE public.support_executives SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${params.length}
-       RETURNING id, email, status, display_name, invite_sent_at, invite_accepted_at, created_at, updated_at`,
-      params
-    );
-    return res.status(200).json({ item: rows[0] || null });
   }
 
+  // PATCH — update status (admin can activate/deactivate)
+  if (req.method === 'PATCH') {
+    const { id, status } = req.body || {};
+    if (!id || !status) return res.status(400).json({ error: 'id and status required' });
+    try {
+      const rows = await queryDb(
+        `UPDATE ${TABLE} SET status=$1, updated_at=NOW() WHERE id=$2 RETURNING id, email, name, status`,
+        [status, id]
+      );
+      return res.status(200).json({ executive: rows[0] });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  // DELETE — remove executive
   if (req.method === 'DELETE') {
     const { id } = req.body || {};
     if (!id) return res.status(400).json({ error: 'id required' });
-    await queryDb('DELETE FROM public.support_executives WHERE id = $1', [id]);
-    return res.status(200).json({ deleted: true });
+    try {
+      await queryDb(`DELETE FROM ${TABLE} WHERE id=$1`, [id]);
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
   }
 
   return res.status(405).json({ error: 'Method not allowed' });

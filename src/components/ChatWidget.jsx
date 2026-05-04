@@ -1,14 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FiCheck, FiCopy, FiInfo, FiSend, FiSquare, FiTrash2, FiX } from 'react-icons/fi';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { fetchJson } from '../common/fetchJson';
 
 const YES_PATTERN = /^(yes|yeah|yep|sure|ok|okay|please|why not|go ahead)$/i;
 const CONTACT_FORM_PATTERN = /\b(show|open|fill|need|want).{0,24}\b(contact|sales)\s+form\b|\bcontact\s+form\b/i;
 const JOB_FORM_PATTERN = /\b(job|career|hiring|apply|application|job\s*enquiry|job\s*inquiry)\b.*\b(form|enquiry|inquiry|apply)\b|\bjob\s*enquiry\b|\bjob\s*inquiry\b/i;
 const NAVIGATION_REQUEST_PATTERN = /\b(open|go to|navigate|take me to|redirect|show me)\b/i;
-const LIVE_SUPPORT_PATTERN = /\b(customer support|support team|live chat|human agent|support executive|connect me|talk to (someone|human|agent)|speak to (someone|human|agent)|representative)\b/i;
 const buildRouteActions = (message = '') => {
   const text = String(message).toLowerCase();
   const actions = [];
@@ -47,29 +46,12 @@ const normalizeMessageContent = (value) => {
   return '';
 };
 
-const TypingDots = () => (
-  <span className="inline-flex items-center gap-1" aria-label="Loading response">
-    {[0, 1, 2, 3].map((dot) => (
-      <span
-        key={dot}
-        className="h-1.5 w-1.5 rounded-full bg-slate-500/80 animate-bounce"
-        style={{ animationDelay: `${dot * 0.12}s`, animationDuration: '0.8s' }}
-      />
-    ))}
-  </span>
-);
-
 
 const LAUNCHER_SIZE = 64;
 const LAUNCHER_MARGIN = 24;
 const MOBILE_EDGE_GAP = 12;
 const DESKTOP_EDGE_GAP = 16;
 const MOBILE_BREAKPOINT = 768;
-const PANEL_MAX_WIDTH = 420;
-const PANEL_DEFAULT_WIDTH = 380;
-const PANEL_MIN_HEIGHT = 360;
-const PANEL_DEFAULT_HEIGHT = 620;
-const DRAG_THRESHOLD = 8;
 
 const getViewportSize = () => {
   if (typeof window === 'undefined') {
@@ -107,18 +89,6 @@ const getDefaultLauncherPosition = () => {
   };
 };
 
-const clampPanelPosition = (x, y, panelWidth, panelHeight) => {
-  const { width: viewportWidth, height: viewportHeight } = getViewportSize();
-  const edgeGap = isMobileViewport(viewportWidth) ? MOBILE_EDGE_GAP : DESKTOP_EDGE_GAP;
-  const maxX = Math.max(edgeGap, viewportWidth - panelWidth - edgeGap);
-  const maxY = Math.max(edgeGap, viewportHeight - panelHeight - edgeGap);
-
-  return {
-    x: Math.min(Math.max(x, edgeGap), maxX),
-    y: Math.min(Math.max(y, edgeGap), maxY)
-  };
-};
-
 const isAtPageEnd = () => {
   if (typeof window === 'undefined' || typeof document === 'undefined') return false;
   const scrollBottom = window.scrollY + window.innerHeight;
@@ -129,12 +99,18 @@ const isAtPageEnd = () => {
 const clampLauncherPosition = (x, y, width = LAUNCHER_SIZE, height = LAUNCHER_SIZE) => {
   if (typeof window === 'undefined') return { x, y };
   const { width: viewportWidth, height: viewportHeight } = getViewportSize();
-  const edgeGap = isMobileViewport(viewportWidth) ? MOBILE_EDGE_GAP : LAUNCHER_MARGIN;
-  const maxX = Math.max(edgeGap, viewportWidth - width - edgeGap);
-  const maxY = Math.max(edgeGap, viewportHeight - height - edgeGap);
+
+  if (isMobileViewport(viewportWidth)) {
+    const anchoredX = Math.max(MOBILE_EDGE_GAP, viewportWidth - width - DESKTOP_EDGE_GAP);
+    const mobileY = Math.max(MOBILE_EDGE_GAP, viewportHeight - height - DESKTOP_EDGE_GAP);
+    return { x: anchoredX, y: mobileY };
+  }
+
+  const maxX = Math.max(LAUNCHER_MARGIN, viewportWidth - width - LAUNCHER_MARGIN);
+  const maxY = Math.max(LAUNCHER_MARGIN, viewportHeight - height - LAUNCHER_MARGIN);
   return {
-    x: Math.min(Math.max(x, edgeGap), maxX),
-    y: Math.min(Math.max(y, edgeGap), maxY)
+    x: Math.min(Math.max(x, LAUNCHER_MARGIN), maxX),
+    y: Math.min(Math.max(y, LAUNCHER_MARGIN), maxY)
   };
 };
 
@@ -149,7 +125,6 @@ const getOrCreateId = (storageKey, prefix) => {
 
 const ChatWidget = ({ brand }) => {
   const navigate = useNavigate();
-  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [input, setInput] = useState('');
@@ -163,33 +138,32 @@ const ChatWidget = ({ brand }) => {
   const [leadForm, setLeadForm] = useState({ name: '', email: '', subject: 'Sales inquiry via AI chat', message: '' });
   const [jobForm, setJobForm] = useState({ name: '', email: '', role: '', message: '' });
   const [messages, setMessages] = useState([]);
+  const [liveResponse, setLiveResponse] = useState('');
   const [isStreamingResponse, setIsStreamingResponse] = useState(false);
   const [routeActions, setRouteActions] = useState([]);
   const [assistantSuggestions, setAssistantSuggestions] = useState([]);
   const [showContactCta, setShowContactCta] = useState(false);
-  const [showLiveSupportModal, setShowLiveSupportModal] = useState(false);
-  const [supportConversationId, setSupportConversationId] = useState('');
-  const [supportConversationInput, setSupportConversationInput] = useState('');
-  const [supportCustomer, setSupportCustomer] = useState({ name: '', email: '' });
-  const [supportMessages, setSupportMessages] = useState([]);
-  const [supportInput, setSupportInput] = useState('');
-  const [supportBusy, setSupportBusy] = useState(false);
-  const [supportError, setSupportError] = useState('');
-  const [supportPolling, setSupportPolling] = useState(false);
-  const [showSupportInfo, setShowSupportInfo] = useState(false);
-  const [copiedSupportConversationId, setCopiedSupportConversationId] = useState(false);
+
+  // Live support chat state
+  const [isLiveChat, setIsLiveChat] = useState(false);
+  const [showLiveChatEntry, setShowLiveChatEntry] = useState(false);
+  const [liveEmailInput, setLiveEmailInput] = useState('');
+  const [liveMessages, setLiveMessages] = useState([]);
+  const [liveInput, setLiveInput] = useState('');
+  const [liveSending, setLiveSending] = useState(false);
+  const [liveConversationId, setLiveConversationId] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [liveSession, setLiveSession] = useState(null);
+  const livePollRef = useRef(null);
+  const liveMessagesEndRef = useRef(null);
+
   const scrollAreaRef = useRef(null);
-  const supportScrollRef = useRef(null);
-  const supportInfoRef = useRef(null);
-  const supportInfoButtonRef = useRef(null);
   const inputRef = useRef(null);
   const abortControllerRef = useRef(null);
+  const liveResponseRef = useRef('');
   const launcherStackRef = useRef(null);
   const chatPanelRef = useRef(null);
-  const dragStateRef = useRef({ dragging: false, offsetX: 0, offsetY: 0, originX: 0, originY: 0, moved: false });
   const [launcherPosition, setLauncherPosition] = useState(() => getDefaultLauncherPosition());
-  const [hasManualPosition, setHasManualPosition] = useState(false);
-  const [panelSize, setPanelSize] = useState({ width: PANEL_DEFAULT_WIDTH, height: PANEL_DEFAULT_HEIGHT });
 
   const conversationId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_conversation_id', 'PatienceAI') : 'PatienceAI-local'), []);
   const sessionId = useMemo(() => (typeof window !== 'undefined' ? getOrCreateId('pa_chat_session_id', 'session') : 'session-local'), []);
@@ -201,7 +175,8 @@ const ChatWidget = ({ brand }) => {
       'Show available products.',
       'How can I request a product demo?',
       'Share case study highlights.',
-      'Do you have open roles?'
+      'Do you have open roles?',
+      'Talk to a live agent'
     ];
   }, [brand]);
 
@@ -224,7 +199,6 @@ const ChatWidget = ({ brand }) => {
       const isInsideLauncher = launcherStackRef.current?.contains(event.target);
       const isInsideChat = chatPanelRef.current?.contains(event.target);
       if (!isInsideLauncher && !isInsideChat) {
-        if (showLiveSupportModal) return;
         setIsOpen(false);
         setShowInfo(false);
       }
@@ -232,7 +206,7 @@ const ChatWidget = ({ brand }) => {
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, showLiveSupportModal]);
+  }, [isOpen]);
 
   useEffect(() => {
     if (typeof document === 'undefined' || typeof window === 'undefined') {
@@ -240,7 +214,6 @@ const ChatWidget = ({ brand }) => {
     }
 
     const collapse = () => {
-      if (showLiveSupportModal) return;
       setIsOpen(false);
       setShowInfo(false);
     };
@@ -258,13 +231,23 @@ const ChatWidget = ({ brand }) => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('blur', collapse);
     };
-  }, [showLiveSupportModal]);
+  }, []);
 
   useEffect(() => {
     const panel = scrollAreaRef.current;
     if (!panel) return;
     panel.scrollTop = panel.scrollHeight;
-  }, [messages, busy, isOpen]);
+  }, [messages, busy, showContactForm, showJobForm, liveResponse, isOpen, liveMessages]);
+
+  useEffect(() => {
+    return () => {
+      if (livePollRef.current) clearInterval(livePollRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    liveResponseRef.current = liveResponse;
+  }, [liveResponse]);
 
 
   useEffect(() => {
@@ -284,11 +267,6 @@ const ChatWidget = ({ brand }) => {
         stackWidth,
         stackHeight
       );
-
-      if (hasManualPosition) {
-        setLauncherPosition((current) => clampLauncherPosition(current.x, current.y, stackWidth, stackHeight));
-        return;
-      }
 
       if (isMobileViewport(viewportWidth) || !isAtPageEnd()) {
         setLauncherPosition(defaultPosition);
@@ -322,34 +300,7 @@ const ChatWidget = ({ brand }) => {
       window.visualViewport?.removeEventListener('resize', scheduleSync);
       window.removeEventListener('scroll', scheduleSync);
     };
-  }, [hasManualPosition, isOpen, showWave]);
-
-  useEffect(() => {
-    if (!chatPanelRef.current || typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) return;
-      const width = Math.round(entry.contentRect.width);
-      const height = Math.round(entry.contentRect.height);
-      setPanelSize((current) => (current.width === width && current.height === height ? current : { width, height }));
-    });
-    observer.observe(chatPanelRef.current);
-    return () => observer.disconnect();
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
-    const handleMove = (event) => onDragMove(event);
-    const handleUp = () => endDrag();
-    window.addEventListener('pointermove', handleMove);
-    window.addEventListener('pointerup', handleUp);
-    window.addEventListener('pointercancel', handleUp);
-    return () => {
-      window.removeEventListener('pointermove', handleMove);
-      window.removeEventListener('pointerup', handleUp);
-      window.removeEventListener('pointercancel', handleUp);
-    };
-  }, []);
+  }, [isOpen, showWave]);
 
   const launcherMonogram = 'PA';
 
@@ -480,6 +431,7 @@ const ChatWidget = ({ brand }) => {
     abortControllerRef.current = null;
     setMessages([]);
     setInput('');
+    setLiveResponse('');
     setIsStreamingResponse(false);
     setBusy(false);
     setShowContactForm(false);
@@ -488,160 +440,75 @@ const ChatWidget = ({ brand }) => {
     setRouteActions([]);
     setAssistantSuggestions([]);
     setShowContactCta(false);
+    stopLiveChat();
   };
 
-  const stopResponse = () => {
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = null;
-    setIsStreamingResponse(false);
-    setBusy(false);
-  };
-
-  const openLiveSupportModal = () => {
-    setShowLiveSupportModal(true);
-    setSupportError('');
-    setShowSupportInfo(false);
-  };
-
-  const createLiveSupportConversation = async () => {
-    if (supportConversationId || supportBusy) return;
-    if (!supportCustomer.name.trim() || !supportCustomer.email.trim()) {
-      setSupportError('Name and email are required to start live chat.');
-      return;
+  const stopLiveChat = () => {
+    if (livePollRef.current) {
+      clearInterval(livePollRef.current);
+      livePollRef.current = null;
     }
-    setSupportBusy(true);
-    setSupportError('');
+    setIsLiveChat(false);
+    setShowLiveChatEntry(false);
+    setLiveMessages([]);
+    setLiveInput('');
+    setLiveConversationId('');
+    setCustomerEmail('');
+    setLiveSession(null);
+  };
+
+  const pollLiveMessages = async (convId, email) => {
     try {
-      const payload = await fetchJson('/api/support-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'createConversation',
-          customerName: supportCustomer.name.trim() || null,
-          customerEmail: supportCustomer.email.trim() || null
-        })
-      });
-      setSupportConversationId(payload?.conversationId || '');
-      setSupportConversationInput(payload?.conversationId || '');
-      setSupportPolling(true);
-    } catch (error) {
-      setSupportError(error.message || 'Unable to connect live support right now.');
-    } finally {
-      setSupportBusy(false);
+      const params = new URLSearchParams({ conversationId: convId });
+      if (email) params.set('customerEmail', email);
+      const data = await fetchJson(`/api/support-chat?${params.toString()}`);
+      setLiveMessages(data.messages || []);
+      setLiveSession(data.session || null);
+    } catch {
+      // silently ignore poll errors
     }
   };
 
-  const loadExistingSupportConversation = async () => {
-    if (!supportConversationInput.trim() || supportBusy) return;
-    if (!supportCustomer.name.trim() || !supportCustomer.email.trim()) {
-      setSupportError('Name and email are required.');
-      return;
-    }
-    setSupportBusy(true);
-    setSupportError('');
-    try {
-      const payload = await fetchJson('/api/support-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'restoreConversation',
-          conversationId: supportConversationInput.trim(),
-          customerEmail: supportCustomer.email.trim()
-        })
-      });
-      setSupportConversationId(payload?.conversation?.conversation_id || supportConversationInput.trim());
-      setSupportMessages(payload?.messages || []);
-      setSupportPolling(true);
-    } catch (error) {
-      setSupportError(error.message || 'Unable to load this conversation.');
-    } finally {
-      setSupportBusy(false);
-    }
+  const startLiveChat = async () => {
+    const email = liveEmailInput.trim();
+    setShowLiveChatEntry(false);
+    setShowContactCta(false);
+    openLiveChatPopup(email);
   };
 
-  const sendLiveSupportMessage = async () => {
-    if (!supportConversationId || !supportInput.trim() || supportBusy) return;
-    const message = supportInput.trim();
-    setSupportInput('');
-    setSupportBusy(true);
-    setSupportError('');
+  const sendLiveMessage = async () => {
+    const text = liveInput.trim();
+    if (!text || liveSending || !liveConversationId) return;
+    setLiveSending(true);
+    setLiveInput('');
     try {
       await fetchJson('/api/support-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'sendMessage',
-          conversationId: supportConversationId,
-          customerEmail: supportCustomer.email.trim(),
-          senderRole: 'customer',
-          message
+          conversationId: liveConversationId,
+          customerEmail: customerEmail || null,
+          message: text,
+          sender: 'customer'
         })
       });
-      setSupportPolling(true);
-    } catch (error) {
-      setSupportError(error.message || 'Failed to send message.');
-      setSupportInput(message);
-    } finally {
-      setSupportBusy(false);
+      await pollLiveMessages(liveConversationId, customerEmail);
+    } catch { /* ignore */ } finally {
+      setLiveSending(false);
     }
   };
 
-  useEffect(() => {
-    if (!supportPolling || !showLiveSupportModal || !supportConversationId) return undefined;
-    let stopped = false;
-
-    const poll = async () => {
-      try {
-        const payload = await fetchJson(`/api/support-chat?conversationId=${encodeURIComponent(supportConversationId)}&customerEmail=${encodeURIComponent(supportCustomer.email.trim())}`);
-        if (!stopped) {
-          setSupportMessages(payload?.messages || []);
-        }
-      } catch (error) {
-        if (!stopped) {
-          setSupportError(error.message || 'Live support is currently unavailable.');
-        }
-      }
-    };
-
-    poll();
-    const timer = window.setInterval(poll, 2500);
-    return () => {
-      stopped = true;
-      window.clearInterval(timer);
-    };
-  }, [showLiveSupportModal, supportConversationId, supportPolling, supportCustomer.email]);
-
-  const copySupportConversationId = async () => {
-    if (typeof navigator === 'undefined' || !navigator.clipboard || !supportConversationId) return;
-    try {
-      await navigator.clipboard.writeText(supportConversationId);
-      setCopiedSupportConversationId(true);
-      window.setTimeout(() => setCopiedSupportConversationId(false), 1400);
-    } catch {
-      setCopiedSupportConversationId(false);
+  const stopResponse = () => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    const partial = liveResponseRef.current.trim();
+    if (partial) {
+      setMessages((current) => [...current, { role: 'assistant', content: partial }]);
     }
+    setLiveResponse('');
+    setIsStreamingResponse(false);
+    setBusy(false);
   };
-
-  useEffect(() => {
-    if (!showLiveSupportModal) return;
-    const node = supportScrollRef.current;
-    if (!node) return;
-    node.scrollTop = node.scrollHeight;
-  }, [showLiveSupportModal, supportMessages]);
-
-  useEffect(() => {
-    if (!showSupportInfo) return undefined;
-    const closeSupportInfo = (event) => {
-      if (supportInfoRef.current?.contains(event.target) || supportInfoButtonRef.current?.contains(event.target)) return;
-      setShowSupportInfo(false);
-    };
-    document.addEventListener('mousedown', closeSupportInfo);
-    return () => document.removeEventListener('mousedown', closeSupportInfo);
-  }, [showSupportInfo]);
-
-  useEffect(() => {
-    setShowSupportInfo(false);
-  }, [location.pathname]);
 
   const ask = async (presetQuestion = null) => {
     const sourceQuestion = typeof presetQuestion === 'string' ? presetQuestion : input;
@@ -651,29 +518,17 @@ const ChatWidget = ({ brand }) => {
     const openForm = shouldOpenContactForm(question, messages);
     const wantsContactForm = CONTACT_FORM_PATTERN.test(question);
     const wantsJobForm = JOB_FORM_PATTERN.test(question);
-    const wantsLiveSupport = LIVE_SUPPORT_PATTERN.test(question);
     const userMessage = { role: 'user', content: question };
     const nextMessages = [...messages, userMessage];
     setMessages(nextMessages);
     if (!presetQuestion) {
       setInput('');
     }
+    setLiveResponse('');
     setIsStreamingResponse(false);
     setRouteActions([]);
     setAssistantSuggestions([]);
     setShowContactCta(false);
-
-    if (wantsLiveSupport) {
-      openLiveSupportModal();
-      setMessages((current) => [
-        ...current,
-        {
-          role: 'assistant',
-          content: 'Sure — I opened live customer support chat for you. Please share your name/email and start messaging.'
-        }
-      ]);
-      return;
-    }
 
     if (openForm) {
       setShowContactForm(true);
@@ -738,8 +593,15 @@ const ChatWidget = ({ brand }) => {
         signal: controller.signal
       });
       const fullAnswer = normalizeMessageContent(payload.answer || payload.message || '');
+      let visibleAnswer = '';
       setIsStreamingResponse(true);
-      await new Promise((resolve) => setTimeout(resolve, 260));
+
+      for (let index = 0; index < fullAnswer.length; index += 1) {
+        if (controller.signal.aborted) break;
+        visibleAnswer += fullAnswer[index];
+        setLiveResponse(visibleAnswer);
+        await new Promise((resolve) => setTimeout(resolve, 8));
+      }
 
       if (!controller.signal.aborted) {
         setMessages((current) => [...current, { role: 'assistant', content: fullAnswer }]);
@@ -749,12 +611,14 @@ const ChatWidget = ({ brand }) => {
           setShowJobForm(false);
         }
       }
+      setLiveResponse('');
       setIsStreamingResponse(false);
     } catch (error) {
       if (error?.name === 'AbortError') {
         return;
       }
       setMessages((current) => [...current, { role: 'assistant', content: `Sorry, I couldn't respond right now. ${error.message}` }]);
+      setLiveResponse('');
       setIsStreamingResponse(false);
     } finally {
       abortControllerRef.current = null;
@@ -762,101 +626,26 @@ const ChatWidget = ({ brand }) => {
     }
   };
 
+  const openLiveChatPopup = (emailPrefill = '') => {
+    const raw = window.crypto?.randomUUID?.().replace(/-/g,'').slice(0,6) || `${Date.now().toString(36).slice(-4)}`;
+    const convId = `PatienceAILive-${raw}`;
+    const params = new URLSearchParams({ conversationId: convId });
+    if (emailPrefill) params.set('customerEmail', emailPrefill);
+    const url = `/live-chat?${params.toString()}`;
+    const popup = window.open(url, 'pa_live_chat',
+      'width=420,height=680,resizable=yes,scrollbars=yes,status=no,toolbar=no,menubar=no,location=no');
+    if (!popup || popup.closed) {
+      // Fallback: open in same tab
+      window.open(url, '_blank');
+    }
+  };
+
   const onSuggestionClick = (prompt) => {
-    ask(prompt);
-  };
-
-  const messageLinksFromText = (text) => {
-    const actions = buildRouteActions(text);
-    return actions.slice(0, 3);
-  };
-
-  const panelPosition = useMemo(() => {
-    const width = Math.min(PANEL_MAX_WIDTH, Math.max(320, panelSize.width || PANEL_DEFAULT_WIDTH));
-    const height = Math.max(PANEL_MIN_HEIGHT, panelSize.height || PANEL_DEFAULT_HEIGHT);
-    const launcherWidth = launcherStackRef.current?.getBoundingClientRect()?.width || LAUNCHER_SIZE;
-    const launcherHeight = launcherStackRef.current?.getBoundingClientRect()?.height || LAUNCHER_SIZE;
-    const preferredX = launcherPosition.x + launcherWidth - width;
-    const preferredY = launcherPosition.y - height - 12;
-    const fallbackY = launcherPosition.y + launcherHeight + 10;
-    const clampedPrimary = clampPanelPosition(preferredX, preferredY, width, height);
-    const hasRoomAbove = preferredY >= DESKTOP_EDGE_GAP;
-    if (hasRoomAbove) return clampedPrimary;
-    return clampPanelPosition(preferredX, fallbackY, width, height);
-  }, [launcherPosition.x, launcherPosition.y, panelSize.height, panelSize.width]);
-
-  const parseMessageWithLinks = (content) => {
-    const text = normalizeMessageContent(content);
-    const parts = [];
-    const urlRegex = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi;
-    let lastIndex = 0;
-    let match;
-
-    while ((match = urlRegex.exec(text)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push({ type: 'text', value: text.slice(lastIndex, match.index) });
-      }
-      const rawUrl = match[0];
-      const href = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`;
-      parts.push({ type: 'link', value: rawUrl, href });
-      lastIndex = match.index + rawUrl.length;
-    }
-
-    if (lastIndex < text.length) {
-      parts.push({ type: 'text', value: text.slice(lastIndex) });
-    }
-
-    return parts.length ? parts : [{ type: 'text', value: text }];
-  };
-
-  const startDrag = (event) => {
-    if (typeof window === 'undefined') return;
-    const target = event.target;
-    const handle = event.currentTarget;
-    if (target instanceof HTMLElement && handle instanceof HTMLElement && !handle.contains(target)) return;
-    if (
-      target instanceof HTMLElement &&
-      handle instanceof HTMLElement &&
-      !target.closest('[data-drag-handle]') &&
-      target.closest('button, input, textarea, a')
-    ) return;
-    const stackRect = launcherStackRef.current?.getBoundingClientRect();
-    if (!stackRect) return;
-    const pointX = event.clientX;
-    const pointY = event.clientY;
-    dragStateRef.current = {
-      dragging: true,
-      offsetX: pointX - stackRect.left,
-      offsetY: pointY - stackRect.top,
-      originX: pointX,
-      originY: pointY,
-      moved: false
-    };
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-  };
-
-  const onDragMove = (event) => {
-    const state = dragStateRef.current;
-    if (!state.dragging) return;
-    const deltaX = Math.abs(event.clientX - state.originX);
-    const deltaY = Math.abs(event.clientY - state.originY);
-    const moved = deltaX > DRAG_THRESHOLD || deltaY > DRAG_THRESHOLD;
-    if (!moved && !state.moved) return;
-    dragStateRef.current.moved = true;
-    setHasManualPosition(true);
-    setLauncherPosition(clampLauncherPosition(event.clientX - state.offsetX, event.clientY - state.offsetY));
-  };
-
-  const endDrag = () => {
-    dragStateRef.current.dragging = false;
-  };
-
-  const onLauncherClick = () => {
-    if (dragStateRef.current.moved) {
-      dragStateRef.current.moved = false;
+    if (prompt === 'Talk to a live agent') {
+      openLiveChatPopup();
       return;
     }
-    toggleChat();
+    ask(prompt);
   };
   return (
     <>
@@ -878,12 +667,10 @@ const ChatWidget = ({ brand }) => {
         )}
 
         <motion.button
-          data-drag-handle="true"
           type="button"
           whileHover={{ scale: 1.04 }}
           whileTap={{ scale: 0.96 }}
-          onPointerDown={startDrag}
-          onClick={onLauncherClick}
+          onClick={toggleChat}
           className="h-16 w-16 rounded-full border border-slate-200 bg-white text-slate-900 shadow-2xl flex items-center justify-center"
           aria-label="Open AI chat"
         >
@@ -899,10 +686,9 @@ const ChatWidget = ({ brand }) => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 260, damping: 24, mass: 0.7 }}
-            style={{ left: panelPosition.x, top: panelPosition.y }}
-            className="fixed z-[140] flex w-[min(calc(100vw-1.25rem),420px)] max-w-[420px] flex-col max-h-[calc(100dvh-1.25rem)] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
+            className="fixed bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] left-3 right-3 z-[140] w-auto max-w-[calc(100vw-1.5rem)] md:bottom-24 md:left-auto md:right-6 md:w-[min(calc(100vw-3rem),380px)] md:max-w-[420px] max-h-[calc(100dvh-8rem)] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
           >
-            <div data-drag-handle="true" onPointerDown={startDrag} className="cursor-grab active:cursor-grabbing bg-slate-50 text-slate-900 p-4 relative flex items-center justify-between border-b border-slate-200">
+            <div className="bg-slate-50 text-slate-900 p-4 relative flex items-center justify-between border-b border-slate-200">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="h-10 w-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-xs font-bold shrink-0"><span className="site-brand site-brand--dark text-base leading-none tracking-normal">{launcherMonogram}</span></div>
                 <div className="flex items-center gap-2 min-w-0">
@@ -952,7 +738,7 @@ const ChatWidget = ({ brand }) => {
               )}
             </div>
 
-            <div ref={scrollAreaRef} className={`min-h-[220px] flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50 ${showInfo ? 'pt-16' : ''}`}>
+            <div ref={scrollAreaRef} className={`h-[clamp(260px,45vh,360px)] overflow-y-auto p-4 space-y-3 bg-slate-50 ${showInfo ? 'pt-16' : ''}`}>
               {!hasUserMessaged && !showContactForm && !showJobForm && (
                 <div className="flex flex-wrap gap-2">
                   {suggestionPrompts.map((prompt, index) => (
@@ -978,38 +764,7 @@ const ChatWidget = ({ brand }) => {
                   key={`${item.role}-${index}`}
                   className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words ${item.role === 'user' ? 'ml-auto bg-slate-900 text-white' : 'bg-white text-slate-800 border border-slate-200'}`}
                 >
-                  {parseMessageWithLinks(item.content).map((part, partIndex) =>
-                    part.type === 'link' ? (
-                      <a
-                        key={`${index}-link-${partIndex}`}
-                        href={part.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-cyan-700 underline decoration-cyan-300 underline-offset-2"
-                      >
-                        {part.value}
-                      </a>
-                    ) : (
-                      <span key={`${index}-txt-${partIndex}`}>{part.value}</span>
-                    )
-                  )}
-                  {item.role === 'assistant' && messageLinksFromText(item.content).length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {messageLinksFromText(item.content).map((action) => (
-                        <button
-                          key={`${index}-${action.path}`}
-                          type="button"
-                          onClick={() => {
-                            navigate(action.path);
-                            setIsOpen(false);
-                          }}
-                          className="rounded-full bg-cyan-50 px-2.5 py-1 text-[11px] font-semibold text-cyan-800 ring-1 ring-cyan-200"
-                        >
-                          {action.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  {normalizeMessageContent(item.content)}
                 </div>
               ))}
 
@@ -1065,70 +820,155 @@ const ChatWidget = ({ brand }) => {
                 </div>
               )}
 
-              {showContactCta && !showContactForm && (
+              {showContactCta && !showContactForm && !isLiveChat && !showLiveChatEntry && (
                 <div className="max-w-[95%] rounded-2xl border border-amber-100 bg-amber-50/80 p-2.5 shadow-sm">
-                  <p className="px-1 pb-2 text-xs text-slate-700">Need a precise recommendation from our team?</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowContactForm(true);
-                      setShowContactCta(false);
-                    }}
-                    className="rounded-full border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 shadow-sm"
-                  >
-                    Open contact form
-                  </button>
-                </div>
-              )}
-
-              {(showContactForm || showJobForm) && (
-                <div className="max-w-[96%] rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="text-xs font-semibold text-slate-700">{showContactForm ? 'Sales contact form' : 'Job enquiry form'}</p>
+                  <p className="px-1 pb-2 text-xs text-slate-700">Need help from our team?</p>
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => {
-                        setShowContactForm(false);
-                        setShowJobForm(false);
-                        setLeadError('');
+                        setShowContactForm(true);
+                        setShowContactCta(false);
                       }}
-                      className="rounded-md px-2 py-1 text-[11px] font-medium text-slate-500 hover:bg-slate-100"
+                      className="rounded-full border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 shadow-sm"
                     >
-                      Hide form
+                      Open contact form
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowContactCta(false); openLiveChatPopup(); }}
+                      className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-slate-800 shadow-sm"
+                    >
+                      Chat with a live agent
                     </button>
                   </div>
-                  {showContactForm && (
-                    <form onSubmit={submitLead} className="space-y-2">
-                      <input value={leadForm.name} onChange={(e) => setLeadForm((c) => ({ ...c, name: e.target.value }))} required placeholder="Name" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
-                      <input type="email" value={leadForm.email} onChange={(e) => setLeadForm((c) => ({ ...c, email: e.target.value }))} required placeholder="Email" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
-                      <input value={leadForm.subject} onChange={(e) => setLeadForm((c) => ({ ...c, subject: e.target.value }))} required placeholder="Subject" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
-                      <textarea value={leadForm.message} onChange={(e) => setLeadForm((c) => ({ ...c, message: e.target.value }))} required placeholder="How can our team help you?" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500 min-h-20" />
-                      {leadError && <p className="text-xs text-red-600">{leadError}</p>}
-                      <button type="submit" disabled={leadStatus === 'submitting'} className="w-full rounded-lg bg-slate-900 text-white py-2 text-sm disabled:opacity-60">
-                        {leadStatus === 'submitting' ? 'Submitting...' : 'Submit form'}
-                      </button>
-                    </form>
-                  )}
-                  {showJobForm && (
-                    <form onSubmit={submitJobEnquiry} className="space-y-2">
-                      <input value={jobForm.name} onChange={(e) => setJobForm((c) => ({ ...c, name: e.target.value }))} required placeholder="Name" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
-                      <input type="email" value={jobForm.email} onChange={(e) => setJobForm((c) => ({ ...c, email: e.target.value }))} required placeholder="Email" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
-                      <input value={jobForm.role} onChange={(e) => setJobForm((c) => ({ ...c, role: e.target.value }))} required placeholder="Role you're applying for" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
-                      <textarea value={jobForm.message} onChange={(e) => setJobForm((c) => ({ ...c, message: e.target.value }))} required placeholder="Tell us about your profile" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500 min-h-20" />
-                      {leadError && <p className="text-xs text-red-600">{leadError}</p>}
-                      <button type="submit" disabled={leadStatus === 'submitting'} className="w-full rounded-lg bg-slate-900 text-white py-2 text-sm disabled:opacity-60">
-                        {leadStatus === 'submitting' ? 'Submitting...' : 'Submit form'}
-                      </button>
-                    </form>
-                  )}
+                </div>
+              )}
+
+              {showLiveChatEntry && (
+                <div className="max-w-[95%] rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3 shadow-sm space-y-2">
+                  <p className="text-xs font-semibold text-slate-700">Start live chat</p>
+                  <input
+                    type="email"
+                    value={liveEmailInput}
+                    onChange={(e) => setLiveEmailInput(e.target.value)}
+                    placeholder="Your email (optional)"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={startLiveChat}
+                      className="rounded-full bg-emerald-600 text-white px-3 py-1.5 text-xs font-medium"
+                    >
+                      Connect
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowLiveChatEntry(false); setShowContactCta(true); }}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {isLiveChat && (
+                <div className="max-w-[98%] rounded-2xl border border-emerald-200 bg-white p-3 shadow-sm space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_3px_rgba(52,211,153,0.3)]" />
+                      <p className="text-xs font-semibold text-slate-700">
+                        {liveSession?.status === 'active' ? `Live chat — ${liveSession.assigned_executive || 'Support Team'}` : 'Waiting for a live agent...'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={stopLiveChat}
+                      className="text-slate-400 hover:text-slate-700"
+                      title="End live chat"
+                    >
+                      <FiX size={13} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-1.5 max-h-44 overflow-y-auto pr-0.5" ref={liveMessagesEndRef}>
+                    {liveMessages.map((msg) => (
+                      <div
+                        key={msg.id}
+                        className={`rounded-xl px-2.5 py-1.5 text-xs max-w-[88%] ${
+                          msg.sender === 'customer'
+                            ? 'ml-auto bg-slate-900 text-white'
+                            : 'bg-emerald-50 border border-emerald-100 text-slate-800'
+                        }`}
+                      >
+                        {msg.sender === 'executive' && (
+                          <p className="text-[9px] uppercase tracking-wider text-emerald-600 mb-0.5">{msg.executive_name || 'Support Team'}</p>
+                        )}
+                        <p className="whitespace-pre-wrap leading-snug">{msg.message}</p>
+                      </div>
+                    ))}
+                    {liveMessages.length === 0 && (
+                      <p className="text-xs text-slate-400 text-center py-2">A live agent will respond shortly.</p>
+                    )}
+                  </div>
+
+                  <div className="flex gap-1.5 pt-1">
+                    <input
+                      value={liveInput}
+                      onChange={(e) => setLiveInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); sendLiveMessage(); } }}
+                      placeholder="Type a message..."
+                      className="flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-300"
+                    />
+                    <button
+                      type="button"
+                      onClick={sendLiveMessage}
+                      disabled={liveSending || !liveInput.trim()}
+                      className="h-7 w-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center disabled:opacity-50"
+                    >
+                      <FiSend size={11} />
+                    </button>
+                  </div>
                 </div>
               )}
 
               {isStreamingResponse && (
                 <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words bg-white text-slate-800 border border-slate-200">
-                  <TypingDots />
+                  {liveResponse || 'Generating response...'}
                 </div>
               )}
+
+              {showContactForm && (
+                <form onSubmit={submitLead} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
+                  <p className="text-xs font-semibold text-slate-700">Sales contact form</p>
+                  <input value={leadForm.name} onChange={(e) => setLeadForm((c) => ({ ...c, name: e.target.value }))} required placeholder="Name" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
+                  <input type="email" value={leadForm.email} onChange={(e) => setLeadForm((c) => ({ ...c, email: e.target.value }))} required placeholder="Email" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
+                  <input value={leadForm.subject} onChange={(e) => setLeadForm((c) => ({ ...c, subject: e.target.value }))} required placeholder="Subject" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
+                  <textarea value={leadForm.message} onChange={(e) => setLeadForm((c) => ({ ...c, message: e.target.value }))} required placeholder="How can our team help you?" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500 min-h-20" />
+                  {leadError && <p className="text-xs text-red-600">{leadError}</p>}
+                  <button type="submit" disabled={leadStatus === 'submitting'} className="w-full rounded-lg bg-slate-900 text-white py-2 text-sm disabled:opacity-60">
+                    {leadStatus === 'submitting' ? 'Submitting...' : 'Submit form'}
+                  </button>
+                </form>
+              )}
+
+              {showJobForm && (
+                <form onSubmit={submitJobEnquiry} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
+                  <p className="text-xs font-semibold text-slate-700">Job enquiry form</p>
+                  <input value={jobForm.name} onChange={(e) => setJobForm((c) => ({ ...c, name: e.target.value }))} required placeholder="Name" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
+                  <input type="email" value={jobForm.email} onChange={(e) => setJobForm((c) => ({ ...c, email: e.target.value }))} required placeholder="Email" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
+                  <input value={jobForm.role} onChange={(e) => setJobForm((c) => ({ ...c, role: e.target.value }))} required placeholder="Role you're applying for" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500" />
+                  <textarea value={jobForm.message} onChange={(e) => setJobForm((c) => ({ ...c, message: e.target.value }))} required placeholder="Tell us about your profile" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-black placeholder:text-slate-500 min-h-20" />
+                  {leadError && <p className="text-xs text-red-600">{leadError}</p>}
+                  <button type="submit" disabled={leadStatus === 'submitting'} className="w-full rounded-lg bg-slate-900 text-white py-2 text-sm disabled:opacity-60">
+                    {leadStatus === 'submitting' ? 'Submitting...' : 'Submit form'}
+                  </button>
+                </form>
+              )}
+
+              {busy && <div className="text-xs text-slate-500">{isStreamingResponse ? 'Generating response in real time...' : 'Generating response...'}</div>}
             </div>
 
             <div className="p-3 border-t border-slate-200 bg-white flex items-center gap-2">
@@ -1163,155 +1003,20 @@ const ChatWidget = ({ brand }) => {
                     {busy ? <FiSquare size={14} /> : <FiSend size={16} />}
                   </button>
                 </div>
-                <p className="text-[11px] text-slate-500 px-1">Responses are AI-generated and may be imperfect.</p>
+                <div className="flex items-center gap-2 px-1">
+                <p className="text-[11px] text-slate-500 flex-1">Responses are AI-generated and may be imperfect.</p>
+                {!isLiveChat && !showLiveChatEntry && (
+                  <button
+                    type="button"
+                    onClick={() => openLiveChatPopup()}
+                    className="text-[10px] text-emerald-600 hover:text-emerald-800 shrink-0 font-medium"
+                  >
+                    Talk to a person
+                  </button>
+                )}
+              </div>
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showLiveSupportModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[160] bg-slate-950/70 p-3 md:p-8"
-          >
-            <motion.div
-              initial={{ y: 18, opacity: 0.9 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 18, opacity: 0.9 }}
-              className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/15 bg-white shadow-2xl"
-            >
-              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-xl font-semibold text-slate-900">Live customer support</h3>
-                    <button
-                      ref={supportInfoButtonRef}
-                      type="button"
-                      onClick={() => setShowSupportInfo((current) => !current)}
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100"
-                      aria-label="Support conversation info"
-                    >
-                      <FiInfo size={14} />
-                    </button>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { setShowLiveSupportModal(false); setShowSupportInfo(false); }}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100"
-                  aria-label="Close live support chat"
-                >
-                  <FiX size={18} />
-                </button>
-              </div>
-              {showSupportInfo && (
-                <div ref={supportInfoRef} className="mx-5 mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="break-all">Conversation ID: <span className="font-semibold">{supportConversationId || 'Not created yet'}</span></p>
-                    <button
-                      type="button"
-                      onClick={copySupportConversationId}
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-300 text-slate-600 hover:bg-white"
-                      aria-label="Copy support conversation ID"
-                    >
-                      {copiedSupportConversationId ? <FiCheck size={13} /> : <FiCopy size={13} />}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {!supportConversationId ? (
-                <div className="mx-auto my-auto w-full max-w-xl space-y-3 px-4 py-8">
-                  <p className="text-sm text-slate-700">Provide your name and email to start, or enter an existing conversation ID to continue.</p>
-                  <input
-                    value={supportCustomer.name}
-                    onChange={(event) => setSupportCustomer((current) => ({ ...current, name: event.target.value }))}
-                    placeholder="Your name *"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                    required
-                  />
-                  <input
-                    type="email"
-                    value={supportCustomer.email}
-                    onChange={(event) => setSupportCustomer((current) => ({ ...current, email: event.target.value }))}
-                    placeholder="Your email *"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                    required
-                  />
-                  <input
-                    value={supportConversationInput}
-                    onChange={(event) => setSupportConversationInput(event.target.value)}
-                    placeholder="Existing conversation ID (optional)"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  />
-                  {supportError && <p className="text-sm text-red-600">{supportError}</p>}
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={createLiveSupportConversation}
-                      disabled={supportBusy}
-                      className="w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60"
-                    >
-                      {supportBusy ? 'Connecting…' : 'Start new chat'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={loadExistingSupportConversation}
-                      disabled={supportBusy || !supportConversationInput.trim()}
-                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 disabled:opacity-60"
-                    >
-                      Continue chat
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div ref={supportScrollRef} className="flex-1 space-y-3 overflow-y-auto bg-slate-50 px-4 py-4">
-                    {supportMessages.map((item) => (
-                      <div
-                        key={item.id}
-                        className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
-                          item.sender_role === 'customer' ? 'ml-auto bg-slate-900 text-white' : 'bg-white text-slate-800 border border-slate-200'
-                        }`}
-                      >
-                        <p className="whitespace-pre-wrap break-words">{item.message}</p>
-                        <p className="mt-1 text-[10px] uppercase tracking-wide opacity-60">{item.sender_role}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="border-t border-slate-200 p-3">
-                    <div className="mb-2 text-[11px] text-slate-500">Conversation ID: {supportConversationId}</div>
-                    {supportError && <p className="mb-2 text-xs text-red-600">{supportError}</p>}
-                    <div className="flex items-center gap-2">
-                      <input
-                        value={supportInput}
-                        onChange={(event) => setSupportInput(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault();
-                            sendLiveSupportMessage();
-                          }
-                        }}
-                        placeholder="Type message for support executive..."
-                        className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                      />
-                      <button
-                        type="button"
-                        onClick={sendLiveSupportMessage}
-                        disabled={!supportInput.trim() || supportBusy}
-                        className="h-10 w-10 rounded-xl bg-slate-900 text-white disabled:opacity-50"
-                      >
-                        <FiSend size={15} className="mx-auto" />
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
