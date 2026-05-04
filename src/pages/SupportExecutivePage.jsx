@@ -504,6 +504,30 @@ export default function SupportExecutivePage() {
     return () => clearInterval(id);
   }, [selectedId, executive, callState]);
 
+
+  /* ── Tear down call UI when customer hangs up ────────────────────────── */
+  useEffect(() => {
+    if (!selectedId || !executive || !callState) return;
+    const poll = async () => {
+      try {
+        const d = await fetchJson(`/api/voice-room?conversationId=${encodeURIComponent(selectedId)}`);
+        const room = d.room;
+        if (!room || room.status === 'ended') {
+          if (pollRoomRef.current) { clearInterval(pollRoomRef.current); pollRoomRef.current = null; }
+          stopTranscription();
+          if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
+          localStream.current?.getTracks().forEach(t => t.stop());
+          localStream.current = null;
+          setCallState(null);
+          setCallRoomId(null);
+          setMuted(false);
+        }
+      } catch { /* ignore */ }
+    };
+    const id = setInterval(poll, 500);
+    return () => clearInterval(id);
+  }, [selectedId, executive, callState, stopTranscription]);
+
   /* ── Send reply ──────────────────────────────────────────────────────── */
   const sendReply = async () => {
     if (!reply.trim() || sending || !selectedId) return;

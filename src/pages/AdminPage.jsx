@@ -1673,7 +1673,8 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                       <p>Once activated they can log in at <span className="text-cyan-300">/support-executive</span>.</p>
                     </div>
                   </div>
-                
+                </div>
+
                 {/* Activity Logs Section */}
                 {selectedExecId && (
                   <div className="rounded-[1.75rem] border border-white/10 bg-white/5 overflow-hidden mt-6">
