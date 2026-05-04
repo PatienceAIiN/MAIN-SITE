@@ -54,15 +54,24 @@ const notifyExecutives = async (conversationId, customerEmail, customerName) => 
   }
 };
 
-const ensureSession = async (conversationId, customerEmail, customerName) => {
+const ensureSession = async (conversationId, customerEmail, customerName, sender) => {
   await queryDb(
     `INSERT INTO ${SESSIONS_TABLE} (conversation_id, customer_email, customer_name, status, created_at, updated_at)
      VALUES ($1,$2,$3,'waiting',NOW(),NOW())
      ON CONFLICT (conversation_id) DO UPDATE SET
        customer_email=COALESCE(EXCLUDED.customer_email, ${SESSIONS_TABLE}.customer_email),
        customer_name=COALESCE(EXCLUDED.customer_name, ${SESSIONS_TABLE}.customer_name),
+       status = CASE
+         WHEN $4 = 'customer' AND ${SESSIONS_TABLE}.status = 'closed' THEN 'waiting'
+         WHEN $4 = 'customer' AND ${SESSIONS_TABLE}.status = 'ended' THEN 'waiting'
+         ELSE ${SESSIONS_TABLE}.status
+       END,
+       assigned_executive = CASE
+         WHEN $4 = 'customer' AND ${SESSIONS_TABLE}.status IN ('closed', 'ended') THEN NULL
+         ELSE ${SESSIONS_TABLE}.assigned_executive
+       END,
        updated_at=NOW()`,
-    [conversationId, customerEmail || null, customerName || null]
+    [conversationId, customerEmail || null, customerName || null, sender || null]
   );
 };
 
@@ -141,7 +150,7 @@ export default async function handler(req, res) {
       );
       const firstMessage = isNew.length === 0;
 
-      await ensureSession(conversationId, customerEmail || null, customerName || null);
+      await ensureSession(conversationId, customerEmail || null, customerName || null, sender);
       const rows = await queryDb(
         `INSERT INTO ${CHATS_TABLE} (conversation_id, customer_email, sender, message, executive_name, created_at)
          VALUES ($1,$2,$3,$4,$5,NOW()) RETURNING *`,
@@ -155,9 +164,10 @@ export default async function handler(req, res) {
           [exec?.name || executiveName || 'Support Team', conversationId]
         );
       } else {
+        const sessionState = await queryDb(`SELECT status FROM ${SESSIONS_TABLE} WHERE conversation_id=$1 LIMIT 1`, [conversationId]);
         await queryDb(`UPDATE ${SESSIONS_TABLE} SET updated_at=NOW() WHERE conversation_id=$1`, [conversationId]);
-        // Notify executives only on the very first customer message
-        if (firstMessage) {
+        // Notify executives on first customer message and when customer re-opens an old closed/ended chat.
+        if (firstMessage || ['waiting'].includes(sessionState[0]?.status)) {
           notifyExecutives(conversationId, customerEmail || null, customerName || null); // fire-and-forget
         }
       }
