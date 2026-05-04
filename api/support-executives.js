@@ -60,7 +60,7 @@ const isAllowedExecutiveEmail = (email) => {
   });
 };
 
-const sendInviteEmail = async (email, name, token) => {
+const sendCredentialsEmail = async (email, name, password) => {
   const host = process.env.SMTP_HOST || 'smtpout.secureserver.net';
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
@@ -83,23 +83,23 @@ const sendInviteEmail = async (email, name, token) => {
     tls: { rejectUnauthorized: false } // GoDaddy certs sometimes chain-fail in prod
   });
 
-  const link = `${getSiteBase()}/support-executive?invite=${token}`;
-  const fromName = process.env.SMTP_SENDER_NAME || 'Patience AI';
+    const fromName = process.env.SMTP_SENDER_NAME || 'Patience AI';
   const fromAddress = process.env.SMTP_FROM || user;
 
   const sendPromise = transporter.sendMail({
     from: `"${fromName}" <${fromAddress}>`,
     envelope: { from: user, to: email },
     to: email,
-    subject: `You're invited as a Support Executive — Patience AI`,
+    subject: `Support Executive Login Credentials — Patience AI`,
     html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px">
       <h2 style="color:#0f172a">Welcome, ${name}!</h2>
       <p style="color:#475569">You've been added as a <strong>Support Executive</strong> for Patience AI Live Support.</p>
-      <p style="color:#475569">Click the button below to set your password and activate your account. This link expires in ${TTL_HOURS} hours.</p>
-      <a href="${link}" style="display:inline-block;margin:24px 0;padding:12px 28px;background:#0f172a;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Set Password &amp; Activate</a>
-      <p style="color:#94a3b8;font-size:12px">If you didn't expect this, ignore this email.</p>
+      <p style="color:#475569">Use the credentials below to sign in instantly.</p>
+      <p style="color:#0f172a"><strong>Email:</strong> ${email}<br/><strong>Password:</strong> ${password}</p>
+      <a href="${getSiteBase()}/support-executive" style="display:inline-block;margin:24px 0;padding:12px 28px;background:#0f172a;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Open Support Executive Login</a>
+      <p style="color:#94a3b8;font-size:12px">For security, please change this password after first login.</p>
     </div>`,
-    text: `Welcome ${name}!\n\nYou've been invited as a Support Executive.\n\nSet your password here:\n${link}\n\nThis link expires in ${TTL_HOURS} hours.`
+    text: `Welcome ${name}!\n\nYou have been added as a Support Executive.\n\nLogin URL: ${getSiteBase()}/support-executive\nEmail: ${email}\nPassword: ${password}\n\nPlease change your password after first login.`
   });
   await Promise.race([
     sendPromise,
@@ -285,66 +285,52 @@ export default async function handler(req, res) {
     }
   }
 
-  // POST — invite a new executive (or re-invite)
+  // POST — create/update executive credentials and optionally send credentials email
   if (req.method === 'POST') {
-    const { email, name, activateImmediately = false } = req.body || {};
-    if (!email || !name) return res.status(400).json({ error: 'email and name required' });
+    const { email, name, password, sendMail = false } = req.body || {};
+    if (!email || !name || !password) return res.status(400).json({ error: 'email, name and password required' });
+    if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
     const normalizedEmail = String(email).trim().toLowerCase();
-
-    // Validate allowed executive email(s): domains or exact addresses from SUPPORT_EXEC_ALLOWED_DOMAINS
     if (!isAllowedExecutiveEmail(normalizedEmail)) {
-      return res.status(400).json({ error: 'Email is not allowed for support executive invites' });
+      return res.status(400).json({ error: 'Email is not allowed for support executive accounts' });
     }
-    
-    const inviteToken = crypto.randomBytes(24).toString('hex');
-    const expiresAt = new Date(Date.now() + TTL_HOURS * 3600 * 1000).toISOString();
-    
-    // Generate random human-readable password if activating immediately
-    const dogWords = ['puppy', 'doggo', 'pupper', 'woof', 'bark', 'fetch', 'treat', 'bone', 'leash', 'collar'];
-    const foodWords = ['pizza', 'burger', 'taco', 'pasta', 'salad', 'soup', 'bread', 'cheese', 'apple', 'banana'];
-    const randomPassword = activateImmediately 
-      ? `${dogWords[Math.floor(Math.random() * dogWords.length)]}${foodWords[Math.floor(Math.random() * foodWords.length)]}${Math.floor(Math.random() * 100)}`
-      : crypto.randomBytes(16).toString('hex');
-    
-    const { salt, hash } = hashPassword(randomPassword);
+
+    const { salt, hash } = hashPassword(password);
     try {
-      const existing = await queryDb(`SELECT id, status FROM ${TABLE} WHERE email=$1 LIMIT 1`, [normalizedEmail]);
+      const existing = await queryDb(`SELECT id FROM ${TABLE} WHERE email=$1 LIMIT 1`, [normalizedEmail]);
       let exec;
       if (existing.length > 0) {
-        // re-invite or activate
         const rows = await queryDb(
-          `UPDATE ${TABLE} SET name=$1, invite_token=$2, invite_expires_at=$3, status=$4, 
-           password_salt=$5, password_hash=$6, updated_at=NOW()
-           WHERE email=$7 RETURNING *`,
-          [name, inviteToken, expiresAt, activateImmediately ? 'active' : 'invited', salt, hash, normalizedEmail]
+          `UPDATE ${TABLE} SET name=$1, password_salt=$2, password_hash=$3, status='active', invite_token=NULL,
+           invite_expires_at=NULL, updated_at=NOW() WHERE email=$4 RETURNING *`,
+          [name, salt, hash, normalizedEmail]
         );
         exec = rows[0];
       } else {
         const rows = await queryDb(
-          `INSERT INTO ${TABLE} (email, name, password_salt, password_hash, status, invite_token, invite_expires_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-          [normalizedEmail, name, salt, hash, activateImmediately ? 'active' : 'invited', inviteToken, expiresAt]
+          `INSERT INTO ${TABLE} (email, name, password_salt, password_hash, status)
+           VALUES ($1,$2,$3,$4,'active') RETURNING *`,
+          [normalizedEmail, name, salt, hash]
         );
         exec = rows[0];
       }
-      
+
       let emailError = null;
-      if (!activateImmediately) {
-        try { 
-          await sendInviteEmail(normalizedEmail, name, inviteToken); 
+      if (sendMail) {
+        try {
+          await sendCredentialsEmail(normalizedEmail, name, password);
         } catch (e) {
           emailError = e.message;
-          console.error('[invite] email send failed:', e.message);
+          console.error('[credentials] email send failed:', e.message);
         }
       }
-      
+
       return res.status(200).json({
         ok: true,
         executive: { id: exec.id, email: exec.email, name: exec.name, status: exec.status },
-        emailSent: !emailError && !activateImmediately,
-        emailError: emailError || undefined,
-        generatedPassword: activateImmediately ? randomPassword : undefined
+        emailSent: sendMail ? !emailError : false,
+        emailError: emailError || undefined
       });
     } catch (err) {
       return res.status(500).json({ error: err.message });

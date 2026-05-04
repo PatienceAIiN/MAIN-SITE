@@ -94,9 +94,9 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [executives, setExecutives]             = useState([]);
   const [execLoading, setExecLoading]           = useState(false);
   const [execError, setExecError]               = useState('');
-  const [execInviteForm, setExecInviteForm]     = useState({ name: '', email: '' });
-  const [execInviteSending, setExecInviteSending] = useState(false);
-  const [execInviteSuccess, setExecInviteSuccess] = useState('');
+  const [execCredentialForm, setExecCredentialForm] = useState({ name: '', email: '', password: '' });
+  const [execCredentialSaving, setExecCredentialSaving] = useState(false);
+  const [execActionSuccess, setExecActionSuccess] = useState('');
   const [activityLogs, setActivityLogs]         = useState([]);
   const [activityLoading, setActivityLoading]   = useState(false);
   const [selectedExecId, setSelectedExecId]     = useState(null);
@@ -236,31 +236,39 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
     finally { setExecLoading(false); }
   };
 
-  const inviteExecutive = async (e) => {
+  const saveExecutiveCredentials = async (e) => {
     e.preventDefault();
-    setExecInviteSending(true); setExecError(''); setExecInviteSuccess('');
-    const controller = new AbortController();
-    // Keep this above SMTP timeout on the API (30s) so client doesn't abort first.
-    const timer = window.setTimeout(() => controller.abort(), 45000);
+    setExecCredentialSaving(true); setExecError(''); setExecActionSuccess('');
+    try {
+      await fetchJson('/api/support-executives', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...execCredentialForm, sendMail: false })
+      });
+      setExecActionSuccess(`Credentials saved for ${execCredentialForm.email}. Executive can login immediately.`);
+      await loadExecutives();
+    } catch (e) {
+      setExecError(e.message);
+    } finally {
+      setExecCredentialSaving(false);
+    }
+  };
+
+  const sendExecutiveCredentials = async () => {
+    setExecCredentialSaving(true); setExecError(''); setExecActionSuccess('');
     try {
       const data = await fetchJson('/api/support-executives', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify(execInviteForm)
+        body: JSON.stringify({ ...execCredentialForm, sendMail: true })
       });
-      if (data.emailSent === false) {
-        throw new Error(data.emailError || 'Invite created but email was not sent.');
-      }
-      setExecInviteSuccess(`Invite sent to ${execInviteForm.email}`);
-      setExecInviteForm({ name: '', email: '' });
+      if (data.emailSent === false) throw new Error(data.emailError || 'Credentials saved but email not sent');
+      setExecActionSuccess(`Credentials emailed to ${execCredentialForm.email}.`);
       await loadExecutives();
     } catch (e) {
-      setExecError(e.name === 'AbortError' ? 'Invite email timed out. Check SMTP settings and try again.' : e.message);
-    }
-    finally {
-      window.clearTimeout(timer);
-      setExecInviteSending(false);
+      setExecError(e.message);
+    } finally {
+      setExecCredentialSaving(false);
     }
   };
 
@@ -1601,8 +1609,8 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                 {execError && (
                   <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-red-100 text-sm">{execError}</div>
                 )}
-                {execInviteSuccess && (
-                  <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-emerald-100 text-sm">{execInviteSuccess}</div>
+                {execActionSuccess && (
+                  <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-emerald-100 text-sm">{execActionSuccess}</div>
                 )}
 
                 <div className="grid grid-cols-1 xl:grid-cols-[1fr_0.7fr] gap-6">
@@ -1657,29 +1665,39 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
 
                   {/* Invite form */}
                   <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
-                    <h3 className="font-semibold mb-4">Invite executive</h3>
-                    <form onSubmit={inviteExecutive} className="space-y-3">
+                    <h3 className="font-semibold mb-4">Set executive credentials</h3>
+                    <form onSubmit={saveExecutiveCredentials} className="space-y-3">
                       <div>
                         <label className="block text-sm text-white/70 mb-1.5">Name</label>
-                        <input value={execInviteForm.name}
-                          onChange={e => setExecInviteForm(f => ({...f, name: e.target.value}))}
+                        <input value={execCredentialForm.name}
+                          onChange={e => setExecCredentialForm(f => ({...f, name: e.target.value}))}
                           required placeholder="Full name"
                           className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70" />
                       </div>
                       <div>
                         <label className="block text-sm text-white/70 mb-1.5">Email</label>
-                        <input type="email" value={execInviteForm.email}
-                          onChange={e => setExecInviteForm(f => ({...f, email: e.target.value}))}
+                        <input type="email" value={execCredentialForm.email}
+                          onChange={e => setExecCredentialForm(f => ({...f, email: e.target.value}))}
                           required placeholder="email@company.com"
                           className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70" />
                       </div>
-                      <Button variant="white" className="rounded-2xl px-5 py-3 w-full gap-2" disabled={execInviteSending}>
-                        {execInviteSending ? 'Sending invite…' : 'Send invite email'}
+                      <div>
+                        <label className="block text-sm text-white/70 mb-1.5">Password</label>
+                        <input type="text" value={execCredentialForm.password}
+                          onChange={e => setExecCredentialForm(f => ({...f, password: e.target.value}))}
+                          required minLength={8} placeholder="Set login password"
+                          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70" />
+                      </div>
+                      <Button variant="white" className="rounded-2xl px-5 py-3 w-full gap-2" disabled={execCredentialSaving}>
+                        {execCredentialSaving ? 'Saving…' : 'Save & activate now'}
+                      </Button>
+                      <Button type="button" variant="secondary" className="rounded-2xl px-5 py-3 w-full gap-2" disabled={execCredentialSaving} onClick={sendExecutiveCredentials}>
+                        {execCredentialSaving ? 'Sending…' : 'Send credentials email'}
                       </Button>
                     </form>
                     <div className="mt-4 rounded-xl bg-slate-900/60 border border-white/10 p-4 text-xs text-white/50 space-y-1">
-                      <p>The executive will receive an email with a link to set their password.</p>
-                      <p>Once activated they can log in at <span className="text-cyan-300">/support-executive</span>.</p>
+                      <p>Admin sets name, email, and password. Save activates instantly.</p>
+                      <p>Use "Send credentials email" to send login email via configured GoDaddy SMTP.</p>
                     </div>
                   </div>
                 </div>
