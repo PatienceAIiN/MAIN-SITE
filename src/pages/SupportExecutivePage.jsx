@@ -9,6 +9,13 @@ import { fetchJson } from '../common/fetchJson';
 
 const fmt = (v) => v ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(v)) : '—';
 const PAGE_SIZE = 10;
+const formatCustomerIdentity = (session) => {
+  if (!session) return 'Anonymous customer';
+  const name = session.customer_name?.trim();
+  const email = session.customer_email?.trim();
+  if (name && email) return `${name} (${email})`;
+  return name || email || 'Anonymous customer';
+};
 
 const getIceServers = async () => {
   try {
@@ -782,7 +789,7 @@ export default function SupportExecutivePage() {
         {callState && (
           <CallingScreen
             state={callState}
-            peerName={selectedSession?.customer_name || selectedSession?.customer_email || selectedId || 'Customer'}
+            peerName={formatCustomerIdentity(selectedSession) || selectedId || 'Customer'}
             muted={muted}
             speakerOn={speakerOn}
             screenOff={screenOff}
@@ -875,7 +882,7 @@ export default function SupportExecutivePage() {
                 </div>
                 <p className="text-xs font-mono font-medium truncate">{s.conversation_id}</p>
                 <p className={`text-xs truncate mt-0.5 ${selectedId === s.conversation_id ? 'text-white/60' : 'text-slate-500'}`}>
-                  {s.customer_name || s.customer_email || 'Anonymous'}
+                  {formatCustomerIdentity(s)}
                 </p>
                 {s.assigned_executive && (
                   <p className={`text-[10px] mt-0.5 flex items-center gap-1 ${selectedId === s.conversation_id ? 'text-emerald-300' : 'text-emerald-600'}`}>
@@ -912,7 +919,7 @@ export default function SupportExecutivePage() {
               <div className="border-b border-slate-200 px-6 py-3 flex items-center justify-between bg-white shrink-0">
                 <div className="min-w-0">
                   <p className="font-semibold text-slate-900 text-sm font-mono truncate">{selectedId}</p>
-                  <p className="text-xs text-slate-500 truncate">{selectedSession?.customer_name || selectedSession?.customer_email || 'Anonymous customer'}</p>
+                  <p className="text-xs text-slate-500 truncate">{formatCustomerIdentity(selectedSession)}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {!callState && (

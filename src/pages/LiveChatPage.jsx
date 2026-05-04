@@ -307,6 +307,18 @@ export default function LiveChatPage() {
     speechRef.current = null;
   }, []);
 
+  const clearVoiceCallUi = useCallback(() => {
+    if (pollCallRef.current) { clearInterval(pollCallRef.current); pollCallRef.current = null; }
+    stopTranscription();
+    if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
+    localStream.current?.getTracks().forEach(t => t.stop());
+    localStream.current = null;
+    setCallState(null);
+    setCallRoomId(null);
+    setMuted(false);
+    setScreenOff(false);
+  }, [stopTranscription]);
+
   const startTranscription = useCallback((roomId, side = 'customer') => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!roomId || !SpeechRecognition) return;
@@ -341,17 +353,31 @@ export default function LiveChatPage() {
 
   /* ── WebRTC helpers ───────────────────────────────────────────────────── */
   const stopVoiceCall = useCallback(async (rid) => {
-    if (pollCallRef.current) { clearInterval(pollCallRef.current); pollCallRef.current = null; }
-    stopTranscription();
-    if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
-    localStream.current?.getTracks().forEach(t => t.stop());
-    localStream.current = null;
+    clearVoiceCallUi();
     const r = rid || callRoomIdRef.current;
     if (r) await fetchJson('/api/voice-room', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'end', roomId: r }) }).catch(() => {});
-    setCallState(null); setCallRoomId(null); setMuted(false);
     fetchMessages(conversationId, email);
-  }, [conversationId, email, fetchMessages, stopTranscription]);
+  }, [clearVoiceCallUi, conversationId, email, fetchMessages]);
+
+  useEffect(() => {
+    if (!conversationId || !callState) return;
+    const pollRemoteEnd = async () => {
+      const rid = callRoomIdRef.current;
+      if (!rid) return;
+      try {
+        const d = await fetchJson(`/api/voice-room?roomId=${encodeURIComponent(rid)}`);
+        if (!d.room || d.room.status === 'ended') {
+          clearVoiceCallUi();
+          fetchMessages(conversationId, email);
+        }
+      } catch {
+        /* ignore polling errors */
+      }
+    };
+    const timer = window.setInterval(pollRemoteEnd, 350);
+    return () => window.clearInterval(timer);
+  }, [callState, clearVoiceCallUi, conversationId, email, fetchMessages]);
 
   /* ── Customer initiates voice call ───────────────────────────────────── */
   const startVoiceCall = async () => {
