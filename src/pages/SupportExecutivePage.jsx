@@ -875,9 +875,28 @@ export default function SupportExecutivePage() {
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
                     s.status === 'waiting'
                       ? selectedId === s.conversation_id ? 'bg-amber-400/30 text-amber-200' : 'bg-amber-100 text-amber-700'
-                      : selectedId === s.conversation_id ? 'bg-emerald-400/30 text-emerald-200' : 'bg-emerald-100 text-emerald-700'
-                  }`}>{s.status}</span>
-                  <span className={`text-[10px] ${selectedId === s.conversation_id ? 'text-white/40' : 'text-slate-400'}`}>{fmt(s.updated_at)}</span>
+                      : (s.status === 'open' || s.status === 'active')
+                        ? selectedId === s.conversation_id ? 'bg-emerald-400/30 text-emerald-200' : 'bg-emerald-100 text-emerald-700'
+                        : selectedId === s.conversation_id ? 'bg-slate-500/30 text-slate-200' : 'bg-slate-100 text-slate-600'
+                  }`}>{s.status === 'active' ? 'open' : s.status}</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const next = ['closed', 'ended'].includes(s.status) ? 'open' : 'closed';
+                        setSessionStatus(s.conversation_id, next);
+                      }}
+                      className={`text-[10px] px-1.5 py-0.5 rounded-full border transition-colors ${
+                        ['closed', 'ended'].includes(s.status)
+                          ? (selectedId === s.conversation_id ? 'border-emerald-300 text-emerald-200' : 'border-emerald-300 text-emerald-700 bg-emerald-50')
+                          : (selectedId === s.conversation_id ? 'border-slate-300 text-slate-200' : 'border-slate-300 text-slate-600 bg-white')
+                      }`}
+                    >
+                      {['closed', 'ended'].includes(s.status) ? 'Open' : 'Close'}
+                    </button>
+                    <span className={`text-[10px] ${selectedId === s.conversation_id ? 'text-white/40' : 'text-slate-400'}`}>{fmt(s.updated_at)}</span>
+                  </div>
                 </div>
                 <p className="text-xs font-mono font-medium truncate">{s.conversation_id}</p>
                 <p className={`text-xs truncate mt-0.5 ${selectedId === s.conversation_id ? 'text-white/60' : 'text-slate-500'}`}>
