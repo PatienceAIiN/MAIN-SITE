@@ -228,10 +228,13 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const inviteExecutive = async (e) => {
     e.preventDefault();
     setExecInviteSending(true); setExecError(''); setExecInviteSuccess('');
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 18000);
     try {
       const data = await fetchJson('/api/support-executives', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify(execInviteForm)
       });
       if (data.emailSent === false) {
@@ -240,8 +243,13 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       setExecInviteSuccess(`Invite sent to ${execInviteForm.email}`);
       setExecInviteForm({ name: '', email: '' });
       await loadExecutives();
-    } catch (e) { setExecError(e.message); }
-    finally { setExecInviteSending(false); }
+    } catch (e) {
+      setExecError(e.name === 'AbortError' ? 'Invite email timed out. Check SMTP settings and try again.' : e.message);
+    }
+    finally {
+      window.clearTimeout(timer);
+      setExecInviteSending(false);
+    }
   };
 
   const updateExecStatus = async (id, status) => {
@@ -1440,7 +1448,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                                 {session.status}
                               </span>
                             </div>
-                            <p className="text-xs text-white/50">{session.customer_email || 'No email'}</p>
+                            <p className="text-xs text-white/50">{session.customer_name || session.customer_email || 'Anonymous customer'}</p>
                             {session.assigned_executive && (
                               <p className="text-xs text-cyan-300/70 mt-0.5">Assigned: {session.assigned_executive}</p>
                             )}
@@ -1470,7 +1478,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                             <div className="flex items-center justify-between gap-3">
                               <div>
                                 <h3 className="font-semibold text-base">{selectedSupportId}</h3>
-                                <p className="text-xs text-white/50">{session?.customer_email || 'No email'}</p>
+                                <p className="text-xs text-white/50">{session?.customer_name || session?.customer_email || 'No name'}</p>
                               </div>
                               <div className="flex gap-2">
                                 <Button
@@ -1509,14 +1517,14 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                           {supportMessages.map((msg) => (
                             <div
                               key={msg.id}
-                              className={`rounded-xl px-3 py-2.5 text-sm max-w-[88%] ${
-                                msg.sender === 'executive'
+                              className={`rounded-xl px-3 py-2.5 text-sm ${msg.sender === 'system' ? 'mx-auto max-w-[92%] text-center bg-amber-50 border border-amber-200 text-amber-800' : 'max-w-[88%]'} ${
+                                msg.sender === 'system' ? '' : msg.sender === 'executive'
                                   ? 'ml-auto bg-cyan-300/15 border border-cyan-300/20 text-white'
                                   : 'bg-white/5 border border-white/10 text-white/85'
                               }`}
                             >
                               <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1">
-                                {msg.sender === 'executive' ? (msg.executive_name || 'Support Team') : 'Customer'} • {formatDate(msg.created_at)}
+                                {msg.sender === 'system' ? 'Call event' : msg.sender === 'executive' ? (msg.executive_name || 'Support Team') : 'Customer'} • {formatDate(msg.created_at)}
                               </p>
                               <p className="whitespace-pre-wrap leading-snug">{msg.message}</p>
                             </div>

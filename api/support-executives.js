@@ -6,6 +6,7 @@ import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, hashPassword, 
 
 const TABLE = 'support_executives';
 const TTL_HOURS = 72;
+const SMTP_TIMEOUT_MS = 12000;
 
 const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
 
@@ -29,6 +30,9 @@ const sendInviteEmail = async (email, name, token) => {
   const transporter = nodemailer.createTransport({
     host, port, secure,
     auth: { user, pass },
+    connectionTimeout: SMTP_TIMEOUT_MS,
+    greetingTimeout: SMTP_TIMEOUT_MS,
+    socketTimeout: SMTP_TIMEOUT_MS,
     tls: { rejectUnauthorized: false } // GoDaddy certs sometimes chain-fail in prod
   });
 
@@ -38,6 +42,7 @@ const sendInviteEmail = async (email, name, token) => {
 
   await transporter.sendMail({
     from: `"${fromName}" <${fromAddress}>`,
+    envelope: { from: user, to: email },
     to: email,
     subject: `You're invited as a Support Executive — Patience AI`,
     html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px">

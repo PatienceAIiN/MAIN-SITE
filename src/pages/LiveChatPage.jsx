@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiSend, FiPhone, FiPhoneOff, FiPhoneIncoming, FiMic, FiMicOff, FiX, FiCopy, FiCheck } from 'react-icons/fi';
+import { FiSend, FiPhone, FiPhoneOff, FiPhoneIncoming, FiMic, FiMicOff, FiX, FiCopy, FiCheck, FiVolume2, FiSmartphone } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 
 const fmt = (v) => v ? new Intl.DateTimeFormat('en-US', { timeStyle: 'short' }).format(new Date(v)) : '';
@@ -12,6 +12,61 @@ const getIceServers = async () => {
   } catch {
     return [{ urls: 'stun:stun.l.google.com:19302' }];
   }
+};
+
+const AUDIO_CONSTRAINTS = {
+  audio: {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+    channelCount: 1,
+    sampleRate: 48000,
+    sampleSize: 16
+  }
+};
+
+const createPeerConnection = (iceServers) => new RTCPeerConnection({
+  iceServers,
+  bundlePolicy: 'max-bundle',
+  rtcpMuxPolicy: 'require'
+});
+
+const tuneAudioSender = (sender) => {
+  const params = sender.getParameters?.();
+  if (!params?.encodings?.length) return;
+  params.encodings[0].maxBitrate = 32000;
+  params.encodings[0].priority = 'high';
+  sender.setParameters(params).catch(() => {});
+};
+
+const startDialTone = (ref) => {
+  if (ref.current || typeof window === 'undefined') return;
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return;
+  try {
+    const ctx = new AudioContext();
+    const gain = ctx.createGain();
+    gain.gain.value = 0.045;
+    gain.connect(ctx.destination);
+    const play = () => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = 440;
+      osc.connect(gain);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.42);
+    };
+    play();
+    const timer = window.setInterval(play, 1150);
+    ref.current = { ctx, timer };
+  } catch { /* ignore */ }
+};
+
+const stopDialTone = (ref) => {
+  if (!ref.current) return;
+  window.clearInterval(ref.current.timer);
+  ref.current.ctx?.close?.().catch(() => {});
+  ref.current = null;
 };
 
 export default function LiveChatPage() {
@@ -52,11 +107,15 @@ export default function LiveChatPage() {
   const [callState, setCallState] = useState(null); // null | 'calling' | 'incoming' | 'active'
   const [callRoomId, setCallRoomId] = useState(null);
   const [muted, setMuted]           = useState(false);
+  const [speakerOn, setSpeakerOn]   = useState(true);
+  const [screenOff, setScreenOff]   = useState(false);
   const pcRef       = useRef(null);
   const localStream = useRef(null);
   const remoteAudio = useRef(null);
   const pollCallRef = useRef(null);
   const callRoomIdRef = useRef(null);
+  const speechRef = useRef(null);
+  const dialToneRef = useRef(null);
 
   callRoomIdRef.current = callRoomId;
 
@@ -77,12 +136,61 @@ export default function LiveChatPage() {
 
   useEffect(() => {
     const newCount = messages.length;
-    if (newCount > prevMsgCount.current) {
-      // New messages arrived — scroll if user is near bottom or if it's own message
+    if (newCount > prevMsgCount.current && isReturning) {
       scrollToBottom(false);
     }
     prevMsgCount.current = newCount;
-  }, [messages, scrollToBottom]);
+  }, [messages, scrollToBottom, isReturning]);
+
+  useEffect(() => {
+    if (callState === 'calling' || callState === 'incoming') {
+      startDialTone(dialToneRef);
+    } else {
+      stopDialTone(dialToneRef);
+    }
+
+    return () => stopDialTone(dialToneRef);
+  }, [callState]);
+
+  useEffect(() => {
+    if (callState !== 'active') {
+      setScreenOff(false);
+      return undefined;
+    }
+
+    if (speakerOn) {
+      setScreenOff(false);
+      return undefined;
+    }
+
+    const ProximitySensor = window.ProximitySensor;
+    if (ProximitySensor) {
+      let sensor;
+      try {
+        sensor = new ProximitySensor({ frequency: 5 });
+        sensor.addEventListener('reading', () => {
+          setScreenOff(Boolean(sensor.distance !== null && sensor.distance <= (sensor.activatedDistance || 5)));
+        });
+        sensor.addEventListener('error', () => setScreenOff(true));
+        sensor.start();
+        return () => sensor.stop();
+      } catch {
+        setScreenOff(true);
+        return undefined;
+      }
+    }
+
+    const onDeviceProximity = (event) => {
+      setScreenOff(Boolean(event?.value !== undefined && event.value <= 1));
+    };
+    if ('ondeviceproximity' in window) {
+      window.addEventListener('deviceproximity', onDeviceProximity);
+      return () => window.removeEventListener('deviceproximity', onDeviceProximity);
+    }
+
+    setScreenOff(true);
+    return undefined;
+  }, [callState, speakerOn]);
 
   /* ── Poll messages ────────────────────────────────────────────────────── */
   const fetchMessages = useCallback(async (convId, cEmail) => {
@@ -116,7 +224,7 @@ export default function LiveChatPage() {
         }
       } catch { /* ignore */ }
     };
-    const id = setInterval(poll, 3000);
+    const id = setInterval(poll, 500);
     return () => clearInterval(id);
   }, [started, conversationId, callState]);
 
@@ -192,9 +300,49 @@ export default function LiveChatPage() {
     setTimeout(() => setCopiedBanner(false), 2000);
   };
 
+  const stopTranscription = useCallback(() => {
+    if (!speechRef.current) return;
+    speechRef.current.active = false;
+    speechRef.current.recognition?.stop?.();
+    speechRef.current = null;
+  }, []);
+
+  const startTranscription = useCallback((roomId, side = 'customer') => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!roomId || !SpeechRecognition) return;
+    stopTranscription();
+    const recognition = new SpeechRecognition();
+    const holder = { active: true, recognition };
+    speechRef.current = holder;
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+    recognition.onresult = (event) => {
+      const text = Array.from(event.results)
+        .slice(event.resultIndex)
+        .map((result) => result[0]?.transcript || '')
+        .join(' ')
+        .trim();
+      if (text) {
+        fetchJson('/api/voice-room', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'transcript', roomId, side, text })
+        }).catch(() => {});
+      }
+    };
+    recognition.onend = () => {
+      if (holder.active) {
+        try { recognition.start?.(); } catch { /* ignore */ }
+      }
+    };
+    try { recognition.start(); } catch { /* ignore */ }
+  }, [stopTranscription]);
+
   /* ── WebRTC helpers ───────────────────────────────────────────────────── */
   const stopVoiceCall = useCallback(async (rid) => {
     if (pollCallRef.current) { clearInterval(pollCallRef.current); pollCallRef.current = null; }
+    stopTranscription();
     if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
     localStream.current?.getTracks().forEach(t => t.stop());
     localStream.current = null;
@@ -202,17 +350,18 @@ export default function LiveChatPage() {
     if (r) await fetchJson('/api/voice-room', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'end', roomId: r }) }).catch(() => {});
     setCallState(null); setCallRoomId(null); setMuted(false);
-  }, []);
+    fetchMessages(conversationId, email);
+  }, [conversationId, email, fetchMessages, stopTranscription]);
 
   /* ── Customer initiates voice call ───────────────────────────────────── */
   const startVoiceCall = async () => {
     try {
       const iceServers = await getIceServers();
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS);
       localStream.current = stream;
-      const pc = new RTCPeerConnection({ iceServers });
+      const pc = createPeerConnection(iceServers);
       pcRef.current = pc;
-      stream.getTracks().forEach(t => pc.addTrack(t, stream));
+      stream.getTracks().forEach(t => tuneAudioSender(pc.addTrack(t, stream)));
       pc.ontrack = (e) => { if (remoteAudio.current) remoteAudio.current.srcObject = e.streams[0]; };
       const pendingCandidates = [];
       let newRoomId = null;
@@ -249,9 +398,10 @@ export default function LiveChatPage() {
               await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
             }
             setCallState('active');
+            startTranscription(newRoomId, 'customer');
           }
         } catch { /* ignore */ }
-      }, 1500);
+      }, 500);
     } catch (e) { console.error('startVoiceCall', e); }
   };
 
@@ -261,11 +411,11 @@ export default function LiveChatPage() {
     if (!rid) return;
     try {
       const iceServers = await getIceServers();
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS);
       localStream.current = stream;
-      const pc = new RTCPeerConnection({ iceServers });
+      const pc = createPeerConnection(iceServers);
       pcRef.current = pc;
-      stream.getTracks().forEach(t => pc.addTrack(t, stream));
+      stream.getTracks().forEach(t => tuneAudioSender(pc.addTrack(t, stream)));
       pc.ontrack = (e) => { if (remoteAudio.current) remoteAudio.current.srcObject = e.streams[0]; };
       pc.onicecandidate = async ({ candidate }) => {
         if (!candidate) return;
@@ -284,6 +434,7 @@ export default function LiveChatPage() {
       await fetchJson('/api/voice-room', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'answer', roomId: rid, answer }) });
       setCallState('active');
+      startTranscription(rid, 'customer');
       pollCallRef.current = setInterval(async () => {
         try {
           const upd = await fetchJson(`/api/voice-room?roomId=${rid}`);
@@ -292,13 +443,21 @@ export default function LiveChatPage() {
             await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
           }
         } catch { /* ignore */ }
-      }, 1500);
+      }, 500);
     } catch (e) { console.error('acceptIncomingCall', e); stopVoiceCall(rid); }
   };
 
   const toggleMute = () => {
     localStream.current?.getAudioTracks().forEach(t => { t.enabled = muted; });
     setMuted(m => !m);
+  };
+
+  const toggleSpeaker = () => {
+    setSpeakerOn((value) => {
+      const next = !value;
+      if (next) setScreenOff(false);
+      return next;
+    });
   };
 
   /* ── Pre-start screen ─────────────────────────────────────────────────── */
@@ -382,6 +541,16 @@ export default function LiveChatPage() {
         {callState && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-slate-900/95 flex flex-col items-center justify-center">
+            {screenOff && callState === 'active' && (
+              <button
+                type="button"
+                onClick={() => setScreenOff(false)}
+                className="absolute inset-0 z-20 bg-black text-white flex flex-col items-center justify-center gap-3"
+              >
+                <FiSmartphone size={28} className="text-white/80" />
+                <span className="text-xs uppercase tracking-[0.3em] text-white/60">Tap to wake</span>
+              </button>
+            )}
             <div className="relative flex items-center justify-center mb-8">
               {[1,2,3].map(i => (
                 <motion.div key={i} className="absolute rounded-full border border-emerald-400/30"
@@ -394,9 +563,10 @@ export default function LiveChatPage() {
               </div>
             </div>
             <p className="text-white/50 text-xs uppercase tracking-widest mb-1">
-              {callState === 'calling' ? 'Calling support…' : callState === 'incoming' ? 'Incoming call' : 'Connected'}
+              {callState === 'calling' ? 'Dialling…' : callState === 'incoming' ? 'Incoming call' : 'Connected'}
             </p>
-            <h2 className="text-xl font-bold text-white mb-8">Support Executive</h2>
+            <h2 className="text-xl font-bold text-white mb-2">{session?.assigned_executive || 'Support Executive'}</h2>
+            <p className="text-white/45 text-xs mb-8">{name || email || conversationId}</p>
             {callState === 'active' && (
               <div className="flex items-end gap-1 h-6 mb-6">
                 {Array.from({length:10}).map((_,i)=>(
@@ -411,6 +581,12 @@ export default function LiveChatPage() {
                 <button onClick={toggleMute}
                   className={`h-12 w-12 rounded-full flex items-center justify-center transition-colors ${muted ? 'bg-red-500/30 border border-red-400 text-red-300' : 'bg-white/10 border border-white/20 text-white'}`}>
                   {muted ? <FiMicOff size={18}/> : <FiMic size={18}/>}
+                </button>
+              )}
+              {callState === 'active' && (
+                <button onClick={toggleSpeaker}
+                  className={`h-12 w-12 rounded-full flex items-center justify-center transition-colors ${speakerOn ? 'bg-white/10 border border-white/20 text-white' : 'bg-slate-700/60 border border-slate-500 text-slate-100'}`}>
+                  {speakerOn ? <FiVolume2 size={18}/> : <FiSmartphone size={18}/>}
                 </button>
               )}
               {callState === 'incoming' && (
@@ -483,19 +659,25 @@ export default function LiveChatPage() {
           </div>
         )}
         {messages.map(msg => (
-          <div key={msg.id}
-            className={`max-w-[82%] rounded-2xl px-3 py-2 text-sm shadow-sm ${
-              msg.sender === 'customer'
-                ? 'ml-auto bg-slate-900 text-white'
-                : 'bg-white border border-slate-200 text-slate-800'
-            }`}
-          >
-            {msg.sender === 'executive' && (
-              <p className="text-[9px] uppercase tracking-wider text-emerald-600 mb-0.5 font-medium">{msg.executive_name || 'Support'}</p>
-            )}
-            <p className="whitespace-pre-wrap leading-snug">{msg.message}</p>
-            <p className={`text-[9px] text-right mt-1 ${msg.sender === 'customer' ? 'text-white/40' : 'text-slate-400'}`}>{fmt(msg.created_at)}</p>
-          </div>
+          msg.sender === 'system' ? (
+            <div key={msg.id} className="mx-auto max-w-[92%] rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-center text-[11px] text-amber-800 shadow-sm">
+              {msg.message} <span className="text-amber-600/70">{fmt(msg.created_at)}</span>
+            </div>
+          ) : (
+            <div key={msg.id}
+              className={`max-w-[82%] rounded-2xl px-3 py-2 text-sm shadow-sm ${
+                msg.sender === 'customer'
+                  ? 'ml-auto bg-slate-900 text-white'
+                  : 'bg-white border border-slate-200 text-slate-800'
+              }`}
+            >
+              {msg.sender === 'executive' && (
+                <p className="text-[9px] uppercase tracking-wider text-emerald-600 mb-0.5 font-medium">{msg.executive_name || 'Support'}</p>
+              )}
+              <p className="whitespace-pre-wrap leading-snug">{msg.message}</p>
+              <p className={`text-[9px] text-right mt-1 ${msg.sender === 'customer' ? 'text-white/40' : 'text-slate-400'}`}>{fmt(msg.created_at)}</p>
+            </div>
+          )
         ))}
         <div ref={endRef} />
       </div>

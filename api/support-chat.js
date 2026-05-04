@@ -14,10 +14,13 @@ const createTransporter = () => nodemailer.createTransport({
   port: parseInt(process.env.SMTP_PORT || '465', 10),
   secure: process.env.SMTP_SECURE !== 'false',
   auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  connectionTimeout: 12000,
+  greetingTimeout: 12000,
+  socketTimeout: 12000,
   tls: { rejectUnauthorized: process.env.NODE_ENV === 'production' }
 });
 
-const notifyExecutives = async (conversationId, customerEmail) => {
+const notifyExecutives = async (conversationId, customerEmail, customerName) => {
   try {
     const execs = await queryDb(
       `SELECT email, name FROM ${EXEC_TABLE} WHERE status='active'`
@@ -39,6 +42,7 @@ const notifyExecutives = async (conversationId, customerEmail) => {
             <p style="color:#475569">A customer is waiting for live support.</p>
             <table style="margin:16px 0;color:#475569">
               <tr><td style="padding:4px 12px 4px 0;font-weight:600">Conversation ID</td><td>${conversationId}</td></tr>
+              ${customerName ? `<tr><td style="padding:4px 12px 4px 0;font-weight:600">Customer name</td><td>${customerName}</td></tr>` : ''}
               ${customerEmail ? `<tr><td style="padding:4px 12px 4px 0;font-weight:600">Customer email</td><td>${customerEmail}</td></tr>` : ''}
             </table>
             <a href="${link}" style="display:inline-block;padding:12px 28px;background:#0f172a;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Open Support Panel</a>
@@ -50,11 +54,15 @@ const notifyExecutives = async (conversationId, customerEmail) => {
   }
 };
 
-const ensureSession = async (conversationId, customerEmail) => {
+const ensureSession = async (conversationId, customerEmail, customerName) => {
   await queryDb(
-    `INSERT INTO ${SESSIONS_TABLE} (conversation_id, customer_email, status, created_at, updated_at)
-     VALUES ($1,$2,'waiting',NOW(),NOW()) ON CONFLICT (conversation_id) DO NOTHING`,
-    [conversationId, customerEmail || null]
+    `INSERT INTO ${SESSIONS_TABLE} (conversation_id, customer_email, customer_name, status, created_at, updated_at)
+     VALUES ($1,$2,$3,'waiting',NOW(),NOW())
+     ON CONFLICT (conversation_id) DO UPDATE SET
+       customer_email=COALESCE(EXCLUDED.customer_email, ${SESSIONS_TABLE}.customer_email),
+       customer_name=COALESCE(EXCLUDED.customer_name, ${SESSIONS_TABLE}.customer_name),
+       updated_at=NOW()`,
+    [conversationId, customerEmail || null, customerName || null]
   );
 };
 
@@ -116,11 +124,11 @@ export default async function handler(req, res) {
 
   // ── POST — send message ───────────────────────────────────────────────────
   if (req.method === 'POST') {
-    const { conversationId, customerEmail, message, sender, executiveName } = req.body || {};
+    const { conversationId, customerEmail, customerName, message, sender, executiveName } = req.body || {};
     if (!conversationId || !message || !sender)
       return res.status(400).json({ error: 'conversationId, message, sender required' });
-    if (!['customer', 'executive'].includes(sender))
-      return res.status(400).json({ error: 'sender must be customer or executive' });
+    if (!['customer', 'executive', 'system'].includes(sender))
+      return res.status(400).json({ error: 'sender must be customer, executive, or system' });
     if (sender === 'executive' && !authorized)
       return res.status(401).json({ error: 'Unauthorized' });
     if (sender === 'customer' && !conversationId.startsWith('PatienceAILive-'))
@@ -133,7 +141,7 @@ export default async function handler(req, res) {
       );
       const firstMessage = isNew.length === 0;
 
-      await ensureSession(conversationId, customerEmail || null);
+      await ensureSession(conversationId, customerEmail || null, customerName || null);
       const rows = await queryDb(
         `INSERT INTO ${CHATS_TABLE} (conversation_id, customer_email, sender, message, executive_name, created_at)
          VALUES ($1,$2,$3,$4,$5,NOW()) RETURNING *`,
@@ -150,7 +158,7 @@ export default async function handler(req, res) {
         await queryDb(`UPDATE ${SESSIONS_TABLE} SET updated_at=NOW() WHERE conversation_id=$1`, [conversationId]);
         // Notify executives only on the very first customer message
         if (firstMessage) {
-          notifyExecutives(conversationId, customerEmail || null); // fire-and-forget
+          notifyExecutives(conversationId, customerEmail || null, customerName || null); // fire-and-forget
         }
       }
       return res.status(200).json({ message: rows[0] });

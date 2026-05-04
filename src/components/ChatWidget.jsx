@@ -637,17 +637,20 @@ const ChatWidget = ({ brand }) => {
   };
 
   const showLiveChatStart = () => {
-    setLiveConversationId((current) => current || createLiveConversationId());
-    setShowLiveChatEntry(true);
+    setShowLiveChatEntry(false);
     setShowContactCta(false);
+    setIsOpen(false);
+    openLiveChatPopup();
   };
 
   const openLiveChatPopup = ({ conversationId: convId, name = '', email = '', mode = 'new' } = {}) => {
-    const params = new URLSearchParams({ conversationId: convId || createLiveConversationId() });
-    params.set('mode', mode);
+    const params = new URLSearchParams();
+    if (convId) params.set('conversationId', convId);
+    if (mode && convId) params.set('mode', mode);
     if (email) params.set('customerEmail', email);
     if (name) params.set('customerName', name);
-    const url = `/live-chat?${params.toString()}`;
+    const query = params.toString();
+    const url = query ? `/live-chat?${query}` : '/live-chat';
     const popup = window.open(url, 'pa_live_chat',
       'width=420,height=680,resizable=yes,scrollbars=yes,status=no,toolbar=no,menubar=no,location=no');
     if (!popup || popup.closed) {

@@ -3,6 +3,7 @@ import { queryDb, isMissingTableError } from './_db.js';
 import { getExecSession, getCookieValue, SESSION_COOKIE_NAME, verifySessionToken } from './_security.js';
 
 const TABLE = 'voice_rooms';
+const CHATS_TABLE = 'support_chats';
 const isAdmin    = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
 const isExec     = (req) => Boolean(getExecSession(req));
 const authorized = (req) => isAdmin(req) || isExec(req);
@@ -27,6 +28,14 @@ const getIceServers = () => {
     { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
   );
   return servers;
+};
+
+const logCallMessage = async (conversationId, message) => {
+  if (!conversationId || !message) return;
+  await queryDb(
+    `INSERT INTO ${CHATS_TABLE} (conversation_id, sender, message, created_at) VALUES ($1,'system',$2,NOW())`,
+    [conversationId, message]
+  ).catch((err) => console.error('[voice-room] call log failed:', err.message));
 };
 
 export default async function handler(req, res) {
@@ -57,6 +66,7 @@ export default async function handler(req, res) {
            VALUES ($1,$2,$3,'[]','calling',$4,NOW(),NOW()) RETURNING *`,
           [roomId, conversationId, JSON.stringify(offer), initiator || 'customer']
         );
+        await logCallMessage(conversationId, `Voice call started by ${initiator === 'executive' ? 'support executive' : 'customer'}.`);
         return res.status(200).json({ room: rows[0] });
       } catch (err) {
         if (isMissingTableError(err.message)) return res.status(500).json({ error: 'Voice rooms table not ready' });
@@ -73,6 +83,7 @@ export default async function handler(req, res) {
           `UPDATE ${TABLE} SET answer=$1, status='active', updated_at=NOW() WHERE room_id=$2 RETURNING *`,
           [JSON.stringify(answer), roomId]
         );
+        await logCallMessage(rows[0]?.conversation_id, 'Voice call connected.');
         return res.status(200).json({ room: rows[0] });
       } catch (err) {
         return res.status(500).json({ error: err.message });
@@ -101,7 +112,22 @@ export default async function handler(req, res) {
       const { roomId } = req.body;
       if (!roomId) return res.status(400).json({ error: 'roomId required' });
       try {
-        await queryDb(`UPDATE ${TABLE} SET status='ended', updated_at=NOW() WHERE room_id=$1`, [roomId]);
+        const rows = await queryDb(`UPDATE ${TABLE} SET status='ended', updated_at=NOW() WHERE room_id=$1 AND status <> 'ended' RETURNING conversation_id`, [roomId]);
+        await logCallMessage(rows[0]?.conversation_id, 'Voice call ended.');
+        return res.status(200).json({ ok: true });
+      } catch (err) {
+        return res.status(500).json({ error: err.message });
+      }
+    }
+
+    if (action === 'transcript') {
+      const { roomId, text, side } = req.body;
+      if (!roomId || !text) return res.status(400).json({ error: 'roomId and text required' });
+      try {
+        const rows = await queryDb(`SELECT conversation_id FROM ${TABLE} WHERE room_id=$1 LIMIT 1`, [roomId]);
+        if (!rows.length) return res.status(404).json({ error: 'Room not found' });
+        const speaker = side === 'executive' ? 'Support' : 'Customer';
+        await logCallMessage(rows[0].conversation_id, `Transcript (${speaker}): ${String(text).slice(0, 1000)}`);
         return res.status(200).json({ ok: true });
       } catch (err) {
         return res.status(500).json({ error: err.message });
