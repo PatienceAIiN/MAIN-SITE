@@ -528,15 +528,17 @@ export default function SupportExecutivePage() {
     finally { setSending(false); }
   };
 
-  const setSessionStatus = async (convId, status) => {
+  const toggleSessionStatus = async (convId) => {
+    const session = sessions.find((s) => s.conversation_id === convId);
+    if (!session) return;
+    const nextStatus = session.status === 'closed' ? 'waiting' : 'closed';
+
     try {
       await fetchJson('/api/support-chat', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationId: convId, status })
+        body: JSON.stringify({ conversationId: convId, status: nextStatus })
       });
       await loadSessions();
-      if (status === 'closed' && selectedId === convId) setSelectedId('');
-      if (status === 'open') setSelectedId(convId);
     } catch (e) { setError(e.message); }
   };
 
@@ -944,13 +946,9 @@ export default function SupportExecutivePage() {
                       <FiPhone size={12}/> Call customer
                     </button>
                   )}
-                  <button onClick={() => setSessionStatus(selectedId, ['closed', 'ended'].includes(selectedSession?.status) ? 'open' : 'closed')}
-                    className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                      ['closed', 'ended'].includes(selectedSession?.status)
-                        ? 'text-emerald-700 border-emerald-300 bg-emerald-50 hover:bg-emerald-100'
-                        : 'text-slate-500 hover:text-slate-900 border-slate-200 hover:bg-slate-100'
-                    }`}>
-                    {['closed', 'ended'].includes(selectedSession?.status) ? 'Open chat' : 'Close chat'}
+                  <button onClick={() => toggleSessionStatus(selectedId)}
+                    className="text-xs text-slate-500 hover:text-slate-900 px-3 py-1.5 rounded-lg hover:bg-slate-100 border border-slate-200 transition-colors">
+                    {selectedSession?.status === 'closed' ? 'Open chat' : 'Close chat'}
                   </button>
                 </div>
               </div>
