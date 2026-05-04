@@ -40,9 +40,24 @@ const logSupportAuthEvent = async (req, identifier, status) => {
 };
 
 const getSiteBase = () => {
-  const url = process.env.SITE_URL || '';
-  if (url.startsWith('http')) return url.replace(/\/$/, '');
-  return `https://${url || 'patienceai.in'}`;
+  const raw = process.env.PUBLIC_SITE_URL || process.env.SITE_URL || process.env.RENDER_EXTERNAL_URL || '';
+  const url = String(raw).trim();
+  if (!url) return 'https://patienceai.in';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url.replace(/\/$/, '');
+  return `https://${url.replace(/\/$/, '')}`;
+};
+
+const isAllowedExecutiveEmail = (email) => {
+  const normalized = String(email || '').trim().toLowerCase();
+  const configured = String(process.env.SUPPORT_EXEC_ALLOWED_DOMAINS || '@patienceai.in')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+
+  return configured.some((rule) => {
+    if (rule.startsWith('@')) return normalized.endsWith(rule);
+    return normalized === rule;
+  });
 };
 
 const sendInviteEmail = async (email, name, token) => {
@@ -271,10 +286,12 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     const { email, name, activateImmediately = false } = req.body || {};
     if (!email || !name) return res.status(400).json({ error: 'email and name required' });
-    
-    // Validate email domain
-    if (!email.endsWith('@patienceai.in')) {
-      return res.status(400).json({ error: 'Only @patienceai.in email addresses are allowed' });
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+
+    // Validate allowed executive email(s): domains or exact addresses from SUPPORT_EXEC_ALLOWED_DOMAINS
+    if (!isAllowedExecutiveEmail(normalizedEmail)) {
+      return res.status(400).json({ error: 'Email is not allowed for support executive invites' });
     }
     
     const inviteToken = crypto.randomBytes(24).toString('hex');
@@ -289,7 +306,7 @@ export default async function handler(req, res) {
     
     const { salt, hash } = hashPassword(randomPassword);
     try {
-      const existing = await queryDb(`SELECT id, status FROM ${TABLE} WHERE email=$1 LIMIT 1`, [email.toLowerCase()]);
+      const existing = await queryDb(`SELECT id, status FROM ${TABLE} WHERE email=$1 LIMIT 1`, [normalizedEmail]);
       let exec;
       if (existing.length > 0) {
         // re-invite or activate
@@ -297,14 +314,14 @@ export default async function handler(req, res) {
           `UPDATE ${TABLE} SET name=$1, invite_token=$2, invite_expires_at=$3, status=$4, 
            password_salt=$5, password_hash=$6, updated_at=NOW()
            WHERE email=$7 RETURNING *`,
-          [name, inviteToken, expiresAt, activateImmediately ? 'active' : 'invited', salt, hash, email.toLowerCase()]
+          [name, inviteToken, expiresAt, activateImmediately ? 'active' : 'invited', salt, hash, normalizedEmail]
         );
         exec = rows[0];
       } else {
         const rows = await queryDb(
           `INSERT INTO ${TABLE} (email, name, password_salt, password_hash, status, invite_token, invite_expires_at)
            VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-          [email.toLowerCase(), name, salt, hash, activateImmediately ? 'active' : 'invited', inviteToken, expiresAt]
+          [normalizedEmail, name, salt, hash, activateImmediately ? 'active' : 'invited', inviteToken, expiresAt]
         );
         exec = rows[0];
       }
@@ -312,7 +329,7 @@ export default async function handler(req, res) {
       let emailError = null;
       if (!activateImmediately) {
         try { 
-          await sendInviteEmail(email, name, inviteToken); 
+          await sendInviteEmail(normalizedEmail, name, inviteToken); 
         } catch (e) {
           emailError = e.message;
           console.error('[invite] email send failed:', e.message);
