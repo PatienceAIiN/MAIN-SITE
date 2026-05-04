@@ -6,7 +6,7 @@ import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, hashPassword, 
 
 const TABLE = 'support_executives';
 const TTL_HOURS = 72;
-const SMTP_TIMEOUT_MS = 30000;
+const SMTP_TIMEOUT_MS = 20000;
 
 const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
 
@@ -57,11 +57,14 @@ const sendInviteEmail = async (email, name, token) => {
   }
 
   const transporter = nodemailer.createTransport({
-    host, port, secure,
+    host,
+    port,
+    secure,
     auth: { user, pass },
     connectionTimeout: SMTP_TIMEOUT_MS,
     greetingTimeout: SMTP_TIMEOUT_MS,
     socketTimeout: SMTP_TIMEOUT_MS,
+    pool: false,
     tls: { rejectUnauthorized: false } // GoDaddy certs sometimes chain-fail in prod
   });
 
@@ -69,7 +72,7 @@ const sendInviteEmail = async (email, name, token) => {
   const fromName = process.env.SMTP_SENDER_NAME || 'Patience AI';
   const fromAddress = process.env.SMTP_FROM || user;
 
-  await transporter.sendMail({
+  const sendPromise = transporter.sendMail({
     from: `"${fromName}" <${fromAddress}>`,
     envelope: { from: user, to: email },
     to: email,
@@ -83,6 +86,10 @@ const sendInviteEmail = async (email, name, token) => {
     </div>`,
     text: `Welcome ${name}!\n\nYou've been invited as a Support Executive.\n\nSet your password here:\n${link}\n\nThis link expires in ${TTL_HOURS} hours.`
   });
+  await Promise.race([
+    sendPromise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP request timed out while sending invite email.')), SMTP_TIMEOUT_MS + 2000))
+  ]);
   console.log('[invite] email sent to', email);
 };
 
