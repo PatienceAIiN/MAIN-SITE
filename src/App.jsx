@@ -66,7 +66,7 @@ function App() {
   const location = useLocation();
   const isAdminRoute        = location.pathname === '/admin';
   const isExecRoute         = location.pathname === '/support-executive';
-  const isLiveChatRoute     = location.pathname === '/live-chat';
+  const isLiveChatRoute     = location.pathname === '/live-chat' || location.pathname === '/support-chat';
 
   const [activeModal, setActiveModal] = useState(null);
   const [siteContent, setSiteContent] = useState(defaultSiteContent);
@@ -177,6 +177,7 @@ function App() {
     return (
       <Routes>
         <Route path="/live-chat" element={<LiveChatPage />} />
+        <Route path="/support-chat" element={<LiveChatPage />} />
         <Route path="*" element={<Navigate to="/live-chat" replace />} />
       </Routes>
     );

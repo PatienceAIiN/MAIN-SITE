@@ -1,5 +1,7 @@
 import express from 'express';
 import fs from 'node:fs';
+import http from 'node:http';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -52,6 +54,10 @@ import supportAuthHandler from './api/support-auth.js';
 import supportChatHandler from './api/support-chat.js';
 import supportExecutivesHandler, { seedExecutive } from './api/support-executives.js';
 import voiceRoomHandler from './api/voice-room.js';
+import {
+  createSessionToken, verifySessionToken,
+  getCookieValue, serializeCookie
+} from './api/_security.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, 'dist');
@@ -298,6 +304,95 @@ app.all('/api/support-executives/logout',   wrap(supportExecutivesHandler));
 app.all('/api/support-executives',          wrap(supportExecutivesHandler));
 app.all('/api/voice-room/ice-servers',      wrap(voiceRoomHandler));
 app.all('/api/voice-room',                  wrap(voiceRoomHandler));
+
+// ── Marketing Automation OS ───────────────────────────────────────────────────
+const MKT_COOKIE = 'pa_mkt_session';
+const mktSecret = () => process.env.MARKETING_SESSION_SECRET || 'mkt-dev-secret';
+
+const signMkt = (body) => crypto.createHmac('sha256', mktSecret()).update(body).digest('hex');
+
+const makeMktToken = (username) => {
+  const body = Buffer.from(JSON.stringify({ username, exp: Date.now() + 7 * 24 * 3600 * 1000 })).toString('base64url');
+  return `${body}.${signMkt(body)}`;
+};
+
+const verifyMktToken = (token) => {
+  if (!token) return null;
+  const [body, sig] = String(token).split('.');
+  if (!body || !sig) return null;
+  try {
+    const expected = signMkt(body);
+    if (Buffer.from(expected, 'hex').length !== Buffer.from(sig, 'hex').length) return null;
+    if (!crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(sig, 'hex'))) return null;
+    const p = JSON.parse(Buffer.from(body, 'base64url').toString());
+    return Date.now() < p.exp ? p : null;
+  } catch { return null; }
+};
+
+// Marketing auth endpoint (handled here, NOT proxied to Python)
+app.all('/marketing-auto/api/auth', (req, res) => {
+  if (req.method === 'GET') {
+    const p = verifyMktToken(getCookieValue(req, MKT_COOKIE));
+    return res.json(p ? { authenticated: true, user: { username: p.username } } : { authenticated: false });
+  }
+
+  if (req.method === 'POST') {
+    const { username, password } = req.body || {};
+    const validUser = process.env.MARKETING_USERNAME || 'Admin_Market';
+    const validPass = process.env.MARKETING_PASSWORD || 'Admin@110426';
+    if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+    const uBuf = Buffer.from(String(username)), vBuf = Buffer.from(validUser);
+    const pBuf = Buffer.from(String(password)), qBuf = Buffer.from(validPass);
+    const ok = uBuf.length === vBuf.length && pBuf.length === qBuf.length &&
+      crypto.timingSafeEqual(uBuf, vBuf) && crypto.timingSafeEqual(pBuf, qBuf);
+    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+    res.setHeader('Set-Cookie', serializeCookie(MKT_COOKIE, makeMktToken(validUser), { maxAge: 7 * 24 * 3600, secure: process.env.NODE_ENV === 'production' }));
+    return res.json({ authenticated: true, user: { username: validUser } });
+  }
+
+  if (req.method === 'DELETE') {
+    res.setHeader('Set-Cookie', serializeCookie(MKT_COOKIE, '', { maxAge: 0 }));
+    return res.json({ authenticated: false });
+  }
+
+  return res.status(405).json({ error: 'Method not allowed' });
+});
+
+// Proxy all other /marketing-auto/api/* → Python backend port 8000
+app.all('/marketing-auto/api/*', (req, res) => {
+  const pythonPath = req.url.replace('/marketing-auto', '');
+  const body = req.body && Object.keys(req.body).length ? JSON.stringify(req.body) : '';
+  const options = {
+    hostname: 'localhost',
+    port: 8000,
+    path: pythonPath,
+    method: req.method,
+    headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+  };
+  const proxyReq = http.request(options, (proxyRes) => {
+    res.status(proxyRes.statusCode);
+    const skip = new Set(['transfer-encoding', 'connection']);
+    Object.entries(proxyRes.headers).forEach(([k, v]) => { if (!skip.has(k)) res.setHeader(k, v); });
+    proxyRes.pipe(res, { end: true });
+  });
+  proxyReq.on('error', () => { if (!res.headersSent) res.status(502).json({ error: 'Marketing backend unavailable. Start Python server on port 8000.' }); });
+  if (body) proxyReq.write(body);
+  proxyReq.end();
+});
+
+// Serve marketing-auto SPA
+const mktDistDir = path.join(__dirname, 'dist', 'marketing-auto');
+const mktIndex = path.join(mktDistDir, 'index.html');
+app.use('/marketing-auto', (req, res, next) => {
+  // Static assets pass through to express.static
+  const filePath = path.join(mktDistDir, req.path);
+  if (req.path !== '/' && req.path !== '' && fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+    return res.sendFile(filePath);
+  }
+  // All other routes serve the SPA index
+  if (fs.existsSync(mktIndex)) return res.sendFile(mktIndex);
+  res.status(404).send('Marketing Automation build not found.');
+});
 
 // Dynamic sitemap.xml
 app.get('/sitemap.xml', (req, res) => {

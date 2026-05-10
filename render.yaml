@@ -1,51 +1,96 @@
 services:
   - type: web
-    name: patience-ai
-    runtime: node
-    plan: free
-    buildCommand: npm ci && npm run build
-    startCommand: PM2_HOME=/tmp/.pm2 ./node_modules/.bin/pm2-runtime start ecosystem.config.cjs
-    healthCheckPath: /
+    name: patienceai-main
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
     envVars:
+      - key: PORT
+        value: "4000"
       - key: NODE_ENV
         value: production
       - key: SITE_URL
         value: https://patienceai.in
       - key: PUBLIC_SITE_URL
         value: https://patienceai.in
-      - key: DATABASE_URL
-        sync: false
+      # Auth
       - key: ADMIN_USERNAME
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
       - key: ADMIN_SESSION_SECRET
         sync: false
+      - key: MARKETING_USERNAME
+        sync: false
+      - key: MARKETING_PASSWORD
+        sync: false
+      - key: MARKETING_SESSION_SECRET
+        sync: false
+      # Database
+      - key: DATABASE_URL
+        sync: false
+      # AI
+      - key: GROQ_API_KEY
+        sync: false
+      - key: TOGETHER_API_KEY
+        sync: false
+      # X / Twitter
+      - key: TWITTER_API_KEY
+        sync: false
+      - key: TWITTER_API_SECRET
+        sync: false
+      - key: TWITTER_ACCESS_TOKEN
+        sync: false
+      - key: TWITTER_ACCESS_SECRET
+        sync: false
+      - key: TWITTER_BEARER_TOKEN
+        sync: false
+      # LinkedIn
+      - key: LINKEDIN_CLIENT_ID
+        sync: false
+      - key: LINKEDIN_CLIENT_SECRET
+        sync: false
+      - key: LINKEDIN_ACCESS_TOKEN
+        sync: false
+      - key: LINKEDIN_PAGE_ID
+        sync: false
+      # Instagram
+      - key: INSTAGRAM_APP_ID
+        sync: false
+      - key: INSTAGRAM_APP_SECRET
+        sync: false
+      - key: INSTAGRAM_ACCESS_TOKEN
+        sync: false
+      - key: INSTAGRAM_BUSINESS_ACCOUNT_ID
+        sync: false
+      # SMTP / Email
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT
-        value: "587"
+        value: "465"
       - key: SMTP_SECURE
-        value: "false"
+        value: "true"
       - key: SMTP_USER
         sync: false
       - key: SMTP_PASS
         sync: false
-      - key: SMTP_FROM
+      - key: SMTP_SENDER_NAME
         sync: false
-      - key: GODADDY_SMTP_HOST
+      - key: CONTACT_TO_EMAIL
         sync: false
-      - key: GODADDY_SMTP_PORT
-        sync: false
-      - key: GODADDY_SMTP_SECURE
-        sync: false
-      - key: GODADDY_SMTP_USER
-        sync: false
-      - key: GODADDY_SMTP_PASS
-        sync: false
-      - key: GODADDY_SMTP_FROM
-        sync: false
+      # Scheduler
+      - key: POST_SCHEDULE_TIMES
+        value: "09:00,13:00,18:00"
+      - key: POST_PLATFORMS
+        value: "twitter,linkedin,instagram"
+      - key: POST_DAILY_LIMIT
+        value: "3"
+      - key: POST_TIMEZONE
+        value: "Asia/Kolkata"
+      # Support
       - key: SUPPORT_APP_NAME
         value: PatienceAI Support
       - key: REDIS_URL
         sync: false
+    healthCheckPath: /
