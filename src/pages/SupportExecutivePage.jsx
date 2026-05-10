@@ -292,6 +292,10 @@ export default function SupportExecutivePage() {
   const [sending,      setSending]      = useState(false);
   const [sessLoading,  setSessLoading]  = useState(false);
   const [error,        setError]        = useState('');
+  // Queue modal
+  const [queueModal,   setQueueModal]   = useState(false);
+  const [queueItems,   setQueueItems]   = useState([]);
+  const prevWaitingIds = useRef(new Set());
 
   // Sidebar pagination + search
   const [sessPage,   setSessPage]   = useState(1);
@@ -338,9 +342,18 @@ export default function SupportExecutivePage() {
       const activeNewSessions = newSessions.filter(s => s.status !== 'closed');
       const activePreviousSessions = sessions.filter(s => s.status !== 'closed');
       
-      // Play notification if new active sessions arrived
-      if (activeNewSessions.length > activePreviousSessions.length && activePreviousSessions.length > 0) {
+      // Detect genuinely new waiting sessions by ID
+      const waitingNow = newSessions.filter(s => s.status === 'waiting');
+      const newlyArrived = waitingNow.filter(s => !prevWaitingIds.current.has(s.conversation_id));
+      prevWaitingIds.current = new Set(waitingNow.map(s => s.conversation_id));
+
+      if (newlyArrived.length > 0) {
         playNotificationTone();
+        setQueueItems(waitingNow);
+        setQueueModal(true);
+      } else if (waitingNow.length > 0) {
+        // Keep queue items fresh even without new arrivals
+        setQueueItems(waitingNow);
       }
       
       setSessions(newSessions);
@@ -843,6 +856,8 @@ export default function SupportExecutivePage() {
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
                     s.status === 'waiting'
                       ? selectedId === s.conversation_id ? 'bg-amber-400/30 text-amber-200' : 'bg-amber-100 text-amber-700'
+                      : s.status === 'closed'
+                      ? selectedId === s.conversation_id ? 'bg-slate-400/30 text-slate-300' : 'bg-slate-100 text-slate-500'
                       : selectedId === s.conversation_id ? 'bg-emerald-400/30 text-emerald-200' : 'bg-emerald-100 text-emerald-700'
                   }`}>{s.status}</span>
                   <span className={`text-[10px] ${selectedId === s.conversation_id ? 'text-white/40' : 'text-slate-400'}`}>{fmt(s.updated_at)}</span>
@@ -940,6 +955,88 @@ export default function SupportExecutivePage() {
           )}
         </main>
       </div>
+
+      {/* ── Incoming chat queue modal ─────────────────────────────────────── */}
+      <AnimatePresence>
+        {queueModal && queueItems.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            onClick={e => { if (e.target === e.currentTarget) setQueueModal(false); }}
+          >
+            <motion.div
+              initial={{ scale: 0.92, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.92, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+            >
+              {/* Header */}
+              <div className="flex items-center gap-3 px-5 py-4 bg-amber-50 border-b border-amber-100">
+                <span className="h-3 w-3 rounded-full bg-amber-400 animate-pulse shadow-[0_0_0_4px_rgba(251,191,36,0.3)]" />
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-slate-800">
+                    {queueItems.length === 1 ? 'Incoming chat request' : `${queueItems.length} chat requests in queue`}
+                  </p>
+                  <p className="text-xs text-slate-500">Join to start helping, or discard</p>
+                </div>
+                <button onClick={() => setQueueModal(false)}
+                  className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100">
+                  ✕
+                </button>
+              </div>
+
+              {/* Queue list */}
+              <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+                {queueItems.map((item, i) => (
+                  <div key={item.conversation_id} className="flex items-center gap-3 px-5 py-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-800 truncate">
+                        {item.customer_name || item.customer_email || 'Anonymous visitor'}
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-mono truncate">{item.conversation_id}</p>
+                      {item.customer_email && (
+                        <p className="text-[10px] text-slate-500 truncate">{item.customer_email}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        onClick={() => {
+                          setSelectedId(item.conversation_id);
+                          localStorage.removeItem('pa_executive_chat_closed');
+                          // Remove from queue items; close modal if empty
+                          const remaining = queueItems.filter(q => q.conversation_id !== item.conversation_id);
+                          setQueueItems(remaining);
+                          if (remaining.length === 0) setQueueModal(false);
+                        }}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 font-medium transition-colors"
+                      >
+                        Join
+                      </button>
+                      <button
+                        onClick={async () => {
+                          await closeSession(item.conversation_id);
+                          const remaining = queueItems.filter(q => q.conversation_id !== item.conversation_id);
+                          setQueueItems(remaining);
+                          if (remaining.length === 0) setQueueModal(false);
+                        }}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition-colors"
+                      >
+                        Discard
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-end">
+                <button onClick={() => setQueueModal(false)}
+                  className="text-xs text-slate-500 hover:text-slate-800 transition-colors">
+                  Dismiss (handle later)
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

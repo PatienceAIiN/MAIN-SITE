@@ -92,6 +92,8 @@ export default function LiveChatPage() {
   const [sending,   setSending]   = useState(false);
   const [started,   setStarted]   = useState(false);
   const [error,     setError]     = useState('');
+  const [agentJoinedToast, setAgentJoinedToast] = useState(false);
+  const prevSessionStatus = useRef(null);
 
   // Copy convId banner
   const [copiedBanner, setCopiedBanner] = useState(false);
@@ -200,7 +202,14 @@ export default function LiveChatPage() {
         `/api/support-chat?conversationId=${encodeURIComponent(convId)}&customerEmail=${encodeURIComponent(cEmail || '')}`
       );
       setMessages(d.messages || []);
-      setSession(d.session || null);
+      const newSession = d.session || null;
+      setSession(newSession);
+      // Detect when agent joins (status flips to 'active')
+      if (prevSessionStatus.current !== 'active' && newSession?.status === 'active') {
+        setAgentJoinedToast(true);
+        setTimeout(() => setAgentJoinedToast(false), 5000);
+      }
+      prevSessionStatus.current = newSession?.status || null;
     } catch { /* ignore */ }
   }, []);
 
@@ -533,7 +542,7 @@ export default function LiveChatPage() {
   }
 
   return (
-    <div className="h-screen bg-white flex flex-col text-slate-900 overflow-hidden">
+    <div className="h-screen bg-white flex flex-col text-slate-900 overflow-hidden relative">
       <audio ref={remoteAudio} autoPlay playsInline style={{ display: 'none' }} />
 
       {/* Voice call overlay */}
@@ -625,13 +634,33 @@ export default function LiveChatPage() {
         )}
       </AnimatePresence>
 
+      {/* Agent joined toast */}
+      <AnimatePresence>
+        {agentJoinedToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }}
+            className="absolute top-3 left-3 right-3 z-20 flex items-center gap-3 bg-emerald-600 text-white rounded-xl px-4 py-3 shadow-lg"
+          >
+            <span className="h-2 w-2 rounded-full bg-white animate-pulse shrink-0" />
+            <p className="text-sm font-semibold flex-1">
+              {session?.assigned_executive || 'A support agent'} has joined the chat!
+            </p>
+            <button onClick={() => setAgentJoinedToast(false)} className="text-white/70 hover:text-white">✕</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-white shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <span className={`h-2 w-2 rounded-full shrink-0 ${session?.status === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400 animate-pulse'}`} />
+          <span className={`h-2 w-2 rounded-full shrink-0 ${
+            session?.status === 'active' ? 'bg-emerald-500 animate-pulse'
+            : session?.status === 'closed' ? 'bg-slate-400'
+            : 'bg-amber-400 animate-pulse'
+          }`} />
           <div className="min-w-0">
             <p className="text-xs font-semibold text-slate-800 truncate">
-              {session?.status === 'active' ? `With ${session.assigned_executive || 'Support'}` : 'Waiting for agent…'}
+              {session?.status === 'closed' ? 'Chat closed' : session?.status === 'active' ? `With ${session.assigned_executive || 'Support'}` : 'Waiting for agent…'}
             </p>
             <p className="text-[10px] text-slate-400 truncate">{name || email || 'Guest'}</p>
           </div>

@@ -752,9 +752,8 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                   key={tab}
                   type="button"
                   onClick={() => setActiveTab(tab)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    activeTab === tab ? 'bg-white text-slate-950' : 'bg-white/5 text-white/70 hover:bg-white/10'
-                  }`}
+                  className={['px-4 py-2 rounded-full text-sm font-medium transition-colors',
+                    activeTab === tab ? 'bg-white text-slate-950' : 'bg-white/5 text-white/70 hover:bg-white/10'].join(' ')}
                 >
                   {tab}
                 </button>
@@ -815,7 +814,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                   </div>
                   <div className="rounded-2xl bg-slate-900/60 border border-white/10 p-4">
                     <p className="text-white/45 text-sm mb-1">Save behavior</p>
-                    <p className="text-white">Save updates the `site_content` row. Reset deletes the custom row and restores defaults.</p>
+                    <p className="text-white">Save updates the site_content row. Reset deletes the custom row and restores defaults.</p>
                   </div>
                 </div>
               </div>
@@ -846,11 +845,10 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                         type="button"
                         key={conversation.conversationId}
                         onClick={() => setSelectedConversationId(conversation.conversationId)}
-                        className={`w-full rounded-xl border text-left px-3 py-3 transition-colors ${
+                        className={['w-full rounded-xl border text-left px-3 py-3 transition-colors',
                           selectedConversationId === conversation.conversationId
                             ? 'border-cyan-300/60 bg-cyan-300/10'
-                            : 'border-white/10 bg-slate-900/50 hover:bg-white/5'
-                        }`}
+                            : 'border-white/10 bg-slate-900/50 hover:bg-white/5'].join(' ')}
                       >
                         <p className="font-medium text-sm">{conversation.conversationId}</p>
                         <p className="text-xs text-white/50 mt-1">IP: {conversation.ipAddress || 'unknown'}</p>
@@ -1063,9 +1061,8 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                           key={option}
                           type="button"
                           onClick={() => setSubmissionFilter(option)}
-                          className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                            submissionFilter === option ? 'bg-white text-slate-950' : 'bg-white/5 text-white/70 hover:bg-white/10'
-                          }`}
+                          className={['px-4 py-2 rounded-full text-sm font-medium transition-colors',
+                            submissionFilter === option ? 'bg-white text-slate-950' : 'bg-white/5 text-white/70 hover:bg-white/10'].join(' ')}
                         >
                           {option}
                         </button>
@@ -1101,9 +1098,8 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                           key={item.id}
                           type="button"
                           onClick={() => setSelectedId(item.id)}
-                          className={`w-full text-left p-5 transition-colors ${
-                            selectedSubmission?.id === item.id ? 'bg-white/10' : 'hover:bg-white/5'
-                          }`}
+                          className={['w-full text-left p-5 transition-colors',
+                            selectedSubmission?.id === item.id ? 'bg-white/10' : 'hover:bg-white/5'].join(' ')}
                         >
                           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                             <div className="space-y-2">
@@ -1272,7 +1268,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                                     <span className="text-cyan-300 font-medium">{row.count}</span>
                                   </div>
                                   <div className="h-1.5 rounded-full bg-white/10">
-                                    <div className="h-1.5 rounded-full bg-cyan-400" style={{ width: `${pct}%` }} />
+                                    <div className="h-1.5 rounded-full bg-cyan-400" style={{ width: pct + '%' }} />
                                   </div>
                                 </div>
                               );
@@ -1299,7 +1295,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                                     <span className="text-cyan-300 font-medium">{row.count}</span>
                                   </div>
                                   <div className="h-1.5 rounded-full bg-white/10">
-                                    <div className="h-1.5 rounded-full bg-violet-400" style={{ width: `${pct}%` }} />
+                                    <div className="h-1.5 rounded-full bg-violet-400" style={{ width: pct + '%' }} />
                                   </div>
                                 </div>
                               );
@@ -1396,7 +1392,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                             rel="noopener noreferrer"
                             className="rounded-2xl bg-slate-900/60 border border-white/10 p-4 hover:border-white/25 transition-colors block"
                           >
-                            <p className={`font-semibold mb-1 ${tool.color}`}>{tool.name}</p>
+                            <p className={['font-semibold mb-1', tool.color].join(' ')}>{tool.name}</p>
                             <p className="text-white/50 text-xs leading-relaxed">{tool.desc}</p>
                           </a>
                         ))}
@@ -1445,11 +1441,10 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                       {supportSessions.map((session) => (
                         <div
                           key={session.conversation_id}
-                          className={`w-full rounded-xl border text-left px-3 py-3 transition-colors ${
+                          className={['w-full rounded-xl border text-left px-3 py-3 transition-colors',
                             selectedSupportId === session.conversation_id
                               ? 'border-emerald-400/60 bg-emerald-400/10'
-                              : 'border-white/10 bg-slate-900/50 hover:bg-white/5'
-                          }`}
+                              : 'border-white/10 bg-slate-900/50 hover:bg-white/5'].join(' ')}
                         >
                           <button
                             type="button"
@@ -1458,11 +1453,10 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                           >
                             <div className="flex items-center justify-between gap-2 mb-1">
                               <p className="font-medium text-sm truncate">{session.conversation_id}</p>
-                              <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${
+                              <span className={['text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0',
                                 session.status === 'waiting' ? 'bg-amber-400/20 text-amber-300' :
                                 session.status === 'active' ? 'bg-emerald-400/20 text-emerald-300' :
-                                'bg-white/10 text-white/40'
-                              }`}>
+                                'bg-white/10 text-white/40'].join(' ')}>
                                 {session.status}
                               </span>
                             </div>
@@ -1535,11 +1529,13 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                           {supportMessages.map((msg) => (
                             <div
                               key={msg.id}
-                              className={`rounded-xl px-3 py-2.5 text-sm ${msg.sender === 'system' ? 'mx-auto max-w-[92%] text-center bg-amber-50 border border-amber-200 text-amber-800' : 'max-w-[88%]'} ${
+                              className={[
+                                'rounded-xl px-3 py-2.5 text-sm',
+                                msg.sender === 'system' ? 'mx-auto max-w-[92%] text-center bg-amber-50 border border-amber-200 text-amber-800' : 'max-w-[88%]',
                                 msg.sender === 'system' ? '' : msg.sender === 'executive'
                                   ? 'ml-auto bg-cyan-300/15 border border-cyan-300/20 text-white'
                                   : 'bg-white/5 border border-white/10 text-white/85'
-                              }`}
+                              ].join(' ')}
                             >
                               <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1">
                                 {msg.sender === 'system' ? 'Call event' : msg.sender === 'executive' ? (msg.executive_name || 'Support Team') : 'Customer'} • {formatDate(msg.created_at)}
@@ -1619,11 +1615,10 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                             )}
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                            <span className={['text-xs px-2.5 py-1 rounded-full font-medium',
                               exec.status === 'active' ? 'bg-emerald-400/20 text-emerald-300' :
                               exec.status === 'invited' ? 'bg-amber-400/20 text-amber-300' :
-                              'bg-white/10 text-white/40'
-                            }`}>{exec.status}</span>
+                              'bg-white/10 text-white/40'].join(' ')}>{exec.status}</span>
                             {exec.status !== 'active' && (
                               <button onClick={() => updateExecStatus(exec.id, 'active')}
                                 className="text-xs px-3 py-1.5 rounded-lg border border-white/10 text-white/60 hover:text-white hover:bg-white/5 transition-colors">
@@ -1673,7 +1668,8 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                       <p>Once activated they can log in at <span className="text-cyan-300">/support-executive</span>.</p>
                     </div>
                   </div>
-                
+                </div>
+
                 {/* Activity Logs Section */}
                 {selectedExecId && (
                   <div className="rounded-[1.75rem] border border-white/10 bg-white/5 overflow-hidden mt-6">
@@ -1696,21 +1692,20 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                           {activityLogs.map((log, index) => (
                             <div key={index} className="px-5 py-3">
                               <div className="flex items-center justify-between gap-4 mb-1">
-                                <span className={`text-xs px-2 py-1 rounded font-medium ${
+                                <span className={['text-xs px-2 py-1 rounded font-medium',
                                   log.action === 'login' ? 'bg-emerald-400/20 text-emerald-300' :
                                   log.action === 'logout' ? 'bg-red-400/20 text-red-300' :
                                   log.action === 'status_change' ? 'bg-amber-400/20 text-amber-300' :
                                   log.action === 'chat_assigned' ? 'bg-blue-400/20 text-blue-300' :
                                   log.action === 'chat_closed' ? 'bg-slate-400/20 text-slate-300' :
-                                  'bg-purple-400/20 text-purple-300'
-                                }`}>
+                                  'bg-purple-400/20 text-purple-300'].join(' ')}>
                                   {log.action.replace('_', ' ')}
                                 </span>
                                 <span className="text-xs text-white/40">{formatDate(log.created_at)}</span>
                               </div>
                               {log.old_status && log.new_status && (
                                 <p className="text-xs text-white/50 mb-1">
-                                  Status: {log.old_status} → {log.new_status}
+                                  Status: {log.old_status}{' -> '}{log.new_status}
                                 </p>
                               )}
                               {log.metadata && (
