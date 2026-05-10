@@ -42,13 +42,11 @@ async def _together(prompt: str, api_key: str) -> str:
 
 
 async def _pollinations(prompt: str) -> str:
+    # Return direct CDN URL — always accessible from any browser, no local disk needed
     encoded = urllib.parse.quote(prompt)
-    url = (f"https://image.pollinations.ai/prompt/{encoded}"
-           f"?width=1024&height=1024&nologo=true&model=flux&seed={abs(hash(prompt)) % 99999}")
-    async with httpx.AsyncClient(timeout=90, follow_redirects=True) as client:
-        resp = await client.get(url, headers={"User-Agent": "patienceai/1.0"})
-        resp.raise_for_status()
-        return _save(resp.content, "jpg")
+    seed = abs(hash(prompt)) % 99999
+    return (f"https://image.pollinations.ai/prompt/{encoded}"
+            f"?width=1024&height=1024&nologo=true&model=flux&seed={seed}")
 
 
 def _save(data: bytes, ext: str) -> str:

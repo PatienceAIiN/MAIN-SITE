@@ -7,8 +7,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from dotenv import load_dotenv
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -16,7 +17,7 @@ from apscheduler.triggers.cron import CronTrigger
 load_dotenv()
 
 from database import AsyncDB
-from services import groq_service, together_service, twitter_service
+from services import groq_service, together_service, twitter_service, email_service
 from routers import (
     channels_router,
     crm_router,
@@ -338,16 +339,26 @@ ENV_KEY_MAP = {
     "linkedin_access_token": "LINKEDIN_ACCESS_TOKEN",
     "linkedin_page_id": "LINKEDIN_PAGE_ID",
     # Instagram
+    "instagram_app_id": "INSTAGRAM_APP_ID",
+    "instagram_app_secret": "INSTAGRAM_APP_SECRET",
     "instagram_access_token": "INSTAGRAM_ACCESS_TOKEN",
-    "instagram_account_id": "INSTAGRAM_ACCOUNT_ID",
-    # LinkedIn
-    "linkedin_org_urn": "LINKEDIN_ORG_URN",
+    "instagram_business_account_id": "INSTAGRAM_BUSINESS_ACCOUNT_ID",
     # Email / SMTP
     "smtp_host": "SMTP_HOST",
     "smtp_port": "SMTP_PORT",
     "smtp_user": "SMTP_USER",
     "smtp_pass": "SMTP_PASS",
     "smtp_sender_name": "SMTP_SENDER_NAME",
+    # Scheduler
+    "post_schedule_times": "POST_SCHEDULE_TIMES",
+    "post_platforms": "POST_PLATFORMS",
+    "post_daily_limit": "POST_DAILY_LIMIT",
+    "post_timezone": "POST_TIMEZONE",
+    # Instagram (new fields)
+    "instagram_account_id": "INSTAGRAM_ACCOUNT_ID",
+    # LinkedIn (new fields)
+    "linkedin_org_urn": "LINKEDIN_ORG_URN",
+    # Email
     "contact_to_email": "CONTACT_TO_EMAIL",
     # Image
     "image_style_prefix": "IMAGE_STYLE_PREFIX",
@@ -405,7 +416,7 @@ async def update_config(data: ConfigUpdate):
     return {"status": "saved"}
 
 
-# ── Scheduler status ──────────────────────────────────────────────────────────
+# ── Scheduler status ─────────────────────────────────────────────────────────
 
 @app.get("/api/scheduler")
 async def get_scheduler_status():
@@ -418,13 +429,12 @@ async def get_scheduler_status():
             hours = json.loads(cfg.get("scheduler_times", "[9,13,18]"))
         except Exception:
             hours = [9, 13, 18]
-        jobs = scheduler.get_jobs()
         return {
             "enabled": cfg.get("scheduler_enabled") == "true",
             "hours": hours,
             "platforms": cfg.get("scheduler_platforms", "twitter").split(","),
             "max_per_run": int(cfg.get("scheduler_max_per_run", "1")),
-            "next_run": jobs[0].next_run_time.isoformat() if jobs else None,
+            "next_run": scheduler.get_jobs()[0].next_run_time.isoformat() if scheduler.get_jobs() else None,
         }
     except Exception as e:
         return {"enabled": False, "error": str(e)}
@@ -432,6 +442,7 @@ async def get_scheduler_status():
 
 @app.post("/api/scheduler/trigger")
 async def trigger_scheduler_now():
+    """Manually trigger the scheduler job."""
     await _scheduler_job()
     return {"status": "triggered"}
 
@@ -503,6 +514,140 @@ async def health():
             pass
 
     return checks
+
+
+# ── Images via API path (proxy-friendly) ────────────────────────────────────
+
+@app.get("/api/images/{filename}")
+async def serve_image(filename: str):
+    path = IMAGES_DIR / filename
+    if not path.exists():
+        raise HTTPException(404, "Image not found")
+    return FileResponse(str(path))
+
+
+# ── Config verify (password check) ──────────────────────────────────────────
+
+class VerifyRequest(BaseModel):
+    password: str
+
+@app.post("/api/config/verify")
+async def verify_config_password(data: VerifyRequest):
+    marketing_pw = os.getenv("MARKETING_PASSWORD", "")
+    if not marketing_pw:
+        return {"ok": True}  # no password set, allow
+    if data.password == marketing_pw:
+        return {"ok": True}
+    raise HTTPException(401, "Wrong password")
+
+
+# ── Config test all connections ──────────────────────────────────────────────
+
+@app.get("/api/config/test")
+async def test_all_connections():
+    import httpx
+    results = {}
+
+    # Database
+    try:
+        db = AsyncDB()
+        await db.table("config").select("id").limit(1).execute()
+        results["database"] = {"ok": True, "message": "Connected"}
+    except Exception as e:
+        results["database"] = {"ok": False, "message": str(e)[:120]}
+
+    # Groq
+    groq_key = os.getenv("GROQ_API_KEY", "")
+    if groq_key:
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                r = await client.get("https://api.groq.com/openai/v1/models",
+                                     headers={"Authorization": f"Bearer {groq_key}"})
+                results["groq"] = {"ok": r.status_code == 200, "message": "OK" if r.status_code == 200 else f"HTTP {r.status_code}"}
+        except Exception as e:
+            results["groq"] = {"ok": False, "message": str(e)[:120]}
+    else:
+        results["groq"] = {"ok": False, "message": "API key not set"}
+
+    # Together AI
+    together_key = os.getenv("TOGETHER_API_KEY", "")
+    if together_key:
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                r = await client.get("https://api.together.xyz/v1/models",
+                                     headers={"Authorization": f"Bearer {together_key}"})
+                results["together"] = {"ok": r.status_code == 200, "message": "OK" if r.status_code == 200 else f"HTTP {r.status_code}"}
+        except Exception as e:
+            results["together"] = {"ok": False, "message": str(e)[:120]}
+    else:
+        results["together"] = {"ok": False, "message": "Not set — using free Pollinations.ai"}
+
+    # Pollinations (always check)
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get("https://image.pollinations.ai/prompt/test?width=64&height=64&nologo=true")
+            results["pollinations"] = {"ok": r.status_code == 200, "message": "Free image gen reachable"}
+    except Exception as e:
+        results["pollinations"] = {"ok": False, "message": str(e)[:120]}
+
+    # Twitter
+    tw_bearer = os.getenv("TWITTER_BEARER_TOKEN", "")
+    if tw_bearer:
+        try:
+            client_tw = twitter_service._get_client()
+            me = client_tw.get_me()
+            name = me.data.name if me.data else "unknown"
+            results["twitter"] = {"ok": True, "message": f"@{name}"}
+        except Exception as e:
+            results["twitter"] = {"ok": False, "message": str(e)[:120]}
+    else:
+        results["twitter"] = {"ok": False, "message": "Bearer token not set"}
+
+    # SMTP
+    ok, msg = await email_service.test_smtp()
+    results["smtp"] = {"ok": ok, "message": msg}
+
+    # IMAP
+    ok, msg = await email_service.test_imap()
+    results["imap"] = {"ok": ok, "message": msg}
+
+    return results
+
+
+# ── Email endpoints ──────────────────────────────────────────────────────────
+
+class SendEmailRequest(BaseModel):
+    to: str
+    subject: str
+    body: str
+    reply_to_header: Optional[str] = None
+
+
+@app.get("/api/email")
+async def list_emails(limit: int = Query(50)):
+    try:
+        emails = await email_service.get_emails(limit)
+        return emails
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.delete("/api/email/{uid}")
+async def delete_email_endpoint(uid: str):
+    try:
+        await email_service.delete_email(uid)
+        return {"status": "deleted"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.post("/api/email/send")
+async def send_email_endpoint(data: SendEmailRequest):
+    try:
+        await email_service.send_email(data.to, data.subject, data.body, data.reply_to_header)
+        return {"status": "sent"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 if __name__ == "__main__":
