@@ -9,6 +9,13 @@ import { fetchJson } from '../common/fetchJson';
 
 const fmt = (v) => v ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(v)) : '—';
 const PAGE_SIZE = 10;
+const formatCustomerIdentity = (session) => {
+  if (!session) return 'Anonymous customer';
+  const name = session.customer_name?.trim();
+  const email = session.customer_email?.trim();
+  if (name && email) return `${name} (${email})`;
+  return name || email || 'Anonymous customer';
+};
 
 const getIceServers = async () => {
   try {
@@ -338,9 +345,9 @@ export default function SupportExecutivePage() {
       const d = await fetchJson('/api/support-chat?listSessions=1');
       const newSessions = d.sessions || [];
       
-      // Check if new sessions arrived (excluding closed ones)
-      const activeNewSessions = newSessions.filter(s => s.status !== 'closed');
-      const activePreviousSessions = sessions.filter(s => s.status !== 'closed');
+      // Check if new actionable sessions arrived (waiting/active)
+      const activeNewSessions = newSessions.filter(s => !['closed', 'ended'].includes(s.status));
+      const activePreviousSessions = sessions.filter(s => !['closed', 'ended'].includes(s.status));
       
       // Detect genuinely new waiting sessions by ID
       const waitingNow = newSessions.filter(s => s.status === 'waiting');
@@ -357,12 +364,12 @@ export default function SupportExecutivePage() {
       }
       
       setSessions(newSessions);
-      // Only auto-select first chat if not previously closed by executive
-      const chatClosedByExecutive = localStorage.getItem('pa_executive_chat_closed') === 'true';
       setSelectedId(id => {
-        if (id) return id; // Keep existing selection
-        if (chatClosedByExecutive) return ''; // Don't auto-select if closed before
-        return d.sessions?.[0]?.conversation_id || ''; // Auto-select first chat
+        const exists = newSessions.some((session) => session.conversation_id === id);
+        if (id && exists) return id; // Keep existing valid selection
+
+        const latestActionable = newSessions.find((session) => !['closed', 'ended'].includes(session.status));
+        return latestActionable?.conversation_id || '';
       });
 
       // Handle persistent notifications for unattended chats
@@ -517,6 +524,7 @@ export default function SupportExecutivePage() {
     return () => clearInterval(id);
   }, [selectedId, executive, callState]);
 
+
   /* ── Send reply ──────────────────────────────────────────────────────── */
   const sendReply = async () => {
     if (!reply.trim() || sending || !selectedId) return;
@@ -539,8 +547,6 @@ export default function SupportExecutivePage() {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationId: convId, status: 'closed' })
       });
-      // Store that executive closed chat to prevent auto-opening
-      localStorage.setItem('pa_executive_chat_closed', 'true');
       await loadSessions();
       if (selectedId === convId) setSelectedId('');
     } catch (e) { setError(e.message); }
@@ -564,6 +570,31 @@ export default function SupportExecutivePage() {
     }
     speechRef.current = null;
   }, []);
+
+
+
+  /* ── Tear down call UI when customer hangs up ────────────────────────── */
+  useEffect(() => {
+    if (!selectedId || !executive || !callState) return;
+    const poll = async () => {
+      try {
+        const d = await fetchJson(`/api/voice-room?conversationId=${encodeURIComponent(selectedId)}`);
+        const room = d.room;
+        if (!room || room.status === 'ended') {
+          if (pollRoomRef.current) { clearInterval(pollRoomRef.current); pollRoomRef.current = null; }
+          stopTranscription();
+          if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
+          localStream.current?.getTracks().forEach(t => t.stop());
+          localStream.current = null;
+          setCallState(null);
+          setCallRoomId(null);
+          setMuted(false);
+        }
+      } catch { /* ignore */ }
+    };
+    const id = setInterval(poll, 500);
+    return () => clearInterval(id);
+  }, [selectedId, executive, callState, stopTranscription]);
 
   const startTranscription = useCallback((roomId, side = 'executive') => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -769,7 +800,7 @@ export default function SupportExecutivePage() {
         {callState && (
           <CallingScreen
             state={callState}
-            peerName={selectedSession?.customer_name || selectedSession?.customer_email || selectedId || 'Customer'}
+            peerName={formatCustomerIdentity(selectedSession) || selectedId || 'Customer'}
             muted={muted}
             speakerOn={speakerOn}
             screenOff={screenOff}
@@ -843,8 +874,6 @@ export default function SupportExecutivePage() {
                 onClick={() => { 
                   setSelectedId(s.conversation_id); 
                   userScrolled.current = false;
-                  // Clear closed state since executive manually opened chat
-                  localStorage.removeItem('pa_executive_chat_closed');
                 }}
                 className={`w-full text-left px-3 py-3 border-b border-slate-100 transition-colors ${
                   selectedId === s.conversation_id
@@ -864,7 +893,7 @@ export default function SupportExecutivePage() {
                 </div>
                 <p className="text-xs font-mono font-medium truncate">{s.conversation_id}</p>
                 <p className={`text-xs truncate mt-0.5 ${selectedId === s.conversation_id ? 'text-white/60' : 'text-slate-500'}`}>
-                  {s.customer_name || s.customer_email || 'Anonymous'}
+                  {formatCustomerIdentity(s)}
                 </p>
                 {s.assigned_executive && (
                   <p className={`text-[10px] mt-0.5 flex items-center gap-1 ${selectedId === s.conversation_id ? 'text-emerald-300' : 'text-emerald-600'}`}>
@@ -901,7 +930,7 @@ export default function SupportExecutivePage() {
               <div className="border-b border-slate-200 px-6 py-3 flex items-center justify-between bg-white shrink-0">
                 <div className="min-w-0">
                   <p className="font-semibold text-slate-900 text-sm font-mono truncate">{selectedId}</p>
-                  <p className="text-xs text-slate-500 truncate">{selectedSession?.customer_name || selectedSession?.customer_email || 'Anonymous customer'}</p>
+                  <p className="text-xs text-slate-500 truncate">{formatCustomerIdentity(selectedSession)}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {!callState && (

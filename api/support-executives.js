@@ -6,7 +6,7 @@ import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, hashPassword, 
 
 const TABLE = 'support_executives';
 const TTL_HOURS = 72;
-const SMTP_TIMEOUT_MS = 30000;
+const SMTP_TIMEOUT_MS = 20000;
 
 const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
 
@@ -22,10 +22,42 @@ const logExecutiveActivity = async (executiveId, action, oldStatus = null, newSt
   }
 };
 
+const logSupportAuthEvent = async (req, identifier, status) => {
+  try {
+    await queryDb(
+      `INSERT INTO public.auth_login_events (role, identifier, status, ip_address, user_agent)
+       VALUES ('support', $1, $2, $3, $4)`,
+      [
+        String(identifier || 'unknown'),
+        String(status || 'unknown'),
+        String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim() || null,
+        String(req.headers['user-agent'] || '').trim() || null
+      ]
+    );
+  } catch (err) {
+    console.error('[auth-log] support auth log failed:', err.message);
+  }
+};
+
 const getSiteBase = () => {
-  const url = process.env.SITE_URL || '';
-  if (url.startsWith('http')) return url.replace(/\/$/, '');
-  return `https://${url || 'patienceai.in'}`;
+  const raw = process.env.PUBLIC_SITE_URL || process.env.SITE_URL || process.env.VERCEL_URL || '';
+  const url = String(raw).trim();
+  if (!url) return 'https://patienceai.in';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url.replace(/\/$/, '');
+  return `https://${url.replace(/\/$/, '')}`;
+};
+
+const isAllowedExecutiveEmail = (email) => {
+  const normalized = String(email || '').trim().toLowerCase();
+  const configured = String(process.env.SUPPORT_EXEC_ALLOWED_DOMAINS || '@patienceai.in')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+
+  return configured.some((rule) => {
+    if (rule.startsWith('@')) return normalized.endsWith(rule);
+    return normalized === rule;
+  });
 };
 
 const sendInviteEmail = async (email, name, token) => {
@@ -40,11 +72,14 @@ const sendInviteEmail = async (email, name, token) => {
   }
 
   const transporter = nodemailer.createTransport({
-    host, port, secure,
+    host,
+    port,
+    secure,
     auth: { user, pass },
     connectionTimeout: SMTP_TIMEOUT_MS,
     greetingTimeout: SMTP_TIMEOUT_MS,
     socketTimeout: SMTP_TIMEOUT_MS,
+    pool: false,
     tls: { rejectUnauthorized: false } // GoDaddy certs sometimes chain-fail in prod
   });
 
@@ -52,7 +87,7 @@ const sendInviteEmail = async (email, name, token) => {
   const fromName = process.env.SMTP_SENDER_NAME || 'Patience AI';
   const fromAddress = process.env.SMTP_FROM || user;
 
-  await transporter.sendMail({
+  const sendPromise = transporter.sendMail({
     from: `"${fromName}" <${fromAddress}>`,
     envelope: { from: user, to: email },
     to: email,
@@ -66,6 +101,10 @@ const sendInviteEmail = async (email, name, token) => {
     </div>`,
     text: `Welcome ${name}!\n\nYou've been invited as a Support Executive.\n\nSet your password here:\n${link}\n\nThis link expires in ${TTL_HOURS} hours.`
   });
+  await Promise.race([
+    sendPromise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP request timed out while sending invite email.')), SMTP_TIMEOUT_MS + 2000))
+  ]);
   console.log('[invite] email sent to', email);
 };
 
@@ -94,13 +133,22 @@ export default async function handler(req, res) {
     try {
       const rows = await queryDb(`SELECT * FROM ${TABLE} WHERE email = $1 LIMIT 1`, [email.trim().toLowerCase()]);
       const exec = rows[0];
-      if (!exec) return res.status(401).json({ error: 'Invalid credentials' });
-      if (exec.status === 'invited') return res.status(403).json({ error: 'Account not activated. Check your invite email.' });
-      if (!verifyPassword(password, exec.password_salt, exec.password_hash))
+      if (!exec) {
+        await logSupportAuthEvent(req, email, 'failure');
         return res.status(401).json({ error: 'Invalid credentials' });
+      }
+      if (exec.status === 'invited') {
+        await logSupportAuthEvent(req, exec.email, 'failure');
+        return res.status(403).json({ error: 'Account not activated. Check your invite email.' });
+      }
+      if (!verifyPassword(password, exec.password_salt, exec.password_hash)) {
+        await logSupportAuthEvent(req, exec.email, 'failure');
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
       // update last_seen and set online status
       await queryDb(`UPDATE ${TABLE} SET last_seen_at=NOW(), online_status='online', updated_at=NOW() WHERE id=$1`, [exec.id]);
       await logExecutiveActivity(exec.id, 'login', null, 'online');
+      await logSupportAuthEvent(req, exec.email, 'success');
       const token = createExecSessionToken({ id: exec.id, email: exec.email, name: exec.name });
       const isSecure = process.env.NODE_ENV === 'production';
       res.setHeader('Set-Cookie', serializeCookie(EXEC_SESSION_COOKIE_NAME, token, {
@@ -124,13 +172,18 @@ export default async function handler(req, res) {
         `SELECT * FROM ${TABLE} WHERE invite_token=$1 AND invite_expires_at > NOW() LIMIT 1`, [token]
       );
       const exec = rows[0];
-      if (!exec) return res.status(400).json({ error: 'Invalid or expired invite link' });
+      if (!exec) {
+        await logSupportAuthEvent(req, 'invite', 'failure');
+        return res.status(400).json({ error: 'Invalid or expired invite link' });
+      }
       const { salt, hash } = hashPassword(password);
       await queryDb(
         `UPDATE ${TABLE} SET password_salt=$1, password_hash=$2, status='active', invite_token=NULL,
-         invite_expires_at=NULL, updated_at=NOW() WHERE id=$3`,
+         invite_expires_at=NULL, online_status='offline', updated_at=NOW() WHERE id=$3`,
         [salt, hash, exec.id]
       );
+      await logExecutiveActivity(exec.id, 'status_change', 'invited', 'active', { source: 'invite_accept' });
+      await logSupportAuthEvent(req, exec.email, 'success');
       return res.status(200).json({ ok: true, email: exec.email });
     } catch (err) {
       return res.status(500).json({ error: err.message });
@@ -233,10 +286,12 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     const { email, name, activateImmediately = false } = req.body || {};
     if (!email || !name) return res.status(400).json({ error: 'email and name required' });
-    
-    // Validate email domain
-    if (!email.endsWith('@patienceai.in')) {
-      return res.status(400).json({ error: 'Only @patienceai.in email addresses are allowed' });
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+
+    // Validate allowed executive email(s): domains or exact addresses from SUPPORT_EXEC_ALLOWED_DOMAINS
+    if (!isAllowedExecutiveEmail(normalizedEmail)) {
+      return res.status(400).json({ error: 'Email is not allowed for support executive invites' });
     }
     
     const inviteToken = crypto.randomBytes(24).toString('hex');
@@ -251,7 +306,7 @@ export default async function handler(req, res) {
     
     const { salt, hash } = hashPassword(randomPassword);
     try {
-      const existing = await queryDb(`SELECT id, status FROM ${TABLE} WHERE email=$1 LIMIT 1`, [email.toLowerCase()]);
+      const existing = await queryDb(`SELECT id, status FROM ${TABLE} WHERE email=$1 LIMIT 1`, [normalizedEmail]);
       let exec;
       if (existing.length > 0) {
         // re-invite or activate
@@ -259,14 +314,14 @@ export default async function handler(req, res) {
           `UPDATE ${TABLE} SET name=$1, invite_token=$2, invite_expires_at=$3, status=$4, 
            password_salt=$5, password_hash=$6, updated_at=NOW()
            WHERE email=$7 RETURNING *`,
-          [name, inviteToken, expiresAt, activateImmediately ? 'active' : 'invited', salt, hash, email.toLowerCase()]
+          [name, inviteToken, expiresAt, activateImmediately ? 'active' : 'invited', salt, hash, normalizedEmail]
         );
         exec = rows[0];
       } else {
         const rows = await queryDb(
           `INSERT INTO ${TABLE} (email, name, password_salt, password_hash, status, invite_token, invite_expires_at)
            VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-          [email.toLowerCase(), name, salt, hash, activateImmediately ? 'active' : 'invited', inviteToken, expiresAt]
+          [normalizedEmail, name, salt, hash, activateImmediately ? 'active' : 'invited', inviteToken, expiresAt]
         );
         exec = rows[0];
       }
@@ -274,7 +329,7 @@ export default async function handler(req, res) {
       let emailError = null;
       if (!activateImmediately) {
         try { 
-          await sendInviteEmail(email, name, inviteToken); 
+          await sendInviteEmail(normalizedEmail, name, inviteToken); 
         } catch (e) {
           emailError = e.message;
           console.error('[invite] email send failed:', e.message);

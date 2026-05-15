@@ -301,6 +301,8 @@ app.all('/api/support-executives/login',    wrap(supportExecutivesHandler));
 app.all('/api/support-executives/activate', wrap(supportExecutivesHandler));
 app.all('/api/support-executives/me',       wrap(supportExecutivesHandler));
 app.all('/api/support-executives/logout',   wrap(supportExecutivesHandler));
+app.all('/api/support-executives/status',   wrap(supportExecutivesHandler));
+app.all('/api/support-executives/activity', wrap(supportExecutivesHandler));
 app.all('/api/support-executives',          wrap(supportExecutivesHandler));
 app.all('/api/voice-room/ice-servers',      wrap(voiceRoomHandler));
 app.all('/api/voice-room',                  wrap(voiceRoomHandler));
