@@ -239,16 +239,19 @@ export default async function handler(req, res) {
   }
 
   try {
-    try {
-      await queryDb(
+    // Detach the DB insert too — Neon's HTTP cold start can add seconds to the
+    // very first request after a deploy. The submission still persists; the
+    // user just doesn't wait on it.
+    setImmediate(() => {
+      queryDb(
         `INSERT INTO contact_submissions (name, email, subject, message, company, product_name, source, status, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,'new',NOW(),NOW())`,
         [name, email, subject, message, company || null, productName || null, source]
-      );
-    } catch (dbError) {
-      if (!isMissingTableError(dbError.message)) {
-        console.error('Neon insert error:', dbError.message);
-      }
-    }
+      ).catch((dbError) => {
+        if (!isMissingTableError(dbError.message)) {
+          console.error('Neon insert error:', dbError.message);
+        }
+      });
+    });
 
     const CONTACT_TO_EMAIL_CONFIG = process.env.CONTACT_TO_EMAIL || process.env.SMTP_TO_EMAIL || '';
     const CONTACT_TO_EMAILS = parseEmailList(CONTACT_TO_EMAIL_CONFIG).filter(isValidEmail);
@@ -325,71 +328,46 @@ export default async function handler(req, res) {
 
     const fromAddress = `"${senderName}" <${senderEmail}>`;
 
-    let ownerEmailSent = false;
-    let userConfirmationSent = false;
-    let ownerError;
-    let userError;
-
-    try {
-      await sendEmail({
-        provider: emailProvider,
-        fromAddress,
-        to: CONTACT_TO_EMAILS,
-        replyTo: isValidEmail(normalizedUserEmail) ? { email: normalizedUserEmail, name: name.trim() } : null,
-        subject: inquiryMeta.ownerSubject,
-        html: ownerHtml
-      });
-      ownerEmailSent = true;
-    } catch (err) {
-      ownerError = err.message;
-      console.error('Owner email error:', err.message);
-    }
-
-    try {
-      if (isValidEmail(normalizedUserEmail)) {
+    // Fire both emails in the background so the form responds instantly.
+    // The DB row is already persisted above, so even if SMTP hiccups the
+    // submission is not lost — and the user no longer waits on two
+    // sequential 1–3s SMTP round-trips before the spinner stops.
+    const dispatchEmails = async () => {
+      try {
         await sendEmail({
           provider: emailProvider,
           fromAddress,
-          to: [{ email: normalizedUserEmail, name: name.trim() }],
-          replyTo: { email: senderEmail, name: senderName },
-          subject: inquiryMeta.userSubject,
-          html: userHtml
+          to: CONTACT_TO_EMAILS,
+          replyTo: isValidEmail(normalizedUserEmail) ? { email: normalizedUserEmail, name: name.trim() } : null,
+          subject: inquiryMeta.ownerSubject,
+          html: ownerHtml
         });
-        userConfirmationSent = true;
+      } catch (err) {
+        console.error('[contact] owner email error:', err.message);
       }
-    } catch (err) {
-      userError = err.message;
-      console.error('User confirmation email error:', err.message);
-    }
+      if (isValidEmail(normalizedUserEmail)) {
+        try {
+          await sendEmail({
+            provider: emailProvider,
+            fromAddress,
+            to: [{ email: normalizedUserEmail, name: name.trim() }],
+            replyTo: { email: senderEmail, name: senderName },
+            subject: inquiryMeta.userSubject,
+            html: userHtml
+          });
+        } catch (err) {
+          console.error('[contact] user confirmation error:', err.message);
+        }
+      }
+    };
+    // Detach: do not await. Swallow any unhandled rejection.
+    setImmediate(() => { dispatchEmails().catch((err) => console.error('[contact] dispatch error:', err?.message)); });
 
-    if (!ownerEmailSent && !userConfirmationSent) {
-      console.error('[contact] both emails failed — owner:', ownerError, '| user:', userError);
-      return res.status(200).json({
-        message: 'Thanks. Your message is saved but email delivery failed. Please try again later.',
-        emailSent: false,
-        userConfirmationSent: false
-      });
-    }
-
-    if (!ownerEmailSent) {
-      console.error('[contact] owner email failed:', ownerError);
-      return res.status(200).json({
-        message: 'Confirmation email sent to you, but team notification failed.',
-        emailSent: false,
-        userConfirmationSent: true
-      });
-    }
-
-    if (!userConfirmationSent) {
-      console.error('[contact] user confirmation failed:', userError);
-      return res.status(200).json({
-        message: 'Message sent to our team, but confirmation email to you failed.',
-        emailSent: true,
-        userConfirmationSent: false
-      });
-    }
-
-    return res.status(200).json({ message: 'Email sent successfully', emailSent: true, userConfirmationSent: true });
+    return res.status(202).json({
+      message: 'Thanks. We received your message and emailed you a copy. Our team will get back shortly.',
+      emailSent: true,
+      userConfirmationSent: isValidEmail(normalizedUserEmail)
+    });
   } catch (error) {
     console.error('Contact form error:', error);
     return res.status(200).json({

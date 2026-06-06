@@ -10,7 +10,7 @@ const SOCIAL_ICONS = {
   LinkedIn: FaLinkedinIn
 };
 
-const LOCATION_LABEL = 'Based in Pune, Maharashtra, India';
+const LOCATION_LABEL = 'Remote-first · Distributed across India';
 
 const Footer = ({ brand, content, onAction }) => {
   const [currentTime, setCurrentTime] = useState('');

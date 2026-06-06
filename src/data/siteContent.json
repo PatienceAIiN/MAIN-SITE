@@ -464,7 +464,7 @@
       "points": [
         "Founded in 2024 in Pune by a team of ex-ML engineers and product operators who shipped conversational AI at scale for Indian fintech, edtech, and D2C companies.",
         "Mission: make production-grade generative AI accessible to Indian businesses that need real outcomes — deflected tickets, qualified leads, faster operations — not slideware.",
-        "We are a team of 15–25 builders across engineering, applied research, design, and customer success, working hybrid out of our Kharadi office with remote-India teammates across Bengaluru, Hyderabad, and Delhi NCR.",
+        "We are a fully remote team of 15–25 builders across engineering, applied research, design, and customer success, distributed across India — Bengaluru, Hyderabad, Pune, Delhi NCR, and beyond. No offices, no commutes — just clear async writing, shared docs, and tight on-call rotations.",
         "Customers include Series A–C SaaS companies, mid-market BFSI players, regional healthcare networks, and ambitious D2C brands across India, Singapore, and the UAE.",
         "We are opinionated about quality: every customer ships with an evaluation harness, every agent has guardrails, and every workflow is auditable end-to-end.",
         "Backed by operator-angels from the Indian SaaS ecosystem and a clutch of early-stage funds focused on applied AI."
@@ -476,12 +476,12 @@
       "title": "Contact",
       "description": "Talk to the Patience AI team about pilots, enterprise rollouts, integration scoping, or partnership opportunities.",
       "points": [
-        "Headquarters: Suite 402, World Trade Center, Tower 1, Kharadi, Pune, Maharashtra 411014, India.",
+        "We are a fully remote company — there is no walk-in office. The fastest way to reach us is email or the form below.",
         "Sales and partnerships: growth@patienceai.in — typical response within 1 business day (IST).",
         "Customer support and product questions: support@patienceai.in — 24x7 for paid customers, business hours otherwise.",
-        "Phone: +91 20 4890 2200 (Mon–Fri, 10:00–19:00 IST). For voice AI demos, request a callback via the form below.",
+        "Voice AI demos and live walkthroughs: request a callback via the form below — we will dial you back on a scheduled slot.",
         "Press and media: press@patienceai.in. For careers and hiring, see /company/careers.",
-        "We are also active on LinkedIn (/company/patience-ai), X (@AiPatience32847), and Instagram (@patienceaiindia)."
+        "We are also active on X (@AiPatience32847) and Instagram (@patienceaiindia). LinkedIn presence is being set up — we will update soon."
       ]
     },
     {
@@ -522,7 +522,7 @@
         "You are responsible for the accuracy of data you submit and for keeping API credentials confidential.",
         "Acceptable use prohibits illegal content, attempts to bypass guardrails, scraping, and resale without a written agreement.",
         "Patience AI provides the platform on an as-is basis with commercially reasonable uptime targets stated in the order form.",
-        "These Terms are governed by the laws of India and subject to the exclusive jurisdiction of courts in Pune, Maharashtra."
+        "These Terms are governed by the laws of India and subject to the exclusive jurisdiction of Indian courts."
       ]
     }
   ],
@@ -530,10 +530,10 @@
     "hero": {
       "eyebrow": "Company",
       "title": "Build the next generation of applied AI from Pune",
-      "description": "We are hiring engineers, researchers, and operators who want to ship governed AI products that real Indian businesses run on. Hybrid out of Kharadi, Pune, with remote-India roles for senior talent."
+      "description": "We are hiring engineers, researchers, and operators who want to ship governed AI products that real Indian businesses run on. Fully remote across India — work from wherever you are most productive."
     },
     "highlights": [
-      "Hybrid-first culture out of our Kharadi, Pune office with remote-India roles for senior contributors.",
+      "Fully remote across India — no office, no commute; deep-work hours protected, meetings written down.",
       "Ship to production: every team owns customer-facing outcomes, not just internal tickets.",
       "Competitive cash compensation, meaningful ESOPs, and a learning budget for conferences and courses."
     ],
@@ -921,7 +921,7 @@
         {
           "paragraphs": [
             "Patience AI Technologies Private Limited (\"Patience AI\", \"we\", \"us\", or \"our\") operates patienceai.in and the Patience AI platform for building governed generative AI agents, retrieval systems, voice AI, and workflow automation. This Privacy Policy explains how we collect, process, store, and share personal data, and the rights you have under India's Digital Personal Data Protection Act, 2023 (\"DPDP Act\").",
-            "We are headquartered at Suite 402, World Trade Center, Tower 1, Kharadi, Pune, Maharashtra 411014, India. For any privacy-related question, write to support@patienceai.in or to our Grievance Officer at grievance@patienceai.in."
+            "We are a fully remote company incorporated in India with no physical walk-in office. For any privacy-related question, write to support@patienceai.in or to our Grievance Officer at grievance@patienceai.in — we respond in writing within 48 hours."
           ]
         },
         {
@@ -1009,7 +1009,7 @@
         {
           "heading": "9. Grievance Officer",
           "paragraphs": [
-            "Our Grievance Officer is reachable at grievance@patienceai.in and at Suite 402, World Trade Center, Tower 1, Kharadi, Pune, Maharashtra 411014, India. We acknowledge grievances within 48 hours and aim to resolve them within 15 working days."
+            "Our Grievance Officer is reachable at grievance@patienceai.in. As a remote-first organisation we do not maintain a walk-in office; all grievance correspondence is handled by email. We acknowledge grievances within 48 hours and aim to resolve them within 15 working days."
           ]
         },
         {
@@ -1045,7 +1045,7 @@
       "sections": [
         {
           "paragraphs": [
-            "These Terms of Service (\"Terms\") govern your access to and use of patienceai.in and the Patience AI platform (collectively, the \"Services\") operated by Patience AI Technologies Private Limited (\"Patience AI\", \"we\", \"us\", or \"our\"), with registered office at Suite 402, World Trade Center, Tower 1, Kharadi, Pune, Maharashtra 411014, India.",
+            "These Terms of Service (\"Terms\") govern your access to and use of patienceai.in and the Patience AI platform (collectively, the \"Services\") operated by Patience AI Technologies Private Limited (\"Patience AI\", \"we\", \"us\", or \"our\"), a remote-first company incorporated in India. We do not operate a walk-in office; all official communication is handled by email at support@patienceai.in.",
             "By accessing or using the Services you agree to be bound by these Terms and by our Privacy Policy. If you do not agree, do not use the Services."
           ]
         },
@@ -1144,7 +1144,7 @@
         {
           "heading": "15. Governing Law and Jurisdiction",
           "paragraphs": [
-            "These Terms are governed by the laws of India. The courts at Pune, Maharashtra, will have exclusive jurisdiction over any dispute, subject to the arbitration provisions in your order form if applicable."
+            "These Terms are governed by the laws of India. Indian courts will have exclusive jurisdiction over any dispute, subject to the arbitration provisions in your order form if applicable."
           ]
         },
         {
@@ -1156,7 +1156,7 @@
         {
           "heading": "17. Contact",
           "paragraphs": [
-            "Questions about these Terms? Write to support@patienceai.in or to Patience AI Technologies Private Limited, Suite 402, World Trade Center, Tower 1, Kharadi, Pune, Maharashtra 411014, India."
+            "Questions about these Terms? Write to support@patienceai.in. As a remote-first company we do not maintain a walk-in office; all official correspondence is handled by email."
           ]
         }
       ]
