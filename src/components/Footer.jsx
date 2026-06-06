@@ -14,6 +14,13 @@ const LOCATION_LABEL = 'Based in Pune, Maharashtra, India';
 
 const Footer = ({ brand, content, onAction }) => {
   const [currentTime, setCurrentTime] = useState('');
+  const [linkedinNotice, setLinkedinNotice] = useState(false);
+
+  useEffect(() => {
+    if (!linkedinNotice) return undefined;
+    const t = window.setTimeout(() => setLinkedinNotice(false), 2600);
+    return () => window.clearTimeout(t);
+  }, [linkedinNotice]);
 
   useEffect(() => {
     const updateTime = () => {
@@ -86,6 +93,23 @@ const Footer = ({ brand, content, onAction }) => {
           <div id="footer-social-links" className="flex flex-wrap gap-6">
             {content.socialLinks.map((link) => {
               const Icon = SOCIAL_ICONS[link.label];
+              const commonClass = "inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#d1d1d1] text-[#1a1a1a] transition-colors hover:border-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-white";
+              const inner = Icon ? <Icon size={18} /> : <span className="text-xs font-semibold">{link.label}</span>;
+
+              if (link.label === 'LinkedIn') {
+                return (
+                  <button
+                    key={link.label}
+                    type="button"
+                    onClick={() => setLinkedinNotice(true)}
+                    aria-label={link.label}
+                    title={link.label}
+                    className={commonClass}
+                  >
+                    {inner}
+                  </button>
+                );
+              }
 
               return (
                 <a
@@ -95,15 +119,40 @@ const Footer = ({ brand, content, onAction }) => {
                   rel="noreferrer"
                   aria-label={link.label}
                   title={link.label}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#d1d1d1] text-[#1a1a1a] transition-colors hover:border-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-white"
+                  className={commonClass}
                 >
-                  {Icon ? <Icon size={18} /> : <span className="text-xs font-semibold">{link.label}</span>}
+                  {inner}
                 </a>
               );
             })}
           </div>
         </div>
       </div>
+
+      {linkedinNotice && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="LinkedIn notice"
+          className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40 px-4"
+          onClick={() => setLinkedinNotice(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-[#e5e5e5] bg-white p-6 text-center shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-serif text-xl text-[#1a1a1a]">LinkedIn</h3>
+            <p className="mt-3 text-sm text-[#444]">We will update soon.</p>
+            <button
+              type="button"
+              onClick={() => setLinkedinNotice(false)}
+              className="mt-5 rounded-full bg-[#1a1a1a] px-5 py-2 text-xs font-medium uppercase tracking-[0.12em] text-white transition-colors hover:bg-black"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </footer>
   );
 };

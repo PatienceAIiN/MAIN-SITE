@@ -90,7 +90,7 @@ services:
         value: "Asia/Kolkata"
       # Support
       - key: SUPPORT_APP_NAME
-        value: PatienceAI Support
+        value: "Patience AI Support"
       - key: REDIS_URL
         sync: false
     healthCheckPath: /

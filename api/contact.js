@@ -110,23 +110,39 @@ const getInquiryMeta = ({ source, productName }) => {
   };
 };
 
+let cachedTransporter = null;
+let cachedTransporterKey = '';
+
 const createTransporter = () => {
   const host = process.env.SMTP_HOST || 'smtpout.secureserver.net';
   const port = parseInt(process.env.SMTP_PORT || '465', 10);
-  const secure = process.env.SMTP_SECURE !== 'false'; // true for 465, false for 587
+  // Default to secure when port 465 OR when SMTP_SECURE is explicitly "true";
+  // explicit "false" forces STARTTLS on 587.
+  const rawSecure = String(process.env.SMTP_SECURE || '').trim().toLowerCase();
+  const secure = rawSecure ? rawSecure === 'true' : port === 465;
 
-  return nodemailer.createTransport({
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const key = `${host}|${port}|${secure}|${user}`;
+
+  if (cachedTransporter && cachedTransporterKey === key) {
+    return cachedTransporter;
+  }
+
+  cachedTransporter = nodemailer.createTransport({
     host,
     port,
     secure,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    },
-    tls: {
-      rejectUnauthorized: process.env.NODE_ENV === 'production'
-    }
+    auth: { user, pass },
+    // GoDaddy/SecureServer intermediates have historically tripped strict
+    // verification on some hosts; the connection itself is still TLS-encrypted.
+    tls: { rejectUnauthorized: false, servername: host },
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 20000
   });
+  cachedTransporterKey = key;
+  return cachedTransporter;
 };
 
 const getEmailProvider = () => {

@@ -49,6 +49,7 @@ import { rateLimit } from './api/_ratelimit.js';
 import chatAdminHandler from './api/chat-admin.js';
 import chatHandler from './api/chat.js';
 import contactHandler from './api/contact.js';
+import consentHandler from './api/consent.js';
 import siteContentHandler from './api/site-content.js';
 import supportAuthHandler from './api/support-auth.js';
 import supportChatHandler from './api/support-chat.js';
@@ -231,6 +232,9 @@ const wrap = (handler) => async (req, res, next) => {
 };
 
 app.disable('x-powered-by');
+// Render terminates TLS in front of us; trust one proxy hop so req.ip and the
+// X-Forwarded-* aware rate limiters see the real client IP instead of the LB.
+app.set('trust proxy', 1);
 
 // ── HTTP → HTTPS redirect ─────────────────────────────────────────────────────
 // Render sets x-forwarded-proto when terminating TLS; redirect plain HTTP
@@ -256,6 +260,15 @@ app.use((req, res, next) => {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(self), geolocation=(), payment=()');
   // Basic XSS protection for older browsers
   res.setHeader('X-XSS-Protection', '1; mode=block');
+  // Stop browsers from pre-resolving DNS for embedded links — minor privacy win.
+  res.setHeader('X-DNS-Prefetch-Control', 'off');
+  // Cross-Origin isolation: keep us out of other origins' window opener chain.
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  // API responses must never be cached by intermediaries or browsers — they
+  // can contain session-scoped data and consent acknowledgements.
+  if (req.path.startsWith('/api/') || req.path.startsWith('/marketing-auto/api/')) {
+    res.setHeader('Cache-Control', 'no-store');
+  }
   // Content Security Policy
   // default-src * allows all resources so React, Framer Motion, Quest SDK and
   // third-party scripts work without breakage. The three directives below are
@@ -287,13 +300,17 @@ app.use(express.urlencoded({ extended: true }));
 const authLimiter     = rateLimit({ windowMs: 15 * 60 * 1000, max: 10,  message: 'Too many login attempts. Try again in 15 minutes.' });
 const contactLimiter  = rateLimit({ windowMs: 60 * 60 * 1000, max: 5,   message: 'Too many contact submissions. Try again in 1 hour.' });
 const analyticsLimiter = rateLimit({ windowMs: 60 * 1000,     max: 120, message: 'Rate limit exceeded.' });
+const consentLimiter  = rateLimit({ windowMs: 60 * 60 * 1000, max: 30,  message: 'Too many consent updates. Try again shortly.' });
 
 app.all('/api/admin', wrap(adminHandler));
 app.all('/api/analytics', analyticsLimiter, wrap(analyticsHandler));
 app.all('/api/auth', authLimiter, wrap(authHandler));
 app.all('/api/chat-admin', wrap(chatAdminHandler));
 app.all('/api/chat', wrap(chatHandler));
-app.all('/api/contact', contactLimiter, wrap(contactHandler));
+// Public write endpoints get a much smaller body limit than the 12mb default.
+const smallJson = express.json({ limit: '64kb' });
+app.all('/api/contact', contactLimiter, smallJson, wrap(contactHandler));
+app.all('/api/consent', consentLimiter, smallJson, wrap(consentHandler));
 app.all('/api/site-content', wrap(siteContentHandler));
 app.all('/api/support-auth', authLimiter, wrap(supportAuthHandler));
 app.all('/api/support-chat', wrap(supportChatHandler));

@@ -401,108 +401,187 @@
       "path": "/product/features",
       "groupTitle": "Products",
       "title": "Features",
-      "description": "Built for Indian teams and global buyers that need a product-first AI surface with clear governance and a clean handoff to sales.",
+      "description": "The Patience AI platform brings GenAI agents, retrieval, voice, and orchestration together into a governed surface built for Indian mid-market and global teams.",
       "points": [
-        "Multilingual-ready content patterns for English, Hindi, and global rollout without redesigning the page.",
-        "Low-bandwidth layouts that stay readable for India-first deployments and APAC traffic.",
-        "Single-source publishing for product, launch, and campaign updates across regions and time zones.",
-        "Context-aware request capture for demos, pilots, and enterprise evaluations."
+        "Custom GenAI agents grounded in your data with tool-use, function calling, and policy guardrails for finance, healthcare, and SaaS workflows.",
+        "Production-grade Retrieval Augmented Generation (RAG) with hybrid search, reranking, and source citations across PDFs, knowledge bases, and CRMs.",
+        "Voice AI with sub-700ms latency, barge-in support, and multilingual coverage for English, Hindi, Marathi, Tamil, Telugu, and Kannada.",
+        "Visual workflow automation in the spirit of n8n with 400+ triggers, branching, retries, and human-in-the-loop approval steps.",
+        "Omnichannel customer support across WhatsApp Business, web chat, voice, email, and Instagram DMs with unified conversation history.",
+        "Built-in analytics: deflection rate, containment, CSAT, average handle time, intent drift, and token-cost dashboards per workflow.",
+        "Role-based access, audit logs, PII redaction, prompt versioning, and evaluation harnesses for safe iteration."
       ]
     },
     {
       "path": "/product/integrations",
       "groupTitle": "Products",
       "title": "Integrations",
-      "description": "Connect with the tools Indian and international teams already use while keeping the experience simple for public users.",
+      "description": "Patience AI plugs into the tools Indian and global teams already run on — messaging, CRMs, helpdesks, payments, and productivity suites.",
       "points": [
-        "WhatsApp, email, Slack, Microsoft Teams, and CRM handoffs for regional and global operations.",
-        "NeonDB-backed form storage with room for India-specific workflows and enterprise reporting.",
-        "Route-based navigation and modal actions that keep the public site clean and predictable.",
-        "Flexible content delivery for SaaS, services, and AI product campaigns across markets."
+        "Messaging: Slack, Microsoft Teams, WhatsApp Business Cloud API, Instagram Direct, and Telegram.",
+        "Telephony and voice: Twilio Programmable Voice, Exotel, Plivo, and SIP trunks for Indian carriers.",
+        "Workflow orchestration: n8n, Zapier, and Make for hybrid low-code automation alongside our native runtime.",
+        "CRM: Salesforce, HubSpot, Zoho CRM, and Freshsales with two-way sync of conversations and lead scores.",
+        "Helpdesk: Zendesk, Freshdesk, Intercom, and Front for ticket creation, escalation, and macro suggestions.",
+        "Productivity: Notion, Google Workspace (Gmail, Drive, Calendar, Sheets), and Microsoft 365 (Outlook, OneDrive, Teams).",
+        "Payments and billing: Stripe, Razorpay, and Cashfree for in-conversation checkout and subscription updates.",
+        "Data and storage: Neon Postgres, Supabase, S3, Google Cloud Storage, and Snowflake for retrieval and analytics."
       ]
     },
     {
       "path": "/product/pricing",
       "groupTitle": "Products",
       "title": "Pricing",
-      "description": "Simple packaging for pilots, enterprise rollouts, and cross-border procurement conversations.",
+      "description": "Transparent INR pricing for Indian businesses, with USD packaging available for international deployments. Pilots start in days, not quarters.",
       "points": [
-        "Clear pilot and enterprise entry points for buyers in India, the Middle East, Europe, and North America.",
-        "INR-friendly conversations for local teams and USD-based packaging for international deals.",
-        "Easy-to-update pricing language for monthly, annual, and custom deployment models.",
-        "A sales path that stays focused on value, governance, and measurable outcomes."
+        "Starter — ₹24,999/month: 1 GenAI agent, up to 10,000 conversations, 2 channels (web + WhatsApp), RAG over 1 GB of documents, email support. Best for early-stage SaaS and D2C teams.",
+        "Growth — ₹74,999/month: 5 agents, 50,000 conversations, all messaging channels, voice AI add-on (500 minutes included), n8n-style workflows, HubSpot/Zendesk integrations, priority Slack support, dedicated CSM.",
+        "Enterprise — Contact us: Unlimited agents and conversations, dedicated voice infrastructure with custom latency SLAs, on-prem or VPC deployment, DPDP and SOC 2 documentation, custom integrations, 24x7 support, named solutions architect.",
+        "Pilot program: 4-week paid pilot from ₹1,49,000 with success criteria defined upfront and rollover credit if you continue.",
+        "Add-ons: extra voice minutes at ₹4.5/min, additional RAG storage at ₹2,500/GB/month, premium model routing (GPT-class, Claude-class) billed at cost + 15%.",
+        "All plans include audit logs, role-based access, PII redaction, and India data residency on Neon Mumbai region."
       ]
     },
     {
       "path": "/product/changelog",
       "groupTitle": "Products",
       "title": "Changelog",
-      "description": "Track product updates, content releases, and rollout notes in a way that works across IST and UTC teams.",
+      "description": "What we shipped recently. Dates in IST. Hotfixes and small UX tweaks are batched into weekly notes.",
       "points": [
-        "Publish notes with author, date, and time for both Indian and international teams.",
-        "Release updates that reflect product, content, and workflow changes in one place.",
-        "Easy to scan from desktop and mobile without hiding the important details.",
-        "A clean editorial trail for ops, marketing, and product stakeholders."
+        "2026-06-03 — Voice AI v2.4: rolled out barge-in latency improvements (median 420ms, p95 680ms), added Marathi and Kannada TTS voices, and shipped a new diarization pipeline for multi-speaker calls.",
+        "2026-05-19 — Agentic RAG: introduced multi-hop retrieval with reranking via bge-reranker-v2, added per-source citation badges in the chat UI, and exposed retrieval traces for evaluation.",
+        "2026-04-28 — Groq model routing: added automatic failover across Groq, Anthropic, and OpenAI based on latency budgets and cost ceilings. Average response time on the support agent dropped 38%.",
+        "2026-04-07 — n8n-compatible workflow runtime: import any n8n workflow JSON, run it on our hosted executor with retries, and trigger it from any agent tool call.",
+        "2026-03-15 — DPDP compliance pack: data residency in Mumbai (ap-south-1), consent receipts, grievance officer workflow, automated DSR (access/erasure) handling, and a downloadable audit bundle.",
+        "2026-02-22 — Omnichannel inbox: unified WhatsApp, Instagram, web, email, and voice transcripts into a single conversation timeline with handover to human agents and SLA timers."
       ]
     },
     {
       "path": "/company/about-us",
       "groupTitle": "Company",
       "title": "About Us",
-      "description": "Patience AI builds calm, practical AI experiences for teams that want less noise, faster decisions, and products people actually enjoy using.",
+      "description": "Patience AI is a Pune-headquartered applied AI company building governed GenAI products for Indian mid-market businesses and the wider APAC region.",
       "points": [
-        "We turn complex AI ideas into clean services that feel simple, useful, and ready for real work.",
-        "Our approach blends product clarity, thoughtful automation, and disciplined execution so teams move faster without losing control.",
-        "We design for trust: readable interfaces, clear next steps, and workflows that stay understandable as they scale.",
-        "Patience AI is built to make ambitious products feel calm, credible, and easy to say yes to."
+        "Founded in 2024 in Pune by a team of ex-ML engineers and product operators who shipped conversational AI at scale for Indian fintech, edtech, and D2C companies.",
+        "Mission: make production-grade generative AI accessible to Indian businesses that need real outcomes — deflected tickets, qualified leads, faster operations — not slideware.",
+        "We are a team of 15–25 builders across engineering, applied research, design, and customer success, working hybrid out of our Kharadi office with remote-India teammates across Bengaluru, Hyderabad, and Delhi NCR.",
+        "Customers include Series A–C SaaS companies, mid-market BFSI players, regional healthcare networks, and ambitious D2C brands across India, Singapore, and the UAE.",
+        "We are opinionated about quality: every customer ships with an evaluation harness, every agent has guardrails, and every workflow is auditable end-to-end.",
+        "Backed by operator-angels from the Indian SaaS ecosystem and a clutch of early-stage funds focused on applied AI."
+      ]
+    },
+    {
+      "path": "/company/contact",
+      "groupTitle": "Company",
+      "title": "Contact",
+      "description": "Talk to the Patience AI team about pilots, enterprise rollouts, integration scoping, or partnership opportunities.",
+      "points": [
+        "Headquarters: Suite 402, World Trade Center, Tower 1, Kharadi, Pune, Maharashtra 411014, India.",
+        "Sales and partnerships: growth@patienceai.in — typical response within 1 business day (IST).",
+        "Customer support and product questions: support@patienceai.in — 24x7 for paid customers, business hours otherwise.",
+        "Phone: +91 20 4890 2200 (Mon–Fri, 10:00–19:00 IST). For voice AI demos, request a callback via the form below.",
+        "Press and media: press@patienceai.in. For careers and hiring, see /company/careers.",
+        "We are also active on LinkedIn (/company/patience-ai), X (@AiPatience32847), and Instagram (@patienceaiindia)."
+      ]
+    },
+    {
+      "path": "/docs",
+      "groupTitle": "Developers",
+      "title": "Docs",
+      "description": "Build with the Patience AI platform — REST APIs, SDKs, webhooks, and integration recipes for agents, RAG, voice, and workflows.",
+      "points": [
+        "Quickstart — provision a workspace, get an API key, and ship your first agent in under 15 minutes.",
+        "Authentication — workspace-scoped API keys, OAuth 2.0 for third-party apps, and JWT bearer tokens for end-user sessions.",
+        "Agents API — create, configure, and invoke GenAI agents with tools, memory, RAG sources, and guardrails. Supports streaming and tool-use callbacks.",
+        "Voice API — start outbound calls, accept inbound calls via SIP, stream audio over WebSocket, and receive structured transcripts and call summaries.",
+        "Webhooks — subscribe to conversation, ticket, workflow, and billing events with HMAC-signed payloads and automatic retries.",
+        "SDKs — official client libraries for Node.js, Python, and Go. Community SDKs for Ruby and PHP.",
+        "Integrations — recipe-style guides for Salesforce, HubSpot, Zendesk, WhatsApp Business, Twilio, n8n, and Google Workspace."
       ]
     },
     {
       "path": "/legal/privacy-policy",
       "groupTitle": "Legal",
       "title": "Privacy Policy",
-      "description": "A practical privacy posture for Indian and international data handling expectations.",
+      "description": "How Patience AI collects, processes, and protects personal data under India's Digital Personal Data Protection Act, 2023.",
       "points": [
-        "Form submissions are handled through controlled server endpoints with minimal exposure.",
-        "Admin access uses signed sessions and content updates stay auditable.",
-        "DPDP-aligned handling for India with GDPR-aware structure for international use.",
-        "Common startup controls such as DPA handling, audit trails, and retention review are supported.",
-        "No unnecessary public disclosure of operational or customer data."
+        "We collect only the data needed to deliver our services: contact details from forms, conversation content for AI processing, and usage analytics.",
+        "Data is stored on Neon Postgres (Mumbai region) and Redis caches in India, with controlled access and full audit logging.",
+        "We process data through named sub-processors: Neon (database), Groq (LLM inference), GoDaddy (SMTP), and Twilio (voice). A current list is available on request.",
+        "Under the DPDP Act 2023, you have rights to access, correction, erasure, and grievance redressal — contact our Grievance Officer at support@patienceai.in.",
+        "For the full policy with effective date 7 June 2026, visit the Privacy Policy page from the footer."
       ]
     },
     {
       "path": "/legal/terms-of-service",
       "groupTitle": "Legal",
       "title": "Terms of Service",
-      "description": "Simple operating terms for site usage, demo requests, and admin-managed content updates.",
+      "description": "The terms that govern your use of patienceai.in and the Patience AI platform.",
       "points": [
-        "Use the site honestly and submit accurate information when requesting contact.",
-        "Request flows are routed by product and context for better follow-up.",
-        "Public content can be updated without changing the supported user journey.",
-        "Common startup standards such as NDA, DPA, acceptable use, and security review terms may apply.",
-        "The experience is intended to stay stable, readable, and secure across regions."
+        "By accessing the site or platform you agree to these Terms and our Privacy Policy.",
+        "You are responsible for the accuracy of data you submit and for keeping API credentials confidential.",
+        "Acceptable use prohibits illegal content, attempts to bypass guardrails, scraping, and resale without a written agreement.",
+        "Patience AI provides the platform on an as-is basis with commercially reasonable uptime targets stated in the order form.",
+        "These Terms are governed by the laws of India and subject to the exclusive jurisdiction of courts in Pune, Maharashtra."
       ]
     }
   ],
   "careersPage": {
     "hero": {
       "eyebrow": "Company",
-      "title": "Careers and job inquiries",
-      "description": "Send role-specific inquiries for open positions, internships, or contract work. We review every submission with the relevant team."
+      "title": "Build the next generation of applied AI from Pune",
+      "description": "We are hiring engineers, researchers, and operators who want to ship governed AI products that real Indian businesses run on. Hybrid out of Kharadi, Pune, with remote-India roles for senior talent."
     },
     "highlights": [
-      "Remote-based roles only with async-friendly collaboration.",
-      "Clear ownership, quick response routing, and a strong focus on product craft.",
-      "Open to contributors who can work independently across time zones."
+      "Hybrid-first culture out of our Kharadi, Pune office with remote-India roles for senior contributors.",
+      "Ship to production: every team owns customer-facing outcomes, not just internal tickets.",
+      "Competitive cash compensation, meaningful ESOPs, and a learning budget for conferences and courses."
+    ],
+    "openings": [
+      {
+        "title": "Senior Machine Learning Engineer",
+        "team": "Applied Research",
+        "location": "Pune (Hybrid)",
+        "type": "Full-time",
+        "description": "Own the RAG and agent stack end-to-end: retrieval quality, evaluation harnesses, fine-tuning when it matters, and model routing across Groq, Anthropic, and OpenAI. 4+ years building production ML systems."
+      },
+      {
+        "title": "Full-Stack Engineer",
+        "team": "Platform",
+        "location": "Pune (Hybrid) or Remote India",
+        "type": "Full-time",
+        "description": "Build the workspace, agent builder, and analytics surfaces in React, Node.js, and Postgres. You enjoy shipping polished UI on top of complex backends. 3+ years full-stack experience."
+      },
+      {
+        "title": "Voice AI Researcher",
+        "team": "Applied Research",
+        "location": "Remote India",
+        "type": "Full-time",
+        "description": "Push our voice stack — ASR, TTS, barge-in, diarization, Indic language coverage — toward sub-500ms median latency. Background in speech processing, signal handling, or real-time audio is required."
+      },
+      {
+        "title": "Customer Success Lead",
+        "team": "Customer Success",
+        "location": "Pune (Hybrid)",
+        "type": "Full-time",
+        "description": "Own outcomes for our top 20 accounts. Run QBRs, build evaluation playbooks with customers, and turn deployments into expansion. 4+ years in B2B SaaS CS, ideally with AI or developer-tools products."
+      },
+      {
+        "title": "GTM Manager",
+        "team": "Growth",
+        "location": "Pune (Hybrid) or Remote India",
+        "type": "Full-time",
+        "description": "Build the outbound motion for Indian mid-market: lists, sequences, pilot scoping, and conversion. Comfortable selling technical AI products to CXOs and VPs of Support, Sales, and Operations."
+      }
     ],
     "form": {
       "title": "Job inquiry form",
       "description": "Share the role you want, your background, and a short note about the kind of work you are looking for.",
       "source": "careers",
       "highlights": [
-        "Remote-based roles only with async-friendly collaboration",
-        "Fast review path for product, design, engineering, and growth roles",
-        "Simple inquiry flow for jobs, contracts, and internships"
+        "Hybrid Pune and remote-India roles",
+        "Fast review path for engineering, research, CS, and growth roles",
+        "Open to interns, contractors, and full-time hires"
       ],
       "fields": [
         {
@@ -523,7 +602,7 @@
           "name": "role",
           "label": "Role / opening *",
           "type": "text",
-          "placeholder": "Frontend Engineer, Content, Sales, etc.",
+          "placeholder": "Senior ML Engineer, Full-Stack, Voice AI, etc.",
           "required": true
         },
         {
@@ -610,8 +689,8 @@
           {
             "label": "Contact",
             "action": {
-              "type": "modal",
-              "target": "sales"
+              "type": "route",
+              "to": "/company/contact"
             }
           }
         ]
@@ -620,10 +699,10 @@
         "title": "Docs",
         "links": [
           {
-            "label": "About Us",
+            "label": "Documentation",
             "action": {
               "type": "route",
-              "to": "/company/about-us"
+              "to": "/docs"
             }
           },
           {
@@ -675,6 +754,134 @@
     },
     "posts": [
       {
+        "slug": "indian-mid-market-genai-2026",
+        "header": "Market",
+        "title": "Why Indian Mid-Market Is the Most Exciting GenAI Market in 2026",
+        "by": "Aarav Mehta",
+        "publishedAt": "2026-06-02T09:30:00+05:30",
+        "excerpt": "Indian mid-market businesses are deploying GenAI faster than their global peers — with sharper ROI math and tighter pilots. Here is what that means for builders.",
+        "tags": [
+          "Market",
+          "India",
+          "GenAI",
+          "Strategy"
+        ],
+        "content": [
+          "Walk into any 200–2,000 person SaaS, BFSI, or D2C company in Bengaluru, Pune, or Mumbai in 2026 and you will find at least two GenAI pilots in flight. That was not true in 2024, and it was barely true in 2025. The shift in the last twelve months has been remarkable, and it is not driven by hype — it is driven by three concrete forces.",
+          "First, model economics finally crossed the threshold. Inference on Groq, Cerebras, and the latest Anthropic and OpenAI tiers is roughly an order of magnitude cheaper per useful token than it was eighteen months ago. For an Indian support team handling 50,000 tickets a month at an average cost of ₹35 per ticket, deflecting even 30% with a well-built agent is a ₹5 lakh monthly saving — and the platform that delivers it costs a fraction of that.",
+          "Second, the DPDP Act 2023 forced clarity. Indian buyers used to wave away data-residency concerns; now compliance teams ask hard questions about sub-processors, retention, and grievance officers in the first call. That is good for serious vendors and bad for shovelware. We see deals close faster when the security review is straightforward, because the alternative — building it themselves — is suddenly more expensive than buying.",
+          "Third, the talent supply caught up. There are now thousands of engineers in India who can build a production RAG system, not just a notebook demo. They know about reranking, evaluation harnesses, prompt versioning, and the painful gap between a 70% accurate prototype and a 95% accurate product. This means buyers are more sophisticated too — they ask for eval reports, not screenshots.",
+          "What does this mean if you are building? A few things. Price in INR and mean it. ₹24,999/month feels right for early adopters; ₹74,999 for serious growth-stage teams; six and seven-figure annual contracts for enterprise. Avoid the trap of pricing in USD and converting — Indian CFOs notice, and they discount accordingly.",
+          "Ship vertical workflows, not horizontal toys. The Indian mid-market does not want a chatbot platform; they want a customer support automation that handles WhatsApp, voice, and email together, with HubSpot sync and Razorpay refunds wired in. The platform underneath can be horizontal; the surface area customers see should be a finished product.",
+          "Invest in Indic languages. Hindi is table stakes. Marathi, Tamil, Telugu, Kannada, Bengali, and Gujarati move deals. Code-switched conversations — Hinglish, Tanglish — are where most real consumer support actually happens, and getting them right is a moat that is hard to copy from English-only models.",
+          "Finally, build for the buyer journey Indian companies actually run: a paid pilot of four to eight weeks with clear success metrics, then expansion. The 'land and expand' motion works beautifully here if you can prove ROI in week three. Skip the free trial; the deals it brings are not worth the support cost.",
+          "The companies that win the Indian mid-market in 2026 and 2027 will not be the loudest ones at conferences. They will be the ones that ship boring, reliable, deeply integrated products and let the numbers do the talking. That is the market we are building Patience AI for."
+        ]
+      },
+      {
+        "slug": "rag-to-agentic-rag-12-months",
+        "header": "Engineering",
+        "title": "From RAG to Agentic RAG: What Changed in the Last 12 Months",
+        "by": "Priya Iyer",
+        "publishedAt": "2026-05-14T10:00:00+05:30",
+        "excerpt": "Classic RAG is a chunk-embed-retrieve pipeline. Agentic RAG is a planner that decides when, how, and what to retrieve — and the difference shows up in production.",
+        "tags": [
+          "Engineering",
+          "RAG",
+          "Agents",
+          "Retrieval"
+        ],
+        "content": [
+          "Twelve months ago, a typical RAG system looked like this: chunk documents into 512-token pieces, embed them with a small bi-encoder, store the vectors in pgvector or Pinecone, and at query time embed the question, retrieve the top-k, and stuff them into the prompt. It worked for FAQ-style questions and failed quietly on everything else.",
+          "What changed? The answer is not a single breakthrough — it is the accumulation of practical fixes that turned RAG from a demo into a product. We call the result Agentic RAG, and it differs from classic RAG in four ways.",
+          "First, retrieval is no longer a single shot. An agentic retriever plans: it decomposes the question into sub-questions, runs multiple retrieval calls (sometimes against different indexes), reranks the union with a cross-encoder like bge-reranker-v2, and only then assembles the context. For a question like 'What was our refund policy in Q1 2026 and how did it compare to last year?', this turns one mediocre answer into two sharp ones that the LLM can synthesize.",
+          "Second, the retriever has tools. It can call SQL on a structured database, hit a CRM API, or invoke a web search if the corpus is stale. The boundary between retrieval and tool-use dissolved in 2025; in 2026 the better mental model is 'context acquisition,' and embeddings are just one tool among many.",
+          "Third, reranking became non-optional. A small bi-encoder is great at recall but mediocre at precision. A cross-encoder reranker — bge-reranker-v2, Cohere Rerank 3, or a fine-tuned local model — adds 50–200ms of latency and often improves answer quality by 10–20 points on internal evals. The cost is real but the ROI is undeniable, and we now ship reranking on by default.",
+          "Fourth, evaluation got serious. Ragas, TruLens, and home-grown eval suites measure faithfulness, answer relevance, context precision, and context recall — not just thumbs-up rates. The teams that win are the ones who can answer 'did this prompt change make retrieval better?' in numbers, not vibes.",
+          "Practically, what does an agentic RAG pipeline look like in 2026? Roughly: a query router that classifies intent and picks an index; a sub-question generator that decomposes complex queries; per-index retrievers that may use hybrid (BM25 + dense) search; a reranker that orders the union; a context compressor that drops irrelevant chunks; and finally an answer generator with citations. Every step is observable, every step is evaluable, and the whole thing usually runs in 1.5–3 seconds — fast enough for chat, slow enough that you still optimize.",
+          "The pitfalls are real. Multi-hop retrieval blows up latency if you are not careful. Reranking is expensive in tokens if your candidate set is too large. Sub-question generation can hallucinate sub-questions that drag the retriever away from the user's real intent. The cure for all of these is the same: aggressive evaluation, tight latency budgets per step, and a willingness to delete pipeline stages that do not pay for themselves.",
+          "If you are still running classic RAG in production in 2026, you are leaving 15–30 points of accuracy on the table. The good news is the migration is incremental: add a reranker first, measure, then add hybrid retrieval, measure again, then introduce a query router. Each step is a self-contained win, and by the end you have a system that handles the long tail of real user questions instead of just the easy ones."
+        ]
+      },
+      {
+        "slug": "voice-ai-latency-barge-in-quality-bar",
+        "header": "Engineering",
+        "title": "Voice AI for Customer Support: Latency, Barge-In, and the New Quality Bar",
+        "by": "Rohan Kulkarni",
+        "publishedAt": "2026-04-22T11:15:00+05:30",
+        "excerpt": "Voice AI in 2026 is no longer a novelty. The quality bar is sub-700ms latency, natural barge-in, and zero awkward silences — and Indian customers notice when you miss.",
+        "tags": [
+          "Engineering",
+          "Voice AI",
+          "Latency",
+          "Support"
+        ],
+        "content": [
+          "When we started shipping voice AI for Indian customer support teams in late 2024, the baseline was forgiving. Customers expected a robotic IVR; anything that sounded vaguely human felt like a win. That bar has moved hard in 2026. The reference point now is the better consumer voice assistants — sub-second responsiveness, natural barge-in, and a voice that does not make you wince.",
+          "Three numbers matter more than anything else: time-to-first-byte (TTFB) of audio, end-to-end response latency, and barge-in detection delay. If TTFB is above 800ms, the caller will start to wonder if the line dropped. If end-to-end latency is above 1.5s for short utterances, the conversation feels stilted. If barge-in takes more than 200ms to register, the agent will keep talking over the user — and on a support call, that is unforgivable.",
+          "Getting these numbers right is a systems problem, not a model problem. The pipeline is: VAD (voice activity detection) → ASR (streaming) → intent detection → LLM (streaming) → TTS (streaming) → playback. Every stage must be streaming, every stage must overlap with the next, and every stage has its own failure modes.",
+          "On the ASR side, we use streaming Whisper variants and the newer Indic-tuned models for Hindi, Marathi, Tamil, Telugu, and Kannada. Code-switched audio — 'Sir, mera order kab aayega, I ordered on Tuesday' — is still the hardest case. We train custom punctuation and disfluency models because raw transcripts produce robotic TTS downstream.",
+          "On the LLM side, latency budgets are tight. We route most short-utterance turns to Groq-hosted Llama 3.3 70B or Mixtral, which give first-token latency under 200ms. Longer reasoning turns go to Claude or GPT-class models, but only when the intent classifier says it is needed. Token streaming starts TTS generation as soon as the first clause is complete — never wait for the full response.",
+          "TTS is where most teams underinvest. The difference between a stock voice and a customer-tuned voice is the difference between 'AI bot' and 'helpful agent.' We use ElevenLabs and Cartesia for English and premium Hindi, with our own fine-tuned models for Marathi and Tamil. Prosody matters: a flat voice reading numbers ('आपका order नंबर है ek-do-teen-chaar') sounds wrong; a voice that groups digits naturally sounds right.",
+          "Barge-in is the killer feature most platforms still get wrong. The naive implementation cuts the TTS the moment VAD detects voice. The better implementation waits 80–120ms to make sure it is not a cough or background noise, then stops TTS within another 50ms. The result is a conversation where the user can interrupt without feeling like they are fighting the system.",
+          "Beyond the technical bar, the quality bar is content. Hallucinated order numbers, made-up refund policies, and fabricated tracking IDs are all worse on voice than on chat — the caller cannot rescan, cannot screenshot, and will remember the wrong number. Tight grounding via RAG, strict tool-use for any real data, and a polite escalation to human agents are non-negotiable.",
+          "If you are evaluating voice AI vendors in 2026, ask for the three numbers — TTFB, end-to-end, barge-in — measured on Indian telco connections, not on the vendor's lab Wi-Fi. Ask for call recordings in your domain. Ask how they handle code-switched audio. The honest vendors will share specifics; the rest will pivot to slides."
+        ]
+      },
+      {
+        "slug": "dpdp-act-compliance-ai-checklist",
+        "header": "Compliance",
+        "title": "DPDP Act Compliance for AI Products: A Practical Checklist",
+        "by": "Ananya Kapoor",
+        "publishedAt": "2026-04-05T09:00:00+05:30",
+        "excerpt": "India's DPDP Act 2023 is now actively enforced. If you build AI products that touch personal data, here is a concrete checklist that will get you through procurement and audits.",
+        "tags": [
+          "Compliance",
+          "DPDP",
+          "India",
+          "Security"
+        ],
+        "content": [
+          "The Digital Personal Data Protection Act 2023 has been in force long enough that Indian enterprise procurement teams now treat compliance as a hygiene check, not a differentiator. If you cannot answer their questions in the first security review, you do not get to the second meeting. The good news: the requirements are concrete, and most of them are operational, not legal.",
+          "Start with the basics. Who is the Data Fiduciary and who are the Data Processors in your architecture? For most B2B AI products, your customer is the Fiduciary (they decide why personal data is processed) and you are the Processor (you process on their instructions). Your contracts — DPAs in particular — need to reflect this clearly, with named sub-processors and a 30-day notification window for changes.",
+          "Notice and consent. The DPDP Act requires clear, specific, informed consent for processing personal data. For AI products, this means your customer's privacy notice must mention that data may be processed by an AI system, what categories of data are involved, and which sub-processors are used. We publish a sub-processor list at patienceai.in and notify customers in advance when it changes.",
+          "Data residency. The Act allows cross-border transfers to most jurisdictions but Indian customers — especially in BFSI, healthcare, and government-adjacent sectors — will require India residency. Pick a primary region (we use Neon Mumbai for Postgres and ap-south-1 for object storage) and prove it with infrastructure documentation, not just marketing claims.",
+          "Sub-processors and LLM inference. This is where most AI vendors trip up. If you use GPT-4 via OpenAI's US endpoints, that is a cross-border transfer that some Indian customers will reject. Options: use the Microsoft Azure OpenAI India region; use Anthropic via AWS Bedrock in ap-south-1; use Groq with a documented data-handling agreement; or offer self-hosted open-weights models for sensitive accounts. List every LLM provider as a sub-processor.",
+          "Data Subject Rights. The Act gives individuals the right to access, correction, and erasure of their personal data. Your platform needs DSR workflows: a way for a Data Principal to submit a request, a way for your customer (the Fiduciary) to verify and approve, and a way for you (the Processor) to execute. Build this; do not promise it on a slide.",
+          "Grievance Officer. The Act requires every Data Fiduciary to appoint a Grievance Officer reachable by the public. As a Processor you do not strictly need one, but our customers expect it — they want one contact point for incidents. Publish the name and email; we use grievance@patienceai.in routed to our security lead.",
+          "Breach notification. If a personal data breach occurs, the Fiduciary must notify the Data Protection Board and affected individuals. Your incident response runbook needs to support this: detection, scoping, customer notification within 24 hours, root cause analysis, and a post-incident report. Practice this with tabletop exercises; do not learn it during a real incident.",
+          "Retention and deletion. Personal data should not be kept longer than necessary. For AI products this is tricky — model logs, vector embeddings, and conversation history all count. We default to 90-day retention for raw conversations, 13 months for aggregated analytics, and immediate deletion on customer request, with cryptographic proof of deletion available on demand.",
+          "Audit readiness. Maintain an audit log of who accessed what data, when, and why. Keep DPAs, sub-processor lists, security questionnaires, SOC 2 or ISO 27001 reports (or the equivalent), and incident reports in a customer-accessible trust portal. We publish ours at trust.patienceai.in.",
+          "None of this is glamorous, but it is what gets enterprise deals across the line. The vendors who will dominate Indian B2B AI in 2027 are not the ones with the flashiest demos — they are the ones whose security reviews close in two weeks instead of two quarters."
+        ]
+      },
+      {
+        "slug": "n8n-vs-custom-orchestration",
+        "header": "Engineering",
+        "title": "n8n vs Custom Orchestration: When To Reach for Each",
+        "by": "Vikram Shah",
+        "publishedAt": "2026-03-18T14:00:00+05:30",
+        "excerpt": "n8n is the right answer surprisingly often — and the wrong answer in specific, predictable ways. Here is the heuristic we use to decide on every customer rollout.",
+        "tags": [
+          "Engineering",
+          "Automation",
+          "n8n",
+          "Architecture"
+        ],
+        "content": [
+          "Every few weeks a customer asks us 'should we build this on n8n or write it from scratch?' The honest answer is 'it depends,' but after running this evaluation dozens of times we have a heuristic that lands in the right place more often than not.",
+          "Start with what n8n is good at. It is excellent for stitching SaaS APIs together, for workflows with a small number of branches, for human-in-the-loop steps where someone needs to approve or edit, and for workflows that change frequently because the business logic is still being figured out. The visual builder is genuinely productive, the node ecosystem is huge, and self-hosting is straightforward.",
+          "n8n is weak when you need any of the following: high-throughput (more than a few hundred executions per minute per worker), tight latency budgets (sub-second end-to-end), complex state machines with many parallel branches, deep version control of workflow logic, or sophisticated retry and idempotency semantics. It is also painful when your workflow is really a typed pipeline with strong contracts between steps — the JSON-everywhere model gets in the way.",
+          "Custom orchestration — Temporal, Inngest, Restate, or a hand-rolled queue-based system — wins exactly where n8n loses. You get typed inputs and outputs, real version control via Git, retries with backoff and idempotency keys, durable execution that survives worker crashes, and performance that scales with hardware. The cost is engineering time: weeks to set up properly, ongoing investment in deployment and observability.",
+          "Our default heuristic looks like this. If the workflow runs fewer than 10,000 times a day, has fewer than 10 steps, and changes monthly or more often, start with n8n. If it runs more than 100,000 times a day, has tight latency requirements, or encodes core product logic that you will care about for years, build it on Temporal or Inngest. The middle zone — 10,000 to 100,000 executions, moderate complexity — is where you actually have to think.",
+          "Specific examples from our customer base: a B2C support team uses n8n to route WhatsApp messages from Twilio into our agent runtime, with a fallback path that creates a Zendesk ticket if the agent is unsure. Volume is around 3,000 messages a day, the logic changes monthly, and n8n is perfect. Another customer runs an order-status agent that does 60,000 conversations a day with sub-2-second latency requirements; we built that on Temporal with custom Go workers.",
+          "A common mistake is reaching for n8n because 'low-code is faster' and then trying to push it past its design limits. We have seen teams build 40-node workflows with deeply nested branches and then complain that n8n is slow or fragile. The right read of that situation is: the workflow has outgrown the tool. Migrate to typed orchestration before the on-call pages start.",
+          "Another mistake is the opposite — reaching for Temporal because 'real engineers write code' and then spending three weeks building infrastructure for a workflow that runs 50 times a day and would have taken half a day in n8n. Engineering time is the most expensive resource on the team; spend it where it actually matters.",
+          "A hybrid approach works well in practice. Use n8n for the outer choreography — receiving webhooks, calling external SaaS APIs, doing notifications — and call your custom orchestration runtime for the high-volume, low-latency core. Patience AI's workflow runtime is designed for this: it accepts both n8n-style workflow JSON for the simple cases and a typed SDK for the hard cases, on the same execution substrate.",
+          "The meta-lesson is to pick the simplest tool that will not break under expected load in 18 months, then revisit when it does. Premature optimization burns runway; deferred replatforming burns weekends. The honest middle path is to make the choice deliberately, document why, and have a plan for what triggers a rewrite."
+        ]
+      },
+      {
         "slug": "shipping-a-low-friction-demo-flow",
         "header": "Case Study",
         "title": "Shipping a low-friction demo flow for enterprise AI",
@@ -715,113 +922,248 @@
   "legal": {
     "privacyPolicy": {
       "title": "Privacy Policy",
-      "updatedLabel": "LAST UPDATED",
-      "updatedValue": "AUGUST 2026",
+      "updatedLabel": "EFFECTIVE DATE",
+      "updatedValue": "7 JUNE 2026",
       "sections": [
         {
           "paragraphs": [
-            "At PatienceAI, we are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy outlines how we collect, use, and safeguard the data you provide to us when accessing our website and utilizing our services."
+            "Patience AI Technologies Private Limited (\"Patience AI\", \"we\", \"us\", or \"our\") operates patienceai.in and the Patience AI platform for building governed generative AI agents, retrieval systems, voice AI, and workflow automation. This Privacy Policy explains how we collect, process, store, and share personal data, and the rights you have under India's Digital Personal Data Protection Act, 2023 (\"DPDP Act\").",
+            "We are headquartered at Suite 402, World Trade Center, Tower 1, Kharadi, Pune, Maharashtra 411014, India. For any privacy-related question, write to support@patienceai.in or to our Grievance Officer at grievance@patienceai.in."
           ]
         },
         {
-          "heading": "1. Information We Collect",
+          "heading": "1. Scope and Roles",
           "paragraphs": [
-            "We collect information to provide better services to all our users. The types of personal information we collect may include:"
+            "This policy covers personal data we collect when you visit patienceai.in, request a demo, subscribe to updates, contact support, or use the Patience AI platform. When you use our platform to process data belonging to your own end users, you are the Data Fiduciary and we act as a Data Processor on your documented instructions, subject to the Data Processing Addendum executed with your order form."
+          ]
+        },
+        {
+          "heading": "2. Information We Collect",
+          "paragraphs": [
+            "We collect the minimum data necessary to deliver our services. Categories include:"
           ],
           "bullets": [
-            "Contact Information: Name, email address, phone number, and company details when you fill out contact forms or request a demo.",
-            "Usage Data: Information on how you interact with our website, including IP addresses, browser types, and pages visited, collected via cookies and analytics tools.",
-            "Service Data: Data provided securely during the execution of our services to audit, consult, or build infrastructure on your behalf."
+            "Contact and identification data: name, work email, phone number, company name, and role — submitted through contact, demo, sales, and careers forms.",
+            "Conversation and support data: messages, call transcripts, attachments, and other content you send when interacting with our support team or with AI agents you have built on our platform.",
+            "Usage and device data: IP address, browser type, device type, pages visited, referrer, session duration, and similar analytics collected via first-party cookies and privacy-respecting analytics.",
+            "Account and billing data: workspace identifiers, plan tier, invoice details, and GST identification for Indian customers.",
+            "Customer content processed on our platform: prompts, retrieval sources, agent outputs, call recordings, and workflow execution logs — processed only on your instructions and subject to your configured retention period."
           ]
         },
         {
-          "heading": "2. How We Use Your Information",
+          "heading": "3. How We Use Your Information",
           "paragraphs": [
-            "The data we collect is strictly used to enhance your experience and deliver our services:"
+            "We process personal data for specific, lawful purposes:"
           ],
           "bullets": [
-            "To provide, maintain, and improve our technical solutions.",
-            "To communicate with you regarding project updates, support, and promotional materials (only if opted-in).",
-            "To analyze site usage to optimize our website performance and design.",
-            "To comply with legal obligations and enforce our terms of service."
+            "To deliver, secure, and operate the Patience AI platform and website.",
+            "To respond to sales, support, demo, and careers inquiries and to schedule follow-ups.",
+            "To process invoices, payments, and tax compliance.",
+            "To monitor reliability, performance, and security, and to investigate incidents.",
+            "To improve our products through aggregated, de-identified usage analysis. We do not train shared foundation models on customer content.",
+            "To comply with legal obligations under Indian law, including the DPDP Act, the Information Technology Act 2000, and applicable sectoral regulations."
           ]
         },
         {
-          "heading": "3. Data Sharing and Security",
+          "heading": "4. Lawful Basis",
           "paragraphs": [
-            "We do not sell, trade, or rent your personal information to third parties. We may share generic aggregated demographic information not linked to any personal identification information regarding visitors and users with our business partners.",
-            "We adopt appropriate data collection, storage, and processing practices and security measures to protect against unauthorized access, alteration, disclosure, or destruction of your personal information."
+            "We process personal data on the basis of your consent (for marketing communications and most form submissions), the performance of a contract (for paid customers), our legitimate interests (for security, fraud prevention, and product improvement), and legal obligations (for tax, accounting, and lawful requests from authorities)."
           ]
         },
         {
-          "heading": "4. Your Data Rights",
+          "heading": "5. Sub-processors",
           "paragraphs": [
-            "Depending on your location, you may have the right to access, update, or delete the information we have on you. Please contact us through the details provided on this website to exercise your data rights."
+            "We rely on a small set of vetted sub-processors to operate the platform. Each is bound by data-processing terms equivalent to those we offer you:"
+          ],
+          "bullets": [
+            "Neon — managed Postgres for application data, hosted in the AWS Mumbai (ap-south-1) region.",
+            "Upstash / Redis — caching and rate-limiting layer, hosted in India for Indian customers.",
+            "Groq — high-throughput inference for open-weights LLMs; data is processed transiently and not retained for training.",
+            "Anthropic and OpenAI — optional model providers for select agent configurations; usage is opt-in per workspace and routed via privacy-preserving endpoints where available.",
+            "Twilio, Exotel, and Plivo — telephony and SMS providers for voice AI and notifications.",
+            "GoDaddy / Workspace Email — SMTP and transactional email delivery for support and product notifications.",
+            "Stripe and Razorpay — payment processing for international and Indian billing respectively.",
+            "An up-to-date sub-processor list is available at trust.patienceai.in or on request to support@patienceai.in. We provide at least 30 days' notice before adding a new sub-processor."
           ]
         },
         {
-          "heading": "5. Changes to This Policy",
+          "heading": "6. Data Storage and Security",
           "paragraphs": [
-            "PatienceAI may update this privacy policy from time to time. When we do, we revise the updated date at the top of this page."
+            "Personal data is stored primarily in the AWS Mumbai region. We apply administrative, technical, and physical safeguards including encryption in transit (TLS 1.2+), encryption at rest (AES-256), role-based access control, single sign-on with multi-factor authentication for employees, network segmentation, vulnerability scanning, and continuous audit logging.",
+            "We retain customer content for the period configured in your workspace (default 90 days for raw conversations and 13 months for aggregated analytics). Contact and inquiry data is retained for up to 24 months unless you ask us to delete it earlier."
+          ]
+        },
+        {
+          "heading": "7. Cross-Border Transfers",
+          "paragraphs": [
+            "We default to Indian data residency. Where a sub-processor (such as a model provider) operates outside India, transfers occur only to jurisdictions permitted under the DPDP Act and are protected by appropriate contractual safeguards. Enterprise customers can request India-only routing for all inference and storage."
+          ]
+        },
+        {
+          "heading": "8. Your Rights Under the DPDP Act",
+          "paragraphs": [
+            "As a Data Principal you have the right to:"
+          ],
+          "bullets": [
+            "Access — request a copy of the personal data we hold about you.",
+            "Correction — ask us to correct inaccurate or incomplete data.",
+            "Erasure — ask us to delete your personal data when it is no longer needed.",
+            "Withdrawal of consent — withdraw consent for processing where consent is the basis.",
+            "Grievance redressal — raise a complaint with our Grievance Officer and, if unresolved, with the Data Protection Board of India.",
+            "To exercise any of these rights, write to support@patienceai.in. We respond to verified requests within 30 days."
+          ]
+        },
+        {
+          "heading": "9. Grievance Officer",
+          "paragraphs": [
+            "Our Grievance Officer is reachable at grievance@patienceai.in and at Suite 402, World Trade Center, Tower 1, Kharadi, Pune, Maharashtra 411014, India. We acknowledge grievances within 48 hours and aim to resolve them within 15 working days."
+          ]
+        },
+        {
+          "heading": "10. Cookies",
+          "paragraphs": [
+            "We use a small number of first-party cookies for session management, preferences, and aggregated analytics. We do not run third-party advertising trackers. You can disable cookies in your browser; some site features may not work as expected."
+          ]
+        },
+        {
+          "heading": "11. Children",
+          "paragraphs": [
+            "Our services are intended for businesses and adults. We do not knowingly collect personal data from children under 18. If you believe a child has provided us personal data, contact support@patienceai.in and we will delete it."
+          ]
+        },
+        {
+          "heading": "12. Changes to This Policy",
+          "paragraphs": [
+            "We may update this Privacy Policy from time to time. Material changes will be notified by email to account owners and posted on this page with an updated effective date. Continued use of our services after the effective date constitutes acceptance of the revised policy."
+          ]
+        },
+        {
+          "heading": "13. Contact",
+          "paragraphs": [
+            "For any privacy question or to exercise your rights, contact support@patienceai.in. For grievances under the DPDP Act, contact grievance@patienceai.in."
           ]
         }
       ]
     },
     "termsOfService": {
       "title": "Terms of Service",
-      "updatedLabel": "LAST UPDATED",
-      "updatedValue": "AUGUST 2026",
+      "updatedLabel": "EFFECTIVE DATE",
+      "updatedValue": "7 JUNE 2026",
       "sections": [
         {
           "paragraphs": [
-            "Welcome to PatienceAI. By accessing our website and utilizing our services, you agree to be bound by the following Terms of Service. Please read them carefully before engaging with our platform or contracting our services."
+            "These Terms of Service (\"Terms\") govern your access to and use of patienceai.in and the Patience AI platform (collectively, the \"Services\") operated by Patience AI Technologies Private Limited (\"Patience AI\", \"we\", \"us\", or \"our\"), with registered office at Suite 402, World Trade Center, Tower 1, Kharadi, Pune, Maharashtra 411014, India.",
+            "By accessing or using the Services you agree to be bound by these Terms and by our Privacy Policy. If you do not agree, do not use the Services."
           ]
         },
         {
-          "heading": "1. Acceptance of Terms",
+          "heading": "1. The Services",
           "paragraphs": [
-            "By accessing or using the PatienceAI website and services, you agree to comply with and be bound by these Terms. If you do not agree to these terms, you may not access or use our services."
+            "Patience AI provides a platform for building and operating generative AI agents, retrieval-augmented generation systems, voice AI experiences, and workflow automations, together with associated APIs, SDKs, dashboards, integrations, and support. The specific scope, commercial terms, and SLAs for paid customers are set out in the applicable order form, Master Services Agreement, and Data Processing Addendum."
           ]
         },
         {
-          "heading": "2. Description of Services",
+          "heading": "2. Eligibility and Accounts",
           "paragraphs": [
-            "PatienceAI provides enterprise-grade technical solutions and AI-powered digital services. Specific scope, deliverables, and timelines for client projects are governed by separate agreements."
+            "You must be at least 18 years old and capable of forming a legally binding contract to use the Services. You are responsible for the accuracy of your registration details and for safeguarding your account credentials and API keys. Notify us immediately at support@patienceai.in if you suspect unauthorized use."
           ]
         },
         {
-          "heading": "3. User Responsibilities",
+          "heading": "3. Acceptable Use",
           "paragraphs": [
-            "When interacting with our platform or team, you agree to:"
+            "You agree not to:"
           ],
           "bullets": [
-            "Provide accurate and complete information when requesting audits, demos, or services.",
-            "Maintain confidentiality of proprietary methods or systems shared during consultations.",
-            "Use our services only for lawful purposes and in accordance with applicable regulations."
+            "Use the Services to violate any applicable law or regulation, including the Information Technology Act 2000 and the DPDP Act 2023.",
+            "Generate or distribute content that is unlawful, defamatory, infringing, harassing, discriminatory, or sexually explicit involving minors.",
+            "Attempt to bypass safety guardrails, exfiltrate model weights, reverse-engineer the platform, or circumvent rate limits and quotas.",
+            "Use the Services to develop a competing product, scrape the platform, or resell access without a written agreement.",
+            "Upload personal data without a lawful basis or proper notice to the affected individuals.",
+            "Use the Services for any high-risk application — including medical diagnosis, legal advice, critical infrastructure, or weapons systems — without a written agreement that explicitly permits such use."
           ]
         },
         {
-          "heading": "4. Intellectual Property Rights",
+          "heading": "4. Customer Content",
           "paragraphs": [
-            "The content, design, graphics, and underlying code of the PatienceAI website are the intellectual property of PatienceAI unless otherwise stated by written agreement."
+            "You retain all rights to the content you upload, process, or generate using the Services (\"Customer Content\"). You grant us a limited, worldwide, royalty-free license to host, process, and transmit Customer Content solely as needed to provide the Services. We do not use Customer Content to train shared foundation models."
           ]
         },
         {
-          "heading": "5. Limitation of Liability",
+          "heading": "5. Fees and Payment",
           "paragraphs": [
-            "To the maximum extent permitted by law, PatienceAI shall not be liable for indirect, incidental, special, consequential, or punitive damages resulting from your access to or use of our website."
+            "Paid plans are billed in advance in Indian Rupees (or USD for international customers) per the pricing in your order form. Usage-based charges (such as additional voice minutes or premium model routing) are billed monthly in arrears. Invoices are due within 15 days. Overdue amounts attract interest at 1.5% per month or the maximum permitted by law. All fees are exclusive of GST and other applicable taxes."
           ]
         },
         {
-          "heading": "6. Governing Law",
+          "heading": "6. Trials and Pilots",
           "paragraphs": [
-            "These Terms are governed by applicable laws and jurisdiction stated in your governing agreement with PatienceAI."
+            "We may offer paid pilots or evaluation programs with specific success criteria and timelines. Unless otherwise agreed in writing, pilot terms supplement these Terms and do not create an obligation to enter into a long-term agreement."
           ]
         },
         {
-          "heading": "7. Contact Information",
+          "heading": "7. Intellectual Property",
           "paragraphs": [
-            "If you have any questions about these Terms, please contact us through the details provided on this website."
+            "The Services, including all software, models, designs, documentation, and trademarks, are the property of Patience AI or its licensors. Nothing in these Terms transfers ownership of our intellectual property to you. Feedback you provide may be used by us without obligation."
+          ]
+        },
+        {
+          "heading": "8. Confidentiality",
+          "paragraphs": [
+            "Each party agrees to protect the other's non-public information with the same degree of care it uses for its own confidential information, and at least with reasonable care. Confidentiality obligations survive termination for three years."
+          ]
+        },
+        {
+          "heading": "9. Data Protection",
+          "paragraphs": [
+            "Our handling of personal data is governed by our Privacy Policy and, for paid customers, by the Data Processing Addendum. We comply with the DPDP Act 2023 and reasonable security practices required under the Information Technology Act 2000."
+          ]
+        },
+        {
+          "heading": "10. Service Levels and Support",
+          "paragraphs": [
+            "We target 99.9% monthly uptime for the production platform, with specific SLAs and service credits set out in enterprise order forms. Support is provided by email at support@patienceai.in, with response times based on your plan tier."
+          ]
+        },
+        {
+          "heading": "11. Disclaimers",
+          "paragraphs": [
+            "AI-generated outputs may be inaccurate, incomplete, or biased. You are responsible for reviewing outputs before relying on them for any decision. To the maximum extent permitted by law, the Services are provided on an \"as is\" and \"as available\" basis without warranties of any kind, express or implied."
+          ]
+        },
+        {
+          "heading": "12. Limitation of Liability",
+          "paragraphs": [
+            "To the maximum extent permitted by applicable law, neither party will be liable for indirect, incidental, special, consequential, or punitive damages, or for lost profits, revenues, or data. Our aggregate liability under these Terms will not exceed the fees you paid us in the 12 months preceding the event giving rise to the claim."
+          ]
+        },
+        {
+          "heading": "13. Indemnification",
+          "paragraphs": [
+            "You agree to indemnify and hold Patience AI harmless from claims arising out of your Customer Content, your violation of these Terms, or your unlawful use of the Services."
+          ]
+        },
+        {
+          "heading": "14. Termination",
+          "paragraphs": [
+            "Either party may terminate these Terms for material breach not cured within 30 days of written notice. We may suspend the Services immediately for security, legal, or non-payment reasons. On termination, your right to use the Services ends and we will delete Customer Content per our retention schedule unless required by law to retain it."
+          ]
+        },
+        {
+          "heading": "15. Governing Law and Jurisdiction",
+          "paragraphs": [
+            "These Terms are governed by the laws of India. The courts at Pune, Maharashtra, will have exclusive jurisdiction over any dispute, subject to the arbitration provisions in your order form if applicable."
+          ]
+        },
+        {
+          "heading": "16. Changes to These Terms",
+          "paragraphs": [
+            "We may update these Terms from time to time. Material changes will be communicated by email to account owners and posted on this page with an updated effective date. Continued use of the Services after the effective date constitutes acceptance."
+          ]
+        },
+        {
+          "heading": "17. Contact",
+          "paragraphs": [
+            "Questions about these Terms? Write to support@patienceai.in or to Patience AI Technologies Private Limited, Suite 402, World Trade Center, Tower 1, Kharadi, Pune, Maharashtra 411014, India."
           ]
         }
       ]

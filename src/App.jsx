@@ -21,8 +21,12 @@ import PlatformPage from './pages/PlatformPage';
 import CareersPage from './pages/CareersPage';
 import BlogPage from './pages/BlogPage';
 import BlogPostPage from './pages/BlogPostPage';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
+import ContactPage from './pages/ContactPage';
 import Analytics from './components/Analytics';
 import ChatWidget from './components/ChatWidget';
+import DpdpConsentBanner from './components/DpdpConsentBanner';
 import defaultSiteContent from './data/siteContent.json';
 import { fetchJson } from './common/fetchJson';
 
@@ -212,9 +216,14 @@ function App() {
             <Route path="/company/blog" element={<BlogPage content={siteContent.blogPage} />} />
             <Route path="/company/blog/:slug" element={<BlogPostPage content={siteContent.blogPage} onAction={handleAction} />} />
             <Route path="/company/careers" element={<CareersPage content={siteContent.careersPage} onAction={handleAction} />} />
-            {detailPages.map((page) => (
-              <Route key={page.path} path={page.path} element={<DetailPage pageContent={page} onAction={handleAction} />} />
-            ))}
+            <Route path="/company/contact" element={<ContactPage siteContent={siteContent} />} />
+            <Route path="/legal/privacy-policy" element={<PrivacyPolicy content={siteContent.legal?.privacyPolicy} />} />
+            <Route path="/legal/terms-of-service" element={<TermsOfService content={siteContent.legal?.termsOfService} />} />
+            {detailPages
+              .filter((page) => !['/legal/privacy-policy', '/legal/terms-of-service', '/company/contact'].includes(page.path))
+              .map((page) => (
+                <Route key={page.path} path={page.path} element={<DetailPage pageContent={page} onAction={handleAction} />} />
+              ))}
             <Route path="/admin" element={<Navigate to="/admin" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -239,6 +248,7 @@ function App() {
 
       <Analytics />
       <ChatWidget brand={siteContent.brand} />
+      <DpdpConsentBanner />
     </div>
   );
 }
