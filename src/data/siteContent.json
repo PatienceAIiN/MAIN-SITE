@@ -666,13 +666,6 @@
         "title": "Company",
         "links": [
           {
-            "label": "About Us",
-            "action": {
-              "type": "route",
-              "to": "/company/about-us"
-            }
-          },
-          {
             "label": "Careers",
             "action": {
               "type": "route",
