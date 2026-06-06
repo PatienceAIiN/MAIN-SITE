@@ -85,7 +85,7 @@ const DpdpConsentBanner = () => {
             </ul>
             <p className="mt-2 text-[13px] text-[#444]">
               Essential cookies are always on. You can accept, reject, or pick categories. Read our{' '}
-              <a href="/privacy" className="underline underline-offset-2 hover:text-black">privacy policy</a>.
+              <a href="/legal/privacy-policy" className="underline underline-offset-2 hover:text-black">privacy policy</a>.
             </p>
           </div>
 
