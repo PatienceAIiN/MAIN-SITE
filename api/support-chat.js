@@ -1,6 +1,6 @@
-import nodemailer from 'nodemailer';
 import { queryDb, isMissingTableError } from './_db.js';
 import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, getExecSession } from './_security.js';
+import { sendEmail } from './_email.js';
 
 const CHATS_TABLE = 'support_chats';
 const SESSIONS_TABLE = 'support_sessions';
@@ -8,17 +8,6 @@ const EXEC_TABLE = 'support_executives';
 
 const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
 const getExec = (req) => getExecSession(req);
-
-const createTransporter = () => nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
-  port: parseInt(process.env.SMTP_PORT || '587', 10),
-  secure: process.env.SMTP_SECURE === 'true',
-  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-  connectionTimeout: 12000,
-  greetingTimeout: 12000,
-  socketTimeout: 12000,
-  tls: { rejectUnauthorized: process.env.NODE_ENV === 'production' }
-});
 
 const notifyExecutives = async (conversationId, customerEmail, customerName) => {
   try {
@@ -30,24 +19,26 @@ const notifyExecutives = async (conversationId, customerEmail, customerName) => 
       ? process.env.SITE_URL
       : `https://${process.env.SITE_URL || 'patienceai.in'}`;
     const link = `${base}/support-executive`;
-    const transporter = createTransporter();
     for (const exec of execs) {
-      await transporter.sendMail({
-        from: `"${process.env.SMTP_SENDER_NAME || 'Patience AI'}" <${process.env.SMTP_USER}>`,
-        to: exec.email,
-        subject: `New live chat request — ${conversationId}`,
-        html: `
-          <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px">
-            <h2 style="color:#0f172a">New support chat request</h2>
-            <p style="color:#475569">A customer is waiting for live support.</p>
-            <table style="margin:16px 0;color:#475569">
-              <tr><td style="padding:4px 12px 4px 0;font-weight:600">Conversation ID</td><td>${conversationId}</td></tr>
-              ${customerName ? `<tr><td style="padding:4px 12px 4px 0;font-weight:600">Customer name</td><td>${customerName}</td></tr>` : ''}
-              ${customerEmail ? `<tr><td style="padding:4px 12px 4px 0;font-weight:600">Customer email</td><td>${customerEmail}</td></tr>` : ''}
-            </table>
-            <a href="${link}" style="display:inline-block;padding:12px 28px;background:#0f172a;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Open Support Panel</a>
-          </div>`
-      }).catch((e) => console.error('exec notify email failed:', e.message));
+      try {
+        await sendEmail({
+          to: exec.email,
+          subject: `New live chat request — ${conversationId}`,
+          html: `
+            <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px">
+              <h2 style="color:#0f172a">New support chat request</h2>
+              <p style="color:#475569">A customer is waiting for live support.</p>
+              <table style="margin:16px 0;color:#475569">
+                <tr><td style="padding:4px 12px 4px 0;font-weight:600">Conversation ID</td><td>${conversationId}</td></tr>
+                ${customerName ? `<tr><td style="padding:4px 12px 4px 0;font-weight:600">Customer name</td><td>${customerName}</td></tr>` : ''}
+                ${customerEmail ? `<tr><td style="padding:4px 12px 4px 0;font-weight:600">Customer email</td><td>${customerEmail}</td></tr>` : ''}
+              </table>
+              <a href="${link}" style="display:inline-block;padding:12px 28px;background:#0f172a;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Open Support Panel</a>
+            </div>`
+        });
+      } catch (e) {
+        console.error('exec notify email failed:', e.message);
+      }
     }
   } catch (e) {
     console.error('notifyExecutives error:', e.message);

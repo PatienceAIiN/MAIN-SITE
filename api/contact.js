@@ -1,6 +1,5 @@
-import nodemailer from 'nodemailer';
-import SibApiV3Sdk from 'sib-api-v3-sdk';
 import { queryDb, isMissingTableError } from './_db.js';
+import { sendEmail, getEmailProvider, normalizeEmailAddress, isValidEmail } from './_email.js';
 
 const escapeHtml = (value = '') =>
   String(value)
@@ -9,16 +8,6 @@ const escapeHtml = (value = '') =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-
-const normalizeEmailAddress = (value = '') => {
-  const input = String(value).trim();
-  if (!input) return '';
-  const angleMatch = input.match(/<([^>]+)>/);
-  if (angleMatch?.[1]) return angleMatch[1].trim();
-  return input.replace(/^mailto:/i, '').trim();
-};
-
-const isValidEmail = (value = '') => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmailAddress(value));
 
 const parseEmailList = (rawValue = '') => {
   const seen = new Set();
@@ -32,21 +21,6 @@ const parseEmailList = (rawValue = '') => {
       seen.add(normalized);
       return true;
     });
-};
-
-const normalizeRecipient = (value) => {
-  if (!value) return null;
-  if (typeof value === 'string') {
-    const email = normalizeEmailAddress(value);
-    return email ? { email } : null;
-  }
-
-  const email = normalizeEmailAddress(value.email || '');
-  if (!email) return null;
-  return {
-    email,
-    name: value.name ? String(value.name).trim() : undefined
-  };
 };
 
 const getInquiryMeta = ({ source, productName }) => {
@@ -108,117 +82,6 @@ const getInquiryMeta = ({ source, productName }) => {
     ownerSummary: 'A visitor submitted a contact request from the website.',
     userSummary: 'Thanks for reaching out to our team.'
   };
-};
-
-let cachedTransporter = null;
-let cachedTransporterKey = '';
-
-const createTransporter = () => {
-  const host = process.env.SMTP_HOST || 'smtp-relay.brevo.com';
-  const port = parseInt(process.env.SMTP_PORT || '587', 10);
-  // Default to secure when port 465 OR when SMTP_SECURE is explicitly "true";
-  // explicit "false" forces STARTTLS on 587.
-  const rawSecure = String(process.env.SMTP_SECURE || '').trim().toLowerCase();
-  const secure = rawSecure ? rawSecure === 'true' : port === 465;
-
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const key = `${host}|${port}|${secure}|${user}`;
-
-  if (cachedTransporter && cachedTransporterKey === key) {
-    return cachedTransporter;
-  }
-
-  cachedTransporter = nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: { user, pass },
-    tls: { servername: host },
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 20000
-  });
-  cachedTransporterKey = key;
-  return cachedTransporter;
-};
-
-const getEmailProvider = () => {
-  const smtpUser = (process.env.SMTP_USER || '').trim();
-  const smtpPass = (process.env.SMTP_PASS || '').trim();
-  if (smtpUser && smtpPass) {
-    const smtpFrom = normalizeEmailAddress(process.env.SMTP_FROM || '');
-    return {
-      kind: 'smtp',
-      senderEmail: smtpFrom && isValidEmail(smtpFrom) ? smtpFrom : smtpUser,
-      senderName: (process.env.SMTP_SENDER_NAME || 'PATIENCE AI').trim()
-    };
-  }
-
-  const brevoApiKey = (process.env.BREVO_API_KEY || '').trim();
-  const brevoSenderEmail = normalizeEmailAddress(process.env.BREVO_SENDER_EMAIL || '');
-  if (brevoApiKey && brevoSenderEmail) {
-    return {
-      kind: 'brevo',
-      senderEmail: brevoSenderEmail,
-      senderName: (process.env.BREVO_SENDER_NAME || 'PATIENCE AI').trim(),
-      apiKey: brevoApiKey
-    };
-  }
-
-  return null;
-};
-
-const sendBrevoEmail = async ({ apiKey, senderEmail, senderName, to, replyTo, subject, html }) => {
-  const apiClient = SibApiV3Sdk.ApiClient.instance;
-  apiClient.authentications['api-key'].apiKey = apiKey;
-
-  const emailApi = new SibApiV3Sdk.TransactionalEmailsApi();
-  const request = new SibApiV3Sdk.SendSmtpEmail();
-  request.sender = { email: senderEmail, name: senderName };
-  request.to = to.map((address) => normalizeRecipient(address)).filter(Boolean);
-  request.subject = subject;
-  request.htmlContent = html;
-
-  if (replyTo) {
-    request.replyTo = normalizeRecipient(replyTo);
-  }
-
-  await emailApi.sendTransacEmail(request);
-};
-
-const sendEmail = async ({ provider, to, replyTo, subject, html, fromAddress }) => {
-  if (provider.kind === 'smtp') {
-    const transporter = createTransporter();
-    const smtpRecipients = (Array.isArray(to) ? to : [to])
-      .map((entry) => normalizeRecipient(entry))
-      .filter(Boolean)
-      .map((entry) => (entry.name ? `"${entry.name}" <${entry.email}>` : entry.email));
-    const smtpReplyToRecipient = replyTo ? normalizeRecipient(replyTo) : null;
-    await transporter.sendMail({
-      from: fromAddress,
-      to: smtpRecipients.join(', '),
-      replyTo: smtpReplyToRecipient ? (smtpReplyToRecipient.name ? `"${smtpReplyToRecipient.name}" <${smtpReplyToRecipient.email}>` : smtpReplyToRecipient.email) : undefined,
-      subject,
-      html
-    });
-    return;
-  }
-
-  await sendBrevoEmail({
-    apiKey: provider.apiKey,
-    senderEmail: provider.senderEmail,
-    senderName: provider.senderName,
-    to: Array.isArray(to) ? to : [to],
-    replyTo: replyTo
-      ? {
-          email: typeof replyTo === 'string' ? replyTo : replyTo.email,
-          name: typeof replyTo === 'string' ? undefined : replyTo.name
-        }
-      : null,
-    subject,
-    html
-  });
 };
 
 export default async function handler(req, res) {
@@ -325,35 +188,27 @@ export default async function handler(req, res) {
       </div>
     `;
 
-    const fromAddress = `"${senderName}" <${senderEmail}>`;
-
-    // Fire both emails in the background so the form responds instantly.
-    // The DB row is already persisted above, so even if SMTP hiccups the
-    // submission is not lost — and the user no longer waits on two
-    // sequential 1–3s SMTP round-trips before the spinner stops.
     const dispatchEmails = async () => {
       try {
         await sendEmail({
-          provider: emailProvider,
-          fromAddress,
           to: CONTACT_TO_EMAILS,
           replyTo: isValidEmail(normalizedUserEmail) ? { email: normalizedUserEmail, name: name.trim() } : null,
           subject: inquiryMeta.ownerSubject,
           html: ownerHtml
         });
+        console.log('[contact] owner email sent via', emailProvider.kind, 'to', CONTACT_TO_EMAILS.join(','));
       } catch (err) {
         console.error('[contact] owner email error:', err.message);
       }
       if (isValidEmail(normalizedUserEmail)) {
         try {
           await sendEmail({
-            provider: emailProvider,
-            fromAddress,
             to: [{ email: normalizedUserEmail, name: name.trim() }],
             replyTo: { email: senderEmail, name: senderName },
             subject: inquiryMeta.userSubject,
             html: userHtml
           });
+          console.log('[contact] user copy sent via', emailProvider.kind, 'to', normalizedUserEmail);
         } catch (err) {
           console.error('[contact] user confirmation error:', err.message);
         }

@@ -1,12 +1,11 @@
 import crypto from 'node:crypto';
-import nodemailer from 'nodemailer';
 import { queryDb, isMissingTableError } from './_db.js';
 import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, hashPassword, verifyPassword,
   createExecSessionToken, EXEC_SESSION_COOKIE_NAME, serializeCookie, getExecSession } from './_security.js';
+import { sendEmail } from './_email.js';
 
 const TABLE = 'support_executives';
 const TTL_HOURS = 72;
-const SMTP_TIMEOUT_MS = 30000;
 
 const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
 
@@ -29,33 +28,9 @@ const getSiteBase = () => {
 };
 
 const sendInviteEmail = async (email, name, token) => {
-  const host = process.env.SMTP_HOST || 'smtp-relay.brevo.com';
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const port = parseInt(process.env.SMTP_PORT || '587', 10);
-  const secure = process.env.SMTP_SECURE === 'true' ? true : (port === 465);
-
-  if (!user || !pass) {
-    throw new Error('SMTP is not configured. Set SMTP_USER and SMTP_PASS.');
-  }
-
-  const transporter = nodemailer.createTransport({
-    host, port, secure,
-    auth: { user, pass },
-    connectionTimeout: SMTP_TIMEOUT_MS,
-    greetingTimeout: SMTP_TIMEOUT_MS,
-    socketTimeout: SMTP_TIMEOUT_MS,
-    tls: { rejectUnauthorized: false }
-  });
-
   const link = `${getSiteBase()}/support-executive?invite=${token}`;
-  const fromName = process.env.SMTP_SENDER_NAME || 'Patience AI';
-  const fromAddress = process.env.SMTP_FROM || user;
-
-  await transporter.sendMail({
-    from: `"${fromName}" <${fromAddress}>`,
-    envelope: { from: user, to: email },
-    to: email,
+  await sendEmail({
+    to: { email, name },
     subject: `You're invited as a Support Executive — Patience AI`,
     html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px">
       <h2 style="color:#0f172a">Welcome, ${name}!</h2>
