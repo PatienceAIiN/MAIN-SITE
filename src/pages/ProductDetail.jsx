@@ -334,7 +334,8 @@ const ProductDetail = ({ siteContent }) => {
         techStack: {
           text: 'Technology stack and platform capabilities used for this product.',
           points: siteProduct.technologies || []
-        }
+        },
+        demoUrl: siteProduct.demoUrl
       }
     : productData[id];
 
@@ -397,12 +398,28 @@ const ProductDetail = ({ siteContent }) => {
           <p className="text-lg text-[#666666] mb-12 leading-relaxed">
             Discover how our tailored solution can transform your operations and scale your business efficiently. Let's schedule a deep dive.
           </p>
-          <Link 
-            to="/contact" 
-            className="bg-[#1a1a1a] text-white px-10 py-5 rounded-[4px] text-lg font-medium hover:bg-black transition-colors duration-300 inline-flex items-center gap-3 shadow-md"
-          >
-            Request Demo <SafeIcon icon={FiArrowRight} className="text-xl" />
-          </Link>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            {product.demoUrl && (
+              <a
+                href={product.demoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-[#1a1a1a] text-white px-10 py-5 rounded-[4px] text-lg font-medium hover:bg-black transition-colors duration-300 inline-flex items-center gap-3 shadow-md"
+              >
+                Try Live Demo <SafeIcon icon={FiArrowRight} className="text-xl" />
+              </a>
+            )}
+            <Link
+              to="/contact"
+              className={`px-10 py-5 rounded-[4px] text-lg font-medium transition-colors duration-300 inline-flex items-center gap-3 shadow-md ${
+                product.demoUrl
+                  ? 'border border-[#1a1a1a] text-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-white'
+                  : 'bg-[#1a1a1a] text-white hover:bg-black'
+              }`}
+            >
+              Request Demo <SafeIcon icon={FiArrowRight} className="text-xl" />
+            </Link>
+          </div>
         </div>
       </div>
     </div>

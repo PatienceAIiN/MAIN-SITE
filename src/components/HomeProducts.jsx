@@ -11,6 +11,12 @@ const homeProducts = [
     image: 'https://images.unsplash.com/photo-1516321497487-e288fb19713f?q=80&w=600&auto=format&fit=crop'
   },
   {
+    id: 'nexus-exchange',
+    title: 'Nexus Exchange',
+    caption: 'Smart reference rate management with real-time updates, bulk processing, and secure approvals for financial teams.',
+    image: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=600&auto=format&fit=crop'
+  },
+  {
     id: 'ai-email',
     title: 'Customer AI Email Platform',
     caption: 'Enterprise email automation with secure rules, context-aware drafting, and actionable analytics.',
