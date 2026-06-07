@@ -147,9 +147,10 @@ const getEmailProvider = () => {
   const smtpUser = (process.env.SMTP_USER || '').trim();
   const smtpPass = (process.env.SMTP_PASS || '').trim();
   if (smtpUser && smtpPass) {
+    const smtpFrom = normalizeEmailAddress(process.env.SMTP_FROM || '');
     return {
       kind: 'smtp',
-      senderEmail: smtpUser,
+      senderEmail: smtpFrom && isValidEmail(smtpFrom) ? smtpFrom : smtpUser,
       senderName: (process.env.SMTP_SENDER_NAME || 'PATIENCE AI').trim()
     };
   }

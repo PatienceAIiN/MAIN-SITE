@@ -601,9 +601,22 @@
         {
           "name": "role",
           "label": "Role / opening *",
-          "type": "text",
-          "placeholder": "Senior ML Engineer, Full-Stack, Voice AI, etc.",
-          "required": true
+          "type": "select",
+          "placeholder": "Select a role",
+          "required": true,
+          "options": [
+            "Engineering",
+            "AI / Machine Learning",
+            "Data Science",
+            "Product",
+            "Design",
+            "Marketing",
+            "Sales",
+            "Services & Support",
+            "Operations",
+            "Internship",
+            "Other"
+          ]
         },
         {
           "name": "message",

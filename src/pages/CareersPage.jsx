@@ -161,6 +161,20 @@ const CareersPage = ({ content, onAction }) => {
                         placeholder={field.placeholder}
                         className="w-full rounded-[20px] border border-[#d1d1d1] bg-white px-4 py-3.5 text-[#1a1a1a] placeholder:text-[#a3a3a3] focus:border-[#1a1a1a] focus:outline-none"
                       />
+                    ) : field.type === 'select' ? (
+                      <select
+                        id={field.name}
+                        name={field.name}
+                        value={formData[field.name]}
+                        onChange={handleChange}
+                        required={field.required}
+                        className="w-full rounded-[20px] border border-[#d1d1d1] bg-white px-4 py-3.5 text-[#1a1a1a] focus:border-[#1a1a1a] focus:outline-none"
+                      >
+                        <option value="" disabled>{field.placeholder || 'Select an option'}</option>
+                        {(field.options || []).map((opt) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
                     ) : (
                       <input
                         id={field.name}
