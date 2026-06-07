@@ -1,23 +1,20 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { fetchJson } from '../common/fetchJson';
 
 const ContactForm = ({ salesModal }) => {
-  const formFields = salesModal?.fields || [];
+  const fieldNamesKey = (salesModal?.fields || []).map((f) => f.name).join('|');
   const initialForm = useMemo(
     () =>
-      formFields.reduce((accumulator, field) => {
+      (salesModal?.fields || []).reduce((accumulator, field) => {
         accumulator[field.name] = '';
         return accumulator;
       }, {}),
-    [formFields]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fieldNamesKey]
   );
   const [formData, setFormData] = useState(initialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
-
-  useEffect(() => {
-    setFormData(initialForm);
-  }, [initialForm]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
