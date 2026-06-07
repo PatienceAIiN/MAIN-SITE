@@ -162,6 +162,16 @@ const ProductsPage = ({ content, onAction }) => {
                   </div>
 
                   <div className="flex flex-col gap-3">
+                    {selectedProduct.demoUrl ? (
+                      <a
+                        href={selectedProduct.demoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-full bg-[#1a1a1a] px-6 py-4 text-center text-sm font-semibold uppercase tracking-[0.12em] text-white transition-colors hover:bg-black"
+                      >
+                        Try Live Demo
+                      </a>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() =>
@@ -172,7 +182,11 @@ const ProductsPage = ({ content, onAction }) => {
                           back: true
                         })
                       }
-                      className="rounded-full bg-[#1a1a1a] px-6 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-white transition-colors hover:bg-black"
+                      className={`rounded-full px-6 py-4 text-sm font-semibold uppercase tracking-[0.12em] transition-colors ${
+                        selectedProduct.demoUrl
+                          ? 'border border-[#d1d1d1] text-[#1a1a1a] hover:border-[#1a1a1a]'
+                          : 'bg-[#1a1a1a] text-white hover:bg-black'
+                      }`}
                     >
                       Request Demo
                     </button>

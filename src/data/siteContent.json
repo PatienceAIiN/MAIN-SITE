@@ -307,7 +307,31 @@
           "Durable cloud storage with offline resume support"
         ],
         "audience": "Learners and institutions seeking a performance-focused, AI-enhanced exam preparation solution",
-        "privacyTone": "Privacy and security focused; enterprise controls available"
+        "privacyTone": "Privacy and security focused; enterprise controls available",
+        "demoUrl": "https://parikshakitaiyari.in"
+      },
+      {
+        "id": "nexus-exchange",
+        "name": "Nexus Exchange",
+        "shortTagline": "Smart reference rate management with real-time updates, bulk processing, and secure approvals.",
+        "summary": "A reference rate management platform that helps financial teams track, update, and approve currency exchange rates in real time. Nexus Exchange acts as a single control center for live rates, bulk uploads, and governed approvals — built for banks, money transfer companies, and global businesses managing multi-currency operations.",
+        "benefits": [
+          "Automatic real-time rate collection keeps every currency pair current without manual lookups.",
+          "High-speed bulk processing lets teams upload hundreds of rates from Excel or CSV with live progress tracking.",
+          "Built-in admin approval workflow ensures every rate change is reviewed before going live.",
+          "Granular access control with instant role updates protects sensitive financial operations.",
+          "Modern, distraction-free dashboard designed for clarity, speed, and operational confidence."
+        ],
+        "technologies": [
+          "Real-time rate ingestion and live updates",
+          "Bulk Excel and CSV processing with progress tracking",
+          "Admin approval workflow and audit trail",
+          "Role-based access with instant permission updates",
+          "Cloud-ready, secure deployment for financial operations"
+        ],
+        "audience": "Banks, money transfer companies, currency exchanges, and international businesses managing multi-currency operations",
+        "privacyTone": "Enterprise-grade security with governed approvals and audit trails",
+        "demoUrl": "https://nexusexchange.patienceai.in"
       },
       {
         "id": "ai-email-saas",
