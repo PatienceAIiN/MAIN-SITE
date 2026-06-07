@@ -29,11 +29,11 @@ const getSiteBase = () => {
 };
 
 const sendInviteEmail = async (email, name, token) => {
-  const host = process.env.SMTP_HOST || 'smtpout.secureserver.net';
+  const host = process.env.SMTP_HOST || 'smtp-relay.brevo.com';
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const port = parseInt(process.env.SMTP_PORT || '465', 10);
-  const secure = process.env.SMTP_SECURE === 'false' ? false : (port === 465);
+  const port = parseInt(process.env.SMTP_PORT || '587', 10);
+  const secure = process.env.SMTP_SECURE === 'true' ? true : (port === 465);
 
   if (!user || !pass) {
     throw new Error('SMTP is not configured. Set SMTP_USER and SMTP_PASS.');
@@ -45,7 +45,7 @@ const sendInviteEmail = async (email, name, token) => {
     connectionTimeout: SMTP_TIMEOUT_MS,
     greetingTimeout: SMTP_TIMEOUT_MS,
     socketTimeout: SMTP_TIMEOUT_MS,
-    tls: { rejectUnauthorized: false } // GoDaddy certs sometimes chain-fail in prod
+    tls: { rejectUnauthorized: false }
   });
 
   const link = `${getSiteBase()}/support-executive?invite=${token}`;

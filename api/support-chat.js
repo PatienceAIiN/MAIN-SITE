@@ -10,9 +10,9 @@ const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_
 const getExec = (req) => getExecSession(req);
 
 const createTransporter = () => nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtpout.secureserver.net',
-  port: parseInt(process.env.SMTP_PORT || '465', 10),
-  secure: process.env.SMTP_SECURE !== 'false',
+  host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
+  port: parseInt(process.env.SMTP_PORT || '587', 10),
+  secure: process.env.SMTP_SECURE === 'true',
   auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
   connectionTimeout: 12000,
   greetingTimeout: 12000,

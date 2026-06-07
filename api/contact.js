@@ -114,8 +114,8 @@ let cachedTransporter = null;
 let cachedTransporterKey = '';
 
 const createTransporter = () => {
-  const host = process.env.SMTP_HOST || 'smtpout.secureserver.net';
-  const port = parseInt(process.env.SMTP_PORT || '465', 10);
+  const host = process.env.SMTP_HOST || 'smtp-relay.brevo.com';
+  const port = parseInt(process.env.SMTP_PORT || '587', 10);
   // Default to secure when port 465 OR when SMTP_SECURE is explicitly "true";
   // explicit "false" forces STARTTLS on 587.
   const rawSecure = String(process.env.SMTP_SECURE || '').trim().toLowerCase();
@@ -134,9 +134,7 @@ const createTransporter = () => {
     port,
     secure,
     auth: { user, pass },
-    // GoDaddy/SecureServer intermediates have historically tripped strict
-    // verification on some hosts; the connection itself is still TLS-encrypted.
-    tls: { rejectUnauthorized: false, servername: host },
+    tls: { servername: host },
     connectionTimeout: 15000,
     greetingTimeout: 15000,
     socketTimeout: 20000
