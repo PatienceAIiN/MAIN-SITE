@@ -315,7 +315,7 @@ const ProductDetail = ({ siteContent }) => {
     ? {
         title: siteProduct.name,
         subtitle: siteProduct.shortTagline || siteProduct.summary,
-        image: `https://images.unsplash.com/photo-${siteProduct.id === 'pariksha-ki-taiyari' ? '1516321497487-e288fb19713f' : '1557200134-90327ee9fafa'}?q=80&w=2070&auto=format&fit=crop`,
+        image: `https://images.unsplash.com/photo-${siteProduct.id === 'pariksha-ki-taiyari' ? '1516321497487-e288fb19713f' : siteProduct.id === 'nexus-exchange' ? '1535320903710-d993d3d77d29' : '1557200134-90327ee9fafa'}?q=80&w=2070&auto=format&fit=crop`,
         problem: {
           text: siteProduct.summary,
           points: siteProduct.benefits || [],
@@ -399,7 +399,7 @@ const ProductDetail = ({ siteContent }) => {
             Discover how our tailored solution can transform your operations and scale your business efficiently. Let's schedule a deep dive.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
-            {product.demoUrl && (
+            {product.demoUrl ? (
               <a
                 href={product.demoUrl}
                 target="_blank"
@@ -408,17 +408,14 @@ const ProductDetail = ({ siteContent }) => {
               >
                 Try Live Demo <SafeIcon icon={FiArrowRight} className="text-xl" />
               </a>
+            ) : (
+              <Link
+                to="/contact"
+                className="bg-[#1a1a1a] text-white px-10 py-5 rounded-[4px] text-lg font-medium hover:bg-black transition-colors duration-300 inline-flex items-center gap-3 shadow-md"
+              >
+                Request Demo <SafeIcon icon={FiArrowRight} className="text-xl" />
+              </Link>
             )}
-            <Link
-              to="/contact"
-              className={`px-10 py-5 rounded-[4px] text-lg font-medium transition-colors duration-300 inline-flex items-center gap-3 shadow-md ${
-                product.demoUrl
-                  ? 'border border-[#1a1a1a] text-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-white'
-                  : 'bg-[#1a1a1a] text-white hover:bg-black'
-              }`}
-            >
-              Request Demo <SafeIcon icon={FiArrowRight} className="text-xl" />
-            </Link>
           </div>
         </div>
       </div>

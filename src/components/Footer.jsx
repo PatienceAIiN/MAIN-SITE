@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FaInstagram, FaLinkedinIn, FaRedditAlien } from 'react-icons/fa';
+import { FaInstagram, FaLinkedinIn, FaRedditAlien, FaYoutube } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
 import ContentLink from './ContentLink';
 
@@ -7,7 +7,8 @@ const SOCIAL_ICONS = {
   X: FaXTwitter,
   Instagram: FaInstagram,
   Reddit: FaRedditAlien,
-  LinkedIn: FaLinkedinIn
+  LinkedIn: FaLinkedinIn,
+  YouTube: FaYoutube
 };
 
 const LOCATION_LABEL = 'Remote-first · Distributed across India';

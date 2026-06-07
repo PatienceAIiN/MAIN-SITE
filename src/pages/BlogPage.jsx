@@ -38,7 +38,7 @@ const BlogPage = ({ content }) => {
           >
             <div className="relative h-64 overflow-hidden bg-[#f4f4f4]">
               <img
-                src={`https://images.unsplash.com/photo-${index % 3 === 0 ? '1516321497487-e288fb19713f' : index % 3 === 1 ? '1557200134-90327ee9fafa' : '1556742049-0cfed4f6a45d'}?q=80&w=1200&auto=format&fit=crop`}
+                src={post.coverImage || `https://images.unsplash.com/photo-${index % 3 === 0 ? '1516321497487-e288fb19713f' : index % 3 === 1 ? '1557200134-90327ee9fafa' : '1556742049-0cfed4f6a45d'}?q=80&w=1200&auto=format&fit=crop`}
                 alt={post.title}
                 className="h-full w-full object-cover grayscale transition-all duration-700 ease-out group-hover:scale-105 group-hover:grayscale-0"
               />

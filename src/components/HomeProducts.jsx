@@ -14,7 +14,7 @@ const homeProducts = [
     id: 'nexus-exchange',
     title: 'Nexus Exchange',
     caption: 'Smart reference rate management with real-time updates, bulk processing, and secure approvals for financial teams.',
-    image: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=600&auto=format&fit=crop'
+    image: 'https://images.unsplash.com/photo-1535320903710-d993d3d77d29?q=80&w=600&auto=format&fit=crop'
   },
   {
     id: 'ai-email',

@@ -27,12 +27,13 @@ import ContactPage from './pages/ContactPage';
 import Analytics from './components/Analytics';
 import ChatWidget from './components/ChatWidget';
 import DpdpConsentBanner from './components/DpdpConsentBanner';
+import { GlobalAudioProvider } from './components/GlobalAudioPlayer';
 import defaultSiteContent from './data/siteContent.json';
 import { fetchJson } from './common/fetchJson';
 
 const scrollToHash = (hash) => {
   if (!hash) {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'auto' });
     return;
   }
 
@@ -124,13 +125,14 @@ function App() {
   }, [location.pathname, siteContent]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      scrollToHash(location.hash);
-    }, 60);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
+    if (location.hash) {
+      const timer = window.setTimeout(() => {
+        scrollToHash(location.hash);
+      }, 60);
+      return () => window.clearTimeout(timer);
+    }
+    scrollToHash('');
+    return undefined;
   }, [location.pathname, location.hash]);
 
   const handleAction = useCallback(
@@ -190,6 +192,7 @@ function App() {
   const detailPages = siteContent.detailPages || [];
 
   return (
+    <GlobalAudioProvider>
     <div className="min-h-screen bg-white text-[#1a1a1a]">
       <Navbar
         brand={siteContent.brand}
@@ -250,6 +253,7 @@ function App() {
       <ChatWidget brand={siteContent.brand} />
       <DpdpConsentBanner />
     </div>
+    </GlobalAudioProvider>
   );
 }
 

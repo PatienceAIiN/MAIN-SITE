@@ -308,7 +308,14 @@
         ],
         "audience": "Learners and institutions seeking a performance-focused, AI-enhanced exam preparation solution",
         "privacyTone": "Privacy and security focused; enterprise controls available",
-        "demoUrl": "https://parikshakitaiyari.in"
+        "demoUrl": "https://parikshakitaiyari.in",
+        "media": [
+          {
+            "type": "youtube",
+            "title": "Pariksha ki Taiyari — Product Walkthrough",
+            "src": "3Jfa_h7L3II"
+          }
+        ]
       },
       {
         "id": "nexus-exchange",
@@ -331,7 +338,14 @@
         ],
         "audience": "Banks, money transfer companies, currency exchanges, and international businesses managing multi-currency operations",
         "privacyTone": "Enterprise-grade security with governed approvals and audit trails",
-        "demoUrl": "https://nexusexchange.patienceai.in"
+        "demoUrl": "https://nexusexchange.patienceai.in",
+        "media": [
+          {
+            "type": "youtube",
+            "title": "Nexus Exchange — Product Walkthrough",
+            "src": "Ivwqy7y56Nc"
+          }
+        ]
       },
       {
         "id": "ai-email-saas",
@@ -485,6 +499,13 @@
       "groupTitle": "Company",
       "title": "About Us",
       "description": "Patience AI is a Pune-headquartered applied AI company building governed GenAI products for Indian mid-market businesses and the wider APAC region.",
+      "media": [
+        {
+          "type": "youtube",
+          "title": "About Patience AI",
+          "src": "6_oRSCVP3KM"
+        }
+      ],
       "points": [
         "Founded in 2024 in Pune by a team of ex-ML engineers and product operators who shipped conversational AI at scale for Indian fintech, edtech, and D2C companies.",
         "Mission: make production-grade generative AI accessible to Indian businesses that need real outcomes — deflected tickets, qualified leads, faster operations — not slideware.",
@@ -703,6 +724,13 @@
         "title": "Company",
         "links": [
           {
+            "label": "About Us",
+            "action": {
+              "type": "route",
+              "to": "/company/about-us"
+            }
+          },
+          {
             "label": "Careers",
             "action": {
               "type": "route",
@@ -773,6 +801,11 @@
         "icon": "FaInstagram",
         "href": "https://www.instagram.com/patienceaiindia",
         "label": "Instagram"
+      },
+      {
+        "icon": "FaYoutube",
+        "href": "https://www.youtube.com/@PatienceAIIndia",
+        "label": "YouTube"
       }
     ]
   },
@@ -784,10 +817,68 @@
     },
     "posts": [
       {
+        "slug": "pariksha-ki-taiyari-launch",
+        "coverImage": "https://images.unsplash.com/photo-1488998427799-e3362cec87c3?q=80&w=1800&auto=format&fit=crop",
+        "header": "Product",
+        "title": "Introducing Pariksha ki Taiyari — Smarter, Calmer Exam Preparation",
+        "by": "Harsh Kumar",
+        "publishedAt": "2026-06-08T16:00:00+05:30",
+        "excerpt": "Pariksha ki Taiyari is an adaptive exam-prep platform built around focused practice, instant feedback, and clear progress — designed for learners who want results without the noise.",
+        "tags": [
+          "Product",
+          "Education",
+          "Launch"
+        ],
+        "content": [
+          "Exam preparation has a strange shape. There is always too much to read, never enough time, and very little signal in the middle telling you whether you are actually improving. Pariksha ki Taiyari is our attempt to give learners back that sense of direction — a calm, focused platform that turns long, scattered prep into short, productive sessions.",
+          "At its heart, Pariksha ki Taiyari is an adaptive practice platform. It recommends what to study next, runs timed sessions that feel like the real exam, and tells you right away what you got wrong and why. Over time, the platform builds a picture of your strengths and gaps, and shifts your practice towards the topics that will move your score the most.",
+          "Three ideas shape the product. First, practice should feel like progress — every session should end with the learner seeing a measurable step forward. Second, feedback should be immediate and useful, not a number on a results page a week later. Third, the experience should work on the devices and networks Indian learners actually use, which means mobile-first, low-bandwidth, and resumable when the connection drops.",
+          "Pariksha ki Taiyari is built for students preparing for competitive exams, institutions that want a clean practice layer for their learners, and educators who need clear visibility into how their cohorts are progressing. Collaboration, group study, and shared progress are first-class — so learners and mentors stay aligned without endless WhatsApp threads.",
+          "We put together a short product walkthrough that shows the learner experience — adaptive recommendations, timed practice, and real-time feedback. It is the fastest way to see how the platform feels in everyday use.",
+          "If you would like to try Pariksha ki Taiyari yourself, the live demo is available at parikshakitaiyari.in. For institutions or cohorts that want a tailored rollout, reach out and we will set up a deeper session."
+        ],
+        "media": [
+          {
+            "type": "youtube",
+            "title": "Pariksha ki Taiyari — Product Walkthrough",
+            "src": "3Jfa_h7L3II"
+          }
+        ]
+      },
+      {
+        "slug": "nexus-exchange-launch",
+        "coverImage": "https://images.unsplash.com/photo-1535320903710-d993d3d77d29?q=80&w=1800&auto=format&fit=crop",
+        "header": "Product",
+        "title": "Introducing Nexus Exchange — A Smarter Way to Manage Reference Rates",
+        "by": "Harsh Kumar",
+        "publishedAt": "2026-06-08T15:30:00+05:30",
+        "excerpt": "Nexus Exchange brings real-time currency rate management, bulk processing, and governed approvals into a single, easy-to-use control center for financial teams.",
+        "tags": [
+          "Product",
+          "Finance",
+          "Launch"
+        ],
+        "content": [
+          "Managing currency exchange rates across multiple desks, regions, and partners is one of those quietly painful problems that financial teams live with every day. Spreadsheets get emailed around, approvals happen on chat, and someone always ends up reconciling at the end of the month. Nexus Exchange is our answer to that mess — a single, calm control center where rates are tracked, updated, and approved in real time.",
+          "At its core, Nexus Exchange is a reference rate management platform built for banks, money transfer companies, currency exchange platforms, and international businesses that operate across multiple currencies. It pulls in live rates automatically, supports bulk uploads when teams need to push hundreds of pairs at once, and keeps a clean approval workflow so nothing goes live without the right sign-off.",
+          "The team wanted three things to feel obvious the moment you open the dashboard. Rates should be current without you having to check. Bulk work should be fast and visible, with clear progress as files are processed. And approvals should be a smooth conversation between operators and managers — not a bottleneck. Everything in Nexus Exchange is shaped around those three feelings.",
+          "We put together a product walkthrough that shows the dashboard in action — the live rate ticker, bulk upload progress, and the approval flow. It is the fastest way to get a feel for how the platform behaves day to day.",
+          "If you would like to try Nexus Exchange yourself, the live demo is available at nexusexchange.patienceai.in. For teams that want a guided walkthrough or a tailored deployment, reach out and we will set up a deeper session."
+        ],
+        "media": [
+          {
+            "type": "youtube",
+            "title": "Video — Nexus Exchange Walkthrough",
+            "src": "Ivwqy7y56Nc"
+          }
+        ]
+      },
+      {
         "slug": "indian-mid-market-genai-2026",
+        "coverImage": "https://images.unsplash.com/photo-1519389950473-47ba0277781c?q=80&w=1800&auto=format&fit=crop",
         "header": "Market",
         "title": "Why Indian Mid-Market Is the Most Exciting GenAI Market in 2026",
-        "by": "Aarav Mehta",
+        "by": "Patience AI Team",
         "publishedAt": "2026-06-02T09:30:00+05:30",
         "excerpt": "Indian mid-market businesses are deploying GenAI faster than their global peers — with sharper ROI math and tighter pilots. Here is what that means for builders.",
         "tags": [
@@ -810,9 +901,10 @@
       },
       {
         "slug": "rag-to-agentic-rag-12-months",
+        "coverImage": "https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=1800&auto=format&fit=crop",
         "header": "Engineering",
         "title": "From RAG to Agentic RAG: What Changed in the Last 12 Months",
-        "by": "Priya Iyer",
+        "by": "Patience AI Team",
         "publishedAt": "2026-05-14T10:00:00+05:30",
         "excerpt": "Classic RAG is a chunk-embed-retrieve pipeline. Agentic RAG is a planner that decides when, how, and what to retrieve — and the difference shows up in production.",
         "tags": [
@@ -835,9 +927,10 @@
       },
       {
         "slug": "voice-ai-latency-barge-in-quality-bar",
+        "coverImage": "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?q=80&w=1800&auto=format&fit=crop",
         "header": "Engineering",
         "title": "Voice AI for Customer Support: Latency, Barge-In, and the New Quality Bar",
-        "by": "Rohan Kulkarni",
+        "by": "Patience AI Team",
         "publishedAt": "2026-04-22T11:15:00+05:30",
         "excerpt": "Voice AI in 2026 is no longer a novelty. The quality bar is sub-700ms latency, natural barge-in, and zero awkward silences — and Indian customers notice when you miss.",
         "tags": [
@@ -860,9 +953,10 @@
       },
       {
         "slug": "dpdp-act-compliance-ai-checklist",
+        "coverImage": "https://images.unsplash.com/photo-1589829085413-56de8ae18c73?q=80&w=1800&auto=format&fit=crop",
         "header": "Compliance",
         "title": "DPDP Act Compliance for AI Products: A Practical Checklist",
-        "by": "Ananya Kapoor",
+        "by": "Patience AI Team",
         "publishedAt": "2026-04-05T09:00:00+05:30",
         "excerpt": "India's DPDP Act 2023 is now actively enforced. If you build AI products that touch personal data, here is a concrete checklist that will get you through procurement and audits.",
         "tags": [
@@ -887,9 +981,10 @@
       },
       {
         "slug": "n8n-vs-custom-orchestration",
+        "coverImage": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=1800&auto=format&fit=crop",
         "header": "Engineering",
         "title": "n8n vs Custom Orchestration: When To Reach for Each",
-        "by": "Vikram Shah",
+        "by": "Patience AI Team",
         "publishedAt": "2026-03-18T14:00:00+05:30",
         "excerpt": "n8n is the right answer surprisingly often — and the wrong answer in specific, predictable ways. Here is the heuristic we use to decide on every customer rollout.",
         "tags": [
@@ -913,6 +1008,7 @@
       },
       {
         "slug": "shipping-a-low-friction-demo-flow",
+        "coverImage": "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=1800&auto=format&fit=crop",
         "header": "Case Study",
         "title": "Shipping a low-friction demo flow for enterprise AI",
         "by": "Patience AI Team",
@@ -931,6 +1027,7 @@
       },
       {
         "slug": "why-admin-controlled-content-matters",
+        "coverImage": "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?q=80&w=1800&auto=format&fit=crop",
         "header": "Docs",
         "title": "Why admin-controlled content matters for AI product sites",
         "by": "Patience AI Team",

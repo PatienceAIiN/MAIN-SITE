@@ -1,5 +1,6 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
+import MediaPlayer from '../components/MediaPlayer';
 
 const DetailPage = ({ pageContent, onAction }) => {
   const location = useLocation();
@@ -33,6 +34,16 @@ const DetailPage = ({ pageContent, onAction }) => {
           ) : null}
         </div>
       </section>
+
+      {pageContent.media && pageContent.media.length > 0 ? (
+        <section className="mx-auto max-w-3xl px-6 pt-16 md:pt-20">
+          <div className={pageContent.media.length === 1 ? 'mx-auto w-full' : 'grid gap-6 md:grid-cols-2'}>
+            {pageContent.media.map((item) => (
+              <MediaPlayer key={item.src} type={item.type} title={item.title} src={item.src} />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="mx-auto max-w-5xl px-6 py-24 md:py-32">
         <div className="rounded-[24px] border border-[#e5e5e5] bg-[#f4f4f4] p-8 shadow-sm md:p-10">

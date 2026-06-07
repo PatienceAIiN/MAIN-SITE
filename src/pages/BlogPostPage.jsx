@@ -1,5 +1,6 @@
 import React from 'react';
 import { Navigate, useParams } from 'react-router-dom';
+import MediaPlayer from '../components/MediaPlayer';
 
 const BlogPostPage = ({ content, onAction }) => {
   const { slug } = useParams();
@@ -35,7 +36,7 @@ const BlogPostPage = ({ content, onAction }) => {
       <div className="relative mx-auto -mt-12 max-w-5xl px-6">
         <div className="aspect-[21/9] overflow-hidden rounded-[24px] bg-[#e5e5e5] shadow-2xl">
           <img
-            src="https://images.unsplash.com/photo-1516321497487-e288fb19713f?q=80&w=1800&auto=format&fit=crop"
+            src={post.coverImage || 'https://images.unsplash.com/photo-1516321497487-e288fb19713f?q=80&w=1800&auto=format&fit=crop'}
             alt={post.title}
             className="h-full w-full object-cover"
           />
@@ -49,6 +50,20 @@ const BlogPostPage = ({ content, onAction }) => {
             {paragraph}
           </p>
         ))}
+
+        {post.media && post.media.length > 0 ? (
+          <div
+            className={
+              post.media.length === 1
+                ? 'mt-12 mx-auto w-full max-w-2xl'
+                : 'mt-12 grid gap-8 md:grid-cols-2'
+            }
+          >
+            {post.media.map((item) => (
+              <MediaPlayer key={item.src} type={item.type} title={item.title} src={item.src} />
+            ))}
+          </div>
+        ) : null}
 
         <div className="mt-24 flex flex-col gap-8 border-t border-[#e5e5e5] pt-12 sm:flex-row sm:items-center sm:justify-between">
           <div>

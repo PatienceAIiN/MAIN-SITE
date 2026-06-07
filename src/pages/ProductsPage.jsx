@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import FadeIn from '../common/FadeIn';
 import SafeIcon from '../common/SafeIcon';
 import { iconRegistry } from '../common/iconRegistry';
+import MediaPlayer from '../components/MediaPlayer';
 
 const ProductsPage = ({ content, onAction }) => {
   const products = content.products || [];
@@ -57,7 +58,7 @@ const ProductsPage = ({ content, onAction }) => {
                 Product {index + 1}
               </div>
               <img
-                src={`https://images.unsplash.com/photo-${index === 0 ? '1516321497487-e288fb19713f' : '1557200134-90327ee9fafa'}?q=80&w=1200&auto=format&fit=crop`}
+                src={`https://images.unsplash.com/photo-${product.id === 'pariksha-ki-taiyari' ? '1516321497487-e288fb19713f' : product.id === 'nexus-exchange' ? '1535320903710-d993d3d77d29' : '1557200134-90327ee9fafa'}?q=80&w=1200&auto=format&fit=crop`}
                 alt={product.name}
                 className="h-full w-full object-cover grayscale transition-all duration-700 ease-out group-hover:scale-105 group-hover:grayscale-0"
               />
@@ -121,6 +122,23 @@ const ProductsPage = ({ content, onAction }) => {
                 <p className="max-w-3xl text-lg leading-relaxed text-[#666666]">{selectedProduct.summary}</p>
               </div>
 
+              {selectedProduct.media && selectedProduct.media.length > 0 ? (
+                <div className="border-b border-[#e5e5e5] bg-white px-6 py-8 md:px-8">
+                  <p className="mb-5 text-center text-xs font-bold uppercase tracking-[0.3em] text-[#a3a3a3]">Watch</p>
+                  <div
+                    className={
+                      selectedProduct.media.length === 1
+                        ? 'mx-auto w-full max-w-2xl'
+                        : 'grid gap-5 md:grid-cols-2'
+                    }
+                  >
+                    {selectedProduct.media.map((item) => (
+                      <MediaPlayer key={item.src} type={item.type} title={item.title} src={item.src} />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               <div className="grid gap-6 p-6 md:grid-cols-[1.15fr_0.85fr] md:p-8">
                 <div className="rounded-[24px] border border-[#e5e5e5] bg-[#f4f4f4] p-6 md:p-8">
                   <div className="mb-6 flex flex-wrap gap-2">
@@ -171,25 +189,22 @@ const ProductsPage = ({ content, onAction }) => {
                       >
                         Try Live Demo
                       </a>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onAction({
-                          type: 'modal',
-                          target: 'product-demo',
-                          product: selectedProduct,
-                          back: true
-                        })
-                      }
-                      className={`rounded-full px-6 py-4 text-sm font-semibold uppercase tracking-[0.12em] transition-colors ${
-                        selectedProduct.demoUrl
-                          ? 'border border-[#d1d1d1] text-[#1a1a1a] hover:border-[#1a1a1a]'
-                          : 'bg-[#1a1a1a] text-white hover:bg-black'
-                      }`}
-                    >
-                      Request Demo
-                    </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onAction({
+                            type: 'modal',
+                            target: 'product-demo',
+                            product: selectedProduct,
+                            back: true
+                          })
+                        }
+                        className="rounded-full bg-[#1a1a1a] px-6 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-white transition-colors hover:bg-black"
+                      >
+                        Request Demo
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => onAction({ type: 'modal', target: 'sales', back: true })}

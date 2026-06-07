@@ -431,6 +431,63 @@ app.get('/sitemap.xml', (req, res) => {
   res.send(xml);
 });
 
+// Google Drive media proxy — streams audio/video, bypassing virus-scan interstitial
+app.get('/api/media/drive/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+    return res.status(400).send('Invalid id');
+  }
+
+  const baseUrl = `https://drive.google.com/uc?export=download&id=${id}`;
+
+  try {
+    let upstream = await fetch(baseUrl, {
+      headers: { Range: req.headers.range || 'bytes=0-' },
+      redirect: 'follow'
+    });
+
+    const contentType = upstream.headers.get('content-type') || '';
+    if (contentType.includes('text/html')) {
+      const html = await upstream.text();
+      const match = html.match(/confirm=([0-9A-Za-z_-]+)/) || html.match(/name="confirm" value="([^"]+)"/);
+      const token = match ? match[1] : 't';
+      const confirmUrl = `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=${token}`;
+      upstream = await fetch(confirmUrl, {
+        headers: { Range: req.headers.range || 'bytes=0-' },
+        redirect: 'follow'
+      });
+    }
+
+    res.status(upstream.status);
+    const passthrough = ['content-type', 'content-length', 'content-range', 'accept-ranges', 'last-modified', 'etag'];
+    for (const header of passthrough) {
+      const value = upstream.headers.get(header);
+      if (value) res.setHeader(header, value);
+    }
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    if (!upstream.headers.get('accept-ranges')) {
+      res.setHeader('Accept-Ranges', 'bytes');
+    }
+
+    if (!upstream.body) {
+      return res.end();
+    }
+
+    const reader = upstream.body.getReader();
+    res.on('close', () => reader.cancel().catch(() => {}));
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!res.write(Buffer.from(value))) {
+        await new Promise((resolve) => res.once('drain', resolve));
+      }
+    }
+    res.end();
+  } catch (error) {
+    res.status(502).send('Drive proxy failed');
+  }
+});
+
 if (fs.existsSync(distDir)) {
   app.use(express.static(distDir, { index: false }));
 }

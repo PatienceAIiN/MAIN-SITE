@@ -9,7 +9,7 @@ const Layout = ({ children, siteContent, onBeginJourney }) => {
   const mainRef = useRef(null);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'auto' });
     window.requestAnimationFrame(() => {
       mainRef.current?.focus();
     });
