@@ -11,7 +11,9 @@
     "lint": "eslint .",
     "lint:error": "eslint . --quiet",
     "preview": "vite preview",
-    "start": "node server.js"
+    "start": "node server.js",
+    "generate:images": "node scripts/generate-images.mjs",
+    "generate:images:all": "node scripts/generate-images.mjs --type all --count 2"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1063.0",
