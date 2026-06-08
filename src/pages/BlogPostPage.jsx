@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import MediaPlayer from '../components/MediaPlayer';
 import { useGlobalAudio } from '../components/GlobalAudioPlayer';
+import ShareButton from '../components/ShareButton';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -65,7 +66,8 @@ const BlogPostPage = ({ content, onAction }) => {
             {post.title}
           </h1>
 
-          <div className="mt-8 inline-flex flex-wrap items-center gap-3 rounded-full border border-[#d1d1d1] bg-white px-2 py-1 shadow-sm">
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+          <div className="inline-flex flex-wrap items-center gap-3 rounded-full border border-[#d1d1d1] bg-white px-2 py-1 shadow-sm">
             <span className="px-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#a3a3a3]">Listen</span>
             <div className="inline-flex rounded-full bg-[#f4f4f4] p-0.5 text-[11px] font-semibold">
               {[
@@ -93,6 +95,15 @@ const BlogPostPage = ({ content, onAction }) => {
               {podLoading ? 'Preparing…' : '♪ Listen Podcast'}
             </button>
           </div>
+
+          <ShareButton
+            title={post.title}
+            text={post.excerpt}
+            label="Share"
+            variant="outline"
+            size="sm"
+          />
+        </div>
         </div>
       </section>
 

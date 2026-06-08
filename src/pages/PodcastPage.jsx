@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import PageHero from '../components/PageHero';
 import { useGlobalAudio } from '../components/GlobalAudioPlayer';
+import ShareButton from '../components/ShareButton';
 
 const EPISODES = [
   {
@@ -204,21 +205,31 @@ const PodcastPage = ({ content, siteContent }) => {
                   ))}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handlePlay(ep)}
-                  disabled={isLoading}
-                  className="mt-auto flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.12em] text-[#1a1a1a] hover:text-black disabled:opacity-50"
-                >
-                  {isLoading
-                    ? lang === 'hi'
-                      ? 'Generating Hindi…'
-                      : 'Loading…'
-                    : isCurrent
-                      ? 'Playing now'
-                      : `Play ${lang === 'hi' ? 'in Hindi' : 'in English'}`}
-                  <span>{isCurrent ? '♪' : '→'}</span>
-                </button>
+                <div className="mt-auto flex flex-wrap items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handlePlay(ep)}
+                    disabled={isLoading}
+                    className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.12em] text-[#1a1a1a] hover:text-black disabled:opacity-50"
+                  >
+                    {isLoading
+                      ? lang === 'hi'
+                        ? 'Generating Hindi…'
+                        : 'Loading…'
+                      : isCurrent
+                        ? 'Playing now'
+                        : `Play ${lang === 'hi' ? 'in Hindi' : 'in English'}`}
+                    <span>{isCurrent ? '♪' : '→'}</span>
+                  </button>
+                  <ShareButton
+                    title={`${ep.show} — ${ep.title}`}
+                    text={ep.excerpt}
+                    url={`${typeof window !== 'undefined' ? window.location.origin : ''}/company/podcast?tab=product#${ep.slug}`}
+                    label="Share"
+                    variant="outline"
+                    size="sm"
+                  />
+                </div>
               </div>
             </motion.article>
           );
@@ -306,18 +317,28 @@ const PodcastPage = ({ content, siteContent }) => {
                       ))}
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={play}
-                      disabled={isLoading}
-                      className="inline-flex items-center gap-2 self-start rounded-full bg-[#1a1a1a] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white hover:bg-black disabled:opacity-60"
-                    >
-                      {isLoading
-                        ? lang === 'hi' ? 'Generating Hindi…' : 'Generating…'
-                        : isCurrent
-                          ? '♪ Playing now'
-                          : '♪ Listen Podcast'}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={play}
+                        disabled={isLoading}
+                        className="inline-flex items-center gap-2 rounded-full bg-[#1a1a1a] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white hover:bg-black disabled:opacity-60"
+                      >
+                        {isLoading
+                          ? lang === 'hi' ? 'Generating Hindi…' : 'Generating…'
+                          : isCurrent
+                            ? '♪ Playing now'
+                            : '♪ Listen Podcast'}
+                      </button>
+                      <ShareButton
+                        title={post.title}
+                        text={post.excerpt}
+                        url={`${typeof window !== 'undefined' ? window.location.origin : ''}/company/blog/${post.slug}`}
+                        label="Share"
+                        variant="outline"
+                        size="sm"
+                      />
+                    </div>
                   </motion.article>
                 );
               })}
