@@ -10,7 +10,7 @@ const stagger = {
 };
 
 const VIDEO_SOURCE =
-  'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260328_083109_283f3553-e28f-428b-a723-d639c617eb2b.mp4';
+  'https://videos.pexels.com/video-files/3129957/3129957-uhd_3840_2160_25fps.mp4';
 
 const Hero = ({ content, onAction }) => {
   const videoRef = useRef(null);
