@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import SafeIcon from '../common/SafeIcon';
 import { iconRegistry } from '../common/iconRegistry';
 import { fetchJson } from '../common/fetchJson';
+import FormStatus from './FormStatus';
 
 const INITIAL_FORM = {
   productName: '',
@@ -192,17 +193,12 @@ const ProductDemoModal = ({ content, isOpen, product, onClose, onBack }) => {
                   {renderField(messageField)}
                 </div>
 
-                {submitStatus === 'success' && (
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-2xl">
-                    <p className="text-green-800">{content.statusMessages.success}</p>
-                  </div>
-                )}
-
-                {submitStatus === 'error' && (
-                  <div className="p-4 bg-red-50 border border-red-200 rounded-2xl">
-                    <p className="text-red-800">{content.statusMessages.error}</p>
-                  </div>
-                )}
+                <FormStatus
+                  status={submitStatus === 'success' ? 'success' : submitStatus === 'error' ? 'error' : null}
+                  title={submitStatus === 'success' ? 'Request received' : submitStatus === 'error' ? 'Submission failed' : ''}
+                  message={submitStatus === 'success' ? content.statusMessages.success : submitStatus === 'error' ? content.statusMessages.error : ''}
+                  onDismiss={() => setSubmitStatus('')}
+                />
 
                 <button
                   type="submit"

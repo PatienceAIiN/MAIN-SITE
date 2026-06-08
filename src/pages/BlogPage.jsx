@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import FadeIn from '../common/FadeIn';
+import PageHero from '../components/PageHero';
 
 const BlogPage = ({ content }) => {
   const navigate = useNavigate();
@@ -9,21 +9,25 @@ const BlogPage = ({ content }) => {
 
   return (
     <main className="bg-white pt-24">
-      <section className="relative overflow-hidden bg-[#f4f4f4] px-6 pb-16 pt-24 text-center">
-        <div
-          className="absolute inset-0 opacity-[0.04]"
-          style={{ backgroundImage: 'radial-gradient(#000000 1px, transparent 1px)', backgroundSize: '32px 32px' }}
-        />
-        <FadeIn className="relative mx-auto max-w-4xl">
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.05 }} className="mb-8 inline-block rounded-full border border-[#d1d1d1] bg-white px-4 py-1.5 text-sm font-medium text-[#1a1a1a] shadow-sm">
-            {content?.hero?.eyebrow}
-          </motion.div>
-          <motion.h1 initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.12 }} className="mb-8 font-serif text-5xl leading-[1.05] tracking-tight text-[#1a1a1a] md:text-7xl">
-            {content?.hero?.title}
-          </motion.h1>
-          <motion.p initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.22 }} className="mx-auto max-w-2xl text-lg leading-relaxed text-[#666666] md:text-xl">{content?.hero?.description}</motion.p>
-        </FadeIn>
-      </section>
+      <PageHero
+        eyebrow={content?.hero?.eyebrow}
+        title={content?.hero?.title}
+        description={content?.hero?.description}
+        coverImage="https://images.unsplash.com/photo-1499750310107-5fef28a66643?q=80&w=2000&auto=format&fit=crop"
+      >
+        <motion.button
+          type="button"
+          onClick={() => navigate('/company/podcast')}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.32 }}
+          className="inline-flex items-center gap-2 rounded-full border border-white bg-white px-5 py-2 text-sm font-semibold uppercase tracking-[0.12em] text-[#1a1a1a] shadow-sm transition-all hover:bg-transparent hover:text-white"
+        >
+          <span aria-hidden="true">♪</span>
+          Check out our podcast
+          <span aria-hidden="true">→</span>
+        </motion.button>
+      </PageHero>
 
       <section className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-6 py-24 md:grid-cols-2 xl:grid-cols-3 md:py-32">
         {posts.map((post, index) => (

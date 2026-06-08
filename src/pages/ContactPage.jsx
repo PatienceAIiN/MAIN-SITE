@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import ContactForm from '../components/ContactForm';
+import PageHero from '../components/PageHero';
 
 const ContactPage = ({ siteContent }) => {
   const [activeForm, setActiveForm] = useState('contact');
@@ -23,6 +24,12 @@ const ContactPage = ({ siteContent }) => {
 
   return (
     <div className="flex flex-col w-full bg-white pt-24">
+      <PageHero
+        eyebrow="Get in touch"
+        title="Talk to the team."
+        description="Whether it's a deep technical question, a partnership idea, or a sales inquiry — start here."
+        coverImage="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=2000&auto=format&fit=crop"
+      />
       <div className="mx-auto mt-8 flex w-full max-w-3xl gap-3 px-6">
         <button
           type="button"

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { FaInstagram, FaLinkedinIn, FaRedditAlien, FaYoutube } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
 import ContentLink from './ContentLink';
+import patienceLogo from '../assets/patience-logo.png';
 
 const SOCIAL_ICONS = {
   X: FaXTwitter,
@@ -45,9 +46,8 @@ const Footer = ({ brand, content, onAction }) => {
     <footer className="border-t border-[#e5e5e5] bg-white text-[#1a1a1a]">
       <div className="relative border-b border-[#e5e5e5] px-6 py-4 text-[11px] font-medium uppercase tracking-[0.22em] text-[#666666] md:text-xs">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="font-serif text-lg normal-case tracking-tight text-[#1a1a1a]">
-            {brand.name}
-            <sup className="text-[0.6rem] align-super">®</sup>
+          <div className="flex items-center">
+            <img src={patienceLogo} alt={brand.name} className="h-11 w-auto md:h-12" />
           </div>
           <div className="text-center">{LOCATION_LABEL}</div>
           <div className="flex gap-6">

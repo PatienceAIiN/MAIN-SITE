@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import ContentLink from './ContentLink';
+import patienceLogo from '../assets/patience-logo.png';
 
 const Navbar = ({ brand, navigation, onAction, currentPath }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -80,7 +81,7 @@ const Navbar = ({ brand, navigation, onAction, currentPath }) => {
         <motion.button
           type="button"
           onClick={() => { setMobileOpen(false); onAction(brand.homeAction); }}
-          className="font-serif text-[1.75rem] tracking-tight text-[#1a1a1a] sm:text-[1.85rem]"
+          className="flex items-center"
           aria-label={brand.name}
           initial={{ opacity: 0, x: -18 }}
           animate={{ opacity: 1, x: 0 }}
@@ -88,8 +89,11 @@ const Navbar = ({ brand, navigation, onAction, currentPath }) => {
           whileHover={{ opacity: 0.75 }}
           whileTap={{ scale: 0.97 }}
         >
-          {brand.name}
-          <sup className="text-[0.6rem] align-super">®</sup>
+          <img
+            src={patienceLogo}
+            alt={brand.name}
+            className="h-12 w-auto sm:h-14"
+          />
         </motion.button>
 
         {/* Desktop nav */}

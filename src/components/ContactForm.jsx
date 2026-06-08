@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { fetchJson } from '../common/fetchJson';
+import FormStatus from './FormStatus';
 
 const ContactForm = ({ salesModal }) => {
   const fieldNamesKey = (salesModal?.fields || []).map((f) => f.name).join('|');
@@ -14,7 +15,7 @@ const ContactForm = ({ salesModal }) => {
   );
   const [formData, setFormData] = useState(initialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [statusMessage, setStatusMessage] = useState('');
+  const [status, setStatus] = useState({ kind: null, message: '' });
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -24,7 +25,7 @@ const ContactForm = ({ salesModal }) => {
   const handleSubmit = async (event) => {
     event.preventDefault();
     setIsSubmitting(true);
-    setStatusMessage('');
+    setStatus({ kind: null, message: '' });
 
     try {
       const response = await fetchJson('/api/contact', {
@@ -35,10 +36,16 @@ const ContactForm = ({ salesModal }) => {
           source: salesModal?.source || 'sales'
         })
       });
-      setStatusMessage(response?.message || salesModal?.statusMessages?.success || 'Message sent successfully.');
+      setStatus({
+        kind: 'success',
+        message: response?.message || salesModal?.statusMessages?.success || 'Message sent successfully.'
+      });
       setFormData(initialForm);
     } catch (error) {
-      setStatusMessage(error.message || salesModal?.statusMessages?.error || 'Unable to send message right now.');
+      setStatus({
+        kind: 'error',
+        message: error.message || salesModal?.statusMessages?.error || 'Unable to send message right now.'
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -128,7 +135,12 @@ const ContactForm = ({ salesModal }) => {
             />
           </div>
 
-          {statusMessage ? <p className="text-sm text-[#666666]">{statusMessage}</p> : null}
+          <FormStatus
+            status={status.kind}
+            title={status.kind === 'success' ? 'Message sent' : status.kind === 'error' ? 'Submission failed' : ''}
+            message={status.message}
+            onDismiss={() => setStatus({ kind: null, message: '' })}
+          />
 
           <button
             type="submit"

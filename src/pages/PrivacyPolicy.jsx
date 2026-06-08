@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import PageHero from '../components/PageHero';
 
 const PrivacyPolicy = ({ content }) => {
   useEffect(() => {
@@ -12,13 +13,11 @@ const PrivacyPolicy = ({ content }) => {
 
   return (
     <div className="flex flex-col w-full bg-white">
-      <div className="pt-48 pb-16 px-6 bg-[#f4f4f4] text-center relative overflow-hidden">
-        <div className="absolute inset-0 opacity-[0.04] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#000000 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
-        <div className="max-w-4xl mx-auto relative z-10 animate-fade-rise">
-          <h1 className="text-5xl md:text-7xl font-sans tracking-tighter text-[#1a1a1a] mb-6 font-medium">{title}</h1>
-          <p className="text-[#666666] font-medium tracking-wide">{updatedLabel}{updatedValue ? `: ${updatedValue}` : ''}</p>
-        </div>
-      </div>
+      <PageHero
+        eyebrow={`${updatedLabel}${updatedValue ? `: ${updatedValue}` : ''}`}
+        title={title}
+        coverImage="https://images.unsplash.com/photo-1505664194779-8beaceb93744?q=80&w=2000&auto=format&fit=crop"
+      />
 
       <article className="max-w-3xl mx-auto px-6 py-20 flex flex-col gap-10 animate-fade-rise-delay">
         {sections.map((section, index) => (

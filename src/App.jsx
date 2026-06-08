@@ -21,6 +21,7 @@ import PlatformPage from './pages/PlatformPage';
 import CareersPage from './pages/CareersPage';
 import BlogPage from './pages/BlogPage';
 import BlogPostPage from './pages/BlogPostPage';
+import PodcastPage from './pages/PodcastPage';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import ContactPage from './pages/ContactPage';
@@ -218,6 +219,7 @@ function App() {
             />
             <Route path="/company/blog" element={<BlogPage content={siteContent.blogPage} />} />
             <Route path="/company/blog/:slug" element={<BlogPostPage content={siteContent.blogPage} onAction={handleAction} />} />
+            <Route path="/company/podcast" element={<PodcastPage content={siteContent.podcastPage} siteContent={siteContent} />} />
             <Route path="/company/careers" element={<CareersPage content={siteContent.careersPage} onAction={handleAction} />} />
             <Route path="/company/contact" element={<ContactPage siteContent={siteContent} />} />
             <Route path="/legal/privacy-policy" element={<PrivacyPolicy content={siteContent.legal?.privacyPolicy} />} />

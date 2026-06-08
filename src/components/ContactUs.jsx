@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import SafeIcon from '../common/SafeIcon';
 import { iconRegistry } from '../common/iconRegistry';
 import { fetchJson } from '../common/fetchJson';
+import FormStatus from './FormStatus';
 
 const INITIAL_FORM = {
   name: '',
@@ -253,11 +254,12 @@ const ContactUs = ({ content, isOpen, onClose, onBack }) => {
                         />
                       </div>
 
-                      {submitStatus === 'error' && (
-                        <div className="p-4 bg-red-50 border border-red-200 rounded-2xl" role="status" aria-live="polite">
-                          <p className="text-red-800">{submitMessage || content.statusMessages.error}</p>
-                        </div>
-                      )}
+                      <FormStatus
+                        status={submitStatus === 'error' ? 'error' : null}
+                        title="Submission failed"
+                        message={submitMessage || content.statusMessages.error}
+                        onDismiss={() => { setSubmitStatus(''); setSubmitMessage(''); }}
+                      />
 
                       <button
                         type="submit"

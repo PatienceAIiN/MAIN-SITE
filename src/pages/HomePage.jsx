@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Hero from '../components/Hero';
 import FadeIn from '../common/FadeIn';
+import NewsletterForm from '../components/NewsletterForm';
 
 const HomePage = ({ content, onAction }) => {
   const featureCards = content.features?.cards || [];
@@ -183,22 +184,22 @@ const HomePage = ({ content, onAction }) => {
         </div>
       </section>
 
-      <section className="bg-[#f4f4f4] px-4 py-16 sm:px-6 sm:py-24 md:py-32">
-        <div className="mx-auto max-w-7xl">
-          <FadeIn>
-          <h2 className="max-w-4xl text-[2rem] font-medium leading-[1.05] tracking-[-0.04em] text-[#1a1a1a] sm:text-5xl md:text-[5.5rem]">
-            {content.ctaBanner?.heading}
-          </h2>
-          <p className="mt-6 max-w-2xl text-lg leading-relaxed text-[#666666]">{content.ctaBanner?.description}</p>
+      <section className="bg-[#f4f4f4] px-4 pt-16 pb-8 sm:px-6 sm:pt-24 sm:pb-10 md:pt-32 md:pb-12">
+        <div className="mx-auto max-w-7xl text-center">
+          <FadeIn className="mx-auto max-w-4xl">
+            <h2 className="text-[2rem] font-medium leading-[1.05] tracking-[-0.04em] text-[#1a1a1a] sm:text-5xl md:text-[5.5rem]">
+              {content.ctaBanner?.heading}
+            </h2>
+            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-[#666666]">{content.ctaBanner?.description}</p>
           </FadeIn>
 
-          <div className="mt-12 sm:mt-16 flex flex-col overflow-hidden rounded-[8px] border border-[#1a1a1a] bg-white md:flex-row">
+          <div className="mx-auto mt-12 sm:mt-16 flex max-w-3xl flex-col overflow-hidden rounded-[8px] border border-[#1a1a1a] bg-white md:flex-row">
             {content.ctaBanner?.buttons?.map((button, index) => (
               <button
                 key={button.label}
                 type="button"
                 onClick={() => onAction(button.action)}
-                className={`flex flex-1 items-center justify-center gap-2 px-6 py-8 text-xl font-medium tracking-tight text-[#1a1a1a] transition-all duration-300 hover:bg-[#1a1a1a] hover:text-white md:px-8 md:py-16 md:text-[28px] ${
+                className={`flex flex-1 items-center justify-center gap-2 px-6 py-8 text-xl font-medium tracking-tight text-[#1a1a1a] transition-all duration-300 hover:bg-[#1a1a1a] hover:text-white md:px-8 md:py-12 md:text-[28px] ${
                   index === 0 ? 'border-b border-[#1a1a1a] md:border-b-0 md:border-r' : ''
                 }`}
               >
@@ -207,6 +208,18 @@ const HomePage = ({ content, onAction }) => {
               </button>
             ))}
           </div>
+
+          <FadeIn className="mx-auto mt-12 max-w-2xl">
+            <div className="rounded-[24px] border border-[#e5e5e5] bg-white p-6 text-left shadow-sm md:p-8">
+              <div className="mb-5 text-center">
+                <p className="mb-1 text-xs font-bold uppercase tracking-[0.22em] text-[#a3a3a3]">Newsletter</p>
+                <h3 className="text-xl font-medium tracking-tight text-[#1a1a1a] md:text-2xl">
+                  Updates, only the ones you want.
+                </h3>
+              </div>
+              <NewsletterForm />
+            </div>
+          </FadeIn>
         </div>
       </section>
     </main>

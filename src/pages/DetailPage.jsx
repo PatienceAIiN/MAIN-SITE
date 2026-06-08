@@ -1,6 +1,17 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import MediaPlayer from '../components/MediaPlayer';
+import PageHero from '../components/PageHero';
+
+const COVER_BY_PATH = {
+  '/company/about-us': 'https://images.unsplash.com/photo-1545239351-1141bd82e8a6?q=80&w=2000&auto=format&fit=crop',
+  '/docs': 'https://images.unsplash.com/photo-1497032628192-86f99bcd76bc?q=80&w=2000&auto=format&fit=crop',
+  '/product/features': 'https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=2000&auto=format&fit=crop',
+  '/product/integrations': 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2000&auto=format&fit=crop',
+  '/product/pricing': 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=2000&auto=format&fit=crop',
+  '/product/changelog': 'https://images.unsplash.com/photo-1542435503-956c469947f6?q=80&w=2000&auto=format&fit=crop'
+};
+const DEFAULT_COVER = 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2000&auto=format&fit=crop';
 
 const DetailPage = ({ pageContent, onAction }) => {
   const location = useLocation();
@@ -11,29 +22,22 @@ const DetailPage = ({ pageContent, onAction }) => {
 
   return (
     <main className="bg-white pt-24">
-      <section className="relative overflow-hidden bg-[#f4f4f4] px-6 pb-20 pt-24 md:pb-28">
-        <div
-          className="absolute inset-0 opacity-[0.04]"
-          style={{ backgroundImage: 'radial-gradient(#000000 1px, transparent 1px)', backgroundSize: '32px 32px' }}
-        />
-        <div className="relative mx-auto max-w-5xl">
-          <p className="mb-6 text-sm font-medium uppercase tracking-[0.35em] text-[#666666]">{pageContent.groupTitle}</p>
-          <h1 className="mb-6 font-serif text-5xl leading-[1.05] tracking-tight text-[#1a1a1a] md:text-7xl">
-            {pageContent.title}
-          </h1>
-          <p className="max-w-3xl text-lg leading-relaxed text-[#666666] md:text-xl">{pageContent.description}</p>
-
-          {pageContent.cta ? (
-            <button
-              type="button"
-              onClick={() => onAction(pageContent.cta.action)}
-              className="mt-10 rounded-full bg-[#1a1a1a] px-8 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-white transition-colors hover:bg-black"
-            >
-              {pageContent.cta.label}
-            </button>
-          ) : null}
-        </div>
-      </section>
+      <PageHero
+        eyebrow={pageContent.groupTitle}
+        title={pageContent.title}
+        description={pageContent.description}
+        coverImage={COVER_BY_PATH[location.pathname] || DEFAULT_COVER}
+      >
+        {pageContent.cta ? (
+          <button
+            type="button"
+            onClick={() => onAction(pageContent.cta.action)}
+            className="rounded-full bg-white px-8 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-[#1a1a1a] transition-colors hover:bg-transparent hover:text-white hover:ring-1 hover:ring-white"
+          >
+            {pageContent.cta.label}
+          </button>
+        ) : null}
+      </PageHero>
 
       {pageContent.media && pageContent.media.length > 0 ? (
         <section className="mx-auto max-w-3xl px-6 pt-16 md:pt-20">

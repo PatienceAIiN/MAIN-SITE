@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { FiCheck, FiCopy, FiInfo, FiSend, FiSquare, FiTrash2, FiX } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { fetchJson } from '../common/fetchJson';
+import patienceMark from '../assets/patience-mark.png';
 
 const YES_PATTERN = /^(yes|yeah|yep|sure|ok|okay|please|why not|go ahead)$/i;
 const CONTACT_FORM_PATTERN = /\b(show|open|fill|need|want).{0,24}\b(contact|sales)\s+form\b|\bcontact\s+form\b/i;
@@ -713,13 +714,37 @@ const ChatWidget = ({ brand }) => {
 
         <motion.button
           type="button"
-          whileHover={{ scale: 1.04 }}
-          whileTap={{ scale: 0.96 }}
+          whileHover={{ scale: 1.06 }}
+          whileTap={{ scale: 0.94 }}
           onClick={toggleChat}
-          className="h-16 w-16 rounded-full border border-slate-200 bg-white text-slate-900 shadow-2xl flex items-center justify-center"
-          aria-label="Open AI chat"
+          aria-label={isOpen ? 'Close AI chat' : 'Open AI chat'}
+          className="group relative h-16 w-16 rounded-full bg-white text-slate-900 shadow-[0_10px_30px_rgba(0,0,0,0.18)] ring-1 ring-slate-200 flex items-center justify-center overflow-visible"
         >
-          <div className="h-10 w-10 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-xs font-bold"><span className="site-brand site-brand--dark text-base leading-none tracking-normal">{launcherMonogram}</span></div>
+          {/* animated halo */}
+          <motion.span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-tr from-sky-400/60 via-cyan-300/40 to-indigo-400/50 blur-md"
+            animate={{ scale: [1, 1.18, 1], opacity: [0.55, 0.85, 0.55] }}
+            transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          {/* pulse ring */}
+          <motion.span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 rounded-full border border-cyan-300/70"
+            animate={{ scale: [1, 1.45], opacity: [0.55, 0] }}
+            transition={{ duration: 2.2, repeat: Infinity, ease: 'easeOut' }}
+          />
+          {/* logo mark */}
+          <span className="relative z-10 flex h-12 w-12 items-center justify-center rounded-full bg-white ring-1 ring-slate-200 shadow-inner">
+            <img src={patienceMark} alt="" aria-hidden="true" className="h-9 w-9 object-contain" />
+          </span>
+          {/* online indicator */}
+          <motion.span
+            aria-hidden="true"
+            className="absolute bottom-1 right-1 z-10 h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-white"
+            animate={{ scale: [1, 1.15, 1] }}
+            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+          />
         </motion.button>
       </motion.div>
 
@@ -735,7 +760,9 @@ const ChatWidget = ({ brand }) => {
           >
             <div className="bg-slate-50 text-slate-900 p-4 relative flex items-center justify-between border-b border-slate-200">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="h-10 w-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-xs font-bold shrink-0"><span className="site-brand site-brand--dark text-base leading-none tracking-normal">{launcherMonogram}</span></div>
+                <div className="h-10 w-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
+                  <img src={patienceMark} alt="" aria-hidden="true" className="h-7 w-7 object-contain" />
+                </div>
                 <div className="flex items-center gap-2 min-w-0">
                   <p className="font-semibold leading-tight truncate">{brand?.name || 'Company'} Assistant</p>
                   <button

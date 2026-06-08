@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import FadeIn from '../common/FadeIn';
 import SafeIcon from '../common/SafeIcon';
 import { iconRegistry } from '../common/iconRegistry';
+import PageHero from '../components/PageHero';
 
 const PlatformPage = ({ content, possibilityContent, onAction }) => {
   const [selectedCard, setSelectedCard] = useState(null);
@@ -28,21 +29,12 @@ const PlatformPage = ({ content, possibilityContent, onAction }) => {
 
   return (
     <main className="bg-white pt-24">
-      <section className="relative overflow-hidden bg-[#f4f4f4] px-6 pb-20 pt-24 text-center md:pb-32">
-        <div
-          className="absolute inset-0 opacity-[0.04]"
-          style={{ backgroundImage: 'radial-gradient(#000000 1px, transparent 1px)', backgroundSize: '32px 32px' }}
-        />
-        <FadeIn className="relative mx-auto max-w-4xl">
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.05 }} className="mb-8 inline-block rounded-full border border-[#d1d1d1] bg-white px-4 py-1.5 text-sm font-medium text-[#1a1a1a] shadow-sm">
-            {content.hero.eyebrow}
-          </motion.div>
-          <motion.h1 initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.12 }} className="mb-8 font-serif text-5xl leading-[1.05] tracking-tight text-[#1a1a1a] md:text-7xl lg:text-[5.5rem]">
-            {content.hero.title}
-          </motion.h1>
-          <motion.p initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.22 }} className="mx-auto max-w-2xl text-lg leading-relaxed text-[#666666] md:text-xl">{content.hero.description}</motion.p>
-        </FadeIn>
-      </section>
+      <PageHero
+        eyebrow={content.hero.eyebrow}
+        title={content.hero.title}
+        description={content.hero.description}
+        coverImage="https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2000&auto=format&fit=crop"
+      />
 
       <section className="bg-[#f2f2f2] px-6 py-24 md:py-32">
         <div className="mx-auto max-w-7xl">

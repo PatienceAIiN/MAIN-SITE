@@ -498,7 +498,7 @@
       "path": "/company/about-us",
       "groupTitle": "Company",
       "title": "About Us",
-      "description": "Patience AI is a Pune-headquartered applied AI company building governed GenAI products for Indian mid-market businesses and the wider APAC region.",
+      "description": "Patience AI is a fully remote, India-based applied AI company building governed GenAI products for Indian mid-market businesses and the wider APAC region.",
       "media": [
         {
           "type": "youtube",
@@ -507,9 +507,9 @@
         }
       ],
       "points": [
-        "Founded in 2024 in Pune by a team of ex-ML engineers and product operators who shipped conversational AI at scale for Indian fintech, edtech, and D2C companies.",
+        "Founded in 2024 by a team of ex-ML engineers and product operators who shipped conversational AI at scale for Indian fintech, edtech, and D2C companies.",
         "Mission: make production-grade generative AI accessible to Indian businesses that need real outcomes — deflected tickets, qualified leads, faster operations — not slideware.",
-        "We are a fully remote team of 15–25 builders across engineering, applied research, design, and customer success, distributed across India — Bengaluru, Hyderabad, Pune, Delhi NCR, and beyond. No offices, no commutes — just clear async writing, shared docs, and tight on-call rotations.",
+        "We are a fully remote team of 15–25 builders across engineering, applied research, design, and customer success, distributed across India. No offices, no commutes — just clear async writing, shared docs, and tight on-call rotations.",
         "Customers include Series A–C SaaS companies, mid-market BFSI players, regional healthcare networks, and ambitious D2C brands across India, Singapore, and the UAE.",
         "We are opinionated about quality: every customer ships with an evaluation harness, every agent has guardrails, and every workflow is auditable end-to-end.",
         "Backed by operator-angels from the Indian SaaS ecosystem and a clutch of early-stage funds focused on applied AI."
@@ -574,7 +574,7 @@
   "careersPage": {
     "hero": {
       "eyebrow": "Company",
-      "title": "Build the next generation of applied AI from Pune",
+      "title": "Build the next generation of applied AI — fully remote",
       "description": "We are hiring engineers, researchers, and operators who want to ship governed AI products that real Indian businesses run on. Fully remote across India — work from wherever you are most productive."
     },
     "highlights": [
@@ -586,14 +586,14 @@
       {
         "title": "Senior Machine Learning Engineer",
         "team": "Applied Research",
-        "location": "Pune (Hybrid)",
+        "location": "Remote India",
         "type": "Full-time",
         "description": "Own the RAG and agent stack end-to-end: retrieval quality, evaluation harnesses, fine-tuning when it matters, and model routing across Groq, Anthropic, and OpenAI. 4+ years building production ML systems."
       },
       {
         "title": "Full-Stack Engineer",
         "team": "Platform",
-        "location": "Pune (Hybrid) or Remote India",
+        "location": "Remote India",
         "type": "Full-time",
         "description": "Build the workspace, agent builder, and analytics surfaces in React, Node.js, and Postgres. You enjoy shipping polished UI on top of complex backends. 3+ years full-stack experience."
       },
@@ -607,14 +607,14 @@
       {
         "title": "Customer Success Lead",
         "team": "Customer Success",
-        "location": "Pune (Hybrid)",
+        "location": "Remote India",
         "type": "Full-time",
         "description": "Own outcomes for our top 20 accounts. Run QBRs, build evaluation playbooks with customers, and turn deployments into expansion. 4+ years in B2B SaaS CS, ideally with AI or developer-tools products."
       },
       {
         "title": "GTM Manager",
         "team": "Growth",
-        "location": "Pune (Hybrid) or Remote India",
+        "location": "Remote India",
         "type": "Full-time",
         "description": "Build the outbound motion for Indian mid-market: lists, sequences, pilot scoping, and conversion. Comfortable selling technical AI products to CXOs and VPs of Support, Sales, and Operations."
       }
@@ -624,7 +624,7 @@
       "description": "Share the role you want, your background, and a short note about the kind of work you are looking for.",
       "source": "careers",
       "highlights": [
-        "Hybrid Pune and remote-India roles",
+        "Remote-India roles",
         "Fast review path for engineering, research, CS, and growth roles",
         "Open to interns, contractors, and full-time hires"
       ],
@@ -742,6 +742,13 @@
             "action": {
               "type": "route",
               "to": "/company/blog"
+            }
+          },
+          {
+            "label": "Podcast",
+            "action": {
+              "type": "route",
+              "to": "/company/podcast"
             }
           },
           {
@@ -888,7 +895,7 @@
           "Strategy"
         ],
         "content": [
-          "Walk into any 200–2,000 person SaaS, BFSI, or D2C company in Bengaluru, Pune, or Mumbai in 2026 and you will find at least two GenAI pilots in flight. That was not true in 2024, and it was barely true in 2025. The shift in the last twelve months has been remarkable, and it is not driven by hype — it is driven by three concrete forces.",
+          "Walk into any 200–2,000 person SaaS, BFSI, or D2C company in Bengaluru or Mumbai in 2026 and you will find at least two GenAI pilots in flight. That was not true in 2024, and it was barely true in 2025. The shift in the last twelve months has been remarkable, and it is not driven by hype — it is driven by three concrete forces.",
           "First, model economics finally crossed the threshold. Inference on Groq, Cerebras, and the latest Anthropic and OpenAI tiers is roughly an order of magnitude cheaper per useful token than it was eighteen months ago. For an Indian support team handling 50,000 tickets a month at an average cost of ₹35 per ticket, deflecting even 30% with a well-built agent is a ₹5 lakh monthly saving — and the platform that delivers it costs a fraction of that.",
           "Second, the DPDP Act 2023 forced clarity. Indian buyers used to wave away data-residency concerns; now compliance teams ask hard questions about sub-processors, retention, and grievance officers in the first call. That is good for serious vendors and bad for shovelware. We see deals close faster when the security review is straightforward, because the alternative — building it themselves — is suddenly more expensive than buying.",
           "Third, the talent supply caught up. There are now thousands of engineers in India who can build a production RAG system, not just a notebook demo. They know about reranking, evaluation harnesses, prompt versioning, and the painful gap between a 70% accurate prototype and a 95% accurate product. This means buyers are more sophisticated too — they ask for eval reports, not screenshots.",

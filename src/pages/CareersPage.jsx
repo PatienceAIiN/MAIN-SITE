@@ -4,6 +4,8 @@ import FadeIn from '../common/FadeIn';
 import SafeIcon from '../common/SafeIcon';
 import { iconRegistry } from '../common/iconRegistry';
 import { fetchJson } from '../common/fetchJson';
+import FormStatus from '../components/FormStatus';
+import PageHero from '../components/PageHero';
 
 const INITIAL_FORM = {
   name: '',
@@ -53,35 +55,26 @@ const CareersPage = ({ content, onAction }) => {
 
   return (
     <main className="bg-white pt-24">
-      <section className="relative overflow-hidden bg-[#f4f4f4] px-6 pb-20 pt-24 md:pb-28">
-        <div
-          className="absolute inset-0 opacity-[0.04]"
-          style={{ backgroundImage: 'radial-gradient(#000000 1px, transparent 1px)', backgroundSize: '32px 32px' }}
-        />
-        <div className="relative mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1.08fr_0.92fr] lg:items-center">
-          <FadeIn className="max-w-3xl">
-            <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.05 }} className="mb-6 inline-block rounded-full border border-[#d1d1d1] bg-white px-4 py-1.5 text-sm font-medium text-[#1a1a1a] shadow-sm">
-              {content.hero.eyebrow}
+      <PageHero
+        eyebrow={content.hero.eyebrow}
+        title={content.hero.title}
+        description={content.hero.description}
+        coverImage="https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=2000&auto=format&fit=crop"
+      />
+      <section className="mx-auto max-w-7xl px-6 py-12">
+        <div className="grid gap-4 sm:grid-cols-3">
+          {content.highlights.map((item, i) => (
+            <motion.div
+              key={item}
+              initial={{ opacity: 0, y: 14 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: i * 0.08 }}
+              className="rounded-[20px] border border-[#e5e5e5] bg-white p-5 shadow-sm"
+            >
+              <p className="text-sm leading-relaxed text-[#666666]">{item}</p>
             </motion.div>
-            <motion.h1 initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.12 }} className="mb-6 font-serif text-5xl leading-[1.05] tracking-tight text-[#1a1a1a] md:text-7xl">
-              {content.hero.title}
-            </motion.h1>
-            <motion.p initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.22 }} className="text-lg leading-relaxed text-[#666666] md:text-xl">{content.hero.description}</motion.p>
-          </FadeIn>
-
-          <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
-            {content.highlights.map((item, i) => (
-              <motion.div
-                key={item}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.4, delay: 0.15 + i * 0.08 }}
-                className="rounded-[20px] border border-[#e5e5e5] bg-white p-5 shadow-sm"
-              >
-                <p className="text-sm leading-relaxed text-[#666666]">{item}</p>
-              </motion.div>
-            ))}
-          </div>
+          ))}
         </div>
       </section>
 
@@ -190,11 +183,12 @@ const CareersPage = ({ content, onAction }) => {
                   </div>
                 ))}
 
-                {submitStatus === 'error' ? (
-                  <div className="rounded-[20px] border border-red-200 bg-red-50 p-4 text-red-800" role="status" aria-live="polite">
-                    {content.form.statusMessages.error}
-                  </div>
-                ) : null}
+                <FormStatus
+                  status={submitStatus === 'error' ? 'error' : null}
+                  title="Submission failed"
+                  message={content.form.statusMessages.error}
+                  onDismiss={() => setSubmitStatus('')}
+                />
 
                 <button
                   type="submit"
