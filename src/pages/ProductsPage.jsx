@@ -32,6 +32,7 @@ const ProductsPage = ({ content, onAction }) => {
         title={content.hero.title}
         description={content.hero.description}
         coverImage="https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=2000&auto=format&fit=crop"
+        coverVideo="https://videos.pexels.com/video-files/2887463/2887463-sd_640_360_25fps.mp4"
       >
         <motion.button
           type="button"

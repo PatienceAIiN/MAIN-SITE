@@ -10,7 +10,7 @@ const stagger = {
 };
 
 const VIDEO_SOURCE =
-  'https://videos.pexels.com/video-files/3129957/3129957-uhd_3840_2160_25fps.mp4';
+  'https://videos.pexels.com/video-files/3129957/3129957-sd_640_360_25fps.mp4';
 
 const Hero = ({ content, onAction }) => {
   const videoRef = useRef(null);

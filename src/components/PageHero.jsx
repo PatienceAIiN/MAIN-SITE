@@ -2,12 +2,31 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import FadeIn from '../common/FadeIn';
 
-const PageHero = ({ eyebrow, title, description, coverImage, children, align = 'center' }) => {
+const PageHero = ({ eyebrow, title, description, coverImage, coverVideo, children, align = 'center' }) => {
   const alignClass = align === 'left' ? 'text-left items-start' : 'text-center items-center';
 
   return (
     <section className="relative isolate overflow-hidden bg-[#0a0a0a] px-6 pb-20 pt-32 md:pt-40">
-      {coverImage ? (
+      {coverVideo ? (
+        <>
+          <video
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            poster={coverImage || undefined}
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 -z-10 h-full w-full object-cover opacity-55"
+          >
+            <source src={coverVideo} type="video/mp4" />
+          </video>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-black/40 via-black/55 to-black/80"
+          />
+        </>
+      ) : coverImage ? (
         <>
           <img
             src={coverImage}

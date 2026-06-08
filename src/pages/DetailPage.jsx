@@ -13,6 +13,19 @@ const COVER_BY_PATH = {
 };
 const DEFAULT_COVER = 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2000&auto=format&fit=crop';
 
+const VIDEO_TECH = 'https://videos.pexels.com/video-files/2887463/2887463-sd_640_360_25fps.mp4';
+const VIDEO_NETWORK = 'https://videos.pexels.com/video-files/3209828/3209828-sd_640_360_25fps.mp4';
+const VIDEO_ABSTRACT = 'https://videos.pexels.com/video-files/3129957/3129957-sd_640_360_25fps.mp4';
+
+const VIDEO_BY_PATH = {
+  '/company/about-us': VIDEO_ABSTRACT,
+  '/docs': VIDEO_ABSTRACT,
+  '/product/features': VIDEO_TECH,
+  '/product/integrations': VIDEO_NETWORK,
+  '/product/pricing': VIDEO_ABSTRACT,
+  '/product/changelog': VIDEO_TECH
+};
+
 const DetailPage = ({ pageContent, onAction }) => {
   const location = useLocation();
 
@@ -27,6 +40,7 @@ const DetailPage = ({ pageContent, onAction }) => {
         title={pageContent.title}
         description={pageContent.description}
         coverImage={COVER_BY_PATH[location.pathname] || DEFAULT_COVER}
+        coverVideo={VIDEO_BY_PATH[location.pathname] || VIDEO_ABSTRACT}
       >
         {pageContent.cta ? (
           <button

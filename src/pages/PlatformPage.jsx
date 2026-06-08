@@ -34,6 +34,7 @@ const PlatformPage = ({ content, possibilityContent, onAction }) => {
         title={content.hero.title}
         description={content.hero.description}
         coverImage="https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2000&auto=format&fit=crop"
+        coverVideo="https://videos.pexels.com/video-files/3209828/3209828-sd_640_360_25fps.mp4"
       />
 
       <section className="bg-[#f2f2f2] px-6 py-24 md:py-32">
