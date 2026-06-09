@@ -16,13 +16,7 @@ const LOCATION_LABEL = 'Remote-first · Distributed across India';
 
 const Footer = ({ brand, content, onAction }) => {
   const [currentTime, setCurrentTime] = useState('');
-  const [linkedinNotice, setLinkedinNotice] = useState(false);
 
-  useEffect(() => {
-    if (!linkedinNotice) return undefined;
-    const t = window.setTimeout(() => setLinkedinNotice(false), 2600);
-    return () => window.clearTimeout(t);
-  }, [linkedinNotice]);
 
   useEffect(() => {
     const updateTime = () => {
@@ -67,24 +61,30 @@ const Footer = ({ brand, content, onAction }) => {
         </div>
 
         <div className="grid grid-cols-1 gap-12 sm:grid-cols-3">
-          {content.columns.map((column) => (
+          {content.columns.map((column) => {
+            const hasFaqs = column.links.some((link) => link.action?.to === '/faqs');
+            const links = column.title === 'Docs' && !hasFaqs
+              ? [...column.links, { label: 'FAQs', action: { type: 'route', to: '/faqs' } }]
+              : column.links;
+            return (
             <div key={column.title}>
               <h3 className="mb-5 text-xs font-bold uppercase tracking-[0.24em] text-[#a3a3a3]">
                 {column.title}
               </h3>
-              <ul className="space-y-4">
-                {column.links.map((link) => (
-                  <li key={link.label}>
+              <ul>
+                {links.map((link) => (
+                  <li key={link.label} className="flex h-12 items-center border-b border-transparent">
                     <ContentLink
                       item={link}
                       onAction={onAction}
-                      className="text-sm font-medium uppercase tracking-[0.12em] text-[#1a1a1a] transition-colors hover:text-[#666666]"
+                      className="block whitespace-nowrap text-sm font-medium uppercase tracking-[0.12em] text-[#1a1a1a] transition-colors hover:text-[#666666]"
                     />
                   </li>
                 ))}
               </ul>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -97,25 +97,12 @@ const Footer = ({ brand, content, onAction }) => {
               const commonClass = "inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#d1d1d1] text-[#1a1a1a] transition-colors hover:border-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-white";
               const inner = Icon ? <Icon size={18} /> : <span className="text-xs font-semibold">{link.label}</span>;
 
-              if (link.label === 'LinkedIn') {
-                return (
-                  <button
-                    key={link.label}
-                    type="button"
-                    onClick={() => setLinkedinNotice(true)}
-                    aria-label={link.label}
-                    title={link.label}
-                    className={commonClass}
-                  >
-                    {inner}
-                  </button>
-                );
-              }
+              const href = link.label === 'LinkedIn' ? 'https://www.linkedin.com/company/patienceai-tech/?viewAsMember=true' : link.href;
 
               return (
                 <a
                   key={link.label}
-                  href={link.href}
+                  href={href}
                   target="_blank"
                   rel="noreferrer"
                   aria-label={link.label}
@@ -130,30 +117,6 @@ const Footer = ({ brand, content, onAction }) => {
         </div>
       </div>
 
-      {linkedinNotice && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="LinkedIn notice"
-          className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40 px-4"
-          onClick={() => setLinkedinNotice(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl border border-[#e5e5e5] bg-white p-6 text-center shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="font-serif text-xl text-[#1a1a1a]">LinkedIn</h3>
-            <p className="mt-3 text-sm text-[#444]">We will update soon.</p>
-            <button
-              type="button"
-              onClick={() => setLinkedinNotice(false)}
-              className="mt-5 rounded-full bg-[#1a1a1a] px-5 py-2 text-xs font-medium uppercase tracking-[0.12em] text-white transition-colors hover:bg-black"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </footer>
   );
 };

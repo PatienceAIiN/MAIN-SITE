@@ -71,17 +71,16 @@ const FeatureScroll = () => {
         <div className="flex flex-col lg:flex-row gap-12 lg:gap-24 items-start">
           <div className="lg:w-3/5">
             <h2 className="text-5xl sm:text-6xl md:text-[5.5rem] leading-[0.95] tracking-tighter text-[#a3a3a3] font-sans">
-              We spent 2 year building<br className="hidden md:block"/> an internal system
+              We spent years building<br className="hidden md:block" /> an internal system
             </h2>
           </div>
           <div className="lg:w-2/5">
             <div className="bg-[#e6e6e6] p-8 md:p-10 rounded-xl shadow-sm">
               <p className="text-xl md:text-2xl text-[#1a1a1a] leading-snug tracking-tight mb-8">
-                "Excellent exprience, hitting 15-20x ROAS on our ads. The detail in the market research and then quality of ads is worth it."
+                "Good engineering is not about complexity it’s about making complex things feel simple and seamless."
               </p>
               <div>
-                <p className="text-[#1a1a1a] font-medium text-lg">Edward Clayton</p>
-                <p className="text-[#666666]">Director, Maid To Clean</p>
+                <p className="text-[#1a1a1a] font-medium text-lg">Patience AI Team</p>
               </div>
             </div>
           </div>
@@ -91,18 +90,17 @@ const FeatureScroll = () => {
       {/* Sticky Scroll Section */}
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex flex-col lg:flex-row items-start relative">
-          
           {/* Left Side: Sticky Media (Desktop Only) */}
           <div className="hidden lg:block lg:w-[55%] sticky top-32 h-[70vh] rounded-2xl overflow-hidden shadow-2xl">
             {features.map((feature, idx) => (
-              <div 
+              <div
                 key={feature.id}
                 className={`absolute inset-0 transition-all duration-700 ease-in-out ${
                   activeIndex === idx ? 'opacity-100 scale-100' : 'opacity-0 scale-[1.02]'
                 }`}
               >
-                <img 
-                  src={feature.image} 
+                <img
+                  src={feature.image}
                   alt={feature.title}
                   className="w-full h-full object-cover filter brightness-[0.8]"
                 />
@@ -114,15 +112,15 @@ const FeatureScroll = () => {
           {/* Right Side: Scrolling Content */}
           <div className="w-full lg:w-[45%] lg:pl-20">
             {features.map((feature, idx) => (
-              <div 
+              <div
                 key={feature.id}
                 ref={(el) => (sectionRefs.current[idx] = el)}
                 data-index={idx}
                 className="min-h-[60vh] lg:min-h-[85vh] flex flex-col justify-center py-12 lg:py-0"
               >
                 <div className="block lg:hidden w-full h-[60vw] rounded-2xl overflow-hidden mb-8 shadow-lg">
-                  <img 
-                    src={feature.image} 
+                  <img
+                    src={feature.image}
                     alt={feature.title}
                     className="w-full h-full object-cover"
                   />
@@ -140,8 +138,8 @@ const FeatureScroll = () => {
                   <p className="text-lg md:text-xl text-[#333333] leading-relaxed mb-10 max-w-lg line-clamp-3">
                     {feature.description}
                   </p>
-                  <Link 
-                    to="/product" 
+                  <Link
+                    to="/products"
                     className="bg-[#1a1a1a] text-white px-8 py-4 rounded-[4px] font-medium hover:bg-black transition-colors duration-300 w-fit inline-block text-center"
                   >
                     View Product
@@ -151,7 +149,6 @@ const FeatureScroll = () => {
             ))}
             <div className="hidden lg:block h-[20vh]"></div>
           </div>
-
         </div>
       </div>
     </section>

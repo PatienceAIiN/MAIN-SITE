@@ -4,6 +4,8 @@ import FadeIn from '../common/FadeIn';
 import SafeIcon from '../common/SafeIcon';
 import { iconRegistry } from '../common/iconRegistry';
 import PageHero from '../components/PageHero';
+import OurApproach from '../components/OurApproach';
+import TechnologyStack from '../components/TechnologyStack';
 
 const PlatformPage = ({ content, possibilityContent, onAction }) => {
   const [selectedCard, setSelectedCard] = useState(null);
@@ -36,6 +38,8 @@ const PlatformPage = ({ content, possibilityContent, onAction }) => {
         coverImage="https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2000&auto=format&fit=crop"
         coverVideo="https://videos.pexels.com/video-files/3209828/3209828-sd_640_360_25fps.mp4"
       />
+
+      <TechnologyStack />
 
       <section className="bg-[#f2f2f2] px-6 py-24 md:py-32">
         <div className="mx-auto max-w-7xl">
@@ -106,6 +110,8 @@ const PlatformPage = ({ content, possibilityContent, onAction }) => {
           </motion.button>
         ))}
       </section>
+
+      <OurApproach />
 
       <AnimatePresence>
         {selectedCard ? (

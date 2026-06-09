@@ -95,7 +95,7 @@ const FAQSection = () => {
             </p>
             
             <Link 
-              to="/contact"
+              to="/company/contact"
               className="bg-[#1a1a1a] text-white px-8 py-4 rounded-[4px] font-medium hover:bg-black transition-colors duration-300 w-fit mt-auto inline-block text-center"
             >
               See if you qualify

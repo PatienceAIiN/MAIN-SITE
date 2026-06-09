@@ -28,7 +28,7 @@ const fallbackProducts = [
   }
 ];
 
-const ProductShowcase = ({ products }) => {
+const ProductShowcase = ({ products, onSelect }) => {
   const items = Array.isArray(products) && products.length ? products : fallbackProducts;
 
   return (
@@ -40,7 +40,10 @@ const ProductShowcase = ({ products }) => {
           return (
             <div key={product.id} className={`flex flex-col items-center gap-12 lg:gap-20 ${reverse ? 'lg:flex-row-reverse' : 'lg:flex-row'}`}>
               <div className="w-full lg:w-1/2">
-                <div className="group relative aspect-[4/3] overflow-hidden rounded-[24px] bg-[#f4f4f4] shadow-lg">
+                <div
+                  className={`group relative aspect-[4/3] overflow-hidden rounded-[24px] bg-[#f4f4f4] shadow-lg ${onSelect ? 'cursor-pointer' : ''}`}
+                  onClick={onSelect ? () => onSelect(product) : undefined}
+                >
                   <img
                     src={product.image || `https://images.unsplash.com/photo-${index === 0 ? '1516321497487-e288fb19713f' : '1557200134-90327ee9fafa'}?q=80&w=2070&auto=format&fit=crop`}
                     alt={product.name}
@@ -69,12 +72,22 @@ const ProductShowcase = ({ products }) => {
                   </ul>
                 </div>
 
-                <Link
-                  to={`/product/${product.id}`}
-                  className="inline-flex w-fit items-center gap-3 rounded-[4px] bg-[#1a1a1a] px-8 py-4 text-center font-medium text-white transition-colors duration-300 hover:bg-black"
-                >
-                  Read Case Study <SafeIcon icon={FiArrowRight} className="text-lg" />
-                </Link>
+                {onSelect ? (
+                  <button
+                    type="button"
+                    onClick={() => onSelect(product)}
+                    className="inline-flex w-fit items-center gap-3 rounded-[4px] bg-[#1a1a1a] px-8 py-4 text-center font-medium text-white transition-colors duration-300 hover:bg-black"
+                  >
+                    View Details <SafeIcon icon={FiArrowRight} className="text-lg" />
+                  </button>
+                ) : (
+                  <Link
+                    to={`/product/${product.id}`}
+                    className="inline-flex w-fit items-center gap-3 rounded-[4px] bg-[#1a1a1a] px-8 py-4 text-center font-medium text-white transition-colors duration-300 hover:bg-black"
+                  >
+                    Read Case Study <SafeIcon icon={FiArrowRight} className="text-lg" />
+                  </Link>
+                )}
               </div>
             </div>
           );

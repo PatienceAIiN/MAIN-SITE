@@ -1,11 +1,8 @@
 import React from 'react';
 import Hero from '../components/Hero';
 import ValueProposition from '../components/ValueProposition';
-import FeatureScroll from '../components/FeatureScroll';
+import Testimonials from '../components/Testimonials';
 import ServicesTabs from '../components/ServicesTabs';
-import TechnologyStack from '../components/TechnologyStack';
-import OurApproach from '../components/OurApproach';
-import FAQSection from '../components/FAQSection';
 import FinalCTA from '../components/FinalCTA';
 
 const Home = () => {
@@ -13,11 +10,8 @@ const Home = () => {
     <div className="flex flex-col w-full">
       <Hero />
       <ValueProposition />
-      <FeatureScroll />
+      <Testimonials />
       <ServicesTabs />
-      <TechnologyStack />
-      <OurApproach />
-      <FAQSection />
       <FinalCTA />
     </div>
   );

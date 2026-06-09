@@ -8,12 +8,24 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Inter', 'sans-serif'],
+        serif: ['"Instrument Serif"', 'serif'],
       },
       colors: {
         slate: {
           50: '#F8FAFC',
           900: '#0A0A0A',
         }
+      },
+      keyframes: {
+        fadeRise: {
+          '0%': { opacity: '0', transform: 'translateY(20px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+      },
+      animation: {
+        'fade-rise': 'fadeRise 0.8s ease-out forwards',
+        'fade-rise-delay': 'fadeRise 0.8s ease-out 0.2s forwards',
+        'fade-rise-delay-2': 'fadeRise 0.8s ease-out 0.4s forwards',
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',

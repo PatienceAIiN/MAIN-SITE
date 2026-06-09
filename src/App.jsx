@@ -11,12 +11,13 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ContactUs from './components/ContactUs';
 import ProductDemoModal from './components/ProductDemoModal';
-import HomePage from './pages/HomePage';
+import Home from './pages/Home';
+import FAQPage from './pages/FAQPage';
 import DetailPage from './pages/DetailPage';
 import AdminPage from './pages/AdminPage';
 import SupportExecutivePage from './pages/SupportExecutivePage';
 import LiveChatPage from './pages/LiveChatPage';
-import ProductsPage from './pages/ProductsPage';
+import Product from './pages/Product';
 import PlatformPage from './pages/PlatformPage';
 import CareersPage from './pages/CareersPage';
 import BlogPage from './pages/BlogPage';
@@ -42,6 +43,60 @@ const scrollToHash = (hash) => {
   if (target) {
     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
+};
+
+
+const renameBrandStrings = (value) => {
+  if (typeof value === 'string') return value.replace(/Pariksha [kK]i Taiyari/g, 'CrackXam');
+  if (Array.isArray(value)) return value.map(renameBrandStrings);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, renameBrandStrings(item)]));
+  }
+  return value;
+};
+
+const normalizeSiteContent = (content) => {
+  if (!content) return content;
+  const next = { ...renameBrandStrings(content) };
+
+  const pages = [...(next.detailPages || [])];
+  const featuresIdx = pages.findIndex((page) => page.path === '/product/features');
+  const integrationsIdx = pages.findIndex((page) => page.path === '/product/integrations');
+  if (featuresIdx !== -1 && integrationsIdx !== -1) {
+    const integrations = pages[integrationsIdx];
+    pages[featuresIdx] = {
+      ...pages[featuresIdx],
+      points: [...(pages[featuresIdx].points || []), ...(integrations.points || [])]
+    };
+    pages.splice(integrationsIdx, 1);
+  }
+  next.detailPages = pages;
+
+  const products = next.productsPage?.products || [];
+  if (next.footer?.columns && products.length) {
+    next.footer = {
+      ...next.footer,
+      columns: next.footer.columns.map((column) => {
+        if (column.title !== 'Products') return column;
+        const productNames = products.map((product) => product.name);
+        const kept = column.links.filter(
+          (link) => link.label !== 'Integrations' && !productNames.includes(link.label)
+        );
+        return {
+          ...column,
+          links: [
+            ...products.map((product) => ({
+              label: product.name,
+              action: { type: 'route', to: `/products?product=${product.id}` }
+            })),
+            ...kept
+          ]
+        };
+      })
+    };
+  }
+
+  return next;
 };
 
 const getPageTitle = (pathname, siteContent) => {
@@ -75,7 +130,7 @@ function App() {
   const isLiveChatRoute     = location.pathname === '/live-chat' || location.pathname === '/support-chat';
 
   const [activeModal, setActiveModal] = useState(null);
-  const [siteContent, setSiteContent] = useState(defaultSiteContent);
+  const [siteContent, setSiteContent] = useState(() => normalizeSiteContent(defaultSiteContent));
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -94,11 +149,11 @@ function App() {
       try {
         const payload = await fetchJson('/api/site-content', { cache: 'no-store' });
         if (active && payload?.content) {
-          setSiteContent(payload.content);
+          setSiteContent(normalizeSiteContent(payload.content));
         }
       } catch {
         if (active) {
-          setSiteContent(defaultSiteContent);
+          setSiteContent(normalizeSiteContent(defaultSiteContent));
         }
       }
     };
@@ -205,8 +260,9 @@ function App() {
       <AnimatePresence mode="wait" initial={false}>
         <motion.div key={location.pathname} variants={pageVariants} initial="initial" animate="animate" exit="exit">
           <Routes location={location}>
-            <Route path="/" element={<HomePage content={siteContent} onAction={handleAction} />} />
-            <Route path="/products" element={<ProductsPage content={siteContent.productsPage} onAction={handleAction} />} />
+            <Route path="/" element={<Home />} />
+            <Route path="/products" element={<Product siteContent={siteContent} onAction={handleAction} />} />
+            <Route path="/faqs" element={<FAQPage />} />
             <Route
               path="/platform"
               element={

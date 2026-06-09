@@ -145,7 +145,7 @@ const ServicesTabs = () => {
                     {/* CTA Button */}
                     <div className="mt-auto pt-2">
                       <Link 
-                        to="/contact" 
+                        to="/company/contact" 
                         className="bg-[#1a1a1a] text-white px-5 py-3 rounded-[4px] font-medium hover:bg-black transition-colors duration-300 w-fit flex items-center gap-2 group text-sm"
                       >
                         {servicesData[activeTab].ctaText}

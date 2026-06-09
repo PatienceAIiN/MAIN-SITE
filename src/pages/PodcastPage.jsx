@@ -21,9 +21,9 @@ const EPISODES = [
     slug: 'pariksha-ki-taiyari',
     episode: 'EP 02',
     title: 'Conquering the UPSC Syllabus with PKT',
-    show: 'Pariksha Ki Taiyari',
-    excerpt: 'A deep dive into how Pariksha Ki Taiyari is helping UPSC aspirants conquer one of the world\'s toughest syllabi with structured, AI-assisted preparation.',
-    tags: ['Pariksha Ki Taiyari', 'UPSC', 'EdTech'],
+    show: 'CrackXam',
+    excerpt: 'A deep dive into how CrackXam is helping UPSC aspirants conquer one of the world\'s toughest syllabi with structured, AI-assisted preparation.',
+    tags: ['CrackXam', 'UPSC', 'EdTech'],
     coverImage: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?q=80&w=1200&auto=format&fit=crop',
     keyEn: 'podcast/Conquering_the_UPSC_syllabus_with_PKT.m4a',
     keyHi: 'podcast/Conquering_the_UPSC_syllabus_with_PKT_hi.m4a'

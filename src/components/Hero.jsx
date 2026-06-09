@@ -1,18 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 
-const stagger = {
-  container: { animate: { transition: { staggerChildren: 0.11, delayChildren: 0.1 } } },
-  item: {
-    initial: { opacity: 0, y: 22 },
-    animate: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.25, 0.1, 0.25, 1] } },
-  },
-};
-
-const VIDEO_SOURCE =
-  'https://videos.pexels.com/video-files/3129957/3129957-sd_640_360_25fps.mp4';
-
-const Hero = ({ content, onAction }) => {
+const Hero = () => {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -21,13 +10,12 @@ const Hero = ({ content, onAction }) => {
     const video = videoRef.current;
     const container = containerRef.current;
 
-    if (!video || !container) {
-      return undefined;
-    }
+    if (!video || !container) return;
 
     const updateOpacity = () => {
+      // Ensure video is ready before retrieving duration
       if (video.readyState < 3) {
-        animationFrameId = window.requestAnimationFrame(updateOpacity);
+        animationFrameId = requestAnimationFrame(updateOpacity);
         return;
       }
 
@@ -35,65 +23,80 @@ const Hero = ({ content, onAction }) => {
       const currentTime = video.currentTime;
       let opacity = 1;
 
+      // Fade in over 0.5s at the start
       if (currentTime < 0.5) {
         opacity = currentTime / 0.5;
-      } else if (duration > 0 && currentTime > duration - 0.5) {
+      } 
+      // Fade out over 0.5s before the end
+      else if (duration > 0 && currentTime > duration - 0.5) {
         opacity = Math.max(0, (duration - currentTime) / 0.5);
       }
 
-      container.style.opacity = `${opacity}`;
-      animationFrameId = window.requestAnimationFrame(updateOpacity);
+      container.style.opacity = opacity.toString();
+      animationFrameId = requestAnimationFrame(updateOpacity);
     };
 
     const handlePlay = () => {
-      animationFrameId = window.requestAnimationFrame(updateOpacity);
+      animationFrameId = requestAnimationFrame(updateOpacity);
     };
 
     video.addEventListener('play', handlePlay);
 
     return () => {
-      window.cancelAnimationFrame(animationFrameId);
+      cancelAnimationFrame(animationFrameId);
       video.removeEventListener('play', handlePlay);
     };
   }, []);
 
+  const handleEnded = () => {
+    const video = videoRef.current;
+    const container = containerRef.current;
+    if (video && container) {
+      container.style.opacity = '0';
+      setTimeout(() => {
+        video.currentTime = 0;
+        video.play();
+      }, 100);
+    }
+  };
+
   return (
-    <section className="relative flex min-h-screen w-full items-start justify-start overflow-hidden bg-white px-4 pb-16 pt-20 sm:items-center sm:justify-center sm:px-6 sm:pb-20 sm:pt-28">
-      <div className="absolute inset-x-0 bottom-0 top-[10rem] z-0">
-        <div ref={containerRef} className="relative h-full w-full opacity-0 transition-opacity duration-150">
-          <video ref={videoRef} autoPlay muted playsInline loop className="h-full w-full object-cover">
-            <source src={VIDEO_SOURCE} type="video/mp4" />
+    <section className="relative min-h-screen w-full overflow-hidden bg-white pt-[160px] pb-40 flex flex-col items-center justify-center">
+      {/* Video Background Layer */}
+      <div className="absolute z-0 w-full" style={{ top: '300px', inset: 'auto 0 0 0' }}>
+        <div ref={containerRef} className="w-full h-full relative transition-opacity duration-100 opacity-0">
+          <video 
+            ref={videoRef} 
+            autoPlay 
+            muted 
+            playsInline 
+            onEnded={handleEnded} 
+            className="w-full h-full object-cover"
+          >
+            <source src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260328_083109_283f3553-e28f-428b-a723-d639c617eb2b.mp4" type="video/mp4" />
           </video>
-          <div className="absolute inset-0 bg-gradient-to-b from-white via-white/25 to-white" />
+          {/* Gradient Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-b from-white via-transparent to-white pointer-events-none"></div>
         </div>
       </div>
 
-      <motion.div
-        className="relative z-10 mx-auto flex w-full max-w-7xl flex-col items-center text-center"
-        variants={stagger.container}
-        initial="initial"
-        animate="animate"
-      >
-        <motion.p variants={stagger.item} className="mb-4 rounded-full border border-[#d1d1d1] bg-white/90 px-4 py-1.5 text-sm font-medium text-[#666666] shadow-sm sm:mb-6">
-          Product-first AI systems
-        </motion.p>
-        <motion.h1 variants={stagger.item} className="max-w-6xl text-balance font-serif text-[2rem] font-normal leading-[1.04] tracking-[-0.05em] text-[#1a1a1a] sm:text-5xl md:text-6xl lg:text-7xl">
-          {content.headline}
-        </motion.h1>
-        <motion.p variants={stagger.item} className="mt-8 max-w-2xl text-base leading-relaxed text-[#4a4a4a] sm:text-lg">
-          {content.description}
-        </motion.p>
-        <motion.button
-          variants={stagger.item}
-          type="button"
-          onClick={() => onAction(content.cta.action)}
-          whileHover={{ scale: 1.04 }}
-          whileTap={{ scale: 0.97 }}
-          className="mt-10 inline-flex w-full items-center justify-center rounded-full bg-[#1a1a1a] px-8 py-4 text-base font-medium text-white shadow-xl sm:mt-12 sm:w-auto sm:px-14 sm:py-5"
+      {/* Hero Content */}
+      <div className="relative z-10 flex flex-col items-center justify-center text-center px-6 max-w-7xl mx-auto w-full">
+        <h1 className="text-[40px] sm:text-[52px] md:text-[68px] w-full font-normal font-serif text-[#000000] animate-fade-rise opacity-0 leading-[0.95] tracking-[-1.5px]">
+          Beyond <span className="italic text-[#333333]">silence,</span> we build <br className="hidden md:block" /> <span className="italic text-[#333333]">the eternal.</span>
+        </h1>
+        
+        <p className="text-base sm:text-lg max-w-2xl mt-8 leading-relaxed text-[#1a1a1a] font-medium animate-fade-rise-delay opacity-0">
+          Building platforms for brilliant minds, fearless makers, and thoughtful souls. Through the noise, we craft digital havens for deep work and pure flows.
+        </p>
+        
+        <Link 
+          to="/company/contact" 
+          className="bg-[#000000] text-[#FFFFFF] rounded-full px-14 py-5 text-base mt-12 hover:scale-[1.03] transition-transform duration-300 animate-fade-rise-delay-2 opacity-0 font-medium inline-block text-center"
         >
-          {content.cta.label}
-        </motion.button>
-      </motion.div>
+          Begin Journey
+        </Link>
+      </div>
     </section>
   );
 };

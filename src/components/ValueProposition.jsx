@@ -39,7 +39,7 @@ const ValueProposition = () => {
           whileInView="visible"
           viewport={{ once: true, margin: "-100px" }}
           variants={itemVariants}
-          className="mb-20 md:mb-32"
+          className="mb-12 md:mb-16"
         >
           <h2 className="text-5xl sm:text-6xl md:text-7xl lg:text-[5.5rem] font-sans tracking-tighter leading-[1.05]">
             <span className="text-[#c0c0c0]">Most AI projects fail</span><br />
@@ -56,15 +56,15 @@ const ValueProposition = () => {
             variants={itemVariants}
             className="flex flex-col"
           >
-            <div className="mb-16">
+            <div className="mb-10">
               <p className="text-lg md:text-xl text-[#1a1a1a] leading-relaxed max-w-lg font-medium">
                 If your AI initiatives aren’t delivering results, the problem isn’t the technology. It’s the strategy, implementation, and alignment with real business outcomes. Most companies experiment with AI based on trends. We build from real-world use cases, data readiness, and measurable impact so what you deploy actually works.
               </p>
             </div>
 
-            <div className="mt-auto">
+            <div>
               <Link 
-                to="/services" 
+                to="/platform" 
                 className="bg-[#1a1a1a] text-white px-8 py-4 rounded-[4px] flex items-center gap-4 font-medium hover:bg-black transition-colors duration-300 w-fit"
               >
                 <span className="relative flex h-2 w-2">

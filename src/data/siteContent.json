@@ -289,7 +289,7 @@
     "products": [
       {
         "id": "pariksha-ki-taiyari",
-        "name": "Pariksha ki Taiyari",
+        "name": "CrackXam",
         "shortTagline": "Fast, adaptive exam prep with intelligent practice, feedback, and collaboration.",
         "summary": "An intelligent exam-prep platform delivering timed practice, instant feedback, and personalized recommendations for focused learning.",
         "benefits": [
@@ -312,7 +312,7 @@
         "media": [
           {
             "type": "youtube",
-            "title": "Pariksha ki Taiyari — Product Walkthrough",
+            "title": "CrackXam — Product Walkthrough",
             "src": "3Jfa_h7L3II"
           }
         ]
@@ -771,6 +771,13 @@
             }
           },
           {
+            "label": "FAQs",
+            "action": {
+              "type": "route",
+              "to": "/faqs"
+            }
+          },
+          {
             "label": "Privacy Policy",
             "action": {
               "type": "route",
@@ -801,7 +808,7 @@
       },
       {
         "icon": "FaLinkedinIn",
-        "href": "https://www.linkedin.com/company/patience-ai/",
+        "href": "https://www.linkedin.com/company/patienceai-tech/?viewAsMember=true",
         "label": "LinkedIn"
       },
       {
@@ -827,27 +834,27 @@
         "slug": "pariksha-ki-taiyari-launch",
         "coverImage": "https://images.unsplash.com/photo-1488998427799-e3362cec87c3?q=80&w=1800&auto=format&fit=crop",
         "header": "Product",
-        "title": "Introducing Pariksha ki Taiyari — Smarter, Calmer Exam Preparation",
+        "title": "Introducing CrackXam — Smarter, Calmer Exam Preparation",
         "by": "Harsh Kumar",
         "publishedAt": "2026-06-08T16:00:00+05:30",
-        "excerpt": "Pariksha ki Taiyari is an adaptive exam-prep platform built around focused practice, instant feedback, and clear progress — designed for learners who want results without the noise.",
+        "excerpt": "CrackXam is an adaptive exam-prep platform built around focused practice, instant feedback, and clear progress — designed for learners who want results without the noise.",
         "tags": [
           "Product",
           "Education",
           "Launch"
         ],
         "content": [
-          "Exam preparation has a strange shape. There is always too much to read, never enough time, and very little signal in the middle telling you whether you are actually improving. Pariksha ki Taiyari is our attempt to give learners back that sense of direction — a calm, focused platform that turns long, scattered prep into short, productive sessions.",
-          "At its heart, Pariksha ki Taiyari is an adaptive practice platform. It recommends what to study next, runs timed sessions that feel like the real exam, and tells you right away what you got wrong and why. Over time, the platform builds a picture of your strengths and gaps, and shifts your practice towards the topics that will move your score the most.",
+          "Exam preparation has a strange shape. There is always too much to read, never enough time, and very little signal in the middle telling you whether you are actually improving. CrackXam is our attempt to give learners back that sense of direction — a calm, focused platform that turns long, scattered prep into short, productive sessions.",
+          "At its heart, CrackXam is an adaptive practice platform. It recommends what to study next, runs timed sessions that feel like the real exam, and tells you right away what you got wrong and why. Over time, the platform builds a picture of your strengths and gaps, and shifts your practice towards the topics that will move your score the most.",
           "Three ideas shape the product. First, practice should feel like progress — every session should end with the learner seeing a measurable step forward. Second, feedback should be immediate and useful, not a number on a results page a week later. Third, the experience should work on the devices and networks Indian learners actually use, which means mobile-first, low-bandwidth, and resumable when the connection drops.",
-          "Pariksha ki Taiyari is built for students preparing for competitive exams, institutions that want a clean practice layer for their learners, and educators who need clear visibility into how their cohorts are progressing. Collaboration, group study, and shared progress are first-class — so learners and mentors stay aligned without endless WhatsApp threads.",
+          "CrackXam is built for students preparing for competitive exams, institutions that want a clean practice layer for their learners, and educators who need clear visibility into how their cohorts are progressing. Collaboration, group study, and shared progress are first-class — so learners and mentors stay aligned without endless WhatsApp threads.",
           "We put together a short product walkthrough that shows the learner experience — adaptive recommendations, timed practice, and real-time feedback. It is the fastest way to see how the platform feels in everyday use.",
-          "If you would like to try Pariksha ki Taiyari yourself, the live demo is available at parikshakitaiyari.in. For institutions or cohorts that want a tailored rollout, reach out and we will set up a deeper session."
+          "If you would like to try CrackXam yourself, the live demo is available at parikshakitaiyari.in. For institutions or cohorts that want a tailored rollout, reach out and we will set up a deeper session."
         ],
         "media": [
           {
             "type": "youtube",
-            "title": "Pariksha ki Taiyari — Product Walkthrough",
+            "title": "CrackXam — Product Walkthrough",
             "src": "3Jfa_h7L3II"
           }
         ]

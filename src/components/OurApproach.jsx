@@ -8,25 +8,25 @@ const approaches = [
   {
     num: '/01',
     title: 'Understand',
-    desc: 'We decode complex problems, analyze data, and define the intelligence behind every system.',
+    desc: 'We map your workflows, data readiness, and business KPIs first — so every AI solution is tied to measurable outcomes, not hype.',
     icon: FiTarget
   },
   {
     num: '/02',
     title: 'Design',
-    desc: 'We craft intuitive, immersive experiences that merge human behavior with intelligent interfaces.',
+    desc: 'We design governed, human-in-the-loop experiences — from exam prep to email automation — that teams can understand and trust.',
     icon: FiEdit2
   },
   {
     num: '/03',
     title: 'Engineer',
-    desc: 'We develop scalable, high-performance systems powered by robust architecture and code.',
+    desc: 'We build production-grade platforms with auditable request handling, secure APIs, and architectures that scale to 100k+ users.',
     icon: FiCode
   },
   {
     num: '/04',
     title: 'Evolve',
-    desc: 'We continuously optimize and adapt systems through data, ensuring long-term growth and success.',
+    desc: 'We refine models and pipelines through data quality flywheels and feedback loops, improving accuracy and ROI release after release.',
     icon: FiTrendingUp
   }
 ];

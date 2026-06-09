@@ -2,10 +2,9 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import SafeIcon from '../common/SafeIcon';
-import Button from '../common/Button';
 import { 
   FiMonitor, FiCpu, FiCode, FiShoppingBag, FiCloud, 
-  FiArrowRight, FiChevronRight, FiDatabase, FiServer, 
+  FiChevronRight, FiDatabase, FiServer, 
   FiLayers, FiBox, FiSettings, FiCommand, FiGrid, FiLayout
 } from 'react-icons/fi';
 import { 
@@ -191,17 +190,6 @@ const TechnologyStack = () => {
                   ))}
                 </div>
 
-                {/* CTA Button */}
-                <div className="mt-auto pt-4 flex justify-end border-t border-[#f4f4f4]">
-                  <Button 
-                    to="/services" 
-                    variant="primary" 
-                    size="sm" 
-                    icon={FiArrowRight}
-                  >
-                    Explore Solutions
-                  </Button>
-                </div>
               </motion.div>
             </AnimatePresence>
           </div>
