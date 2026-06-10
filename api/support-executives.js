@@ -9,6 +9,7 @@ import { invalidate, cacheKeys } from './_cache.js';
 const TABLE = 'support_executives';
 const TTL_HOURS = 72;
 const PRESENCE_TTL = 75; // seconds — refreshed by the client heartbeat
+const IDLE_LIMIT_MS = 10 * 60 * 1000; // no heartbeat/activity for 10 min → shown offline
 
 const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
 
@@ -142,6 +143,7 @@ export default async function handler(req, res) {
     const exec = getExecSession(req);
     if (exec) {
       await queryDb(`UPDATE ${TABLE} SET online_status='offline', updated_at=NOW() WHERE id=$1`, [exec.id]);
+      await setPresence(exec.id, 'offline', exec.name);
       await logExecutiveActivity(exec.id, 'logout', 'online', 'offline');
     }
     res.setHeader('Set-Cookie', serializeCookie(EXEC_SESSION_COOKIE_NAME, '', { maxAge: 0 }));
@@ -159,7 +161,7 @@ export default async function handler(req, res) {
     try {
       const rows = await queryDb(`SELECT online_status FROM ${TABLE} WHERE id=$1 LIMIT 1`, [exec.id]);
       const oldStatus = rows[0]?.online_status || 'offline';
-      await queryDb(`UPDATE ${TABLE} SET online_status=$1, updated_at=NOW() WHERE id=$2`, [status, exec.id]);
+      await queryDb(`UPDATE ${TABLE} SET online_status=$1, last_seen_at=NOW(), updated_at=NOW() WHERE id=$2`, [status, exec.id]);
       await setPresence(exec.id, status, exec.name);
       if (oldStatus !== status) await logExecutiveActivity(exec.id, 'status_change', oldStatus, status);
       return res.status(200).json({ ok: true, status });
@@ -215,9 +217,12 @@ export default async function handler(req, res) {
       // Overlay Redis presence (authoritative when available); otherwise trust DB.
       const colleagues = await Promise.all(rows.map(async (r) => {
         const p = await getPresence(r.id);
+        // Without live Redis presence, only trust the DB status if the executive
+        // was seen recently — a stale 'online' (closed tab, idle 10+ min) reads offline.
+        const seenRecently = r.last_seen_at && (Date.now() - new Date(r.last_seen_at).getTime()) < IDLE_LIMIT_MS;
         return {
           id: r.id, name: r.name, email: r.email,
-          status: p?.status || r.online_status || 'offline',
+          status: p?.status || (seenRecently ? (r.online_status || 'offline') : 'offline'),
           last_seen_at: r.last_seen_at
         };
       }));

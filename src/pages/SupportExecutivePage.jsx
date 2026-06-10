@@ -7,6 +7,7 @@ import {
 } from 'react-icons/fi';
 
 const STATUS_DOT = { online: 'bg-emerald-500', away: 'bg-amber-500', offline: 'bg-slate-300' };
+const IDLE_LIMIT_MS = 10 * 60 * 1000; // 10 min without activity → auto-offline
 import { fetchJson } from '../common/fetchJson';
 
 const fmt = (v) => v ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(v)) : '—';
@@ -340,6 +341,10 @@ export default function SupportExecutivePage() {
   const dialToneRef = useRef(null);
   const userScrolled = useRef(false);
   const prevMsgCount = useRef(0);
+  // Idle detection → auto-offline after 10 min of no user activity
+  const lastActiveRef = useRef(Date.now());
+  const autoOfflineRef = useRef(false);
+  const manualOfflineRef = useRef(false);
 
   callRoomIdRef.current = callRoomId;
 
@@ -780,27 +785,56 @@ export default function SupportExecutivePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
       });
+      manualOfflineRef.current = newStatus === 'offline';
+      if (newStatus !== 'offline') lastActiveRef.current = Date.now();
       setOnlineStatus(newStatus);
     } catch (err) {
       setError(err.message);
     }
   };
 
-  /* ── Presence heartbeat: go online on login, keep Redis presence fresh ── */
+  /* ── Track user activity; waking from auto-offline restores online ────── */
   useEffect(() => {
     if (!executive) return;
-    const status = onlineStatus === 'offline' ? 'online' : onlineStatus;
-    if (onlineStatus === 'offline') setOnlineStatus('online');
+    const mark = () => {
+      lastActiveRef.current = Date.now();
+      if (autoOfflineRef.current) {
+        autoOfflineRef.current = false;
+        updateStatus('online');
+      }
+    };
+    const evs = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    evs.forEach(e => window.addEventListener(e, mark, { passive: true }));
+    return () => evs.forEach(e => window.removeEventListener(e, mark));
+     
+  }, [executive]);
+
+  /* ── Presence heartbeat: go online on login, keep Redis presence fresh.
+        After 10 min without activity, auto-switch to offline. ─────────────── */
+  useEffect(() => {
+    if (!executive) return;
+    if (onlineStatus === 'offline' && !autoOfflineRef.current && !manualOfflineRef.current) setOnlineStatus('online');
     const ping = () => {
+      const idle = Date.now() - lastActiveRef.current > IDLE_LIMIT_MS;
+      if (idle && onlineStatus !== 'offline') {
+        autoOfflineRef.current = true;
+        fetchJson('/api/support-executives/status', {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'offline' })
+        }).catch(() => {});
+        setOnlineStatus('offline');
+        return;
+      }
+      if (onlineStatus === 'offline') return; // idle/offline — stop heartbeating so presence expires
       fetchJson('/api/support-executives/status', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status: onlineStatus })
       }).catch(() => {});
     };
     ping();
     const id = setInterval(ping, 30000);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [executive, onlineStatus]);
 
   /* ── Poll colleague presence ───────────────────────────────────────────── */
