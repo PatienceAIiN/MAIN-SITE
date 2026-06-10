@@ -5,28 +5,28 @@ import SafeIcon from '../common/SafeIcon';
 
 const faqs = [
   {
-    question: "Why don't I just hire a team full time?",
-    answer: "Hiring a full-time team means managing payroll, benefits, and constant training. We provide an entire team of specialists for a fraction of the cost, ready to execute immediately without the overhead."
+    question: "What does Patience AI actually build?",
+    answer: "We build and run production-grade AI for your business: chat and voice agents that handle real customer conversations, retrieval (RAG) over your own documents so answers stay grounded, and workflow automation that connects those agents to the tools your team already uses."
   },
   {
-    question: "How quickly will I see results?",
-    answer: "Most of our clients see a noticeable shift in CPA and ROAS within the first 14 to 30 days as new creative tests begin compounding and we identify winning angles."
+    question: "How long does it take to go live?",
+    answer: "Most teams start with a focused pilot and see a working agent on their own data within a couple of weeks, not quarters. We scope a clear success criterion upfront so you know what 'working' means before we build it."
   },
   {
-    question: "How do you brief creative without wasting my time?",
-    answer: "We use our proprietary system to pull your customer data, competitor ads, and market trends. You just approve the concepts; we handle the heavy lifting and research."
+    question: "Will the AI stay accurate and on-brand?",
+    answer: "Every deployment ships with an evaluation harness, guardrails, and citations back to your source documents. Responses are grounded in your content, and you can review traces to see exactly why the agent said what it said."
   },
   {
-    question: "Is my brand a good fit?",
-    answer: "We work best with DTC brands spending at least $50k/mo on paid social who are bottlenecked by creative production and testing capacity, not media buying."
+    question: "How much does it cost?",
+    answer: "Pricing depends on the channels, conversation volume, and integrations you need, so we scope it together rather than list a one-size number. Reach out and our team will put together a quote tailored to your use case."
   },
   {
-    question: "Who's not a good fit?",
-    answer: "Drop-shippers, pre-product-market fit startups, and brands with very low AOV or margins usually struggle to see the ROI from high-volume creative testing."
+    question: "Is my data secure and private?",
+    answer: "Yes. We support role-based access, PII redaction, audit logs, and data residency options. Your documents are used to serve your agents and nothing else, and we can walk your security team through our setup."
   },
   {
-    question: "What if it doesn't work?",
-    answer: "We test iteratively. If a format fails, we know exactly why and pivot immediately. Our process is designed to find winners quickly, mitigating prolonged wasted spend."
+    question: "What if it doesn't fit our use case?",
+    answer: "We start small and measure honestly. If a pilot doesn't clear the success criteria we agreed on, we tell you plainly and adjust the approach rather than push you onto a long contract."
   }
 ];
 
@@ -87,18 +87,18 @@ const FAQSection = () => {
             
             {/* Card Content */}
             <h3 className="text-4xl md:text-[2.75rem] font-sans font-medium tracking-tighter text-[#1a1a1a] mb-6 leading-[1.05]">
-              Get your free creative audit
+              Talk to our team
             </h3>
-            
+
             <p className="text-[#666666] text-lg leading-relaxed mb-8 flex-grow">
-              In 20 minutes we'll review your current creative, show you where performance is leaking, and tell you exactly what we'd test first. No pitch. Just data. If we're not the right fit, we'll tell you that too.
+              In a short call we'll learn how your team works, show you where AI can realistically help, and outline what we'd build first. No pitch. Just a clear plan and a quote tailored to your use case.
             </p>
-            
-            <Link 
+
+            <Link
               to="/company/contact"
               className="bg-[#1a1a1a] text-white px-8 py-4 rounded-[4px] font-medium hover:bg-black transition-colors duration-300 w-fit mt-auto inline-block text-center"
             >
-              See if you qualify
+              Get a quote
             </Link>
 
           </div>

@@ -91,6 +91,7 @@ export default async function handler(req, res) {
 
   const { name, email, subject, message, company, productName } = req.body || {};
   const source = req.body?.source || 'sales';
+  const consentAccepted = req.body?.consent === true;
 
   if (!name || !email || !subject || !message) {
     return res.status(400).json({ error: 'All fields are required' });
@@ -106,8 +107,8 @@ export default async function handler(req, res) {
     // user just doesn't wait on it.
     setImmediate(() => {
       queryDb(
-        `INSERT INTO contact_submissions (name, email, subject, message, company, product_name, source, status, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,'new',NOW(),NOW())`,
-        [name, email, subject, message, company || null, productName || null, source]
+        `INSERT INTO contact_submissions (name, email, subject, message, company, product_name, source, status, consent_accepted, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,'new',$8,NOW(),NOW())`,
+        [name, email, subject, message, company || null, productName || null, source, consentAccepted]
       ).catch((dbError) => {
         if (!isMissingTableError(dbError.message)) {
           console.error('Neon insert error:', dbError.message);

@@ -24,6 +24,7 @@ const ContactForm = ({ salesModal }) => {
     [fieldNamesKey]
   );
   const [formData, setFormData] = useState(initialForm);
+  const [consent, setConsent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState('');
   const [submitMessage, setSubmitMessage] = useState('');
@@ -35,6 +36,7 @@ const ContactForm = ({ salesModal }) => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (!consent) return;
     setIsSubmitting(true);
     setSubmitStatus('');
     setSubmitMessage('');
@@ -45,12 +47,14 @@ const ContactForm = ({ salesModal }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          source: salesModal?.source || 'sales'
+          source: salesModal?.source || 'sales',
+          consent: true
         })
       });
       setSubmitStatus('success');
       setSubmitMessage(response?.message || salesModal?.statusMessages?.success || 'Message sent successfully.');
       setFormData(initialForm);
+      setConsent(false);
     } catch (error) {
       setSubmitStatus('error');
       setSubmitMessage(error.message || salesModal?.statusMessages?.error || 'Unable to send message right now.');
@@ -214,9 +218,20 @@ const ContactForm = ({ salesModal }) => {
                 onDismiss={() => { setSubmitStatus(''); setSubmitMessage(''); }}
               />
 
+              <label className="flex items-start gap-3 cursor-pointer text-sm text-[#4a4a4a]">
+                <input
+                  type="checkbox"
+                  checked={consent}
+                  onChange={(event) => setConsent(event.target.checked)}
+                  required
+                  className="mt-0.5 h-5 w-5 shrink-0 rounded-full border-[#d1d1d1] text-[#1a1a1a] accent-[#1a1a1a] focus:ring-[#1a1a1a]"
+                />
+                <span>I agree to the <a href="/legal/terms-of-service" className="font-medium underline">Terms &amp; Conditions</a> and <a href="/legal/privacy-policy" className="font-medium underline">Privacy Policy</a>.</span>
+              </label>
+
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !consent}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#1a1a1a] px-8 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSubmitting ? 'Sending…' : submitLabel}

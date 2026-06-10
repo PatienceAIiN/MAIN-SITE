@@ -1098,7 +1098,7 @@ const ChatWidget = ({ brand }) => {
                   </button>
                 </div>
                 <div className="flex items-center gap-2 px-1">
-                <p className="text-[11px] text-slate-500 flex-1">Responses are AI-generated and may be imperfect.</p>
+                <p className="text-[11px] text-slate-500 flex-1">AI-generated — may be imperfect.</p>
                 {!isLiveChat && !showLiveChatEntry && (
                   <button
                     type="button"

@@ -470,14 +470,14 @@
       "path": "/product/pricing",
       "groupTitle": "Products",
       "title": "Pricing",
-      "description": "Transparent INR pricing for Indian businesses, with USD packaging available for international deployments. Pilots start in days, not quarters.",
+      "description": "We scope pricing around what you actually need — channels, conversation volume, and integrations — so the plan fits your use case instead of a one-size tier. Talk to our team and we'll put together a quote. Pilots start in days, not quarters.",
       "points": [
-        "Starter — ₹24,999/month: 1 GenAI agent, up to 10,000 conversations, 2 channels (web + WhatsApp), RAG over 1 GB of documents, email support. Best for early-stage SaaS and D2C teams.",
-        "Growth — ₹74,999/month: 5 agents, 50,000 conversations, all messaging channels, voice AI add-on (500 minutes included), n8n-style workflows, HubSpot/Zendesk integrations, priority Slack support, dedicated CSM.",
-        "Enterprise — Contact us: Unlimited agents and conversations, dedicated voice infrastructure with custom latency SLAs, on-prem or VPC deployment, DPDP and SOC 2 documentation, custom integrations, 24x7 support, named solutions architect.",
-        "Pilot program: 4-week paid pilot from ₹1,49,000 with success criteria defined upfront and rollover credit if you continue.",
-        "Add-ons: extra voice minutes at ₹4.5/min, additional RAG storage at ₹2,500/GB/month, premium model routing (GPT-class, Claude-class) billed at cost + 15%.",
-        "All plans include audit logs, role-based access, PII redaction, and India data residency on Neon Mumbai region."
+        "Starter — for early-stage SaaS and D2C teams: a single GenAI agent across web and WhatsApp, RAG over your core documents, and email support to get you live quickly.",
+        "Growth — for scaling teams: multiple agents across all messaging channels, a voice AI add-on, workflow automation, CRM and helpdesk integrations, priority support, and a dedicated success manager.",
+        "Enterprise — for high-volume and regulated teams: dedicated voice infrastructure with custom latency SLAs, on-prem or VPC deployment, DPDP and SOC 2 documentation, custom integrations, 24x7 support, and a named solutions architect.",
+        "Pilot program: a short, scoped pilot with success criteria agreed upfront, so you can prove value before committing.",
+        "Add-ons available on request: additional voice minutes, extra RAG storage, and premium model routing — sized to your usage and included in your quote.",
+        "Every plan includes audit logs, role-based access, PII redaction, and India data residency. Contact us for a tailored quote."
       ]
     },
     {
@@ -507,7 +507,7 @@
         }
       ],
       "points": [
-        "Founded in 2024 by a team of ex-ML engineers and product operators who shipped conversational AI at scale for Indian fintech, edtech, and D2C companies.",
+        "Founded in 2025 by a small team of software engineers and product operators who had spent years building and running conversational AI for Indian fintech, edtech, and D2C companies.",
         "Mission: make production-grade generative AI accessible to Indian businesses that need real outcomes — deflected tickets, qualified leads, faster operations — not slideware.",
         "We are a fully remote team of 15–25 builders across engineering, applied research, design, and customer success, distributed across India. No offices, no commutes — just clear async writing, shared docs, and tight on-call rotations.",
         "Customers include Series A–C SaaS companies, mid-market BFSI players, regional healthcare networks, and ambitious D2C brands across India, Singapore, and the UAE.",
@@ -906,7 +906,7 @@
           "First, model economics finally crossed the threshold. Inference on Groq, Cerebras, and the latest Anthropic and OpenAI tiers is roughly an order of magnitude cheaper per useful token than it was eighteen months ago. For an Indian support team handling 50,000 tickets a month at an average cost of ₹35 per ticket, deflecting even 30% with a well-built agent is a ₹5 lakh monthly saving — and the platform that delivers it costs a fraction of that.",
           "Second, the DPDP Act 2023 forced clarity. Indian buyers used to wave away data-residency concerns; now compliance teams ask hard questions about sub-processors, retention, and grievance officers in the first call. That is good for serious vendors and bad for shovelware. We see deals close faster when the security review is straightforward, because the alternative — building it themselves — is suddenly more expensive than buying.",
           "Third, the talent supply caught up. There are now thousands of engineers in India who can build a production RAG system, not just a notebook demo. They know about reranking, evaluation harnesses, prompt versioning, and the painful gap between a 70% accurate prototype and a 95% accurate product. This means buyers are more sophisticated too — they ask for eval reports, not screenshots.",
-          "What does this mean if you are building? A few things. Price in INR and mean it. ₹24,999/month feels right for early adopters; ₹74,999 for serious growth-stage teams; six and seven-figure annual contracts for enterprise. Avoid the trap of pricing in USD and converting — Indian CFOs notice, and they discount accordingly.",
+          "What does this mean if you are building? A few things. Price in INR and mean it: an accessible entry tier for early adopters, a higher tier for serious growth-stage teams, and annual contracts for enterprise. Avoid the trap of pricing in USD and converting — Indian CFOs notice, and they discount accordingly.",
           "Ship vertical workflows, not horizontal toys. The Indian mid-market does not want a chatbot platform; they want a customer support automation that handles WhatsApp, voice, and email together, with HubSpot sync and Razorpay refunds wired in. The platform underneath can be horizontal; the surface area customers see should be a finished product.",
           "Invest in Indic languages. Hindi is table stakes. Marathi, Tamil, Telugu, Kannada, Bengali, and Gujarati move deals. Code-switched conversations — Hinglish, Tanglish — are where most real consumer support actually happens, and getting them right is a moat that is hard to copy from English-only models.",
           "Finally, build for the buyer journey Indian companies actually run: a paid pilot of four to eight weeks with clear success metrics, then expansion. The 'land and expand' motion works beautifully here if you can prove ROI in week three. Skip the free trial; the deals it brings are not worth the support cost.",
