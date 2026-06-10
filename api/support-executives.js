@@ -3,11 +3,26 @@ import { queryDb, isMissingTableError } from './_db.js';
 import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, hashPassword, verifyPassword,
   createExecSessionToken, EXEC_SESSION_COOKIE_NAME, serializeCookie, getExecSession } from './_security.js';
 import { sendEmail } from './_email.js';
+import { redisSetJson, redisGetJson } from './_redis.js';
+import { invalidate, cacheKeys } from './_cache.js';
 
 const TABLE = 'support_executives';
 const TTL_HOURS = 72;
+const PRESENCE_TTL = 75; // seconds — refreshed by the client heartbeat
 
 const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
+
+// Live presence is mirrored to Redis (self-hosted, via REDIS_URL — not Upstash) so an
+// executive that closes their tab auto-expires to offline. DB online_status is the durable fallback.
+const presenceKey = (id) => `presence:exec:${id}`;
+const setPresence = async (id, status, name) => {
+  try { await redisSetJson(presenceKey(id), { status, name, at: Date.now() }, PRESENCE_TTL); }
+  catch { /* Redis optional — DB remains source of truth */ }
+};
+const getPresence = async (id) => {
+  try { return await redisGetJson(presenceKey(id)); }
+  catch { return null; }
+};
 
 const logExecutiveActivity = async (executiveId, action, oldStatus = null, newStatus = null, metadata = null) => {
   try {
@@ -145,7 +160,8 @@ export default async function handler(req, res) {
       const rows = await queryDb(`SELECT online_status FROM ${TABLE} WHERE id=$1 LIMIT 1`, [exec.id]);
       const oldStatus = rows[0]?.online_status || 'offline';
       await queryDb(`UPDATE ${TABLE} SET online_status=$1, updated_at=NOW() WHERE id=$2`, [status, exec.id]);
-      await logExecutiveActivity(exec.id, 'status_change', oldStatus, status);
+      await setPresence(exec.id, status, exec.name);
+      if (oldStatus !== status) await logExecutiveActivity(exec.id, 'status_change', oldStatus, status);
       return res.status(200).json({ ok: true, status });
     } catch (err) {
       return res.status(500).json({ error: err.message });
@@ -186,6 +202,149 @@ export default async function handler(req, res) {
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
+  }
+
+  // ── GET /api/support-executives?colleagues=1 — presence list (exec or admin) ──
+  if (req.method === 'GET' && req.query.colleagues === '1') {
+    const exec = getExecSession(req);
+    if (!exec && !isAdmin(req)) return res.status(401).json({ error: 'Not authenticated' });
+    try {
+      const rows = await queryDb(
+        `SELECT id, name, email, online_status, last_seen_at FROM ${TABLE} WHERE status='active' ORDER BY name ASC`
+      );
+      // Overlay Redis presence (authoritative when available); otherwise trust DB.
+      const colleagues = await Promise.all(rows.map(async (r) => {
+        const p = await getPresence(r.id);
+        return {
+          id: r.id, name: r.name, email: r.email,
+          status: p?.status || r.online_status || 'offline',
+          last_seen_at: r.last_seen_at
+        };
+      }));
+      return res.status(200).json({ colleagues, selfId: exec?.id || null });
+    } catch (err) {
+      if (isMissingTableError(err.message)) return res.status(200).json({ colleagues: [], selfId: null });
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  // ── Internal 1:1 chat between executives: /internal ────────────────────────
+  if (req.url?.includes('/internal')) {
+    const exec = getExecSession(req);
+    if (!exec) return res.status(401).json({ error: 'Not authenticated' });
+    if (req.method === 'GET') {
+      const withId = parseInt(req.query.withId, 10);
+      if (!withId) return res.status(400).json({ error: 'withId required' });
+      try {
+        const rows = await queryDb(
+          `SELECT id, from_id, from_name, to_id, message, created_at
+           FROM executive_internal_messages
+           WHERE (from_id=$1 AND to_id=$2) OR (from_id=$2 AND to_id=$1)
+           ORDER BY created_at ASC LIMIT 200`,
+          [exec.id, withId]
+        );
+        return res.status(200).json({ messages: rows });
+      } catch (err) {
+        if (isMissingTableError(err.message)) return res.status(200).json({ messages: [] });
+        return res.status(500).json({ error: err.message });
+      }
+    }
+    if (req.method === 'POST') {
+      const { toId, message } = req.body || {};
+      if (!toId || !message?.trim()) return res.status(400).json({ error: 'toId and message required' });
+      try {
+        const rows = await queryDb(
+          `INSERT INTO executive_internal_messages (from_id, from_name, to_id, message, created_at)
+           VALUES ($1,$2,$3,$4,NOW()) RETURNING *`,
+          [exec.id, exec.name, toId, String(message).slice(0, 4000)]
+        );
+        return res.status(200).json({ message: rows[0] });
+      } catch (err) {
+        return res.status(500).json({ error: err.message });
+      }
+    }
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // ── Conversation/call transfer between executives: /transfer ───────────────
+  if (req.url?.includes('/transfer')) {
+    const exec = getExecSession(req);
+    if (!exec) return res.status(401).json({ error: 'Not authenticated' });
+
+    if (req.method === 'POST') {
+      const { conversationId, toId, kind = 'chat' } = req.body || {};
+      if (!conversationId || !toId) return res.status(400).json({ error: 'conversationId and toId required' });
+      if (Number(toId) === Number(exec.id)) return res.status(400).json({ error: 'Cannot transfer to yourself' });
+      try {
+        const target = await queryDb(`SELECT name FROM ${TABLE} WHERE id=$1 LIMIT 1`, [toId]);
+        if (!target.length) return res.status(404).json({ error: 'Executive not found' });
+        // Cancel any other pending transfer for this conversation, then create a fresh request.
+        await queryDb(`UPDATE chat_transfers SET status='cancelled', updated_at=NOW() WHERE conversation_id=$1 AND status='pending'`, [conversationId]).catch(() => {});
+        const rows = await queryDb(
+          `INSERT INTO chat_transfers (conversation_id, from_id, from_name, to_id, to_name, kind, status, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,'pending',NOW(),NOW()) RETURNING *`,
+          [conversationId, exec.id, exec.name, toId, target[0].name, kind === 'call' ? 'call' : 'chat']
+        );
+        return res.status(200).json({ transfer: rows[0] });
+      } catch (err) {
+        if (isMissingTableError(err.message)) return res.status(500).json({ error: 'Transfer table not ready' });
+        return res.status(500).json({ error: err.message });
+      }
+    }
+
+    // GET — pending transfers addressed to me (incoming) + my outgoing pending
+    if (req.method === 'GET') {
+      try {
+        const incoming = await queryDb(
+          `SELECT * FROM chat_transfers WHERE to_id=$1 AND status='pending' ORDER BY created_at DESC LIMIT 5`,
+          [exec.id]
+        );
+        return res.status(200).json({ incoming });
+      } catch (err) {
+        if (isMissingTableError(err.message)) return res.status(200).json({ incoming: [] });
+        return res.status(500).json({ error: err.message });
+      }
+    }
+
+    // PATCH — accept or deny a transfer addressed to me
+    if (req.method === 'PATCH') {
+      const { transferId, action } = req.body || {};
+      if (!transferId || !['accept', 'deny'].includes(action))
+        return res.status(400).json({ error: 'transferId and action (accept|deny) required' });
+      try {
+        const rows = await queryDb(`SELECT * FROM chat_transfers WHERE id=$1 AND to_id=$2 LIMIT 1`, [transferId, exec.id]);
+        const t = rows[0];
+        if (!t) return res.status(404).json({ error: 'Transfer not found' });
+        if (t.status !== 'pending') return res.status(409).json({ error: 'Transfer already handled' });
+
+        if (action === 'deny') {
+          await queryDb(`UPDATE chat_transfers SET status='denied', updated_at=NOW() WHERE id=$1`, [transferId]);
+          await queryDb(
+            `INSERT INTO support_chats (conversation_id, sender, message, created_at) VALUES ($1,'system',$2,NOW())`,
+            [t.conversation_id, `${exec.name} declined the transfer from ${t.from_name}.`]
+          ).catch(() => {});
+          await invalidate(cacheKeys.messages(t.conversation_id), cacheKeys.sessionList);
+          return res.status(200).json({ ok: true, status: 'denied' });
+        }
+
+        // accept: reassign the conversation and announce the new agent
+        await queryDb(`UPDATE chat_transfers SET status='accepted', updated_at=NOW() WHERE id=$1`, [transferId]);
+        await queryDb(
+          `UPDATE support_sessions SET status='active', assigned_executive=$1, updated_at=NOW() WHERE conversation_id=$2`,
+          [exec.name, t.conversation_id]
+        );
+        await queryDb(
+          `INSERT INTO support_chats (conversation_id, sender, message, created_at) VALUES ($1,'system',$2,NOW())`,
+          [t.conversation_id, `${exec.name} joined the chat (transferred from ${t.from_name}).`]
+        ).catch(() => {});
+        await logExecutiveActivity(exec.id, 'chat_assigned', null, null, { transferFrom: t.from_name, conversationId: t.conversation_id });
+        await invalidate(cacheKeys.messages(t.conversation_id), cacheKeys.sessionList);
+        return res.status(200).json({ ok: true, status: 'accepted', conversationId: t.conversation_id });
+      } catch (err) {
+        return res.status(500).json({ error: err.message });
+      }
+    }
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   // ── Admin-only routes below ───────────────────────────────────────────────

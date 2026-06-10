@@ -1,6 +1,7 @@
 import { queryDb, isMissingTableError } from './_db.js';
 import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, getExecSession } from './_security.js';
 import { sendEmail } from './_email.js';
+import { cached, invalidate, cacheKeys } from './_cache.js';
 
 const CHATS_TABLE = 'support_chats';
 const SESSIONS_TABLE = 'support_sessions';
@@ -75,12 +76,20 @@ export default async function handler(req, res) {
       try {
         const limit = Math.min(Math.max(parseInt(req.query.limit || '100', 10) || 100, 1), 100);
         const offset = Math.max(parseInt(req.query.offset || '0', 10) || 0, 0);
-        const sessions = await queryDb(
-          `SELECT * FROM ${SESSIONS_TABLE} ORDER BY updated_at DESC LIMIT $1 OFFSET $2`,
-          [limit, offset]
-        );
-        const totalRows = await queryDb(`SELECT COUNT(*)::int AS total FROM ${SESSIONS_TABLE}`);
-        return res.status(200).json({ sessions, total: totalRows[0]?.total || sessions.length });
+        const produce = async () => {
+          const sessions = await queryDb(
+            `SELECT * FROM ${SESSIONS_TABLE} ORDER BY updated_at DESC LIMIT $1 OFFSET $2`,
+            [limit, offset]
+          );
+          const totalRows = await queryDb(`SELECT COUNT(*)::int AS total FROM ${SESSIONS_TABLE}`);
+          return { sessions, total: totalRows[0]?.total || sessions.length };
+        };
+        // Cache only the default polling window (offset 0, full page) — that's what
+        // every executive/admin hits every few seconds. Custom pages skip the cache.
+        const payload = (offset === 0 && limit === 100)
+          ? await cached(cacheKeys.sessionList, 4, produce)
+          : await produce();
+        return res.status(200).json(payload);
       } catch (err) {
         if (isMissingTableError(err.message)) return res.status(200).json({ sessions: [] });
         return res.status(500).json({ error: err.message });
@@ -92,20 +101,31 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Forbidden' });
 
     try {
-      const rows = since
-        ? await queryDb(
-            `SELECT * FROM ${CHATS_TABLE} WHERE conversation_id=$1 AND created_at>$2 ORDER BY created_at ASC LIMIT 100`,
-            [conversationId, since]
-          )
-        : await queryDb(
-            `SELECT * FROM ${CHATS_TABLE} WHERE conversation_id=$1 ORDER BY created_at ASC LIMIT 200`,
-            [conversationId]
-          );
-      const sessionRows = await queryDb(
-        `SELECT * FROM ${SESSIONS_TABLE} WHERE conversation_id=$1 LIMIT 1`,
-        [conversationId]
-      );
-      return res.status(200).json({ messages: rows, session: sessionRows[0] || null });
+      // Incremental (`since`) reads stay uncached. The full read is what both the
+      // executive console and the customer widget poll every ~2s — cache it briefly.
+      if (since) {
+        const rows = await queryDb(
+          `SELECT * FROM ${CHATS_TABLE} WHERE conversation_id=$1 AND created_at>$2 ORDER BY created_at ASC LIMIT 100`,
+          [conversationId, since]
+        );
+        const sessionRows = await queryDb(
+          `SELECT * FROM ${SESSIONS_TABLE} WHERE conversation_id=$1 LIMIT 1`,
+          [conversationId]
+        );
+        return res.status(200).json({ messages: rows, session: sessionRows[0] || null });
+      }
+      const payload = await cached(cacheKeys.messages(conversationId), 2, async () => {
+        const rows = await queryDb(
+          `SELECT * FROM ${CHATS_TABLE} WHERE conversation_id=$1 ORDER BY created_at ASC LIMIT 200`,
+          [conversationId]
+        );
+        const sessionRows = await queryDb(
+          `SELECT * FROM ${SESSIONS_TABLE} WHERE conversation_id=$1 LIMIT 1`,
+          [conversationId]
+        );
+        return { messages: rows, session: sessionRows[0] || null };
+      });
+      return res.status(200).json(payload);
     } catch (err) {
       if (isMissingTableError(err.message)) return res.status(200).json({ messages: [], session: null });
       console.error('support-chat GET error:', err.message);
@@ -152,6 +172,7 @@ export default async function handler(req, res) {
           notifyExecutives(conversationId, customerEmail || null, customerName || null); // fire-and-forget
         }
       }
+      await invalidate(cacheKeys.messages(conversationId), cacheKeys.sessionList);
       return res.status(200).json({ message: rows[0] });
     } catch (err) {
       if (isMissingTableError(err.message)) return res.status(500).json({ error: 'Support chat table not ready. Try again.' });
@@ -177,6 +198,7 @@ export default async function handler(req, res) {
         `UPDATE ${SESSIONS_TABLE} SET ${sets.join(',')} WHERE conversation_id=$${i} RETURNING *`,
         params
       );
+      await invalidate(cacheKeys.messages(conversationId), cacheKeys.sessionList);
       return res.status(200).json({ session: rows[0] || null });
     } catch (err) {
       return res.status(500).json({ error: err.message });
@@ -191,6 +213,7 @@ export default async function handler(req, res) {
       await queryDb(`DELETE FROM ${CHATS_TABLE} WHERE conversation_id=$1`, [conversationId]);
       await queryDb(`DELETE FROM ${SESSIONS_TABLE} WHERE conversation_id=$1`, [conversationId]);
       await queryDb(`UPDATE voice_rooms SET status='ended', updated_at=NOW() WHERE conversation_id=$1`, [conversationId]).catch(() => {});
+      await invalidate(cacheKeys.messages(conversationId), cacheKeys.sessionList);
       return res.status(200).json({ ok: true, conversationId });
     } catch (err) {
       return res.status(500).json({ error: err.message });

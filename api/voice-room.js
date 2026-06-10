@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { queryDb, isMissingTableError } from './_db.js';
 import { getExecSession, getCookieValue, SESSION_COOKIE_NAME, verifySessionToken } from './_security.js';
+import { cached, invalidate, cacheKeys } from './_cache.js';
 
 const TABLE = 'voice_rooms';
 const CHATS_TABLE = 'support_chats';
@@ -67,6 +68,7 @@ export default async function handler(req, res) {
           [roomId, conversationId, JSON.stringify(offer), initiator || 'customer']
         );
         await logCallMessage(conversationId, `Voice call started by ${initiator === 'executive' ? 'support executive' : 'customer'}.`);
+        await invalidate(cacheKeys.incomingCall, cacheKeys.messages(conversationId));
         return res.status(200).json({ room: rows[0] });
       } catch (err) {
         if (isMissingTableError(err.message)) return res.status(500).json({ error: 'Voice rooms table not ready' });
@@ -114,6 +116,7 @@ export default async function handler(req, res) {
       try {
         const rows = await queryDb(`UPDATE ${TABLE} SET status='ended', updated_at=NOW() WHERE room_id=$1 AND status <> 'ended' RETURNING conversation_id`, [roomId]);
         await logCallMessage(rows[0]?.conversation_id, 'Voice call ended.');
+        await invalidate(cacheKeys.incomingCall, rows[0]?.conversation_id ? cacheKeys.messages(rows[0].conversation_id) : cacheKeys.incomingCall);
         return res.status(200).json({ ok: true });
       } catch (err) {
         return res.status(500).json({ error: err.message });
@@ -162,11 +165,16 @@ export default async function handler(req, res) {
     if (req.query.incoming === '1') {
       if (!authorized(req)) return res.status(401).json({ error: 'Unauthorized' });
       try {
-        const rows = await queryDb(
-          `SELECT * FROM ${TABLE} WHERE status='calling' AND initiator='customer' AND offer IS NOT NULL
-           AND updated_at > NOW() - INTERVAL '40 seconds' ORDER BY created_at DESC LIMIT 1`
-        );
-        return res.status(200).json({ room: rows[0] || null });
+        // Every idle executive polls this ~every 1.5s. A 2s cache collapses all of
+        // those into at most one DB read per 2s window across the whole team.
+        const payload = await cached(cacheKeys.incomingCall, 2, async () => {
+          const rows = await queryDb(
+            `SELECT * FROM ${TABLE} WHERE status='calling' AND initiator='customer' AND offer IS NOT NULL
+             AND updated_at > NOW() - INTERVAL '40 seconds' ORDER BY created_at DESC LIMIT 1`
+          );
+          return { room: rows[0] || null };
+        });
+        return res.status(200).json(payload);
       } catch (err) {
         if (isMissingTableError(err.message)) return res.status(200).json({ room: null });
         return res.status(500).json({ error: err.message });

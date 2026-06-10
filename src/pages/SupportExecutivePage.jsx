@@ -3,8 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   FiPhone, FiPhoneOff, FiPhoneIncoming, FiMic, FiMicOff, FiSend,
   FiLogOut, FiUser, FiRefreshCw, FiCheck, FiEye, FiEyeOff, FiChevronLeft, FiChevronRight, FiSearch,
-  FiVolume2, FiSmartphone
+  FiVolume2, FiSmartphone, FiUsers, FiX, FiCornerUpRight
 } from 'react-icons/fi';
+
+const STATUS_DOT = { online: 'bg-emerald-500', away: 'bg-amber-500', offline: 'bg-slate-300' };
 import { fetchJson } from '../common/fetchJson';
 
 const fmt = (v) => v ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(v)) : '—';
@@ -310,6 +312,15 @@ export default function SupportExecutivePage() {
   // Sidebar pagination + search
   const [sessPage,   setSessPage]   = useState(1);
   const [sessSearch, setSessSearch] = useState('');
+
+  // Team presence, internal chat & transfers
+  const [colleagues,    setColleagues]    = useState([]);
+  const [teamOpen,      setTeamOpen]      = useState(false);
+  const [internalWith,  setInternalWith]  = useState(null);   // colleague object
+  const [internalMsgs,  setInternalMsgs]  = useState([]);
+  const [internalInput, setInternalInput] = useState('');
+  const [transferOpen,  setTransferOpen]  = useState(false);
+  const [incomingTransfer, setIncomingTransfer] = useState(null);
 
   // Voice call
   const [callState,  setCallState]  = useState(null);
@@ -775,7 +786,100 @@ export default function SupportExecutivePage() {
     }
   };
 
+  /* ── Presence heartbeat: go online on login, keep Redis presence fresh ── */
+  useEffect(() => {
+    if (!executive) return;
+    const status = onlineStatus === 'offline' ? 'online' : onlineStatus;
+    if (onlineStatus === 'offline') setOnlineStatus('online');
+    const ping = () => {
+      fetchJson('/api/support-executives/status', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      }).catch(() => {});
+    };
+    ping();
+    const id = setInterval(ping, 30000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [executive, onlineStatus]);
+
+  /* ── Poll colleague presence ───────────────────────────────────────────── */
+  useEffect(() => {
+    if (!executive) return;
+    const load = () => fetchJson('/api/support-executives?colleagues=1')
+      .then(d => setColleagues(d.colleagues || [])).catch(() => {});
+    load();
+    const id = setInterval(load, 10000);
+    return () => clearInterval(id);
+  }, [executive]);
+
+  /* ── Poll for incoming transfer requests addressed to me ───────────────── */
+  useEffect(() => {
+    if (!executive) return;
+    const load = () => fetchJson('/api/support-executives/transfer')
+      .then(d => setIncomingTransfer((d.incoming || [])[0] || null)).catch(() => {});
+    load();
+    const id = setInterval(load, 3000);
+    return () => clearInterval(id);
+  }, [executive]);
+
+  /* ── Internal chat: poll messages with the selected colleague ──────────── */
+  useEffect(() => {
+    if (!internalWith) { setInternalMsgs([]); return; }
+    const load = () => fetchJson(`/api/support-executives/internal?withId=${internalWith.id}`)
+      .then(d => setInternalMsgs(d.messages || [])).catch(() => {});
+    load();
+    const id = setInterval(load, 3000);
+    return () => clearInterval(id);
+  }, [internalWith]);
+
+  const sendInternal = async () => {
+    if (!internalInput.trim() || !internalWith) return;
+    const text = internalInput.trim();
+    setInternalInput('');
+    try {
+      await fetchJson('/api/support-executives/internal', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toId: internalWith.id, message: text })
+      });
+      const d = await fetchJson(`/api/support-executives/internal?withId=${internalWith.id}`);
+      setInternalMsgs(d.messages || []);
+    } catch (err) { setError(err.message); }
+  };
+
+  const transferTo = async (colleague) => {
+    if (!selectedId) return;
+    setTransferOpen(false);
+    try {
+      await fetchJson('/api/support-executives/transfer', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId: selectedId, toId: colleague.id, kind: callState ? 'call' : 'chat' })
+      });
+      setError('');
+    } catch (err) { setError(err.message); }
+  };
+
+  const respondTransfer = async (action) => {
+    if (!incomingTransfer) return;
+    const t = incomingTransfer;
+    setIncomingTransfer(null);
+    try {
+      const d = await fetchJson('/api/support-executives/transfer', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transferId: t.id, action })
+      });
+      if (action === 'accept' && d.conversationId) {
+        joinedRef.current.add(d.conversationId); // already announced server-side
+        setSelectedId(d.conversationId);
+        await loadSessions();
+      }
+    } catch (err) { setError(err.message); }
+  };
+
   const logout = async () => {
+    await fetchJson('/api/support-executives/status', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'offline' })
+    }).catch(() => {});
     await fetchJson('/api/support-executives/logout', { method: 'DELETE' }).catch(() => {});
     setExecutive(null);
   };
@@ -843,6 +947,34 @@ export default function SupportExecutivePage() {
                 {status.charAt(0).toUpperCase() + status.slice(1)}
               </button>
             ))}
+          </div>
+          {/* Team presence dropdown */}
+          <div className="relative">
+            <button onClick={() => setTeamOpen(o => !o)}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors">
+              <FiUsers size={14} /> Team
+              <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] text-[10px] rounded-full bg-emerald-100 text-emerald-700">
+                {colleagues.filter(c => c.status === 'online').length}
+              </span>
+            </button>
+            {teamOpen && (
+              <div className="absolute right-0 mt-2 w-64 max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl z-30 p-2">
+                <p className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Colleagues</p>
+                {colleagues.length === 0 && <p className="px-2 py-2 text-xs text-slate-400">No colleagues yet.</p>}
+                {colleagues.filter(c => c.name !== executive.name).map(c => (
+                  <button key={c.id}
+                    onClick={() => { setInternalWith(c); setTeamOpen(false); }}
+                    className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-50 text-left transition-colors">
+                    <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT[c.status] || 'bg-slate-300'}`} />
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-sm text-slate-800 truncate">{c.name}</span>
+                      <span className="block text-[11px] text-slate-400 capitalize">{c.status}</span>
+                    </span>
+                    <FiSend size={12} className="text-slate-400" />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <button onClick={loadSessions} className="text-slate-400 hover:text-slate-700 p-2 rounded-lg hover:bg-slate-100 transition-colors">
             <FiRefreshCw size={16} />
@@ -945,6 +1077,30 @@ export default function SupportExecutivePage() {
                       <FiPhone size={12}/> Call customer
                     </button>
                   )}
+                  {/* Transfer / handoff */}
+                  <div className="relative">
+                    <button onClick={() => setTransferOpen(o => !o)}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 transition-colors">
+                      <FiCornerUpRight size={12}/> Transfer
+                    </button>
+                    {transferOpen && (
+                      <div className="absolute right-0 mt-2 w-60 max-h-72 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl z-30 p-2">
+                        <p className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Transfer to</p>
+                        {colleagues.filter(c => c.name !== executive.name).length === 0 && (
+                          <p className="px-2 py-2 text-xs text-slate-400">No colleagues available.</p>
+                        )}
+                        {colleagues.filter(c => c.name !== executive.name).map(c => (
+                          <button key={c.id} onClick={() => transferTo(c)}
+                            disabled={c.status === 'offline'}
+                            className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-50 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                            <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT[c.status] || 'bg-slate-300'}`} />
+                            <span className="flex-1 text-sm text-slate-800 truncate">{c.name}</span>
+                            <span className="text-[11px] text-slate-400 capitalize">{c.status}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <button onClick={() => closeSession(selectedId)}
                     className="text-xs text-slate-500 hover:text-slate-900 px-3 py-1.5 rounded-lg hover:bg-slate-100 border border-slate-200 transition-colors">
                     Close chat
@@ -1003,6 +1159,75 @@ export default function SupportExecutivePage() {
           )}
         </main>
       </div>
+
+      {/* ── Incoming transfer request prompt ──────────────────────────────── */}
+      <AnimatePresence>
+        {incomingTransfer && (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 30 }}
+            className="fixed bottom-6 right-6 z-50 w-80 bg-white border border-indigo-200 rounded-2xl shadow-2xl overflow-hidden"
+          >
+            <div className="px-5 py-3 bg-indigo-50 border-b border-indigo-100 flex items-center gap-2">
+              <FiCornerUpRight className="text-indigo-600" size={16} />
+              <p className="text-sm font-bold text-slate-800">Incoming {incomingTransfer.kind === 'call' ? 'call' : 'chat'} transfer</p>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-sm text-slate-600">
+                <span className="font-semibold text-slate-800">{incomingTransfer.from_name}</span> wants to transfer a conversation to you.
+              </p>
+              <p className="text-[11px] text-slate-400 font-mono mt-1 truncate">{incomingTransfer.conversation_id}</p>
+              <div className="flex gap-2 mt-4">
+                <button onClick={() => respondTransfer('accept')}
+                  className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold py-2.5 transition-colors">
+                  Accept
+                </button>
+                <button onClick={() => respondTransfer('deny')}
+                  className="flex-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold py-2.5 transition-colors">
+                  Decline
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Internal colleague chat popover ───────────────────────────────── */}
+      <AnimatePresence>
+        {internalWith && (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 30 }}
+            className="fixed bottom-6 left-6 z-50 w-80 h-96 bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          >
+            <div className="px-4 py-3 bg-slate-900 text-white flex items-center gap-2 shrink-0">
+              <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT[internalWith.status] || 'bg-slate-300'}`} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">{internalWith.name}</p>
+                <p className="text-[10px] text-white/50 capitalize">{internalWith.status} · internal</p>
+              </div>
+              <button onClick={() => setInternalWith(null)} className="text-white/60 hover:text-white"><FiX size={16} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-50">
+              {internalMsgs.length === 0 && <p className="text-slate-400 text-xs text-center py-6">No messages yet. Say hi 👋</p>}
+              {internalMsgs.map(m => (
+                <div key={m.id} className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${m.from_name === executive.name ? 'ml-auto bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-800'}`}>
+                  <p className="whitespace-pre-wrap leading-snug">{m.message}</p>
+                  <p className={`text-[9px] mt-1 ${m.from_name === executive.name ? 'text-white/40' : 'text-slate-400'}`}>{fmt(m.created_at)}</p>
+                </div>
+              ))}
+            </div>
+            <div className="p-2 border-t border-slate-200 flex items-end gap-2 shrink-0">
+              <textarea value={internalInput} onChange={e => setInternalInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendInternal(); }}}
+                rows={1} placeholder="Message colleague…"
+                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-slate-900/20 resize-none" />
+              <button onClick={sendInternal} disabled={!internalInput.trim()}
+                className="h-9 w-9 rounded-xl bg-slate-900 hover:bg-slate-800 flex items-center justify-center disabled:opacity-40 transition-colors">
+                <FiSend size={14} className="text-white" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Incoming chat queue modal ─────────────────────────────────────── */}
       <AnimatePresence>

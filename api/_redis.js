@@ -123,6 +123,13 @@ export const redisGetJson = async (key) => {
   }
 };
 
+export const redisDel = async (...keys) => {
+  if (!keys.length) return;
+  await runRedisCommand(['DEL', ...keys]);
+};
+
 export const redisPublish = async (channel, payload) => {
   return runRedisCommand(['PUBLISH', channel, JSON.stringify(payload)]);
 };
+
+export const isRedisConfigured = () => Boolean(getRedisConfig());

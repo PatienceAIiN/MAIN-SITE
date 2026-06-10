@@ -71,6 +71,8 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [analyticsError, setAnalyticsError] = useState('');
   const [visitorPage, setVisitorPage] = useState(0);
   const VISITORS_PER_PAGE = 10;
+  const [supportColleagues, setSupportColleagues] = useState([]);
+  const PRESENCE_DOT = { online: 'bg-emerald-500', away: 'bg-amber-500', offline: 'bg-slate-500' };
 
   const [supportSessions, setSupportSessions] = useState([]);
   const [supportSessionsLoading, setSupportSessionsLoading] = useState(false);
@@ -205,6 +207,11 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   useEffect(() => {
     if (!authenticated || activeTab !== 'support') return;
     loadSupportSessions();
+    const loadPresence = () => fetchJson('/api/support-executives?colleagues=1')
+      .then((d) => setSupportColleagues(d.colleagues || [])).catch(() => {});
+    loadPresence();
+    const id = setInterval(loadPresence, 10000);
+    return () => clearInterval(id);
   }, [activeTab, authenticated]);
 
   useEffect(() => {
@@ -219,6 +226,9 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   useEffect(() => {
     if (!authenticated || activeTab !== 'executives') return;
     loadExecutives();
+    // Auto-refresh so a freshly-activated executive flips to "active" without a manual reload.
+    const id = setInterval(loadExecutives, 15000);
+    return () => clearInterval(id);
   }, [activeTab, authenticated]);
 
   const loadExecutives = async () => {
@@ -1414,6 +1424,18 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                   <div>
                     <h2 className="text-2xl font-semibold">Live Support Chat</h2>
                     <p className="text-white/55 text-sm mt-1">View and reply to customer live support requests.</p>
+                    {supportColleagues.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-2 mt-3">
+                        <span className="text-[11px] uppercase tracking-wider text-white/40 mr-1">Executives:</span>
+                        {supportColleagues.map((c) => (
+                          <span key={c.id} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/75">
+                            <span className={`h-2 w-2 rounded-full ${PRESENCE_DOT[c.status] || 'bg-slate-500'}`} />
+                            {c.name}
+                            <span className="text-white/35 capitalize">· {c.status}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     <input
