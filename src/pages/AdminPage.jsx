@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiAlertTriangle, FiEye, FiEyeOff, FiMoon, FiSun } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import Button from '../components/ui/Button';
 import { fetchJson } from '../common/fetchJson';
@@ -57,6 +57,10 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [submissionError, setSubmissionError] = useState('');
   const [submissionLoading, setSubmissionLoading] = useState(false);
   const [savingId, setSavingId] = useState(null);
+  const [adminTheme, setAdminTheme] = useState(() => {
+    try { return window.localStorage.getItem('pa_admin_theme') || 'dark'; } catch { return 'dark'; }
+  });
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
   const [conversations, setConversations] = useState([]);
   const [conversationSearch, setConversationSearch] = useState('');
@@ -97,6 +101,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [activityLoading, setActivityLoading]   = useState(false);
   const [selectedExecId, setSelectedExecId]     = useState(null);
   const selectedSubmission = submissions.find((item) => item.id === selectedId) || submissions[0] || null;
+  const isAdminDark = adminTheme === 'dark';
 
   const loadSiteContent = async () => {
     try {
@@ -182,6 +187,10 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   useEffect(() => {
     checkSession();
   }, []);
+
+  useEffect(() => {
+    try { window.localStorage.setItem('pa_admin_theme', adminTheme); } catch { /* ignore */ }
+  }, [adminTheme]);
 
   useEffect(() => {
     if (!authenticated) {
@@ -332,7 +341,8 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
     }
   };
 
-  const handleLogout = async () => {
+  const confirmLogout = async () => {
+    setShowLogoutDialog(false);
     await fetch('/api/auth', { method: 'DELETE' }).catch(() => {});
     setAuthenticated(false);
     setUsername('');
@@ -642,7 +652,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
 
   if (loadingAuth) {
     return (
-      <main className="bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10 min-h-[70vh] flex items-center justify-center">
+      <main className={`admin-console admin-${adminTheme} bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10 min-h-[70vh] flex items-center justify-center`}>
         <p className="text-white/60">Loading admin console...</p>
       </main>
     );
@@ -650,7 +660,16 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
 
   if (!authenticated) {
     return (
-      <main className="bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10 min-h-[70vh] flex items-center justify-center">
+      <main className={`admin-console admin-${adminTheme} bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10 min-h-[70vh] flex items-center justify-center`}>
+        <button
+          type="button"
+          onClick={() => setAdminTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+          className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+          aria-label={`Switch to ${isAdminDark ? 'light' : 'dark'} theme`}
+        >
+          {isAdminDark ? <FiSun size={16} /> : <FiMoon size={16} />}
+          {isAdminDark ? 'Light mode' : 'Dark mode'}
+        </button>
         <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-white/5 p-8 shadow-2xl relative overflow-hidden">
           {loginSuccess ? (
             <motion.div
@@ -735,7 +754,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const blogPosts = contentObject?.blogPage?.posts || [];
 
   return (
-    <main className="bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10">
+    <main className={`admin-console admin-${adminTheme} bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10`}>
       <section className="max-w-7xl mx-auto">
         <div className="rounded-[2rem] overflow-hidden border border-white/10 bg-[linear-gradient(135deg,#0f172a_0%,#111827_45%,#1f2937_100%)] shadow-2xl">
           <div className="p-6 md:p-8 border-b border-white/10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
@@ -744,10 +763,19 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
               <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">Submission + content console</h1>
             </div>
             <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setAdminTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+                aria-label={`Switch to ${isAdminDark ? 'light' : 'dark'} theme`}
+              >
+                {isAdminDark ? <FiSun size={16} /> : <FiMoon size={16} />}
+                {isAdminDark ? 'Light mode' : 'Dark mode'}
+              </button>
               <Button variant="white" className="rounded-2xl px-6 py-3" onClick={() => onAction({ type: 'route', to: '/' })}>
                 Back home
               </Button>
-              <Button variant="secondary" className="rounded-2xl px-6 py-3" onClick={handleLogout}>
+              <Button variant="secondary" className="rounded-2xl px-6 py-3" onClick={() => setShowLogoutDialog(true)}>
                 Logout
               </Button>
             </div>
@@ -1752,6 +1780,26 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
           </div>
         </div>
       </section>
+
+      {showLogoutDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="admin-logout-title">
+          <div className="w-full max-w-md rounded-[1.75rem] border border-white/10 bg-slate-900 p-6 text-white shadow-2xl">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-400/15 text-amber-300">
+              <FiAlertTriangle size={22} />
+            </div>
+            <h2 id="admin-logout-title" className="text-2xl font-semibold">Log out of admin?</h2>
+            <p className="mt-2 text-sm leading-6 text-white/60">Any unsaved edits or active admin work will be left behind. Confirm only if you are ready to end this session.</p>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => setShowLogoutDialog(false)} className="rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold text-white/75 transition-colors hover:bg-white/10 hover:text-white">
+                Stay signed in
+              </button>
+              <button type="button" onClick={confirmLogout} className="rounded-2xl bg-red-500 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-400">
+                Yes, logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 };

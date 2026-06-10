@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   FiPhone, FiPhoneOff, FiPhoneIncoming, FiMic, FiMicOff, FiSend,
   FiLogOut, FiUser, FiRefreshCw, FiCheck, FiEye, FiEyeOff, FiChevronLeft, FiChevronRight, FiSearch,
-  FiVolume2, FiSmartphone, FiUsers, FiX, FiCornerUpRight
+  FiVolume2, FiSmartphone, FiUsers, FiX, FiCornerUpRight, FiSun, FiMoon, FiAlertTriangle
 } from 'react-icons/fi';
 
 const STATUS_DOT = { online: 'bg-emerald-500', away: 'bg-amber-500', offline: 'bg-slate-300' };
@@ -117,7 +117,44 @@ const playNotificationTone = () => {
 };
 
 /* ── Activate account form ───────────────────────────────────────────────── */
-function ActivateForm({ token, onActivated }) {
+function ThemeToggle({ theme, onToggle }) {
+  const isDark = theme === 'dark';
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="support-theme-toggle inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+      aria-label={`Switch to ${isDark ? 'light' : 'dark'} theme`}
+    >
+      {isDark ? <FiSun size={14} /> : <FiMoon size={14} />}
+      {isDark ? 'Light' : 'Dark'}
+    </button>
+  );
+}
+
+function LogoutConfirmDialog({ onCancel, onConfirm }) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="support-logout-title">
+      <div className="support-dialog w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl">
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+          <FiAlertTriangle size={22} />
+        </div>
+        <h2 id="support-logout-title" className="text-2xl font-bold">Log out of support?</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-500">You will be marked offline and active chats may stop receiving your replies. Please confirm before ending your session.</p>
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onCancel} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
+            Stay signed in
+          </button>
+          <button type="button" onClick={onConfirm} className="rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-700">
+            Yes, logout
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ActivateForm({ token, onActivated, theme, onToggleTheme }) {
   const [password, setPassword] = useState('');
   const [confirm,  setConfirm]  = useState('');
   const [show,     setShow]     = useState(false);
@@ -139,7 +176,10 @@ function ActivateForm({ token, onActivated }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+    <div className={`support-console support-${theme} min-h-screen bg-slate-50 flex items-center justify-center p-4`}>
+      <div className="absolute right-4 top-4">
+        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+      </div>
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
         <p className="text-xs uppercase tracking-widest text-emerald-600 mb-2 font-medium">Activate account</p>
         <h1 className="text-2xl font-bold text-slate-900 mb-6">Set your password</h1>
@@ -168,7 +208,7 @@ function ActivateForm({ token, onActivated }) {
 }
 
 /* ── Login form ──────────────────────────────────────────────────────────── */
-function LoginForm({ onLogin }) {
+function LoginForm({ onLogin, theme, onToggleTheme }) {
   const [form,    setForm]    = useState({ email: '', password: '' });
   const [show,    setShow]    = useState(false);
   const [err,     setErr]     = useState('');
@@ -187,7 +227,10 @@ function LoginForm({ onLogin }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+    <div className={`support-console support-${theme} min-h-screen bg-slate-50 flex items-center justify-center p-4`}>
+      <div className="absolute right-4 top-4">
+        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+      </div>
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
         <p className="text-xs uppercase tracking-widest text-slate-500 mb-2 font-medium">Support executive</p>
         <h1 className="text-2xl font-bold text-slate-900 mb-6">Sign in</h1>
@@ -294,6 +337,10 @@ export default function SupportExecutivePage() {
   const [authLoading,  setAuthLoading]  = useState(true);
   const [activated,    setActivated]    = useState(false);
   const [onlineStatus, setOnlineStatus] = useState('offline');
+  const [supportTheme, setSupportTheme] = useState(() => {
+    try { return window.localStorage.getItem('pa_support_theme') || 'light'; } catch { return 'light'; }
+  });
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
   const [sessions,     setSessions]     = useState([]);
   const [selectedId,   setSelectedId]   = useState('');
@@ -910,7 +957,8 @@ export default function SupportExecutivePage() {
     } catch (err) { setError(err.message); }
   };
 
-  const logout = async () => {
+  const confirmLogout = async () => {
+    setShowLogoutDialog(false);
     await fetchJson('/api/support-executives/status', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'offline' })
     }).catch(() => {});
@@ -920,23 +968,27 @@ export default function SupportExecutivePage() {
 
   /* ── Render guards ───────────────────────────────────────────────────── */
   if (authLoading) {
-    return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-400 text-sm">Loading…</div>;
+    return <div className={`support-console support-${supportTheme} min-h-screen bg-slate-50 flex items-center justify-center text-slate-400 text-sm`}>Loading…</div>;
   }
   if (inviteToken && !activated && !executive) {
-    return <ActivateForm token={inviteToken} onActivated={() => setActivated(true)} />;
+    return <ActivateForm token={inviteToken} theme={supportTheme} onToggleTheme={() => setSupportTheme((current) => (current === 'dark' ? 'light' : 'dark'))} onActivated={() => setActivated(true)} />;
   }
   if (activated && !executive) {
-    return <LoginForm onLogin={(exec) => { setExecutive(exec); setActivated(false); }} />;
+    return <LoginForm theme={supportTheme} onToggleTheme={() => setSupportTheme((current) => (current === 'dark' ? 'light' : 'dark'))} onLogin={(exec) => { setExecutive(exec); setActivated(false); }} />;
   }
   if (!executive) {
-    return <LoginForm onLogin={setExecutive} />;
+    return <LoginForm theme={supportTheme} onToggleTheme={() => setSupportTheme((current) => (current === 'dark' ? 'light' : 'dark'))} onLogin={setExecutive} />;
   }
 
   const selectedSession = sessions.find(s => s.conversation_id === selectedId);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
+    <div className={`support-console support-${supportTheme} min-h-screen bg-slate-50 text-slate-900 flex flex-col`}>
       <audio ref={remoteAudio} autoPlay playsInline style={{ display: 'none' }} />
+
+      {showLogoutDialog && (
+        <LogoutConfirmDialog onCancel={() => setShowLogoutDialog(false)} onConfirm={confirmLogout} />
+      )}
 
       <AnimatePresence>
         {callState && (
@@ -1010,10 +1062,14 @@ export default function SupportExecutivePage() {
               </div>
             )}
           </div>
+          <ThemeToggle
+            theme={supportTheme}
+            onToggle={() => setSupportTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+          />
           <button onClick={loadSessions} className="text-slate-400 hover:text-slate-700 p-2 rounded-lg hover:bg-slate-100 transition-colors">
             <FiRefreshCw size={16} />
           </button>
-          <button onClick={logout} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors">
+          <button onClick={() => setShowLogoutDialog(true)} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors">
             <FiLogOut size={15} /> Logout
           </button>
         </div>

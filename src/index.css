@@ -211,3 +211,142 @@ select {
     padding: 1.5rem;
   }
 }
+
+.admin-console,
+.support-console {
+  font-family: 'Inter', sans-serif;
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+.admin-console input,
+.admin-console textarea,
+.admin-console select,
+.support-console input,
+.support-console textarea,
+.support-console select,
+.support-console button {
+  font-family: inherit;
+}
+
+.admin-dark {
+  color: #f8fafc;
+  background: #020617;
+}
+
+.admin-light .admin-light-surface,
+.admin-light .bg-slate-900 {
+  color: #0f172a;
+}
+
+.admin-light .hover\:bg-white\/10:hover,
+.admin-light .hover\:bg-white\/5:hover {
+  background-color: #e2e8f0 !important;
+}
+
+.admin-light .hover\:text-white:hover {
+  color: #0f172a !important;
+}
+
+.admin-light input,
+.admin-light textarea,
+.admin-light select {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+  caret-color: #0f172a !important;
+}
+
+.admin-light input::placeholder,
+.admin-light textarea::placeholder {
+  color: #64748b !important;
+}
+
+.support-light {
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+.support-dark {
+  color: #e2e8f0;
+  background: #020617 !important;
+}
+
+.support-dark .bg-white,
+.support-dark .bg-slate-50,
+.support-dark .bg-slate-100,
+.support-dark .bg-slate-200,
+.support-dark .support-dialog {
+  background-color: #0f172a !important;
+}
+
+.support-dark .bg-slate-900,
+.support-dark .bg-slate-800 {
+  background-color: #020617 !important;
+}
+
+.support-dark .bg-amber-50,
+.support-dark .bg-emerald-100 {
+  background-color: rgba(15, 23, 42, 0.92) !important;
+}
+
+.support-dark .border-slate-100,
+.support-dark .border-slate-200,
+.support-dark .border-slate-300,
+.support-dark .border-amber-100 {
+  border-color: rgba(148, 163, 184, 0.24) !important;
+}
+
+.support-dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(148, 163, 184, 0.18) !important;
+}
+
+.support-dark .text-slate-900,
+.support-dark .text-slate-800,
+.support-dark .text-slate-700,
+.support-dark .text-slate-600,
+.support-dark .text-slate-500 {
+  color: #e2e8f0 !important;
+}
+
+.support-dark .text-slate-400,
+.support-dark .text-slate-300 {
+  color: #94a3b8 !important;
+}
+
+.support-dark .placeholder\:text-slate-400::placeholder,
+.support-dark input::placeholder,
+.support-dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+.support-dark input,
+.support-dark textarea,
+.support-dark select {
+  background-color: #111827 !important;
+  border-color: rgba(148, 163, 184, 0.28) !important;
+  color: #f8fafc !important;
+  caret-color: #f8fafc !important;
+}
+
+.support-dark .hover\:bg-slate-50:hover,
+.support-dark .hover\:bg-slate-100:hover,
+.support-dark .hover\:bg-slate-200:hover {
+  background-color: rgba(148, 163, 184, 0.14) !important;
+}
+
+.support-dark .hover\:text-slate-900:hover,
+.support-dark .hover\:text-slate-800:hover,
+.support-dark .hover\:text-slate-700:hover {
+  color: #ffffff !important;
+}
+
+.support-dark .support-theme-toggle {
+  border-color: rgba(148, 163, 184, 0.3) !important;
+  background-color: rgba(15, 23, 42, 0.72) !important;
+  color: #cbd5e1 !important;
+}
+
+.support-dark .support-theme-toggle:hover {
+  background-color: rgba(30, 41, 59, 0.92) !important;
+  color: #ffffff !important;
+}
