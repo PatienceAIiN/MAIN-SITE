@@ -16,6 +16,8 @@ import FAQPage from './pages/FAQPage';
 import DetailPage from './pages/DetailPage';
 import AdminPage from './pages/AdminPage';
 import SupportExecutivePage from './pages/SupportExecutivePage';
+import TeamPortalPage from './pages/TeamPortalPage';
+import ClientTicketPage from './pages/ClientTicketPage';
 import LiveChatPage from './pages/LiveChatPage';
 import Product from './pages/Product';
 import PlatformPage from './pages/PlatformPage';
@@ -127,15 +129,20 @@ function App() {
   const location = useLocation();
   const isAdminRoute        = location.pathname === '/admin';
   const isExecRoute         = location.pathname === '/support-executive';
+  const isTeamRoute         = location.pathname === '/team';
+  const isMyTicketRoute     = location.pathname === '/my-ticket';
   const isLiveChatRoute     = location.pathname === '/live-chat' || location.pathname === '/support-chat';
 
   const [activeModal, setActiveModal] = useState(null);
   const [siteContent, setSiteContent] = useState(() => normalizeSiteContent(defaultSiteContent));
 
+  // The site (and especially the admin console) is light-only. The team ticket
+  // portal manages its own dark mode locally via a wrapper class, never here.
   useEffect(() => {
     if (typeof document === 'undefined') return;
     document.documentElement.classList.remove('dark');
-  }, []);
+    document.body.classList.remove('dark');
+  }, [location.pathname]);
 
   useEffect(() => {
     let active = true;
@@ -231,6 +238,24 @@ function App() {
       <Routes>
         <Route path="/support-executive" element={<SupportExecutivePage />} />
         <Route path="*" element={<Navigate to="/support-executive" replace />} />
+      </Routes>
+    );
+  }
+
+  if (isTeamRoute) {
+    return (
+      <Routes>
+        <Route path="/team" element={<TeamPortalPage />} />
+        <Route path="*" element={<Navigate to="/team" replace />} />
+      </Routes>
+    );
+  }
+
+  if (isMyTicketRoute) {
+    return (
+      <Routes>
+        <Route path="/my-ticket" element={<ClientTicketPage />} />
+        <Route path="*" element={<Navigate to="/my-ticket" replace />} />
       </Routes>
     );
   }

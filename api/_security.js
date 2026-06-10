@@ -140,3 +140,25 @@ export const getExecSession = (req) => {
   const token = getCookieValue(req, EXEC_SESSION_COOKIE);
   return verifyExecSessionToken(token);
 };
+
+// ── Team member (ticket portal) session ──────────────────────────────────────
+const MEMBER_SESSION_COOKIE = 'pa_member_session';
+
+export const MEMBER_SESSION_COOKIE_NAME = MEMBER_SESSION_COOKIE;
+
+export const createMemberSessionToken = (payload) => {
+  const body = base64UrlEncode(
+    JSON.stringify({
+      ...payload,
+      role: 'member',
+      exp: Date.now() + SESSION_TTL_SECONDS * 1000
+    })
+  );
+  return `${body}.${sign(body)}`;
+};
+
+export const getMemberSession = (req) => {
+  const payload = verifySessionToken(getCookieValue(req, MEMBER_SESSION_COOKIE));
+  if (!payload || payload.role !== 'member') return null;
+  return payload;
+};

@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { FiAlertTriangle, FiEye, FiEyeOff, FiMoon, FiSun } from 'react-icons/fi';
+import { FiAlertTriangle, FiEye, FiEyeOff } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import Button from '../components/ui/Button';
+import AdminTicketOps from '../components/AdminTicketOps';
 import { fetchJson } from '../common/fetchJson';
 
-const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support', 'executives'];
+const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support', 'executives', 'team', 'tickets'];
 
 const Spinner = ({ size = 16 }) => (
   <svg
@@ -57,9 +58,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [submissionError, setSubmissionError] = useState('');
   const [submissionLoading, setSubmissionLoading] = useState(false);
   const [savingId, setSavingId] = useState(null);
-  const [adminTheme, setAdminTheme] = useState(() => {
-    try { return window.localStorage.getItem('pa_admin_theme') || 'dark'; } catch { return 'dark'; }
-  });
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
   const [conversations, setConversations] = useState([]);
@@ -100,8 +98,15 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [activityLogs, setActivityLogs]         = useState([]);
   const [activityLoading, setActivityLoading]   = useState(false);
   const [selectedExecId, setSelectedExecId]     = useState(null);
+
+  // Team members (ticket portal) management tab
+  const [teamMembers, setTeamMembers]           = useState([]);
+  const [teamLoading, setTeamLoading]           = useState(false);
+  const [teamError, setTeamError]               = useState('');
+  const [teamInviteForm, setTeamInviteForm]     = useState({ name: '', email: '' });
+  const [teamInviteSending, setTeamInviteSending] = useState(false);
+  const [teamInviteSuccess, setTeamInviteSuccess] = useState('');
   const selectedSubmission = submissions.find((item) => item.id === selectedId) || submissions[0] || null;
-  const isAdminDark = adminTheme === 'dark';
 
   const loadSiteContent = async () => {
     try {
@@ -189,10 +194,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   }, []);
 
   useEffect(() => {
-    try { window.localStorage.setItem('pa_admin_theme', adminTheme); } catch { /* ignore */ }
-  }, [adminTheme]);
-
-  useEffect(() => {
     if (!authenticated) {
       return;
     }
@@ -220,12 +221,16 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       .then((d) => setSupportColleagues(d.colleagues || [])).catch(() => {});
     loadPresence();
     const id = setInterval(loadPresence, 10000);
-    return () => clearInterval(id);
+    const sessionsId = setInterval(loadSupportSessions, 10000);
+    return () => { clearInterval(id); clearInterval(sessionsId); };
   }, [activeTab, authenticated]);
 
   useEffect(() => {
     if (!selectedSupportId) return;
     loadSupportMessages(selectedSupportId);
+    // Live thread — incoming customer messages appear without a manual refresh.
+    const id = setInterval(() => loadSupportMessages(selectedSupportId), 5000);
+    return () => clearInterval(id);
   }, [selectedSupportId]);
 
   useEffect(() => {
@@ -239,6 +244,67 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
     const id = setInterval(loadExecutives, 15000);
     return () => clearInterval(id);
   }, [activeTab, authenticated]);
+
+  useEffect(() => {
+    if (!authenticated || activeTab !== 'team') return;
+    loadTeamMembers();
+    // Live refresh — newly activated members flip to "active" automatically.
+    const id = setInterval(loadTeamMembers, 15000);
+    return () => clearInterval(id);
+  }, [activeTab, authenticated]);
+
+  const loadTeamMembers = async () => {
+    setTeamLoading(true); setTeamError('');
+    try {
+      const data = await fetchJson('/api/team-members');
+      setTeamMembers(data.members || []);
+    } catch (e) { setTeamError(e.message); }
+    finally { setTeamLoading(false); }
+  };
+
+  const inviteTeamMember = async (e) => {
+    e.preventDefault();
+    setTeamInviteSending(true); setTeamError(''); setTeamInviteSuccess('');
+    try {
+      const data = await fetchJson('/api/team-members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(teamInviteForm)
+      });
+      if (data.emailSent === false && data.inviteLink) {
+        setTeamInviteSuccess(`Invite created but the email could not be sent. Share this activation link manually: ${data.inviteLink}`);
+      } else if (data.emailSent === false) {
+        throw new Error(data.emailError || 'Invite created but email was not sent.');
+      } else {
+        setTeamInviteSuccess(`Invite sent to ${teamInviteForm.email}`);
+      }
+      setTeamInviteForm({ name: '', email: '' });
+      await loadTeamMembers();
+    } catch (e) { setTeamError(e.message); }
+    finally { setTeamInviteSending(false); }
+  };
+
+  const updateTeamMemberStatus = async (id, status) => {
+    try {
+      await fetchJson('/api/team-members', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status })
+      });
+      await loadTeamMembers();
+    } catch (e) { setTeamError(e.message); }
+  };
+
+  const deleteTeamMember = async (id) => {
+    try {
+      await fetchJson('/api/team-members', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      await loadTeamMembers();
+    } catch (e) { setTeamError(e.message); }
+  };
 
   const loadExecutives = async () => {
     setExecLoading(true); setExecError('');
@@ -652,7 +718,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
 
   if (loadingAuth) {
     return (
-      <main className={`admin-console admin-${adminTheme} bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10 min-h-[70vh] flex items-center justify-center`}>
+      <main className={`admin-console admin-light bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10 min-h-[70vh] flex items-center justify-center`}>
         <p className="text-white/60">Loading admin console...</p>
       </main>
     );
@@ -660,16 +726,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
 
   if (!authenticated) {
     return (
-      <main className={`admin-console admin-${adminTheme} bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10 min-h-[70vh] flex items-center justify-center`}>
-        <button
-          type="button"
-          onClick={() => setAdminTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
-          className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 transition-colors hover:bg-white/10 hover:text-white"
-          aria-label={`Switch to ${isAdminDark ? 'light' : 'dark'} theme`}
-        >
-          {isAdminDark ? <FiSun size={16} /> : <FiMoon size={16} />}
-          {isAdminDark ? 'Light mode' : 'Dark mode'}
-        </button>
+      <main className={`admin-console admin-light bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10 min-h-[70vh] flex items-center justify-center`}>
         <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-white/5 p-8 shadow-2xl relative overflow-hidden">
           {loginSuccess ? (
             <motion.div
@@ -754,7 +811,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const blogPosts = contentObject?.blogPage?.posts || [];
 
   return (
-    <main className={`admin-console admin-${adminTheme} bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10`}>
+    <main className={`admin-console admin-light bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10`}>
       <section className="max-w-7xl mx-auto">
         <div className="rounded-[2rem] overflow-hidden border border-white/10 bg-[linear-gradient(135deg,#0f172a_0%,#111827_45%,#1f2937_100%)] shadow-2xl">
           <div className="p-6 md:p-8 border-b border-white/10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
@@ -763,15 +820,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
               <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">Submission + content console</h1>
             </div>
             <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => setAdminTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white/80 transition-colors hover:bg-white/10 hover:text-white"
-                aria-label={`Switch to ${isAdminDark ? 'light' : 'dark'} theme`}
-              >
-                {isAdminDark ? <FiSun size={16} /> : <FiMoon size={16} />}
-                {isAdminDark ? 'Light mode' : 'Dark mode'}
-              </button>
               <Button variant="white" className="rounded-2xl px-6 py-3" onClick={() => onAction({ type: 'route', to: '/' })}>
                 Back home
               </Button>
@@ -1777,6 +1825,109 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                 )}
               </div>
             )}
+
+            {activeTab === 'team' && (
+              <div className="space-y-6">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-semibold">Ticket Portal Members</h2>
+                    <p className="text-white/55 text-sm mt-1">Invite teammates (@patienceai.in) who receive and resolve support tickets.</p>
+                  </div>
+                  <a href="/team" target="_blank" rel="noopener noreferrer"
+                    className="text-sm text-cyan-300 hover:text-cyan-100 underline underline-offset-2">
+                    Open ticket portal ↗
+                  </a>
+                </div>
+
+                {teamError && (
+                  <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-red-100 text-sm">{teamError}</div>
+                )}
+                {teamInviteSuccess && (
+                  <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-emerald-100 text-sm">{teamInviteSuccess}</div>
+                )}
+
+                <div className="grid grid-cols-1 xl:grid-cols-[1fr_0.7fr] gap-6">
+                  {/* List */}
+                  <div className="rounded-[1.75rem] border border-white/10 bg-white/5 overflow-hidden">
+                    <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                      <h3 className="font-semibold">All members</h3>
+                      <button onClick={loadTeamMembers} className="text-xs text-white/50 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 border border-white/10">
+                        {teamLoading ? 'Loading…' : 'Refresh'}
+                      </button>
+                    </div>
+                    <div className="divide-y divide-white/5">
+                      {teamMembers.length === 0 && !teamLoading && (
+                        <p className="text-white/40 text-sm p-5">No team members added yet.</p>
+                      )}
+                      {teamMembers.map((m) => (
+                        <div key={m.id} className="px-5 py-4 flex items-center justify-between gap-4">
+                          <div className="min-w-0">
+                            <p className="font-medium text-white truncate">{m.name}</p>
+                            <p className="text-sm text-white/55 truncate">{m.email}</p>
+                            {m.last_seen_at && (
+                              <p className="text-xs text-white/30 mt-0.5">Last seen {formatDate(m.last_seen_at)}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className={['text-xs px-2.5 py-1 rounded-full font-medium',
+                              m.status === 'active' ? 'bg-emerald-400/20 text-emerald-300' :
+                              m.status === 'invited' ? 'bg-amber-400/20 text-amber-300' :
+                              'bg-white/10 text-white/40'].join(' ')}>{m.status}</span>
+                            {m.status === 'inactive' && (
+                              <button onClick={() => updateTeamMemberStatus(m.id, 'active')}
+                                className="text-xs px-3 py-1.5 rounded-lg border border-white/10 text-white/60 hover:text-white hover:bg-white/5 transition-colors">
+                                Activate
+                              </button>
+                            )}
+                            {m.status === 'active' && (
+                              <button onClick={() => updateTeamMemberStatus(m.id, 'inactive')}
+                                className="text-xs px-3 py-1.5 rounded-lg border border-white/10 text-white/60 hover:text-white hover:bg-white/5 transition-colors">
+                                Deactivate
+                              </button>
+                            )}
+                            <button onClick={() => deleteTeamMember(m.id)}
+                              className="text-xs px-3 py-1.5 rounded-lg border border-red-400/20 text-red-300/70 hover:text-red-200 hover:bg-red-500/10 transition-colors">
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Invite form */}
+                  <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
+                    <h3 className="font-semibold mb-4">Invite member</h3>
+                    <form onSubmit={inviteTeamMember} className="space-y-3">
+                      <div>
+                        <label className="block text-sm text-white/70 mb-1.5">Name</label>
+                        <input value={teamInviteForm.name}
+                          onChange={(e) => setTeamInviteForm((f) => ({ ...f, name: e.target.value }))}
+                          required placeholder="Full name"
+                          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70" />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-white/70 mb-1.5">Email (@patienceai.in only)</label>
+                        <input type="email" value={teamInviteForm.email}
+                          onChange={(e) => setTeamInviteForm((f) => ({ ...f, email: e.target.value }))}
+                          required placeholder="name@patienceai.in" pattern=".*@patienceai\.in$"
+                          title="Must be a @patienceai.in email address"
+                          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70" />
+                      </div>
+                      <Button variant="white" className="rounded-2xl px-5 py-3 w-full gap-2" disabled={teamInviteSending}>
+                        {teamInviteSending ? 'Sending invite…' : 'Send invite email'}
+                      </Button>
+                    </form>
+                    <div className="mt-4 rounded-xl bg-slate-900/60 border border-white/10 p-4 text-xs text-white/50 space-y-1">
+                      <p>The member receives an email with a link to set their password.</p>
+                      <p>Once activated they sign in at <span className="text-cyan-300">/team</span> to see tickets assigned to them.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'tickets' && <AdminTicketOps />}
           </div>
         </div>
       </section>

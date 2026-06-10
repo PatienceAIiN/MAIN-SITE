@@ -109,3 +109,18 @@ PUBLIC_SITE_URL=https://patienceai.in
 - `SMTP_PASS` is the actual GoDaddy email account password — treat it as a secret
 - Never log or expose these values in API responses
 - Rotate `ADMIN_SESSION_SECRET` if you suspect it has been compromised (all existing sessions will be invalidated)
+
+### Ticketing, Caching & File Storage (added June 2026)
+
+| Variable | Required | Example | Description |
+|---|---|---|---|
+| `REDIS_URL` | Recommended | `redis://default:pass@host:6379` | Redis for read-caching (ticket lists, details, notifications, settings) + presence. Without it, all reads go straight to Neon (works, but heavier DB load) |
+| `R2_ACCOUNT_ID` | For uploads >3 MB | `abc123…` | Cloudflare R2 account ID |
+| `R2_ACCESS_KEY_ID` | For uploads >3 MB | — | R2 API token key |
+| `R2_SECRET_ACCESS_KEY` | For uploads >3 MB | — | R2 API token secret |
+| `R2_BUCKET_NAME` | For uploads >3 MB | `patienceai-files` | Bucket for ticket attachments (10 MB/file, any format). Without R2, attachments fall back to base64-in-Postgres capped at 3 MB |
+| `TICKET_REMINDER_HOURS` | No (default 2) | `2` | Hours of assignee silence before each escalation step |
+| `TICKET_SLA_WARNING_HOURS` | No (default 2) | `2` | Warn the assignee this many hours before the SLA deadline |
+| `DB_QUERY_LOG` | No | `1` | Debug: log every Neon query (verify cache hit rates) |
+
+See `12_ticketing_system.md` for the full architecture.

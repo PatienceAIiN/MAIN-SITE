@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   FiPhone, FiPhoneOff, FiPhoneIncoming, FiMic, FiMicOff, FiSend,
   FiLogOut, FiUser, FiRefreshCw, FiCheck, FiEye, FiEyeOff, FiChevronLeft, FiChevronRight, FiSearch,
-  FiVolume2, FiSmartphone, FiUsers, FiX, FiCornerUpRight, FiSun, FiMoon, FiAlertTriangle
+  FiVolume2, FiSmartphone, FiUsers, FiX, FiCornerUpRight, FiSun, FiMoon, FiAlertTriangle, FiTag, FiMessageSquare
 } from 'react-icons/fi';
+import { TicketModal, TicketsPanel, NotificationBell } from '../components/TicketCenter';
 
 const STATUS_DOT = { online: 'bg-emerald-500', away: 'bg-amber-500', offline: 'bg-slate-300' };
 const IDLE_LIMIT_MS = 10 * 60 * 1000; // 10 min without activity → auto-offline
@@ -369,6 +370,10 @@ export default function SupportExecutivePage() {
   const [internalInput, setInternalInput] = useState('');
   const [transferOpen,  setTransferOpen]  = useState(false);
   const [incomingTransfer, setIncomingTransfer] = useState(null);
+
+  // Ticket center
+  const [view,         setView]         = useState('chats');   // 'chats' | 'tickets'
+  const [ticketModal,  setTicketModal]  = useState(null);      // null | prefill object
 
   // Voice call
   const [callState,  setCallState]  = useState(null);
@@ -1014,6 +1019,17 @@ export default function SupportExecutivePage() {
           <h1 className="text-lg font-bold text-slate-900">{executive.name}</h1>
         </div>
         <div className="flex items-center gap-3">
+          {/* Chats / Tickets view toggle */}
+          <div className="flex items-center bg-slate-100 rounded-lg p-1">
+            {[{ key: 'chats', label: 'Chats', icon: FiMessageSquare }, { key: 'tickets', label: 'Tickets', icon: FiTag }].map(({ key, label, icon: Icon }) => (
+              <button key={key} onClick={() => setView(key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  view === key ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'
+                }`}>
+                <Icon size={12} /> {label}
+              </button>
+            ))}
+          </div>
           {/* Status Toggle */}
           <div className="flex items-center bg-slate-100 rounded-lg p-1">
             {['online', 'away', 'offline'].map((status) => (
@@ -1062,10 +1078,11 @@ export default function SupportExecutivePage() {
               </div>
             )}
           </div>
-          <ThemeToggle
+<ThemeToggle
             theme={supportTheme}
             onToggle={() => setSupportTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
           />
+          <NotificationBell />
           <button onClick={loadSessions} className="text-slate-400 hover:text-slate-700 p-2 rounded-lg hover:bg-slate-100 transition-colors">
             <FiRefreshCw size={16} />
           </button>
@@ -1075,6 +1092,9 @@ export default function SupportExecutivePage() {
         </div>
       </header>
 
+      {view === 'tickets' ? (
+        <TicketsPanel onCreateNew={() => setTicketModal({})} />
+      ) : (
       <div className="flex flex-1 overflow-hidden">
         {/* Session sidebar */}
         <aside className="w-72 border-r border-slate-200 bg-white flex flex-col shrink-0">
@@ -1161,6 +1181,15 @@ export default function SupportExecutivePage() {
                   <p className="text-xs text-slate-500 truncate">{selectedSession?.customer_name || selectedSession?.customer_email || 'Anonymous customer'}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => setTicketModal({
+                      conversationId: selectedId,
+                      customerEmail: selectedSession?.customer_email || '',
+                      customerName: selectedSession?.customer_name || ''
+                    })}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-violet-50 border border-violet-200 text-violet-700 hover:bg-violet-100 transition-colors">
+                    <FiTag size={12}/> Create ticket
+                  </button>
                   {!callState && (
                     <button onClick={startVoiceCall}
                       className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors">
@@ -1249,6 +1278,14 @@ export default function SupportExecutivePage() {
           )}
         </main>
       </div>
+      )}
+
+      <TicketModal
+        open={Boolean(ticketModal)}
+        prefill={ticketModal || {}}
+        onClose={() => setTicketModal(null)}
+        onCreated={() => { if (selectedId) loadMessages(selectedId); }}
+      />
 
       {/* ── Incoming transfer request prompt ──────────────────────────────── */}
       <AnimatePresence>

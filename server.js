@@ -58,6 +58,15 @@ import newsletterHandler from './api/newsletter.js';
 import supportAuthHandler from './api/support-auth.js';
 import supportChatHandler from './api/support-chat.js';
 import supportExecutivesHandler, { seedExecutive } from './api/support-executives.js';
+import teamMembersHandler from './api/team-members.js';
+import ticketsHandler from './api/tickets.js';
+import ticketSettingsHandler from './api/ticket-settings.js';
+import ticketStatsHandler from './api/ticket-stats.js';
+import notificationsHandler from './api/notifications.js';
+import attachmentsHandler from './api/attachments.js';
+import kbHandler from './api/kb.js';
+import clientTicketsHandler from './api/client-tickets.js';
+import { runEscalationSweep } from './api/_escalation.js';
 import voiceRoomHandler from './api/voice-room.js';
 import {
   createSessionToken, verifySessionToken,
@@ -226,6 +235,9 @@ const submitIndexNow = async () => {
 setTimeout(submitIndexNow, 5000);
 // Seed default support executive
 setTimeout(seedExecutive, 6000);
+// Escalation + SLA engine — first sweep shortly after boot, then every 5 minutes
+setTimeout(runEscalationSweep, 15000);
+setInterval(runEscalationSweep, 5 * 60 * 1000);
 
 const wrap = (handler) => async (req, res, next) => {
   try {
@@ -335,6 +347,23 @@ app.all('/api/support-executives/transfer', wrap(supportExecutivesHandler));
 app.all('/api/support-executives',          wrap(supportExecutivesHandler));
 app.all('/api/voice-room/ice-servers',      wrap(voiceRoomHandler));
 app.all('/api/voice-room',                  wrap(voiceRoomHandler));
+app.all('/api/team-members/login',           authLimiter, wrap(teamMembersHandler));
+app.all('/api/team-members/activate',        authLimiter, wrap(teamMembersHandler));
+app.all('/api/team-members/change-password', authLimiter, wrap(teamMembersHandler));
+app.all('/api/team-members/me',              wrap(teamMembersHandler));
+app.all('/api/team-members/logout',          wrap(teamMembersHandler));
+app.all('/api/team-members',                 wrap(teamMembersHandler));
+app.all('/api/tickets/comments',             wrap(ticketsHandler));
+app.all('/api/tickets',                      wrap(ticketsHandler));
+app.all('/api/ticket-settings',              wrap(ticketSettingsHandler));
+app.all('/api/ticket-stats',                 wrap(ticketStatsHandler));
+app.all('/api/notifications',                wrap(notificationsHandler));
+// File uploads: raw body (any format) up to 10 MB, streamed to Cloudflare R2.
+app.post('/api/attachments/upload', express.raw({ type: () => true, limit: '10mb' }), wrap(attachmentsHandler));
+app.all('/api/attachments',                  wrap(attachmentsHandler));
+app.all('/api/kb',                           wrap(kbHandler));
+const clientTicketLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, message: 'Too many requests. Try again shortly.' });
+app.all('/api/client-tickets',               clientTicketLimiter, wrap(clientTicketsHandler));
 
 // ── Marketing Automation OS ───────────────────────────────────────────────────
 const MKT_COOKIE = 'pa_mkt_session';
@@ -535,10 +564,14 @@ app.get('*', (req, res, next) => {
 });
 
 app.use((error, req, res, next) => {
-  console.error(error);
   if (res.headersSent) {
     return next(error);
   }
+  // Body-parser limit exceeded (e.g. attachment over 10 MB)
+  if (error?.type === 'entity.too.large' || error?.status === 413) {
+    return res.status(413).json({ error: 'File too large (max 10 MB)' });
+  }
+  console.error(error);
   return res.status(500).json({ error: 'Internal server error' });
 });
 
