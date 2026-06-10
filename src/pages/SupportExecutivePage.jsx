@@ -10,6 +10,15 @@ import { fetchJson } from '../common/fetchJson';
 const fmt = (v) => v ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(v)) : '—';
 const PAGE_SIZE = 10;
 
+// Canned quick replies — standard helpdesk feature for fast, consistent responses.
+const CANNED_REPLIES = [
+  { label: '👋 Greeting', text: 'Hi! Thanks for reaching out to PATIENCE AI support. How can I help you today?' },
+  { label: '⏳ One moment', text: 'Thanks for your patience — let me look into this for you. One moment please.' },
+  { label: '🙏 Apology', text: "I'm sorry for the inconvenience. I'll do my best to get this sorted for you right away." },
+  { label: '✅ Resolved?', text: 'Is there anything else I can help you with, or did that resolve your issue?' },
+  { label: '👋 Closing', text: 'Thank you for contacting PATIENCE AI. Have a great day!' }
+];
+
 const getIceServers = async () => {
   try {
     const d = await fetchJson('/api/voice-room/ice-servers');
@@ -296,6 +305,7 @@ export default function SupportExecutivePage() {
   const [queueModal,   setQueueModal]   = useState(false);
   const [queueItems,   setQueueItems]   = useState([]);
   const prevWaitingIds = useRef(new Set());
+  const joinedRef = useRef(new Set());
 
   // Sidebar pagination + search
   const [sessPage,   setSessPage]   = useState(1);
@@ -487,35 +497,60 @@ export default function SupportExecutivePage() {
     } catch { /* ignore */ }
   }, []);
 
+  // When an executive opens a waiting session, mark it joined (waiting → active),
+  // assign their name, and drop a system note so the customer sees who joined.
+  const joinSession = useCallback(async (convId) => {
+    if (!convId || !executive || joinedRef.current.has(convId)) return;
+    const sess = sessions.find((s) => s.conversation_id === convId);
+    if (sess && sess.status !== 'waiting') { joinedRef.current.add(convId); return; }
+    joinedRef.current.add(convId);
+    try {
+      await fetchJson('/api/support-chat', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId: convId, status: 'active', assignedExecutive: executive.name })
+      });
+      await fetchJson('/api/support-chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId: convId, sender: 'system', message: `${executive.name} joined the chat.` })
+      });
+      await loadSessions();
+    } catch { joinedRef.current.delete(convId); }
+  }, [executive, sessions, loadSessions]);
+
   useEffect(() => {
     if (msgPollRef.current) clearInterval(msgPollRef.current);
     if (!selectedId || !executive) return;
     userScrolled.current = false;
+    joinSession(selectedId);
     loadMessages(selectedId);
     msgPollRef.current = setInterval(() => loadMessages(selectedId), 2000);
     return () => clearInterval(msgPollRef.current);
-  }, [selectedId, executive, loadMessages]);
+  }, [selectedId, executive, loadMessages, joinSession]);
 
-  /* ── Poll for incoming customer call ─────────────────────────────────── */
+  /* ── Poll for incoming customer call (global — any conversation) ─────── */
   useEffect(() => {
-    if (!selectedId || !executive || callState) return;
+    // Poll while idle or already ringing; stop once a call is being connected/active.
+    if (!executive || (callState && callState !== 'incoming')) return;
     const poll = async () => {
       try {
-        const d = await fetchJson(`/api/voice-room?conversationId=${encodeURIComponent(selectedId)}`);
+        const d = await fetchJson('/api/voice-room?incoming=1');
         const room = d.room;
         if (room && room.status === 'calling' && room.initiator === 'customer' && room.offer) {
+          // Open the caller's conversation and start ringing the executive.
+          if (room.conversation_id !== selectedId) setSelectedId(room.conversation_id);
           setCallRoomId(room.room_id);
           setCallState('incoming');
-        } else if (room && room.status === 'ended') {
-          // Client ended the call before executive joined
+        } else if (callState === 'incoming') {
+          // Customer hung up before we answered — stop ringing.
           setCallState(null);
           setCallRoomId(null);
         }
       } catch { /* ignore */ }
     };
-    const id = setInterval(poll, 500);
+    poll();
+    const id = setInterval(poll, 1500);
     return () => clearInterval(id);
-  }, [selectedId, executive, callState]);
+  }, [executive, callState, selectedId]);
 
   /* ── Send reply ──────────────────────────────────────────────────────── */
   const sendReply = async () => {
@@ -940,7 +975,20 @@ export default function SupportExecutivePage() {
                 <div ref={messagesEndRef} />
               </div>
 
-              <div className="border-t border-slate-200 p-3 bg-white flex items-end gap-2 shrink-0">
+              <div className="border-t border-slate-200 px-3 pt-2 bg-white flex flex-wrap gap-1.5 shrink-0">
+                {CANNED_REPLIES.map((c) => (
+                  <button
+                    key={c.label}
+                    type="button"
+                    onClick={() => setReply((r) => (r ? `${r} ${c.text}` : c.text))}
+                    title={c.text}
+                    className="text-[11px] px-2.5 py-1 rounded-full border border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50 transition-colors"
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+              <div className="px-3 pb-3 pt-2 bg-white flex items-end gap-2 shrink-0">
                 <textarea value={reply} onChange={e => setReply(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply(); }}}
                   placeholder="Type a reply… (Enter to send)"

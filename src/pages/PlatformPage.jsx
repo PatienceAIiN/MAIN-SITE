@@ -36,7 +36,7 @@ const PlatformPage = ({ content, possibilityContent, onAction }) => {
         title={content.hero.title}
         description={content.hero.description}
         coverImage="https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2000&auto=format&fit=crop"
-        coverVideo="https://videos.pexels.com/video-files/3209828/3209828-sd_640_360_25fps.mp4"
+        coverVideo="https://videos.pexels.com/video-files/3129595/3129595-sd_960_540_30fps.mp4"
       />
 
       <TechnologyStack />

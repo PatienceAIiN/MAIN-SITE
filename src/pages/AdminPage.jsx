@@ -69,6 +69,8 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [analyticsData, setAnalyticsData] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState('');
+  const [visitorPage, setVisitorPage] = useState(0);
+  const VISITORS_PER_PAGE = 10;
 
   const [supportSessions, setSupportSessions] = useState([]);
   const [supportSessionsLoading, setSupportSessionsLoading] = useState(false);
@@ -730,10 +732,6 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
             <div>
               <p className="text-xs uppercase tracking-[0.35em] text-cyan-300/80 mb-3">NeonDB admin</p>
               <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">Submission + content console</h1>
-              <p className="text-white/65 mt-3 max-w-2xl">
-                Logged in as {username}. Edit the full site JSON, publish it to NeonDB, and manage leads from one place.
-              </p>
-              <p className="text-white/45 mt-2 text-sm">Content source: {currentContentSource || 'local'}</p>
             </div>
             <div className="flex flex-wrap gap-3">
               <Button variant="white" className="rounded-2xl px-6 py-3" onClick={() => onAction({ type: 'route', to: '/' })}>
@@ -1354,8 +1352,10 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-white/5">
-                            {analyticsData.recent.map((row, i) => (
-                              <tr key={i} className="hover:bg-white/5">
+                            {analyticsData.recent
+                              .slice(visitorPage * VISITORS_PER_PAGE, visitorPage * VISITORS_PER_PAGE + VISITORS_PER_PAGE)
+                              .map((row, i) => (
+                              <tr key={visitorPage * VISITORS_PER_PAGE + i} className="hover:bg-white/5">
                                 <td className="py-2 pr-4 max-w-[200px] truncate">{row.page}</td>
                                 <td className="py-2 pr-4 max-w-[160px] truncate text-white/45">
                                   {row.referrer ? row.referrer.replace(/^https?:\/\//, '').split('/')[0] : '—'}
@@ -1371,32 +1371,37 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                           <p className="text-white/40 text-sm py-4 text-center">No visits tracked yet — deploy and visit the site to start tracking.</p>
                         )}
                       </div>
-                    </div>
-
-                    {/* Free Tools Quicklinks */}
-                    <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
-                      <h3 className="text-lg font-semibold mb-4">Free External Tools — Register &amp; Connect</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 text-sm">
-                        {[
-                          { name: 'Google Search Console', url: 'https://search.google.com/search-console', desc: 'Index your site, see search queries, fix crawl errors. Submit sitemap at /sitemap.xml', color: 'text-blue-300' },
-                          { name: 'Google Analytics 4', url: 'https://analytics.google.com', desc: 'Get your G-XXXXXXXXXX ID, then uncomment GA4 script in index.html', color: 'text-orange-300' },
-                          { name: 'Microsoft Clarity', url: 'https://clarity.microsoft.com', desc: 'Free heatmaps + session recordings. Get project ID, uncomment Clarity script in index.html', color: 'text-blue-400' },
-                          { name: 'Bing Webmaster Tools', url: 'https://www.bing.com/webmasters', desc: 'Submit sitemap, monitor Bing indexing. Covers Yahoo + DuckDuckGo traffic too', color: 'text-cyan-300' },
-                          { name: 'Google PageSpeed', url: 'https://pagespeed.web.dev', desc: 'Test and optimize performance score — higher score = better ranking', color: 'text-green-300' },
-                          { name: 'Schema Validator', url: 'https://validator.schema.org', desc: 'Verify your JSON-LD structured data is valid for rich snippets', color: 'text-purple-300' },
-                        ].map((tool) => (
-                          <a
-                            key={tool.name}
-                            href={tool.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="rounded-2xl bg-slate-900/60 border border-white/10 p-4 hover:border-white/25 transition-colors block"
-                          >
-                            <p className={['font-semibold mb-1', tool.color].join(' ')}>{tool.name}</p>
-                            <p className="text-white/50 text-xs leading-relaxed">{tool.desc}</p>
-                          </a>
-                        ))}
-                      </div>
+                      {analyticsData.recent.length > VISITORS_PER_PAGE && (() => {
+                        const totalPages = Math.ceil(analyticsData.recent.length / VISITORS_PER_PAGE);
+                        const page = Math.min(visitorPage, totalPages - 1);
+                        const start = page * VISITORS_PER_PAGE;
+                        return (
+                          <div className="flex items-center justify-between mt-4 text-xs text-white/50">
+                            <span>
+                              Showing {start + 1}–{Math.min(start + VISITORS_PER_PAGE, analyticsData.recent.length)} of {analyticsData.recent.length}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setVisitorPage((p) => Math.max(0, p - 1))}
+                                disabled={page <= 0}
+                                className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                              >
+                                Prev
+                              </button>
+                              <span className="text-white/70">Page {page + 1} / {totalPages}</span>
+                              <button
+                                type="button"
+                                onClick={() => setVisitorPage((p) => Math.min(totalPages - 1, p + 1))}
+                                disabled={page >= totalPages - 1}
+                                className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                              >
+                                Next
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </>
                 )}

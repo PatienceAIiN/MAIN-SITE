@@ -17,7 +17,7 @@ const PrivacyPolicy = ({ content }) => {
         eyebrow={`${updatedLabel}${updatedValue ? `: ${updatedValue}` : ''}`}
         title={title}
         coverImage="https://images.unsplash.com/photo-1505664194779-8beaceb93744?q=80&w=2000&auto=format&fit=crop"
-        coverVideo="https://videos.pexels.com/video-files/3129957/3129957-sd_640_360_25fps.mp4"
+        coverVideo="https://videos.pexels.com/video-files/2887463/2887463-sd_640_360_25fps.mp4"
       />
 
       <article className="max-w-3xl mx-auto px-6 py-20 flex flex-col gap-10 animate-fade-rise-delay">

@@ -29,7 +29,7 @@ const ContactPage = ({ siteContent }) => {
         title="Talk to the team."
         description="Whether it's a deep technical question, a partnership idea, or a sales inquiry — start here."
         coverImage="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=2000&auto=format&fit=crop"
-        coverVideo="https://videos.pexels.com/video-files/3129957/3129957-sd_640_360_25fps.mp4"
+        coverVideo="https://videos.pexels.com/video-files/3246669/3246669-sd_640_360_25fps.mp4"
       />
       <div className="mx-auto mt-8 flex w-full max-w-3xl gap-3 px-6">
         <button

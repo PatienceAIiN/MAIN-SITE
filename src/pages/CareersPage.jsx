@@ -64,7 +64,7 @@ const CareersPage = ({ content, onAction }) => {
         title={content.hero.title}
         description={content.hero.description}
         coverImage="https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=2000&auto=format&fit=crop"
-        coverVideo="https://videos.pexels.com/video-files/3129957/3129957-sd_640_360_25fps.mp4"
+        coverVideo="https://videos.pexels.com/video-files/3205674/3205674-sd_640_360_25fps.mp4"
       />
       <section className="mx-auto max-w-7xl px-6 py-12">
         <div className="grid gap-4 sm:grid-cols-3">

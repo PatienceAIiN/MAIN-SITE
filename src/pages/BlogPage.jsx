@@ -14,7 +14,7 @@ const BlogPage = ({ content }) => {
         title={content?.hero?.title}
         description={content?.hero?.description}
         coverImage="https://images.unsplash.com/photo-1499750310107-5fef28a66643?q=80&w=2000&auto=format&fit=crop"
-        coverVideo="https://videos.pexels.com/video-files/3129957/3129957-sd_640_360_25fps.mp4"
+        coverVideo="https://videos.pexels.com/video-files/3194277/3194277-sd_960_540_30fps.mp4"
       >
         <motion.button
           type="button"

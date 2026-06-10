@@ -155,6 +155,24 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     const roomId         = String(req.query.roomId         || '').trim();
     const conversationId = String(req.query.conversationId || '').trim();
+
+    // Global incoming-call lookup for support staff — returns the latest
+    // customer-initiated ringing call across ALL conversations, so an executive
+    // sees the call even if they don't have that chat open.
+    if (req.query.incoming === '1') {
+      if (!authorized(req)) return res.status(401).json({ error: 'Unauthorized' });
+      try {
+        const rows = await queryDb(
+          `SELECT * FROM ${TABLE} WHERE status='calling' AND initiator='customer' AND offer IS NOT NULL
+           AND updated_at > NOW() - INTERVAL '40 seconds' ORDER BY created_at DESC LIMIT 1`
+        );
+        return res.status(200).json({ room: rows[0] || null });
+      } catch (err) {
+        if (isMissingTableError(err.message)) return res.status(200).json({ room: null });
+        return res.status(500).json({ error: err.message });
+      }
+    }
+
     try {
       let rows;
       if (roomId) {

@@ -120,7 +120,7 @@ const PodcastPage = ({ content, siteContent }) => {
         title={hero.title}
         description={hero.description}
         coverImage="https://images.unsplash.com/photo-1478737270239-2f02b77fc618?q=80&w=2000&auto=format&fit=crop"
-        coverVideo="https://videos.pexels.com/video-files/3129957/3129957-sd_640_360_25fps.mp4"
+        coverVideo="https://videos.pexels.com/video-files/3141210/3141210-sd_640_360_25fps.mp4"
       />
 
       <div className="mx-auto mt-10 flex w-fit max-w-full justify-center px-6">

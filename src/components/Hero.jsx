@@ -77,8 +77,8 @@ const Hero = () => {
 
   return (
     <section className="relative min-h-screen w-full overflow-hidden bg-white pt-[160px] pb-40 flex flex-col items-center justify-center">
-      {/* Video Background Layer */}
-      <div className="absolute z-0 w-full" style={{ top: '300px', inset: 'auto 0 0 0' }}>
+      {/* Video Background Layer — fills the hero on mobile, offset lower on desktop */}
+      <div className="absolute z-0 w-full inset-0 md:top-[300px] md:inset-x-0 md:bottom-0">
         <div ref={containerRef} className="w-full h-full relative transition-opacity duration-100 opacity-0">
           <video 
             ref={videoRef} 
