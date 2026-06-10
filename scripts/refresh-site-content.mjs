@@ -20,18 +20,25 @@ if (fs.existsSync(envPath)) {
   }
 }
 
-const { queryDb } = await import('../api/_db.js');
+async function main() {
+  const { queryDb } = await import('../api/_db.js');
 
-const data = fs.readFileSync(path.join(rootDir, 'src', 'data', 'siteContent.json'), 'utf8');
-JSON.parse(data); // validate
+  const data = fs.readFileSync(path.join(rootDir, 'src', 'data', 'siteContent.json'), 'utf8');
+  JSON.parse(data); // validate
 
-for (const slug of ['default', 'site']) {
-  await queryDb(
-    `INSERT INTO site_content (slug, data, updated_at) VALUES ($1, $2::jsonb, NOW())
-     ON CONFLICT (slug) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
-    [slug, data]
-  );
-  console.log(`Updated site_content slug="${slug}"`);
+  for (const slug of ['default', 'site']) {
+    await queryDb(
+      `INSERT INTO site_content (slug, data, updated_at) VALUES ($1, $2::jsonb, NOW())
+       ON CONFLICT (slug) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+      [slug, data]
+    );
+    console.log(`Updated site_content slug="${slug}"`);
+  }
+  console.log('Done.');
+  process.exit(0);
 }
-console.log('Done.');
-process.exit(0);
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
