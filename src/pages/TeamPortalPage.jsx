@@ -450,10 +450,18 @@ function GitHubWorkspace({ canWrite }) {
   const tb2 = 'text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800';
 
   useEffect(() => {
-    const load = () => fetchJson('/api/github?repos=1').then((d) => { setRepos(d.repos || []); setMsg(''); }).catch((e) => setMsg(e.message));
+    const load = () => fetchJson('/api/github?repos=1')
+      .then((d) => {
+        const list = d.repos || [];
+        setRepos(list); setMsg('');
+        // a repo whose grant was revoked must vanish even if it was open
+        setRepo((cur) => cur && !list.some((r) => r.full_name === cur) ? '' : cur);
+      })
+      .catch((e) => { setRepos([]); setRepo(''); setMsg(e.message); });
     load();
-    window.addEventListener('pa-perms-updated', load); // repo grants apply live
-    return () => window.removeEventListener('pa-perms-updated', load);
+    window.addEventListener('pa-perms-updated', load); // grants/revokes apply live
+    const id = setInterval(load, 8000);                // self-heals if WS push is missed
+    return () => { window.removeEventListener('pa-perms-updated', load); clearInterval(id); };
   }, []);
 
   const open = async (full) => {
