@@ -30,7 +30,9 @@ export const ROLE_DEFAULT_PERMS = {
   qa: ['github_read'],
   member: []
 };
-export const resolvePerms = (row) => row?.permissions
+// An explicitly-saved empty string means "no permissions"; only NULL
+// (never customised by an admin) falls back to the role defaults.
+export const resolvePerms = (row) => (row?.permissions !== null && row?.permissions !== undefined)
   ? String(row.permissions).split(',').map((x) => x.trim()).filter(Boolean)
   : (ROLE_DEFAULT_PERMS[row?.team_role] || []);
 // Product / engineering managers can also manage the roster (not delete).
