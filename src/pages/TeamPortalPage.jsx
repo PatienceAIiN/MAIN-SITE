@@ -6,6 +6,7 @@ import {
 } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import { NotificationBell, SlaBadge, AttachmentList, uploadFiles } from '../components/TicketCenter';
+import TeamEngineering from '../components/TeamEngineering';
 import { FiPaperclip, FiAlertTriangle } from 'react-icons/fi';
 
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
@@ -585,16 +586,14 @@ export default function TeamPortalPage() {
           <h1 className="text-lg font-bold text-slate-900 dark:text-white">{member.name}</h1>
         </div>
         <div className="flex items-center gap-2">
-          {(myPerms.includes('github_read') || myPerms.includes('github_write')) && (
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-              {['tickets', 'github'].map((v) => (
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+              {['tickets', 'engineering', ...((myPerms.includes('github_read') || myPerms.includes('github_write')) ? ['github'] : [])].map((v) => (
                 <button key={v} onClick={() => setView(v)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors ${view === v ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-300'}`}>
                   {v}
                 </button>
               ))}
             </div>
-          )}
           <NotificationBell dark={dark} />
           <button onClick={() => setDark((d) => !d)} title="Toggle theme"
             className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
@@ -617,6 +616,8 @@ export default function TeamPortalPage() {
 
       {view === 'github' ? (
         <GitHubWorkspace canWrite={myPerms.includes('github_write')} />
+      ) : view === 'engineering' ? (
+        <TeamEngineering myRole={myRole} onOpenTicket={(id) => { setView('tickets'); setSelectedId(id); }} />
       ) : (
       <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
         {/* Ticket list */}

@@ -7,26 +7,32 @@ import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, getExecSession
 import { logAudit } from './_ticketing.js';
 
 const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
-const getActor = (req) => {
-  if (isAdmin(req)) return { role: 'admin', email: 'admin', name: 'Admin' };
-  const e = getExecSession(req); if (e) return { role: 'executive', ...e };
-  const m = getMemberSession(req); if (m) return { role: 'member', ...m };
+const getActor = async (req) => {
+  if (isAdmin(req)) return { role: 'admin', email: 'admin', name: 'Admin', teamRole: 'admin' };
+  const e = getExecSession(req); if (e) return { role: 'executive', teamRole: 'executive', ...e };
+  const m = getMemberSession(req);
+  if (m) {
+    const [row] = await queryDb(`SELECT team_role FROM team_members WHERE id=$1`, [m.id]).catch(() => [{}]);
+    return { role: 'member', teamRole: row?.team_role || 'member', ...m };
+  }
   return null;
 };
+const MGMT = ['admin', 'executive', 'product_manager', 'engineering_manager', 'team_lead'];
+const ALL_STAFF = [...MGMT, 'software_dev', 'qa', 'member'];
 
 // resource → { table, columns writable, who can write }
 const RESOURCES = {
-  epics: { table: 'epics', cols: ['title', 'description', 'status', 'owner_email', 'milestone'], write: ['admin', 'executive'] },
-  sprints: { table: 'sprints', cols: ['name', 'goal', 'status', 'starts_on', 'ends_on', 'capacity_points'], write: ['admin', 'executive'] },
-  incidents: { table: 'incidents', cols: ['title', 'severity', 'status', 'service', 'owner_email', 'summary', 'postmortem', 'ticket_id'], write: ['admin', 'executive', 'member'] },
-  services: { table: 'services_catalog', cols: ['name', 'description', 'owner_email', 'backup_owner_email', 'team', 'repository', 'runbook', 'sla', 'dependencies', 'api_docs'], write: ['admin'] },
-  okrs: { table: 'okrs', cols: ['level', 'objective', 'key_result', 'progress', 'owner_email', 'parent_id', 'quarter'], write: ['admin', 'executive'] },
-  announcements: { table: 'announcements', cols: ['kind', 'title', 'body', 'author'], write: ['admin'] },
-  testcases: { table: 'qa_test_cases', cols: ['ticket_id', 'title', 'steps', 'expected', 'last_result', 'run_notes', 'run_by', 'run_at'], write: ['admin', 'executive', 'member'] }
+  epics: { table: 'epics', cols: ['title', 'description', 'status', 'owner_email', 'milestone'], write: MGMT },
+  sprints: { table: 'sprints', cols: ['name', 'goal', 'status', 'starts_on', 'ends_on', 'capacity_points'], write: MGMT },
+  incidents: { table: 'incidents', cols: ['title', 'severity', 'status', 'service', 'owner_email', 'summary', 'postmortem', 'ticket_id'], write: ALL_STAFF },
+  services: { table: 'services_catalog', cols: ['name', 'description', 'owner_email', 'backup_owner_email', 'team', 'repository', 'runbook', 'sla', 'dependencies', 'api_docs'], write: ['admin', 'engineering_manager'] },
+  okrs: { table: 'okrs', cols: ['level', 'objective', 'key_result', 'progress', 'owner_email', 'parent_id', 'quarter'], write: MGMT },
+  announcements: { table: 'announcements', cols: ['kind', 'title', 'body', 'author'], write: ['admin', 'product_manager'] },
+  testcases: { table: 'qa_test_cases', cols: ['ticket_id', 'title', 'steps', 'expected', 'last_result', 'run_notes', 'run_by', 'run_at'], write: ALL_STAFF }
 };
 
 export default async function handler(req, res) {
-  const actor = getActor(req);
+  const actor = await getActor(req);
   if (!actor) return res.status(401).json({ error: 'Not authenticated' });
   const r = req.query.resource;
 
@@ -61,7 +67,7 @@ export default async function handler(req, res) {
         JOIN sprints sp ON t.sprint_id = sp.id WHERE t.status IN ('resolved','closed') AND sp.status = 'active'`);
       // Simple health score: penalize overdue, breaches, critical incidents.
       const health = Math.max(0, 100 - (t.overdue || 0) * 5 - (t.breaches || 0) * 5 - (i.critical || 0) * 15);
-      return res.status(200).json({ tickets: t, incidents: i, sprints: s, velocity: v.velocity || 0, health });
+      return res.status(200).json({ tickets: t, incidents: i, sprints: s, velocity: v.velocity || 0, health, myRole: actor.teamRole });
     }
 
     // ── Sprint board: tickets grouped for one sprint ────────────────────────
@@ -91,7 +97,7 @@ export default async function handler(req, res) {
 
     // ── Assign ticket to sprint/epic/points (PATCH tickets via PEOS) ────────
     if (req.method === 'PATCH' && req.query.ticket) {
-      if (actor.role === 'member') return res.status(403).json({ error: 'Forbidden' });
+      if (!MGMT.includes(actor.teamRole)) return res.status(403).json({ error: 'Only managers/leads can plan tickets' });
       const id = parseInt(String(req.query.ticket).replace(/^pa-/i, ''), 10);
       const { sprintId, epicId, storyPoints, ticketType } = req.body || {};
       const rows = await queryDb(
@@ -112,7 +118,7 @@ export default async function handler(req, res) {
       const rows = await queryDb(`SELECT * FROM ${def.table} ORDER BY created_at DESC LIMIT 200`);
       return res.status(200).json({ items: rows });
     }
-    if (!def.write.includes(actor.role)) return res.status(403).json({ error: 'Forbidden' });
+    if (!def.write.includes(actor.teamRole)) return res.status(403).json({ error: `Your role (${actor.teamRole.replace('_',' ')}) cannot modify ${r}` });
 
     if (req.method === 'POST') {
       // Only insert provided fields so column defaults (status etc.) apply.
