@@ -110,7 +110,11 @@ const getPageTitle = (pathname, siteContent) => {
   if (pathname === '/platform') return `${brandName} Platform & Services — Enterprise AI Infrastructure`;
   if (pathname === '/company/blog') return `${brandName} Case Studies & Blog — AI Insights | patienceai.in`;
   if (pathname === '/company/careers') return `${brandName} Careers — Join Our Team | patienceai.in`;
-  if (pathname === '/admin') return `Admin | ${brandName}`;
+  if (pathname === '/admin') return `Admin Console | ${brandName}`;
+  if (pathname === '/support-executive') return `Support Executive Console | ${brandName}`;
+  if (pathname === '/team') return `Ticket Portal | ${brandName}`;
+  if (pathname === '/my-ticket') return `Track Your Ticket | ${brandName}`;
+  if (pathname === '/live-chat' || pathname === '/support-chat') return `Live Support | ${brandName}`;
 
   if (pathname.startsWith('/company/blog/')) {
     const slug = pathname.split('/').filter(Boolean).pop();
