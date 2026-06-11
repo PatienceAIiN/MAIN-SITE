@@ -19,6 +19,14 @@ const TTL_HOURS = 72;
 const ALLOWED_DOMAIN = '@patienceai.in';
 
 const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
+const TEAM_ROLES = ['member', 'software_dev', 'team_lead', 'engineering_manager', 'product_manager', 'qa'];
+// Product / engineering managers can also manage the roster (not delete).
+const isManager = async (req) => {
+  const m = getMemberSession(req);
+  if (!m) return false;
+  const rows = await queryDb(`SELECT team_role FROM team_members WHERE id=$1`, [m.id]).catch(() => []);
+  return ['product_manager', 'engineering_manager'].includes(rows[0]?.team_role);
+};
 
 const getSiteBase = () => {
   const url = process.env.SITE_URL || '';
@@ -99,10 +107,13 @@ export default async function handler(req, res) {
   if (req.method === 'GET' && req.url?.includes('/me')) {
     const member = getMemberSession(req);
     if (!member) return res.status(401).json({ error: 'Not authenticated' });
+    let teamRole = 'member';
     try {
       await queryDb(`UPDATE ${TABLE} SET last_seen_at=NOW() WHERE id=$1`, [member.id]);
+      const rows = await queryDb(`SELECT team_role FROM ${TABLE} WHERE id=$1`, [member.id]);
+      teamRole = rows[0]?.team_role || 'member';
     } catch { /* ignore */ }
-    return res.status(200).json({ member });
+    return res.status(200).json({ member: { ...member, teamRole } });
   }
 
   // ── DELETE /api/team-members/logout ───────────────────────────────────────
@@ -134,14 +145,15 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── Admin-only routes below ────────────────────────────────────────────────
-  if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
+  // ── Roster management: admin, or product/engineering managers ─────────────
+  const admin = isAdmin(req);
+  if (!admin && !(await isManager(req))) return res.status(401).json({ error: 'Unauthorized' });
 
   // GET — list all team members
   if (req.method === 'GET') {
     try {
       const rows = await queryDb(
-        `SELECT id, email, name, status, last_seen_at, created_at FROM ${TABLE} ORDER BY created_at DESC`
+        `SELECT id, email, name, status, team_role, last_seen_at, created_at FROM ${TABLE} ORDER BY created_at DESC`
       );
       return res.status(200).json({ members: rows });
     } catch (err) {
@@ -152,8 +164,9 @@ export default async function handler(req, res) {
 
   // POST — invite a new team member (or re-invite)
   if (req.method === 'POST') {
-    const { email, name } = req.body || {};
+    const { email, name, teamRole = 'member' } = req.body || {};
     if (!email || !name) return res.status(400).json({ error: 'email and name required' });
+    if (!TEAM_ROLES.includes(teamRole)) return res.status(400).json({ error: 'Invalid team role' });
     if (!email.toLowerCase().endsWith(ALLOWED_DOMAIN)) {
       return res.status(400).json({ error: `Only ${ALLOWED_DOMAIN} email addresses are allowed` });
     }
@@ -166,15 +179,15 @@ export default async function handler(req, res) {
       if (existing.length > 0) {
         const rows = await queryDb(
           `UPDATE ${TABLE} SET name=$1, invite_token=$2, invite_expires_at=$3, status='invited',
-           password_salt=$4, password_hash=$5, updated_at=NOW() WHERE email=$6 RETURNING *`,
-          [name, inviteToken, expiresAt, salt, hash, email.toLowerCase()]
+           password_salt=$4, password_hash=$5, team_role=$6, updated_at=NOW() WHERE email=$7 RETURNING *`,
+          [name, inviteToken, expiresAt, salt, hash, teamRole, email.toLowerCase()]
         );
         member = rows[0];
       } else {
         const rows = await queryDb(
-          `INSERT INTO ${TABLE} (email, name, password_salt, password_hash, status, invite_token, invite_expires_at)
-           VALUES ($1,$2,$3,$4,'invited',$5,$6) RETURNING *`,
-          [email.toLowerCase(), name, salt, hash, inviteToken, expiresAt]
+          `INSERT INTO ${TABLE} (email, name, password_salt, password_hash, status, invite_token, invite_expires_at, team_role)
+           VALUES ($1,$2,$3,$4,'invited',$5,$6,$7) RETURNING *`,
+          [email.toLowerCase(), name, salt, hash, inviteToken, expiresAt, teamRole]
         );
         member = rows[0];
       }
@@ -204,12 +217,14 @@ export default async function handler(req, res) {
 
   // PATCH — activate/deactivate a member
   if (req.method === 'PATCH') {
-    const { id, status } = req.body || {};
-    if (!id || !['active', 'inactive'].includes(status)) return res.status(400).json({ error: 'id and status (active|inactive) required' });
+    const { id, status, teamRole } = req.body || {};
+    if (!id || (!status && !teamRole)) return res.status(400).json({ error: 'id and status or teamRole required' });
+    if (status && !['active', 'inactive'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
+    if (teamRole && !TEAM_ROLES.includes(teamRole)) return res.status(400).json({ error: 'Invalid team role' });
     try {
       const rows = await queryDb(
-        `UPDATE ${TABLE} SET status=$1, updated_at=NOW() WHERE id=$2 RETURNING id, email, name, status`,
-        [status, id]
+        `UPDATE ${TABLE} SET status=COALESCE($1,status), team_role=COALESCE($2,team_role), updated_at=NOW() WHERE id=$3 RETURNING id, email, name, status, team_role`,
+        [status || null, teamRole || null, id]
       );
       await logAudit('admin', 'admin', 'team_member_status_changed', rows[0]?.email, { status });
       return res.status(200).json({ member: rows[0] });
@@ -218,8 +233,9 @@ export default async function handler(req, res) {
     }
   }
 
-  // DELETE — remove member
+  // DELETE — remove member (admin only)
   if (req.method === 'DELETE') {
+    if (!admin) return res.status(403).json({ error: 'Admin only' });
     const { id } = req.body || {};
     if (!id) return res.status(400).json({ error: 'id required' });
     try {

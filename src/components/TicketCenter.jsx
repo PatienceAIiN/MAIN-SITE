@@ -509,6 +509,22 @@ export function TicketDetail({ ticket, onChanged, canReassign = true }) {
           {canReassign && (
             <ReassignControl ticket={ticket} onReassign={(email) => update({ assigneeEmail: email })} />
           )}
+          {(!ticket.stage || ticket.stage === 'support') ? (
+            <button onClick={async () => {
+              try {
+                await fetchJson('/api/dev-workflow', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ ticketId: ticket.id, action: 'escalate' }) });
+                onChanged?.();
+              } catch (e) { setErr(e.message); }
+            }}
+              className="text-[11px] px-2.5 py-1 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium">
+              → Engineering
+            </button>
+          ) : (
+            <span className="text-[11px] px-2.5 py-1 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 font-medium capitalize">
+              ⚙ {(ticket.stage || '').replace('_', ' ')}
+            </span>
+          )}
         </div>
         {attachments.length > 0 && <div className="mt-3"><AttachmentList attachments={attachments} /></div>}
         {err && <p className="text-red-500 text-xs mt-2">{err}</p>}

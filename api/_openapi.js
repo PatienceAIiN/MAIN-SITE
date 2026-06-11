@@ -44,6 +44,10 @@ export const openapiSpec = {
       get: { summary: '?status=1 · ?repos=1 · ?branches=1&owner&repo · ?prs=1&state= · ?commits=1', tags: ['GitHub'], responses: { 200: { description: 'OK' }, 503: { description: 'GITHUB_TOKEN not configured' } } },
       post: { summary: 'Actions: create_branch {branch,from} · merge_pr {number} · close_pr {number} · request_review {number,reviewers}', tags: ['GitHub'], responses: { 200: { description: 'OK' } } }
     },
+    '/api/dev-workflow': {
+      get: { summary: 'Engineering pipeline (?bucket=1 my items) — stages support→pm_review→em_review→lead_triage→dev→qa→done', tags: ['PEOS'], responses: { 200: { description: 'OK' } } },
+      post: { summary: 'Transitions {ticketId, action: escalate|pm_approve|pm_reject|em_approve|em_reject|lead_assign|dev_complete|qa_approve|qa_reject, comment?, assigneeEmail?} — role-gated', tags: ['PEOS'], responses: { 200: { description: 'OK' } } }
+    },
     '/api/github-webhook': { post: { summary: 'GitHub webhook (push/pull_request/release) — PA-n auto-linking + workflow progression', tags: ['GitHub'], responses: { 200: { description: 'OK' } } } }
   }
 };

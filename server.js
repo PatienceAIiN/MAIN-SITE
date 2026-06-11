@@ -70,6 +70,7 @@ import { runEscalationSweep } from './api/_escalation.js';
 import peosHandler from './api/peos.js';
 import githubWebhookHandler from './api/github-webhook.js';
 import githubHandler from './api/github.js';
+import devWorkflowHandler from './api/dev-workflow.js';
 import { openapiSpec } from './api/_openapi.js';
 import voiceRoomHandler from './api/voice-room.js';
 import {
@@ -371,6 +372,7 @@ app.all('/api/client-tickets',               clientTicketLimiter, wrap(clientTic
 app.all('/api/peos',                         wrap(peosHandler));
 app.post('/api/github-webhook',              wrap(githubWebhookHandler));
 app.all('/api/github',                       wrap(githubHandler));
+app.all('/api/dev-workflow',                 wrap(devWorkflowHandler));
 // Machine-readable API contract for the ticketing + PEOS surface
 app.get('/api/openapi.json', (req, res) => res.json(openapiSpec));
 

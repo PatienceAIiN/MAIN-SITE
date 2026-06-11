@@ -189,8 +189,58 @@ function ChangePasswordModal({ open, onClose }) {
   );
 }
 
+/* ── Jira-like workflow actions (role-gated, stage-aware) ────────────────── */
+const STAGE_LABEL = { pm_review: 'PM review', em_review: 'EM review', lead_triage: 'Lead triage', dev: 'Development', qa: 'QA', done: 'Done' };
+function WorkflowActions({ ticket, myRole, onChanged }) {
+  const [assign, setAssign] = useState('');
+  const [err, setErr] = useState('');
+  const act = async (action, comment = '', assigneeEmail = '') => {
+    setErr('');
+    try {
+      await fetchJson('/api/dev-workflow', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticketId: ticket.id, action, comment, assigneeEmail }) });
+      onChanged?.();
+    } catch (e) { setErr(e.message); }
+  };
+  const ask = (action, label) => { const c = window.prompt(label); if (c) act(action, c); };
+  const stage = ticket.stage;
+  const b = 'text-[11px] px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium';
+  const b2 = 'text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800';
+  if (!stage || stage === 'support' || stage === 'done') return null;
+  return (
+    <div className="mt-3 rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-950/40 p-3">
+      <p className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 mb-2">
+        Engineering pipeline · stage: {STAGE_LABEL[stage] || stage}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {stage === 'pm_review' && ['product_manager','admin','executive'].includes(myRole) && (<>
+          <button className={b} onClick={() => act('pm_approve')}>Approve → EM</button>
+          <button className={b2} onClick={() => ask('pm_reject', 'Reason for rejection (sent back to support):')}>Reject</button>
+        </>)}
+        {stage === 'em_review' && ['engineering_manager','admin','executive'].includes(myRole) && (<>
+          <button className={b} onClick={() => act('em_approve')}>Approve → Team Lead</button>
+          <button className={b2} onClick={() => ask('em_reject', 'Reason for rejection:')}>Reject</button>
+        </>)}
+        {stage === 'lead_triage' && ['team_lead','engineering_manager','admin','executive'].includes(myRole) && (<>
+          <input value={assign} onChange={(e) => setAssign(e.target.value)} placeholder="dev@patienceai.in"
+            className="text-[11px] rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1.5 dark:text-slate-100" />
+          <button className={b} onClick={() => assign && act('lead_assign', '', assign)}>Assign to dev</button>
+        </>)}
+        {stage === 'dev' && ['software_dev','admin','executive','team_lead'].includes(myRole) && (
+          <button className={b} onClick={() => act('dev_complete')}>Complete → QA</button>
+        )}
+        {stage === 'qa' && ['qa','admin','executive'].includes(myRole) && (<>
+          <button className={b} onClick={() => act('qa_approve')}>QA approve ✓</button>
+          <button className={b2} onClick={() => ask('qa_reject', 'What needs improvement? (returned to the developer)')}>Send back</button>
+        </>)}
+      </div>
+      {err && <p className="text-red-500 text-xs mt-2">{err}</p>}
+    </div>
+  );
+}
+
 /* ── Ticket detail with comment chat ─────────────────────────────────────── */
-function MemberTicketDetail({ ticket, onChanged }) {
+function MemberTicketDetail({ ticket, myRole, onChanged }) {
   const [comments, setComments] = useState([]);
   const [attachments, setAttachments] = useState([]);
   const [input, setInput] = useState('');
@@ -275,6 +325,7 @@ function MemberTicketDetail({ ticket, onChanged }) {
             <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1"><FiAlertTriangle size={11} /> Escalation level {ticket.escalation_level}</span>
           )}
         </div>
+        <WorkflowActions ticket={ticket} myRole={myRole} onChanged={onChanged} />
         {attachments.length > 0 && <div className="mt-3"><AttachmentList attachments={attachments} /></div>}
         <div className="flex flex-wrap items-center gap-2 mt-3">
           {STATUSES.map((s) => (
@@ -358,6 +409,7 @@ export default function TeamPortalPage() {
     try { return window.localStorage.getItem('pa_team_theme') === 'dark'; } catch { return false; }
   });
   const [pwdModal, setPwdModal] = useState(false);
+  const [myRole, setMyRole] = useState('member');
   const [logoutConfirm, setLogoutConfirm] = useState(false);
 
   useEffect(() => {
@@ -386,6 +438,7 @@ export default function TeamPortalPage() {
 
   useEffect(() => {
     if (!member) return;
+    fetchJson('/api/dev-workflow?bucket=1').then((d) => setMyRole(d.myRole || 'member')).catch(() => {});
     loadTickets();
     const id = setInterval(loadTickets, 8000);
     return () => clearInterval(id);
@@ -488,7 +541,7 @@ export default function TeamPortalPage() {
                 </div>
                 <p className="text-xs font-semibold truncate">{t.subject}</p>
                 <div className="flex items-center justify-between gap-2 mt-1">
-                  <span className="text-[10px] opacity-60">{fmt(t.updated_at)}</span>
+                  <span className="text-[10px] opacity-60">{t.stage && t.stage !== 'support' ? `⚙ ${(t.stage || '').replace('_', ' ')} · ` : ''}{fmt(t.updated_at)}</span>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full border capitalize shrink-0 ${STATUS_BADGE[t.status]}`}>{statusLabel(t.status)}</span>
                 </div>
               </button>
@@ -499,7 +552,7 @@ export default function TeamPortalPage() {
         {/* Detail */}
         <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950">
           {selected ? (
-            <MemberTicketDetail ticket={selected} onChanged={loadTickets} />
+            <MemberTicketDetail ticket={selected} myRole={myRole} onChanged={loadTickets} />
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 text-sm gap-2">
               <FiMessageSquare size={26} className="text-slate-300 dark:text-slate-600" />
