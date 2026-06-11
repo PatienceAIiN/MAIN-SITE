@@ -335,3 +335,14 @@ test('colleagues: support executives join roster, cross-side dm works, groups st
   await api('/api/colleagues', { method: 'DELETE', jar: 'exec', body: { chatId: grp.data.chat.id } });
   await api('/api/colleagues', { method: 'DELETE', jar: 'exec', body: { chatId: dm.data.chat.id } });
 });
+
+test('security: html chat uploads are never served inline (XSS guard)', async () => {
+  const dm = await api('/api/colleagues', { method: 'POST', jar: 'suite-dev@patienceai.in', body: { action: 'create_chat', kind: 'dm', memberEmails: ['suite-qa@patienceai.in'] } });
+  const res = await fetch(`${BASE}/api/colleagues/upload?chatId=${dm.data.chat.id}&fileName=evil.html`, {
+    method: 'POST', headers: { 'Content-Type': 'text/html', Cookie: jars['suite-dev@patienceai.in'] }, body: '<script>alert(1)</script>' });
+  const up = await res.json();
+  const f = await fetch(`${BASE}/api/colleagues?file=${up.message.id}`, { headers: { Cookie: jars['suite-qa@patienceai.in'] } });
+  assert.equal(f.headers.get('content-type'), 'application/octet-stream');
+  assert.ok(f.headers.get('content-disposition').startsWith('attachment'));
+  await api('/api/colleagues', { method: 'DELETE', jar: 'suite-dev@patienceai.in', body: { chatId: dm.data.chat.id } });
+});

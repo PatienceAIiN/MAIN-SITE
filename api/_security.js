@@ -6,8 +6,9 @@ const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 const getSecret = () => {
   const secret = process.env.ADMIN_SESSION_SECRET;
   if (!secret) {
+    // In production a missing secret means forgeable sessions — refuse to run.
     if (process.env.NODE_ENV === 'production') {
-      console.error('[SECURITY] ADMIN_SESSION_SECRET env var is not set. Set it in Render environment variables immediately.');
+      throw new Error('[SECURITY] ADMIN_SESSION_SECRET is not set. Set it in the environment — refusing to sign sessions with a known default.');
     }
     return 'dev-admin-session-secret-change-me';
   }

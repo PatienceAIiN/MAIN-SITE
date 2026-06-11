@@ -56,8 +56,10 @@ export default async function handler(req, res) {
         if (!msg?.file_name || msg.deleted || !chat || !inChat(chat, myEmail)) return res.status(404).json({ error: 'File not found' });
         const [f] = await queryDb(`SELECT data_base64 FROM team_chat_files WHERE message_id=$1 LIMIT 1`, [msg.id]);
         if (!f) return res.status(404).json({ error: 'File not found' });
-        res.setHeader('Content-Type', msg.file_type || 'application/octet-stream');
-        res.setHeader('Content-Disposition', `${req.query.download ? 'attachment' : 'inline'}; filename="${encodeURIComponent(msg.file_name)}"`);
+        // XSS guard: never render active content (html/svg/xml/js) on our origin
+        const unsafe = /html|svg|xml|javascript|xhtml/i.test(msg.file_type || '');
+        res.setHeader('Content-Type', unsafe ? 'application/octet-stream' : (msg.file_type || 'application/octet-stream'));
+        res.setHeader('Content-Disposition', `${(req.query.download || unsafe) ? 'attachment' : 'inline'}; filename="${encodeURIComponent(msg.file_name)}"`);
         res.setHeader('Cache-Control', 'private, max-age=3600');
         return res.status(200).send(Buffer.from(f.data_base64, 'base64'));
       }

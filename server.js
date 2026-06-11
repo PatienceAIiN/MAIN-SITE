@@ -406,7 +406,11 @@ app.get('/api/openapi.json', (req, res) => res.json(openapiSpec));
 
 // ── Marketing Automation OS ───────────────────────────────────────────────────
 const MKT_COOKIE = 'pa_mkt_session';
-const mktSecret = () => process.env.MARKETING_SESSION_SECRET || 'mkt-dev-secret';
+const mktSecret = () => {
+  const sec = process.env.MARKETING_SESSION_SECRET;
+  if (!sec && process.env.NODE_ENV === 'production') throw new Error('[SECURITY] MARKETING_SESSION_SECRET is not set.');
+  return sec || 'mkt-dev-secret';
+};
 
 const signMkt = (body) => crypto.createHmac('sha256', mktSecret()).update(body).digest('hex');
 
@@ -437,8 +441,9 @@ app.all('/marketing-auto/api/auth', (req, res) => {
 
   if (req.method === 'POST') {
     const { username, password } = req.body || {};
-    const validUser = process.env.MARKETING_USERNAME || 'Admin_Market';
-    const validPass = process.env.MARKETING_PASSWORD || 'Admin@110426';
+    const validUser = process.env.MARKETING_USERNAME;
+    const validPass = process.env.MARKETING_PASSWORD;
+    if (!validUser || !validPass) return res.status(503).json({ error: 'Marketing login is not configured (set MARKETING_USERNAME / MARKETING_PASSWORD).' });
     if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
     const uBuf = Buffer.from(String(username)), vBuf = Buffer.from(validUser);
     const pBuf = Buffer.from(String(password)), qBuf = Buffer.from(validPass);
