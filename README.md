@@ -19,6 +19,15 @@ npm run build
 npm start
 ```
 
+## Internal Platform Highlights
+
+- **Team portal** (`/team`): tickets bucket, engineering OS, admin-granted GitHub workspace, **Colleagues** chat (1:1 + private groups, files ≤10 MB with popup preview, replies, edit/delete, voice & video calls with screen share, live presence + last seen, web-push).
+- **Support portal** (`/support-executive`): customer live chat/calls, ticketing, and the same Colleagues workspace — support ↔ team chat and calls are cross-enabled.
+- **Admin** (`/admin`): roster + per-user permission and **per-repo GitHub grants** (instantly propagated over WebSocket), engineering KPI drill-down modals with CRUD, and a **logs** tab (all security/audit events, PDF + XLSX export).
+- **Security**: HMAC sessions, scrypt hashing, instant revocation, login auditing (incl. failures), stored-XSS-safe file serving, prod refuses default secrets. See `documentation/TEAM_GUIDE.md` §8 for per-layer ratings.
+
+Env additions for the above: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (web-push), optional `TURN_*` (calls).
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -31,6 +40,9 @@ npm start
 | TTS | `msedge-tts` (Microsoft Edge neural voices, free, offline) |
 | Media | `ffmpeg-static` (bundled binary) |
 | Object storage | Cloudflare R2 (S3-compatible, signed URLs via AWS SDK v3) |
+| Realtime | `ws` WebSocket hub (presence, chat, typing, WebRTC call signaling) |
+| Notifications | `web-push` (VAPID) browser push for messages & calls |
+| Reports | `xlsx` + `pdfkit` (security/audit log exports) |
 | Build | Vite 5 |
 | Deploy | Render (Web Service) |
 

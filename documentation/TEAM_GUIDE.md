@@ -36,10 +36,10 @@ Missing tiers auto-skip (no EM yet? PM approval goes straight to the Team Lead).
 | URL | Who | What they do |
 |---|---|---|
 | `/` | Public | Company website + AI chat widget ("Talk to a live agent" starts support) |
-| `/support-executive` | Support executives | Live chats, voice calls, transfers, internal team chat, **create tickets**, tickets workspace, escalate to engineering |
-| `/team` | Software team (dev, lead, EM, PM, QA) + generic members | **My tickets** bucket · **Engineering** workspace (pipeline, sprints, epics, incidents, QA cases, OKRs, services, announcements) · **GitHub** workspace (permission-gated) · dark/light theme |
+| `/support-executive` | Support executives | Live chats, voice calls, transfers, **create tickets**, tickets workspace, escalate to engineering, **Colleagues workspace** (chat/groups/files/voice+video calls with team members) |
+| `/team` | Software team (dev, lead, EM, PM, QA) + generic members | **My tickets** bucket · **Engineering** workspace (pipeline, sprints, epics, incidents, QA cases, OKRs, services, announcements; "+ New" and item popups with full CRUD + pagination) · **GitHub** workspace (admin-granted repos only) · **Colleagues** (1:1 + private group chat, replies/swipe-reply, 10 MB files with popup preview, voice & video calls with screen share, presence + last seen, web-push) · settings modal (password + notifications) · dark/light theme |
 | `/my-ticket` | Clients (no login) | Track status with ticket key + email, reply, upload files, confirm-close |
-| `/admin` | Admin | Everything: analytics, site content, blog, submissions, AI conversations, live support, **executives**, **team** (invite + roles + permissions), **tickets** (SLA/categories/KB/audit/performance), **engineering** (full PEOS + GitHub console) |
+| `/admin` | Admin | Everything: analytics, site content, blog, submissions, AI conversations, live support, **executives**, **team** (invite + roles + permissions + **per-repo GitHub grants**, instant propagation), **tickets** (SLA/categories/KB/performance), **engineering** (full PEOS + GitHub console, clickable KPI drill-downs with CRUD), **logs** (full security/audit trail, PDF + XLSX export) |
 
 **Logins**: executives and team members are invite-only (email link → set password). Clients never log in — they prove ownership with `PA-n` + their email.
 
@@ -60,7 +60,9 @@ Assigned in **admin → team** when inviting (or changed later inline):
 
 **Per-user overrides**: admin clicks the permission chips (`github read` / `github write` / `roster manage`) on any member row — overrides the role default for that person. An explicitly emptied set means *no* permissions.
 
-Admin and Support Executives bypass all gates. PM/EM can also invite & manage roster (not delete accounts).
+**Per-repo GitHub grants**: members never see all repos — admin grants specific repositories per member ("repos: N granted" panel). Grants/revokes propagate to open portals instantly over WebSocket; a granted repo implies read access to it.
+
+Roster & permission management is **admin + engineering managers only**. Admin and Support Executives bypass ticket gates, but a member session's repo allowlist always wins over a stale exec cookie.
 
 ---
 
@@ -204,6 +206,7 @@ documentation/TEAM_GUIDE.md            this file
 - **R2 file storage**: file bytes never touch Postgres or the app server on download (presigned URLs).
 - **Graceful degradation**: Redis down → direct DB reads. R2 unset → small files in DB. GitHub unset → clear "connect" hint. Email down → ticket still created, failure recorded.
 - Sessions: HMAC-signed cookies, 7-day expiry; scrypt password hashing; login rate-limiting; webhook HMAC verification; audit log on every sensitive action.
+- **Realtime**: a `ws` WebSocket hub powers colleagues presence (online/away/offline + last seen), chat fan-out, typing, instant permission propagation and WebRTC call signaling; chat history and rosters still poll-fallback so a dropped socket self-heals.
 
 ---
 
@@ -220,8 +223,25 @@ documentation/TEAM_GUIDE.md            this file
 | Client portal | **8.5/10** | Privacy verified (internal notes/staff names never leak; wrong email → 404). Auth is key+email — fine for support, not bank-grade. |
 | PEOS (sprints/epics/incidents/OKRs/services/QA) | **9/10** | Full CRUD with **click-to-open popup editing**, pipeline board with in-modal actions, dashboards, dependency map — all role-gated and suite-tested. **Burndown charts shipped** (per-sprint, actual vs ideal). Drag-drop boards still absent. |
 | AI copilot | **8/10** | Provider-abstracted summaries + **duplicate detection** warns the executive about similar open tickets at creation. Auto-assignment not built (least-loaded routing covers the need). |
-| Tests | **9.5/10** | Committed regression suite (`npm test`, `tests/api.test.mjs`): 15 integration tests covering auth, lifecycle, SLA stamping, duplicate detection, member scoping, client-portal privacy, the full workflow ladder, RBAC, permissions, attachments (incl. 413), password rules, OpenAPI. Self-seeding and self-cleaning. |
-| **Overall** | **9.5/10** | Production-ready with an automated regression net, fair load routing, duplicate detection, popup-modal UX everywhere, and a first-login tour. Remaining honest gaps: single shared GitHub PAT (by choice), no SSO/websockets/mobile, 3-flag permission model. |
+| Colleagues chat & calls (team + support, cross-side) | **9/10** | 1:1/private groups, replies, edit/delete, 10 MB files with safe popup preview, voice + video + screen share over WebRTC, presence/last-seen, web-push — all suite-tested incl. group privacy and the XSS upload guard. Calls rely on public STUN/TURN unless `TURN_*` set. |
+| Admin logs & reporting | **8.5/10** | Every sensitive action + all logins (incl. failures) recorded; searchable tab, PDF report + XLSX export (verified served). Not tamper-proof storage (same DB), no retention policy yet. |
+| Tests | **9.5/10** | Committed regression suite (`npm test`): **22 integration tests** — auth, lifecycle, SLA, duplicates, scoping, client privacy, workflow ladder, RBAC, repo grants, colleagues chat CRUD/files/replies/cross-side/group privacy, XSS guard, attachments, password rules, OpenAPI. Self-seeding and self-cleaning. |
+| **Overall** | **9.5/10** | Production-ready with an automated regression net and realtime collaboration. Remaining honest gaps: single shared GitHub PAT (by choice), no SSO/mobile, 3-flag permission model, permissive CSP. |
+
+### 8b. Security Measures — per-layer rating
+
+| Layer | Measures in place | Rating |
+|---|---|---|
+| Transport | HTTPS redirect, HSTS preload, COOP, DNS-prefetch off | **9/10** |
+| Authentication | HMAC-SHA256 cookies (HttpOnly/SameSite), scrypt+salt, timing-safe compares, invite-only + domain lock, login rate-limit, **failed-login auditing**, prod refuses default secrets | **9/10** |
+| Session control | 7-day expiry, instant Redis revocation on deactivate/delete, logout teardown | **9/10** |
+| Authorization | Server-side role gates on every route, per-user permission overrides, per-repo allowlists, chat/file membership checks, member-cookie precedence | **9/10** |
+| Data (SQL) | Fully parameterized queries, integer-sanitized limits | **9.5/10** |
+| Files | 3-layer 10 MB caps, presigned R2 URLs, membership-gated chat files, **active-content (html/svg) forced to download** | **9/10** |
+| Realtime | Cookie-verified WS upgrade, payload relays scoped to chat members | **7.5/10** — no per-socket rate limit |
+| Browser hardening | X-Frame-Options, nosniff, frame-ancestors 'none', form-action/base-uri self | **8/10** — CSP allows unsafe-inline/eval (React/Vite trade-off) |
+| Auditability | Action log incl. logins, GitHub ops, permission changes; PDF/XLSX export | **8.5/10** — same-DB storage, no WORM/retention |
+| **Overall security** | | **8.5/10** for an internal tool of this scale |
 
 ## 9. Honest Market Comparison (no bluff)
 
@@ -236,11 +256,12 @@ What this suite genuinely matches, feature-for-feature, **at the scale of a 5–
 | Notifications, mentions, audit, RBAC, OKRs, KB | **Jira+Confluence+Perdoo combo (basic tiers)** | Functional equivalents, far shallower editors |
 | Live support chat + voice + AI chatbot | **Intercom (core)** | Real-time chat, voice calls, AI assistant — genuinely competitive for a small team |
 
-**The truthful framing**: this is a unified internal platform that replaces ~₹2–4 lakh/year of per-seat SaaS (Zendesk + Jira + Linear-class tooling) for a company your size, on infra you own. It is **not** an MNC-scale product: no SSO/SAML, no multi-tenancy, no horizontal scaling (single Node process), no mobile apps, no i18n, polling instead of websockets, and a 3-flag permission model instead of a policy engine. Those are the honest boundaries — every one is additive if you ever need it.
+**The truthful framing**: this is a unified internal platform that replaces ~₹2–4 lakh/year of per-seat SaaS (Zendesk + Jira + Linear-class tooling) for a company your size, on infra you own. It is **not** an MNC-scale product: no SSO/SAML, no multi-tenancy, no horizontal scaling (single Node process), no mobile apps, no i18n, and a 3-flag permission model instead of a policy engine. Those are the honest boundaries — every one is additive if you ever need it.
 
 ## 10. Setup Checklist (Render env)
 
 `DATABASE_URL · REDIS_URL · ADMIN_USERNAME/PASSWORD/SESSION_SECRET · BREVO_API_KEY + BREVO_SENDER_EMAIL (or SMTP_*) · R2_ACCOUNT_ID/ACCESS_KEY_ID/SECRET_ACCESS_KEY/BUCKET_NAME · GITHUB_TOKEN + GITHUB_OWNER + GITHUB_WEBHOOK_SECRET · GROQ_API_KEY · SITE_URL`
-Optional: `TICKET_REMINDER_HOURS · TICKET_SLA_WARNING_HOURS · AI_PROVIDER · DB_QUERY_LOG`
+Required for chat push: `VAPID_PUBLIC_KEY · VAPID_PRIVATE_KEY · VAPID_SUBJECT` · Required for marketing login: `MARKETING_USERNAME · MARKETING_PASSWORD · MARKETING_SESSION_SECRET`
+Optional: `TICKET_REMINDER_HOURS · TICKET_SLA_WARNING_HOURS · AI_PROVIDER · DB_QUERY_LOG · TURN_URL/TURN_USERNAME/TURN_CREDENTIAL`
 
 GitHub repo webhook → `https://patienceai.in/api/github-webhook` (JSON, same secret, events: push + pull_request + release).
