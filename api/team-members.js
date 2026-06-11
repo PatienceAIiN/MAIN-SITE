@@ -49,19 +49,32 @@ const getSiteBase = () => {
   return `https://${url || 'patienceai.in'}`;
 };
 
-const sendInviteEmail = async (email, name, token) => {
+// Role-specific invitation copy — each role gets its own subject and
+// description of what they'll actually do, not one generic template.
+const ROLE_INVITE = {
+  software_dev: { title: 'Software Developer', blurb: 'Your team lead will assign development tickets to your bucket. You can work them through to QA, chat on each ticket, and create branches/pull requests from the built-in GitHub workspace.' },
+  team_lead: { title: 'Team Lead', blurb: 'Approved tickets land in your triage queue — you decide which developer takes each one, manage sprints and epics, and oversee the pipeline board.' },
+  engineering_manager: { title: 'Engineering Manager', blurb: 'You review escalated work, route it to team leads, manage the engineering roster, sprints, services and OKRs.' },
+  product_manager: { title: 'Product Manager', blurb: 'Tickets escalated from support arrive at your review queue first — approve them into engineering or send them back with feedback. You also manage epics, OKRs and announcements.' },
+  qa: { title: 'QA Engineer', blurb: 'Completed development work lands in your queue — run test cases, approve releases, or send tickets back to the developer with what needs improvement.' },
+  member: { title: 'Team Member', blurb: 'Support tickets will be assigned to you here — track them, chat with the support team and attach files.' }
+};
+
+const sendInviteEmail = async (email, name, token, teamRole = 'member') => {
   const link = `${getSiteBase()}/team?invite=${token}`;
+  const role = ROLE_INVITE[teamRole] || ROLE_INVITE.member;
   await sendEmail({
     to: { email, name },
-    subject: `You're invited to the Patience AI Ticket Portal`,
+    subject: `${name}, you're invited as ${role.title} — Patience AI`,
     html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px">
-      <h2 style="color:#0f172a">Welcome, ${name}!</h2>
-      <p style="color:#475569">You've been added to the <strong>Patience AI internal ticket portal</strong>. Support tickets will be assigned to you here.</p>
-      <p style="color:#475569">Click the button below to set your password and activate your account. This link expires in ${TTL_HOURS} hours.</p>
+      <h2 style="color:#0f172a">Welcome aboard, ${name}!</h2>
+      <p style="color:#475569">You've been added to the Patience AI engineering platform as a <strong>${role.title}</strong>.</p>
+      <p style="color:#475569">${role.blurb}</p>
+      <p style="color:#475569">Set your password to activate your account — this link expires in ${TTL_HOURS} hours.</p>
       <a href="${link}" style="display:inline-block;margin:24px 0;padding:12px 28px;background:#0f172a;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Set Password &amp; Activate</a>
-      <p style="color:#94a3b8;font-size:12px">If you didn't expect this, ignore this email.</p>
+      <p style="color:#94a3b8;font-size:12px">A quick guided tour will greet you on first login. If you didn't expect this, ignore this email.</p>
     </div>`,
-    text: `Welcome ${name}!\n\nYou've been invited to the Patience AI internal ticket portal.\n\nSet your password here:\n${link}\n\nThis link expires in ${TTL_HOURS} hours.`
+    text: `Welcome aboard, ${name}!\n\nYou've been added to the Patience AI engineering platform as a ${role.title}.\n\n${role.blurb}\n\nSet your password here (expires in ${TTL_HOURS} hours):\n${link}`
   });
 };
 
@@ -210,7 +223,7 @@ export default async function handler(req, res) {
 
       let emailError = null;
       try {
-        await sendInviteEmail(email, name, inviteToken);
+        await sendInviteEmail(email, name, inviteToken, teamRole);
       } catch (e) {
         emailError = e.message;
         console.error('[team invite] email send failed:', e.message);
