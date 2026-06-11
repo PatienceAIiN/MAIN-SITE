@@ -465,6 +465,9 @@ export default function Colleagues({ member, visible }) {
       if (m.event === 'deleted' && m.chatId === activeChatRef.current) setActiveChatId(null);
     } else if (m.type === 'typing') {
       setTyping((t) => ({ ...t, [m.chatId]: { email: m.email, name: m.name, at: Date.now() } }));
+    } else if (m.type === 'perms_updated') {
+      // admin changed this member's role/permissions/repo grants — portal refetches instantly
+      window.dispatchEvent(new Event('pa-perms-updated'));
     } else if (m.type === 'rtc') {
       callApi.onRtc(m.from, m.fromName, m.data);
     }

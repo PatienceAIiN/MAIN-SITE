@@ -7,6 +7,7 @@ import {
 import { sendEmail } from './_email.js';
 import { logAudit } from './_ticketing.js';
 import { redisSetJson, redisDel } from './_redis.js';
+import { broadcastToEmails } from './_teamhub.js';
 
 const SEVEN_DAYS = 7 * 24 * 3600;
 const revokeMember = (id) => redisSetJson(`revoked:member:${id}`, 1, SEVEN_DAYS).catch(() => {});
@@ -41,11 +42,12 @@ export const resolvePerms = (row) => (row?.permissions !== null && row?.permissi
   ? String(row.permissions).split(',').map((x) => x.trim()).filter(Boolean)
   : (ROLE_DEFAULT_PERMS[row?.team_role] || []);
 // Product / engineering managers can also manage the roster (not delete).
+// Roster + permission management: admin and engineering managers ONLY.
 const isManager = async (req) => {
   const m = getMemberSession(req);
   if (!m) return false;
   const rows = await queryDb(`SELECT team_role FROM team_members WHERE id=$1`, [m.id]).catch(() => []);
-  return ['product_manager', 'engineering_manager'].includes(rows[0]?.team_role);
+  return rows[0]?.team_role === 'engineering_manager';
 };
 
 const getSiteBase = () => {
@@ -142,14 +144,16 @@ export default async function handler(req, res) {
     if (!member) return res.status(401).json({ error: 'Not authenticated' });
     let teamRole = 'member';
     let notificationsEnabled = true;
+    let allowedRepos = [];
     try {
       await queryDb(`UPDATE ${TABLE} SET last_seen_at=NOW() WHERE id=$1`, [member.id]);
-      const rows = await queryDb(`SELECT team_role, permissions, notifications_enabled FROM ${TABLE} WHERE id=$1`, [member.id]);
+      const rows = await queryDb(`SELECT team_role, permissions, notifications_enabled, allowed_repos FROM ${TABLE} WHERE id=$1`, [member.id]);
       teamRole = rows[0]?.team_role || 'member';
       notificationsEnabled = rows[0]?.notifications_enabled !== false;
+      allowedRepos = String(rows[0]?.allowed_repos || '').split(',').map((x) => x.trim()).filter(Boolean);
       var perms = resolvePerms(rows[0]);
     } catch { perms = []; }
-    return res.status(200).json({ member: { ...member, teamRole, permissions: perms, notificationsEnabled } });
+    return res.status(200).json({ member: { ...member, teamRole, permissions: perms, notificationsEnabled, allowedRepos } });
   }
 
   // ── DELETE /api/team-members/logout ───────────────────────────────────────
@@ -273,6 +277,8 @@ export default async function handler(req, res) {
       await logAudit('admin', 'admin', 'team_member_status_changed', rows[0]?.email, { status });
       if (status === 'inactive') await revokeMember(id);      // instant lockout
       if (status === 'active') await unrevokeMember(id);
+      // Instant propagation: the member's open portal refetches perms/tabs/repos live
+      if (rows[0]?.email) broadcastToEmails([rows[0].email], { type: 'perms_updated' });
       return res.status(200).json({ member: rows[0] });
     } catch (err) {
       return res.status(500).json({ error: err.message });

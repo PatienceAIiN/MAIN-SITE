@@ -450,7 +450,10 @@ function GitHubWorkspace({ canWrite }) {
   const tb2 = 'text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800';
 
   useEffect(() => {
-    fetchJson('/api/github?repos=1').then((d) => setRepos(d.repos || [])).catch((e) => setMsg(e.message));
+    const load = () => fetchJson('/api/github?repos=1').then((d) => { setRepos(d.repos || []); setMsg(''); }).catch((e) => setMsg(e.message));
+    load();
+    window.addEventListener('pa-perms-updated', load); // repo grants apply live
+    return () => window.removeEventListener('pa-perms-updated', load);
   }, []);
 
   const open = async (full) => {
@@ -599,6 +602,22 @@ export default function TeamPortalPage() {
   const [pwdModal, setPwdModal] = useState(false);
   const [myRole, setMyRole] = useState('member');
   const [myPerms, setMyPerms] = useState([]);
+  const [myRepos, setMyRepos] = useState([]);
+
+  // Instant permission propagation: admin grants/revokes → server pushes
+  // perms_updated over the WS → refetch role + perms + repo grants live.
+  useEffect(() => {
+    if (!member) return;
+    const refresh = () => {
+      fetchJson('/api/team-members/me').then((d) => {
+        setMyPerms(d.member?.permissions || []);
+        setMyRepos(d.member?.allowedRepos || []);
+      }).catch(() => {});
+      fetchJson('/api/dev-workflow?bucket=1').then((d) => setMyRole(d.myRole || 'member')).catch(() => {});
+    };
+    window.addEventListener('pa-perms-updated', refresh);
+    return () => window.removeEventListener('pa-perms-updated', refresh);
+  }, [member]);
   const [view, setView] = useState('tickets');
   const [showTour, setShowTour] = useState(false);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
@@ -637,7 +656,7 @@ export default function TeamPortalPage() {
   useEffect(() => {
     if (!member) return;
     fetchJson('/api/dev-workflow?bucket=1').then((d) => setMyRole(d.myRole || 'member')).catch(() => {});
-    fetchJson('/api/team-members/me').then((d) => setMyPerms(d.member?.permissions || [])).catch(() => {});
+    fetchJson('/api/team-members/me').then((d) => { setMyPerms(d.member?.permissions || []); setMyRepos(d.member?.allowedRepos || []); }).catch(() => {});
     try { if (!window.localStorage.getItem(`pa_tour_done_${member.email}`)) setShowTour(true); } catch { /* ignore */ }
     loadTickets();
     const id = setInterval(loadTickets, 8000);
@@ -681,7 +700,7 @@ export default function TeamPortalPage() {
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-              {['tickets', 'engineering', ...((myPerms.includes('github_read') || myPerms.includes('github_write')) ? ['github'] : []), 'colleagues'].map((v) => (
+              {['tickets', 'engineering', ...((myPerms.includes('github_read') || myPerms.includes('github_write') || myRepos.length > 0) ? ['github'] : []), 'colleagues'].map((v) => (
                 <button key={v} onClick={() => setView(v)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors ${view === v ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-300'}`}>
                   {v}

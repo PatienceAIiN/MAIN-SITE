@@ -24,7 +24,9 @@ const getGhActor = async (req) => {
     const allowed = String(row?.allowed_repos || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
     return {
       email: m.email,
-      read: perms.includes('github_read') || perms.includes('github_write'),
+      // an admin repo grant implies read access to those repos, even if the
+      // member's permission flags were customised without github_read
+      read: perms.includes('github_read') || perms.includes('github_write') || allowed.length > 0,
       write: perms.includes('github_write'),
       allRepos: false,
       allowed
