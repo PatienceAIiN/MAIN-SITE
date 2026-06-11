@@ -25,6 +25,42 @@ const Badge = ({ v }) => v ? <span className={`text-[10px] uppercase px-1.5 py-0
 
 const MGMT = ['admin', 'executive', 'product_manager', 'engineering_manager', 'team_lead'];
 
+/* ── Sprint burndown chart (SVG, no chart library) ───────────────────────── */
+function BurndownModal({ sprintId, onClose }) {
+  const [d, setD] = useState(null);
+  useEffect(() => { fetchJson(`/api/peos?sprintBoard=${sprintId}&resource=epics`).then(setD).catch(() => setD({ tickets: [] })); }, [sprintId]);
+  if (!d) return null;
+  const sp = d.sprint || {};
+  const tickets = d.tickets || [];
+  const total = tickets.reduce((a, t) => a + (Number(t.story_points) || 0), 0);
+  const start = sp.starts_on ? new Date(sp.starts_on) : new Date(Math.min(...tickets.map((t) => new Date(t.created_at).getTime()), Date.now()));
+  const end = sp.ends_on ? new Date(sp.ends_on) : new Date();
+  const days = Math.max(1, Math.round((end - start) / 86400000));
+  const series = [];
+  for (let i = 0; i <= days; i += 1) {
+    const day = new Date(start.getTime() + i * 86400000);
+    const donePts = tickets.filter((t) => t.resolved_at && new Date(t.resolved_at) <= day).reduce((a, t) => a + (Number(t.story_points) || 0), 0);
+    series.push(total - donePts);
+  }
+  const W = 460, H = 200, px = (i) => 30 + (i / days) * (W - 50), py = (v) => 10 + (total ? (1 - v / total) * (H - 40) : 0);
+  return (
+    <Modal title={`Burndown — ${sp.name || `sprint #${sprintId}`}`} onClose={onClose} wide>
+      {total === 0 ? <p className="text-xs text-slate-400">No story points planned in this sprint yet — plan tickets with points to see the burndown.</p> : (
+        <>
+          <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+            <line x1={px(0)} y1={py(total)} x2={px(days)} y2={py(0)} stroke="#94a3b8" strokeDasharray="4 4" strokeWidth="1.5" />
+            <polyline fill="none" stroke="#6366f1" strokeWidth="2.5" points={series.map((v, i) => `${px(i)},${py(v)}`).join(' ')} />
+            <text x={px(0)} y={py(total) - 4} fontSize="10" fill="#64748b">{total} pts</text>
+            <text x={px(0)} y={H - 6} fontSize="10" fill="#64748b">{sp.starts_on || 'start'}</text>
+            <text x={px(days) - 50} y={H - 6} fontSize="10" fill="#64748b">{sp.ends_on || 'today'}</text>
+          </svg>
+          <p className="text-[11px] text-slate-400 mt-1">Solid = actual remaining points · dashed = ideal pace · remaining now: <b className="text-indigo-500">{series[series.length - 1]} / {total} pts</b></p>
+        </>
+      )}
+    </Modal>
+  );
+}
+
 /* ── Generic popup modal ─────────────────────────────────────────────────── */
 export function Modal({ title, onClose, children, wide }) {
   return (
@@ -232,6 +268,7 @@ const STAGE_COLS = [['pm_review', 'PM review'], ['em_review', 'EM review'], ['le
 
 export default function TeamEngineering({ myRole }) {
   const [peekTicket, setPeekTicket] = useState(null);
+  const [burndown, setBurndown] = useState(null);
   const [pipe, setPipe] = useState(null);
   const [dash, setDash] = useState(null);
   const load = () => {
@@ -281,6 +318,7 @@ export default function TeamEngineering({ myRole }) {
         <Resource name="sprints" title="Sprints" myRole={myRole}
           actions={(x, r) => (
             <>
+              <button className={tb2} onClick={() => setBurndown(x.id)}>Burndown</button>
               {x.status === 'planned' && <button className={tb2} onClick={() => r.patch(x.id, { status: 'active' })}>Start</button>}
               {x.status === 'active' && <button className={tb2} onClick={() => r.patch(x.id, { status: 'done' })}>Finish</button>}
             </>
@@ -306,6 +344,7 @@ export default function TeamEngineering({ myRole }) {
         <Resource name="announcements" title="Announcements" myRole={myRole} />
       </div>
       {peekTicket && <TicketPeek id={peekTicket} myRole={myRole} onClose={() => setPeekTicket(null)} />}
+      {burndown && <BurndownModal sprintId={burndown} onClose={() => setBurndown(null)} />}
     </div>
   );
 }

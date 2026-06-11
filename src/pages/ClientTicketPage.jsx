@@ -199,8 +199,24 @@ export default function ClientTicketPage() {
                 </div>
               </div>
             ) : (
-              <div className="p-4 border-t border-slate-200 bg-emerald-50 text-center text-sm text-emerald-700 flex items-center justify-center gap-2">
-                <FiCheckCircle size={15} /> This ticket is closed. Need more help? Start a new chat on our website.
+              <div className="p-4 border-t border-slate-200 bg-emerald-50 text-center text-sm text-emerald-700 space-y-2">
+                <p className="flex items-center justify-center gap-2"><FiCheckCircle size={15} /> This ticket is closed. Need more help? Start a new chat on our website.</p>
+                {ticket.csat ? (
+                  <p className="text-xs text-emerald-600">Thanks for rating us {ticket.csat}/5 {'★'.repeat(ticket.csat)}</p>
+                ) : (
+                  <p className="text-xs">How did we do?{' '}
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button key={n} title={`${n}/5`} className="text-lg text-amber-400 hover:scale-110 transition-transform"
+                        onClick={async () => {
+                          try {
+                            await fetchJson('/api/client-tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ key: form.key, email: form.email, action: 'rate', rating: n }) });
+                            await load(form.key, form.email, { silent: true });
+                          } catch (ex) { setErr(ex.message); }
+                        }}>★</button>
+                    ))}
+                  </p>
+                )}
               </div>
             )}
           </motion.div>

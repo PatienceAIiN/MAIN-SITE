@@ -45,7 +45,8 @@ export default async function handler(req, res) {
            count(*) FILTER (WHERE status IN ('open','in_progress') AND due_at < NOW())::int AS overdue,
            count(*) FILTER (WHERE sla_breached)::int AS sla_breaches,
            round(avg(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 3600) FILTER (WHERE resolved_at IS NOT NULL)::numeric, 1) AS avg_resolution_hours,
-           round(avg(EXTRACT(EPOCH FROM (first_response_at - created_at)) / 3600) FILTER (WHERE first_response_at IS NOT NULL)::numeric, 1) AS avg_first_response_hours
+           round(avg(EXTRACT(EPOCH FROM (first_response_at - created_at)) / 3600) FILTER (WHERE first_response_at IS NOT NULL)::numeric, 1) AS avg_first_response_hours,
+           round(avg(csat) FILTER (WHERE csat IS NOT NULL)::numeric, 2) AS avg_csat
          FROM support_tickets ${range}`,
         params
       ),
@@ -56,7 +57,8 @@ export default async function handler(req, res) {
            count(*) FILTER (WHERE status IN ('open','in_progress'))::int AS open,
            count(*) FILTER (WHERE status IN ('open','in_progress') AND due_at < NOW())::int AS overdue,
            count(*) FILTER (WHERE sla_breached)::int AS sla_breaches,
-           round(avg(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 3600) FILTER (WHERE resolved_at IS NOT NULL)::numeric, 1) AS avg_resolution_hours
+           round(avg(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 3600) FILTER (WHERE resolved_at IS NOT NULL)::numeric, 1) AS avg_resolution_hours,
+           round(avg(csat) FILTER (WHERE csat IS NOT NULL)::numeric, 2) AS avg_csat
          FROM support_tickets ${range}
          GROUP BY assignee_email ORDER BY assigned DESC LIMIT 50`,
         params

@@ -211,19 +211,34 @@ documentation/TEAM_GUIDE.md            this file
 
 | Area | Rating | Honest notes |
 |---|---|---|
-| Ticketing core (SLA, escalation, emails, attachments) | **9/10** | Battle-tested end-to-end incl. failure paths. Missing: per-ticket SLA pause/holiday calendars. |
+| Ticketing core (SLA, escalation, emails, attachments, **CSAT**) | **9.5/10** | Suite-tested end-to-end incl. failure paths; clients rate resolved tickets 1–5★, averages on the performance dashboard. Missing: SLA pause/holiday calendars. |
 | Dev workflow pipeline | **9.5/10** | Full ladder covered by the automated suite incl. QA reject loop and role gates. **Least-loaded routing**: work goes to whoever has the fewest open tickets. One pipeline (no per-team pipelines yet). |
 | Roles & permissions | **8.5/10** | Role defaults + per-user overrides + revocation edge case fixed and unit-tested. Permissions are 3 flags, not a full policy engine. |
 | GitHub integration | **8/10** | Webhook auto-linking + full console verified against the real repo (branch create/delete live-tested). Single shared PAT — actions aren't attributed to individual GitHub accounts (they are in our audit log). PR review threads not surfaced. |
 | Redis caching | **9/10** | Rewrote a genuinely broken client (the old one corrupted every JSON read); measured near-zero DB load. Remote-Redis latency can let short TTLs lapse (a few stray queries — harmless). |
 | R2 attachments | **9/10** | 10 MB/any format verified byte-identical; 413 + type-fallback paths tested. No virus scanning. |
 | Client portal | **8.5/10** | Privacy verified (internal notes/staff names never leak; wrong email → 404). Auth is key+email — fine for support, not bank-grade. |
-| PEOS (sprints/epics/incidents/OKRs/services/QA) | **9/10** | Full CRUD with **click-to-open popup editing**, pipeline board with in-modal actions, dashboards, dependency map — all role-gated and suite-tested. Burndown charts/drag-drop boards still absent; velocity/health are simple aggregates. |
+| PEOS (sprints/epics/incidents/OKRs/services/QA) | **9/10** | Full CRUD with **click-to-open popup editing**, pipeline board with in-modal actions, dashboards, dependency map — all role-gated and suite-tested. **Burndown charts shipped** (per-sprint, actual vs ideal). Drag-drop boards still absent. |
 | AI copilot | **8/10** | Provider-abstracted summaries + **duplicate detection** warns the executive about similar open tickets at creation. Auto-assignment not built (least-loaded routing covers the need). |
-| Tests | **9.5/10** | Committed regression suite (`npm test`, `tests/api.test.mjs`): 13 integration tests covering auth, lifecycle, SLA stamping, duplicate detection, member scoping, client-portal privacy, the full workflow ladder, RBAC, permissions, attachments (incl. 413), password rules, OpenAPI. Self-seeding and self-cleaning. |
-| **Overall** | **9.5/10** | Production-ready with an automated regression net, fair load routing, duplicate detection, popup-modal UX everywhere, and a first-login tour. Remaining honest gaps: single shared GitHub PAT (by choice), no burndown charts, 3-flag permission model. |
+| Tests | **9.5/10** | Committed regression suite (`npm test`, `tests/api.test.mjs`): 15 integration tests covering auth, lifecycle, SLA stamping, duplicate detection, member scoping, client-portal privacy, the full workflow ladder, RBAC, permissions, attachments (incl. 413), password rules, OpenAPI. Self-seeding and self-cleaning. |
+| **Overall** | **9.5/10** | Production-ready with an automated regression net, fair load routing, duplicate detection, popup-modal UX everywhere, and a first-login tour. Remaining honest gaps: single shared GitHub PAT (by choice), no SSO/websockets/mobile, 3-flag permission model. |
 
-## 9. Setup Checklist (Render env)
+## 9. Honest Market Comparison (no bluff)
+
+What this suite genuinely matches, feature-for-feature, **at the scale of a 5–100 person company**:
+
+| Our module | Closest commercial product | Honest verdict |
+|---|---|---|
+| Support ticketing + SLA + escalation + CSAT + client portal | **Zendesk / Freshdesk (Growth tier)** | Core parity: SLA policies, escalation, internal notes, CSAT, canned responses, client self-service. Missing vs them: multi-channel (phone/social), macros engine, marketplace apps |
+| Dev workflow + sprints + epics + story points + burndown | **Jira Software / Linear** | Matches the everyday happy path (pipeline, role gates, points, burndown, duplicate detection). Closer to **Linear** in spirit. Missing vs Jira: custom workflow designer, JQL, drag-drop boards, 1000+ plugins |
+| GitHub integration (auto-linking PA-n, PR ops from UI) | **Linear/Jira GitHub apps** | Same auto-link + status-progression model they use. Single org PAT instead of per-user OAuth (deliberate choice) |
+| Incidents + service catalog + dependency map | **Opsgenie / Backstage (basic)** | Severity workflow + ownership/runbooks parity at small scale. No on-call rotations/paging |
+| Notifications, mentions, audit, RBAC, OKRs, KB | **Jira+Confluence+Perdoo combo (basic tiers)** | Functional equivalents, far shallower editors |
+| Live support chat + voice + AI chatbot | **Intercom (core)** | Real-time chat, voice calls, AI assistant — genuinely competitive for a small team |
+
+**The truthful framing**: this is a unified internal platform that replaces ~₹2–4 lakh/year of per-seat SaaS (Zendesk + Jira + Linear-class tooling) for a company your size, on infra you own. It is **not** an MNC-scale product: no SSO/SAML, no multi-tenancy, no horizontal scaling (single Node process), no mobile apps, no i18n, polling instead of websockets, and a 3-flag permission model instead of a policy engine. Those are the honest boundaries — every one is additive if you ever need it.
+
+## 10. Setup Checklist (Render env)
 
 `DATABASE_URL · REDIS_URL · ADMIN_USERNAME/PASSWORD/SESSION_SECRET · BREVO_API_KEY + BREVO_SENDER_EMAIL (or SMTP_*) · R2_ACCOUNT_ID/ACCESS_KEY_ID/SECRET_ACCESS_KEY/BUCKET_NAME · GITHUB_TOKEN + GITHUB_OWNER + GITHUB_WEBHOOK_SECRET · GROQ_API_KEY · SITE_URL`
 Optional: `TICKET_REMINDER_HOURS · TICKET_SLA_WARNING_HOURS · AI_PROVIDER · DB_QUERY_LOG`

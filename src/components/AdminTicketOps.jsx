@@ -129,7 +129,7 @@ export default function AdminTicketOps() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
         {[
           { label: 'Tickets created', value: t.created },
           { label: 'Closed', value: t.closed },
@@ -137,7 +137,8 @@ export default function AdminTicketOps() {
           { label: 'Overdue', value: t.overdue, alert: Number(t.overdue) > 0 },
           { label: 'SLA breaches', value: t.sla_breaches, alert: Number(t.sla_breaches) > 0 },
           { label: 'Avg resolution (h)', value: t.avg_resolution_hours ?? '—' },
-          { label: 'Avg 1st response (h)', value: t.avg_first_response_hours ?? '—' }
+          { label: 'Avg 1st response (h)', value: t.avg_first_response_hours ?? '—' },
+          { label: 'CSAT ★', value: t.avg_csat ?? '—' }
         ].map((kpi) => (
           <div key={kpi.label} className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 text-center">
             <p className={`text-2xl font-bold ${kpi.alert ? 'text-red-300' : 'text-cyan-300'}`}>{kpi.value ?? 0}</p>
@@ -153,7 +154,7 @@ export default function AdminTicketOps() {
             <thead>
               <tr className="text-left text-white/40 text-xs uppercase tracking-wider border-b border-white/10">
                 <th className="pb-2 pr-4">Assignee</th><th className="pb-2 pr-4">Assigned</th><th className="pb-2 pr-4">Closed</th>
-                <th className="pb-2 pr-4">Open</th><th className="pb-2 pr-4">Overdue</th><th className="pb-2 pr-4">SLA breaches</th><th className="pb-2">Avg resolution (h)</th>
+                <th className="pb-2 pr-4">Open</th><th className="pb-2 pr-4">Overdue</th><th className="pb-2 pr-4">SLA breaches</th><th className="pb-2 pr-4">Avg resolution (h)</th><th className="pb-2">CSAT</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -165,7 +166,8 @@ export default function AdminTicketOps() {
                   <td className="py-2 pr-4">{r.open}</td>
                   <td className={`py-2 pr-4 ${Number(r.overdue) > 0 ? 'text-red-300' : ''}`}>{r.overdue}</td>
                   <td className={`py-2 pr-4 ${Number(r.sla_breaches) > 0 ? 'text-red-300' : ''}`}>{r.sla_breaches}</td>
-                  <td className="py-2">{r.avg_resolution_hours ?? '—'}</td>
+                  <td className="py-2 pr-4">{r.avg_resolution_hours ?? '—'}</td>
+                  <td className="py-2">{r.avg_csat ?? '—'}</td>
                 </tr>
               ))}
             </tbody>

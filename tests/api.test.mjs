@@ -189,6 +189,25 @@ test('password strength + change-password guard', async () => {
   assert.equal(wrongCur.status, 401);
 });
 
+test('CSAT: client rates a resolved ticket; invalid ratings rejected', async () => {
+  const bad = await api('/api/client-tickets', { method: 'POST', body: { key: `PA-${ticketId}`, email: 'client@example.com', action: 'rate', rating: 9 } });
+  assert.equal(bad.status, 400);
+  const ok = await api('/api/client-tickets', { method: 'POST', body: { key: `PA-${ticketId}`, email: 'client@example.com', action: 'rate', rating: 5 } });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.data.ticket.csat, 5);
+  const stats = await api('/api/ticket-stats', { jar: 'admin' });
+  assert.ok(Number(stats.data.totals.avg_csat) >= 1, 'avg CSAT computed');
+});
+
+test('sprint board returns burndown inputs (dates + resolved_at)', async () => {
+  const sp = await api('/api/peos?resource=sprints', { method: 'POST', jar: 'suite-pm@patienceai.in', body: { name: 'SUITE: bd', status: 'active', starts_on: '2026-06-01', ends_on: '2026-06-14', capacity_points: 10 } });
+  await api(`/api/peos?ticket=PA-${ticketId}&resource=epics`, { method: 'PATCH', jar: 'admin', body: { sprintId: sp.data.item.id, storyPoints: 3 } });
+  const board = await api(`/api/peos?sprintBoard=${sp.data.item.id}&resource=epics`, { jar: 'admin' });
+  assert.equal(board.data.sprint.name, 'SUITE: bd');
+  assert.ok(board.data.tickets[0].resolved_at, 'resolved_at present for burndown');
+  await api('/api/peos?resource=sprints', { method: 'DELETE', jar: 'admin', body: { id: sp.data.item.id } });
+});
+
 test('openapi contract served', async () => {
   const r = await api('/api/openapi.json');
   assert.equal(r.data.openapi, '3.0.3');

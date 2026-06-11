@@ -72,8 +72,11 @@ export default async function handler(req, res) {
 
     // ── Sprint board: tickets grouped for one sprint ────────────────────────
     if (req.method === 'GET' && req.query.sprintBoard) {
-      const rows = await queryDb(`SELECT id, subject, status, priority, story_points, assignee_name FROM support_tickets WHERE sprint_id=$1 ORDER BY status, priority`, [req.query.sprintBoard]);
-      return res.status(200).json({ tickets: rows.map((x) => ({ ...x, key: `PA-${x.id}` })) });
+      const [rows, [sprint]] = await Promise.all([
+        queryDb(`SELECT id, subject, status, priority, story_points, assignee_name, created_at, resolved_at FROM support_tickets WHERE sprint_id=$1 ORDER BY status, priority`, [req.query.sprintBoard]),
+        queryDb(`SELECT * FROM sprints WHERE id=$1`, [req.query.sprintBoard])
+      ]);
+      return res.status(200).json({ tickets: rows.map((x) => ({ ...x, key: `PA-${x.id}` })), sprint: sprint || null });
     }
 
     // ── GitHub links for a ticket ───────────────────────────────────────────

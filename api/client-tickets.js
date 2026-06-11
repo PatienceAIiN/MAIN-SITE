@@ -31,6 +31,7 @@ const publicTicket = (t) => ({
   created_at: t.created_at,
   updated_at: t.updated_at,
   resolved_at: t.resolved_at,
+  csat: t.csat,
   customer_name: t.customer_name
 });
 
@@ -86,6 +87,18 @@ export default async function handler(req, res) {
       if (!ticket) return res.status(404).json({ error: 'No ticket found for that ID and email' });
       const tKey = `PA-${ticket.id}`;
       const clientName = ticket.customer_name || 'Client';
+
+      if (action === 'rate') {
+        const rating = parseInt(req.body.rating, 10);
+        if (!(rating >= 1 && rating <= 5)) return res.status(400).json({ error: 'rating 1-5 required' });
+        if (!['resolved', 'closed'].includes(ticket.status)) return res.status(409).json({ error: 'You can rate once the ticket is resolved' });
+        const rows = await queryDb(`UPDATE support_tickets SET csat=$1, updated_at=NOW() WHERE id=$2 RETURNING *`, [rating, ticket.id]);
+        await queryDb(`INSERT INTO ticket_comments (ticket_id, author_role, author_name, message) VALUES ($1,'system','System',$2)`,
+          [ticket.id, `${clientName} rated this ticket ${rating}/5.`]).catch(() => {});
+        await notify(ticket.assignee_email, 'comment', ticket.id, `${clientName} rated ${tKey}: ${rating}/5 ⭐`);
+        await bumpVersion(verScopes.tickets, verScopes.ticket(ticket.id));
+        return res.status(200).json({ ok: true, ticket: publicTicket(rows[0]) });
+      }
 
       if (action === 'close') {
         if (['closed'].includes(ticket.status)) return res.status(200).json({ ok: true, ticket: publicTicket(ticket) });
