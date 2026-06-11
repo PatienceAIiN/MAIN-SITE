@@ -112,7 +112,7 @@ const getPageTitle = (pathname, siteContent) => {
   if (pathname === '/company/careers') return `${brandName} Careers — Join Our Team | patienceai.in`;
   if (pathname === '/admin') return `Admin Console | ${brandName}`;
   if (pathname === '/support-executive') return `Support Executive Console | ${brandName}`;
-  if (pathname === '/team') return `Ticket Portal | ${brandName}`;
+  if (pathname === '/team') return `Team Portal | ${brandName}`;
   if (pathname === '/my-ticket') return `Track Your Ticket | ${brandName}`;
   if (pathname === '/live-chat' || pathname === '/support-chat') return `Live Support | ${brandName}`;
 

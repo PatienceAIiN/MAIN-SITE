@@ -15,8 +15,9 @@ import { resolvePerms } from './team-members.js';
 // nothing: repos are never shown to the whole team by default.
 const getGhActor = async (req) => {
   if (verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME))) return { email: 'admin', read: true, write: true, allRepos: true };
-  const e = getExecSession(req);
-  if (e) return { email: e.email, read: true, write: true, allRepos: true };
+  // Member session is checked BEFORE the executive session: if both cookies
+  // exist in one browser, the restrictive repo allowlist must win — a team
+  // member must never see repos beyond what an admin granted them.
   const m = getMemberSession(req);
   if (m) {
     const [row] = await queryDb(`SELECT team_role, permissions, allowed_repos FROM team_members WHERE id=$1`, [m.id]).catch(() => []);
@@ -32,6 +33,8 @@ const getGhActor = async (req) => {
       allowed
     };
   }
+  const e = getExecSession(req);
+  if (e) return { email: e.email, read: true, write: true, allRepos: true };
   return null;
 };
 
