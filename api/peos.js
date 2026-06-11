@@ -21,7 +21,8 @@ const RESOURCES = {
   incidents: { table: 'incidents', cols: ['title', 'severity', 'status', 'service', 'owner_email', 'summary', 'postmortem', 'ticket_id'], write: ['admin', 'executive', 'member'] },
   services: { table: 'services_catalog', cols: ['name', 'description', 'owner_email', 'backup_owner_email', 'team', 'repository', 'runbook', 'sla', 'dependencies', 'api_docs'], write: ['admin'] },
   okrs: { table: 'okrs', cols: ['level', 'objective', 'key_result', 'progress', 'owner_email', 'parent_id', 'quarter'], write: ['admin', 'executive'] },
-  announcements: { table: 'announcements', cols: ['kind', 'title', 'body', 'author'], write: ['admin'] }
+  announcements: { table: 'announcements', cols: ['kind', 'title', 'body', 'author'], write: ['admin'] },
+  testcases: { table: 'qa_test_cases', cols: ['ticket_id', 'title', 'steps', 'expected', 'last_result', 'run_notes', 'run_by', 'run_at'], write: ['admin', 'executive', 'member'] }
 };
 
 export default async function handler(req, res) {

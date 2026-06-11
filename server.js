@@ -69,6 +69,8 @@ import clientTicketsHandler from './api/client-tickets.js';
 import { runEscalationSweep } from './api/_escalation.js';
 import peosHandler from './api/peos.js';
 import githubWebhookHandler from './api/github-webhook.js';
+import githubHandler from './api/github.js';
+import { openapiSpec } from './api/_openapi.js';
 import voiceRoomHandler from './api/voice-room.js';
 import {
   createSessionToken, verifySessionToken,
@@ -368,6 +370,9 @@ const clientTicketLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, message: '
 app.all('/api/client-tickets',               clientTicketLimiter, wrap(clientTicketsHandler));
 app.all('/api/peos',                         wrap(peosHandler));
 app.post('/api/github-webhook',              wrap(githubWebhookHandler));
+app.all('/api/github',                       wrap(githubHandler));
+// Machine-readable API contract for the ticketing + PEOS surface
+app.get('/api/openapi.json', (req, res) => res.json(openapiSpec));
 
 // ── Marketing Automation OS ───────────────────────────────────────────────────
 const MKT_COOKIE = 'pa_mkt_session';
