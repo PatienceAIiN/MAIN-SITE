@@ -30,12 +30,13 @@ const FORMS = {
   incidents: [['title', 'Incident title'], ['severity', 'Severity', 'select:SEV-1|SEV-2|SEV-3|SEV-4'], ['service', 'Service'], ['summary', 'Summary']],
   testcases: [['ticket_id', 'Ticket # (e.g. 12)', 'number'], ['title', 'Test case title'], ['steps', 'Steps'], ['expected', 'Expected result']],
   okrs: [['level', 'Level', 'select:company|department|team|sprint'], ['objective', 'Objective'], ['key_result', 'Key result'], ['progress', 'Progress %', 'number'], ['quarter', 'Quarter (Q3-2026)']],
+  services: [['name', 'Service name'], ['description', 'Description'], ['owner_email', 'Owner'], ['team', 'Team'], ['repository', 'Repo URL'], ['runbook', 'Runbook URL'], ['sla', 'SLA'], ['dependencies', 'Depends on (csv)']],
   announcements: [['kind', 'Type', 'select:company|release|maintenance|team'], ['title', 'Title'], ['body', 'Body']]
 };
 const WRITE = {
   sprints: MGMT, epics: MGMT, okrs: MGMT,
   incidents: 'all', testcases: 'all',
-  announcements: ['admin', 'product_manager']
+  announcements: MGMT, services: MGMT
 };
 const TITLE = (x) => x.title || x.name || x.objective || '—';
 const canWrite = (resource, role) => WRITE[resource] === 'all' || WRITE[resource].includes(role);
@@ -52,6 +53,7 @@ function Resource({ name, title, myRole, actions }) {
     catch (e) { setErr(e.message); }
   };
   const writable = canWrite(name, myRole);
+  const canDelete = MGMT.includes(myRole);
   return (
     <div className={box}>
       <div className="flex items-center justify-between mb-2">
@@ -94,7 +96,13 @@ function Resource({ name, title, myRole, actions }) {
               </p>
               {(x.body || x.summary) && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{x.body || x.summary}</p>}
             </div>
-            {writable && <div className="flex flex-wrap gap-1 shrink-0 justify-end">{actions?.(x, { patch: (id, b) => call('PATCH', { id, ...b }) })}</div>}
+            <div className="flex flex-wrap gap-1 shrink-0 justify-end">
+              {writable && actions?.(x, { patch: (id, b) => call('PATCH', { id, ...b }) })}
+              {canDelete && (
+                <button className="text-[11px] px-2 py-1.5 rounded-lg border border-red-200 dark:border-red-900 text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
+                  onClick={() => window.confirm('Delete this item?') && call('DELETE', { id: x.id })}>✕</button>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -175,6 +183,7 @@ export default function TeamEngineering({ myRole, onOpenTicket }) {
           )} />
         <Resource name="okrs" title="OKRs" myRole={myRole}
           actions={(x, r) => <button className={tb2} onClick={() => r.patch(x.id, { progress: Math.min(100, (Number(x.progress) || 0) + 10) })}>+10%</button>} />
+        <Resource name="services" title="Service catalog" myRole={myRole} />
         <Resource name="announcements" title="Announcements" myRole={myRole} />
       </div>
     </div>

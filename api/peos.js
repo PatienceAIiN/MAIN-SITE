@@ -25,9 +25,9 @@ const RESOURCES = {
   epics: { table: 'epics', cols: ['title', 'description', 'status', 'owner_email', 'milestone'], write: MGMT },
   sprints: { table: 'sprints', cols: ['name', 'goal', 'status', 'starts_on', 'ends_on', 'capacity_points'], write: MGMT },
   incidents: { table: 'incidents', cols: ['title', 'severity', 'status', 'service', 'owner_email', 'summary', 'postmortem', 'ticket_id'], write: ALL_STAFF },
-  services: { table: 'services_catalog', cols: ['name', 'description', 'owner_email', 'backup_owner_email', 'team', 'repository', 'runbook', 'sla', 'dependencies', 'api_docs'], write: ['admin', 'engineering_manager'] },
+  services: { table: 'services_catalog', cols: ['name', 'description', 'owner_email', 'backup_owner_email', 'team', 'repository', 'runbook', 'sla', 'dependencies', 'api_docs'], write: MGMT },
   okrs: { table: 'okrs', cols: ['level', 'objective', 'key_result', 'progress', 'owner_email', 'parent_id', 'quarter'], write: MGMT },
-  announcements: { table: 'announcements', cols: ['kind', 'title', 'body', 'author'], write: ['admin', 'product_manager'] },
+  announcements: { table: 'announcements', cols: ['kind', 'title', 'body', 'author'], write: MGMT },
   testcases: { table: 'qa_test_cases', cols: ['ticket_id', 'title', 'steps', 'expected', 'last_result', 'run_notes', 'run_by', 'run_at'], write: ALL_STAFF }
 };
 
@@ -143,7 +143,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ item: rows[0] });
     }
     if (req.method === 'DELETE') {
-      if (actor.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+      if (!MGMT.includes(actor.teamRole)) return res.status(403).json({ error: 'Managers/leads only' });
       await queryDb(`DELETE FROM ${def.table} WHERE id=$1`, [req.body?.id]);
       await logAudit('admin', 'admin', `${r}_deleted`, String(req.body?.id));
       return res.status(200).json({ ok: true });
