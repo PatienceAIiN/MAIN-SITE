@@ -393,6 +393,7 @@ const SCHEMA_QUERIES = [
   `create index if not exists qa_test_cases_ticket_idx on public.qa_test_cases (ticket_id)`,
   // Dev workflow: org roles + Jira-like stage pipeline on tickets
   `alter table public.team_members add column if not exists team_role text not null default 'member'`,
+  `alter table public.team_members add column if not exists permissions text`,
   `alter table public.support_tickets add column if not exists stage text not null default 'support'`,
   `alter table public.support_tickets add column if not exists dev_email text`,
   `create index if not exists support_tickets_stage_idx on public.support_tickets (stage)`,

@@ -390,6 +390,108 @@ function MemberTicketDetail({ ticket, myRole, onChanged }) {
   );
 }
 
+/* ── GitHub workspace for software team members ──────────────────────────── */
+function GitHubWorkspace({ canWrite }) {
+  const [repos, setRepos] = useState([]);
+  const [repo, setRepo] = useState('');
+  const [data, setData] = useState({ branches: [], prs: [] });
+  const [forms, setForms] = useState({ branch: '', prTitle: '', prHead: '' });
+  const [msg, setMsg] = useState('');
+  const box = 'rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4';
+  const tin = 'rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400';
+  const tb = 'text-[11px] px-2.5 py-1.5 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-medium hover:opacity-90';
+  const tb2 = 'text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800';
+
+  useEffect(() => {
+    fetchJson('/api/github?repos=1').then((d) => setRepos(d.repos || [])).catch((e) => setMsg(e.message));
+  }, []);
+
+  const open = async (full) => {
+    setRepo(full); setMsg('');
+    const [o, n] = full.split('/');
+    const [b, p] = await Promise.all([
+      fetchJson(`/api/github?branches=1&owner=${o}&repo=${n}`).catch(() => ({ branches: [] })),
+      fetchJson(`/api/github?prs=1&owner=${o}&repo=${n}`).catch(() => ({ prs: [] }))
+    ]);
+    setData({ branches: b.branches, prs: p.prs });
+  };
+
+  const act = async (body) => {
+    if (!repo) return;
+    const [o, n] = repo.split('/');
+    setMsg('Working…');
+    try {
+      const d = await fetchJson(`/api/github?owner=${o}&repo=${n}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      setMsg(d.url ? `Done ✓ ${d.url}` : 'Done ✓');
+      open(repo);
+    } catch (e) { setMsg(e.message); }
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-slate-950">
+      <div className={box}>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-bold text-slate-900 dark:text-white">GitHub</p>
+          <select value={repo} onChange={(e) => open(e.target.value)} className={`${tin} flex-1 min-w-[180px]`}>
+            <option value="">Select repository…</option>
+            {repos.map((r) => <option key={r.full_name} value={r.full_name}>{r.full_name}</option>)}
+          </select>
+          {msg && <p className="text-[11px] text-amber-600 dark:text-amber-400 w-full truncate">{msg}</p>}
+        </div>
+      </div>
+      {repo && (
+        <>
+          <div className={box}>
+            <p className="text-sm font-bold text-slate-900 dark:text-white mb-2">Pull requests ({data.prs.length})</p>
+            {canWrite && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                <input value={forms.prTitle} onChange={(e) => setForms((f) => ({ ...f, prTitle: e.target.value }))} placeholder="PR title (PA-12 …)" className={`${tin} flex-1 min-w-[160px]`} />
+                <input value={forms.prHead} onChange={(e) => setForms((f) => ({ ...f, prHead: e.target.value }))} placeholder="from branch" className={`${tin} w-36`} />
+                <button className={tb} onClick={() => forms.prTitle && forms.prHead && act({ action: 'create_pr', title: forms.prTitle, head: forms.prHead })}>Create PR</button>
+              </div>
+            )}
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {data.prs.map((p) => (
+                <div key={p.number} className="flex items-center justify-between gap-2 text-sm border-b border-slate-100 dark:border-slate-800 pb-2">
+                  <a href={p.url} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate text-slate-800 dark:text-slate-100 hover:text-indigo-600">
+                    #{p.number} {p.title} <span className="text-xs text-slate-400">{p.author} · {p.branch}→{p.base}</span>
+                  </a>
+                  {canWrite && (
+                    <span className="flex gap-1.5 shrink-0">
+                      <button className={tb} onClick={() => act({ action: 'merge_pr', number: p.number })}>Merge</button>
+                      <button className={tb2} onClick={() => act({ action: 'close_pr', number: p.number })}>Close</button>
+                    </span>
+                  )}
+                </div>
+              ))}
+              {!data.prs.length && <p className="text-xs text-slate-400 py-3 text-center">No open pull requests.</p>}
+            </div>
+          </div>
+          <div className={box}>
+            <p className="text-sm font-bold text-slate-900 dark:text-white mb-2">Branches ({data.branches.length})</p>
+            {canWrite && (
+              <div className="flex gap-2 mb-3">
+                <input value={forms.branch} onChange={(e) => setForms((f) => ({ ...f, branch: e.target.value }))} placeholder="PA-12-fix-login" className={`${tin} flex-1`} />
+                <button className={tb} onClick={() => forms.branch && act({ action: 'create_branch', branch: forms.branch })}>Create</button>
+              </div>
+            )}
+            <div className="space-y-1 max-h-56 overflow-y-auto">
+              {data.branches.map((b) => (
+                <div key={b.name} className="flex items-center justify-between text-sm text-slate-700 dark:text-slate-200">
+                  <span className="truncate">{b.name} <span className="text-xs text-slate-400 font-mono">{b.sha}</span>{b.protected && <span className="text-[10px] text-amber-600 ml-1">protected</span>}</span>
+                  {canWrite && !b.protected && (
+                    <button className={tb2} onClick={() => window.confirm(`Delete branch ${b.name}?`) && act({ action: 'delete_branch', branch: b.name })}>Delete</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ── Main portal ─────────────────────────────────────────────────────────── */
 export default function TeamPortalPage() {
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
@@ -410,6 +512,8 @@ export default function TeamPortalPage() {
   });
   const [pwdModal, setPwdModal] = useState(false);
   const [myRole, setMyRole] = useState('member');
+  const [myPerms, setMyPerms] = useState([]);
+  const [view, setView] = useState('tickets');
   const [logoutConfirm, setLogoutConfirm] = useState(false);
 
   useEffect(() => {
@@ -439,6 +543,7 @@ export default function TeamPortalPage() {
   useEffect(() => {
     if (!member) return;
     fetchJson('/api/dev-workflow?bucket=1').then((d) => setMyRole(d.myRole || 'member')).catch(() => {});
+    fetchJson('/api/team-members/me').then((d) => setMyPerms(d.member?.permissions || [])).catch(() => {});
     loadTickets();
     const id = setInterval(loadTickets, 8000);
     return () => clearInterval(id);
@@ -480,6 +585,16 @@ export default function TeamPortalPage() {
           <h1 className="text-lg font-bold text-slate-900 dark:text-white">{member.name}</h1>
         </div>
         <div className="flex items-center gap-2">
+          {(myPerms.includes('github_read') || myPerms.includes('github_write')) && (
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+              {['tickets', 'github'].map((v) => (
+                <button key={v} onClick={() => setView(v)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors ${view === v ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-300'}`}>
+                  {v}
+                </button>
+              ))}
+            </div>
+          )}
           <NotificationBell dark={dark} />
           <button onClick={() => setDark((d) => !d)} title="Toggle theme"
             className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
@@ -500,6 +615,9 @@ export default function TeamPortalPage() {
         </div>
       </header>
 
+      {view === 'github' ? (
+        <GitHubWorkspace canWrite={myPerms.includes('github_write')} />
+      ) : (
       <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
         {/* Ticket list */}
         <aside className="w-full md:w-80 max-h-[45vh] md:max-h-none border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col shrink-0">
@@ -561,6 +679,7 @@ export default function TeamPortalPage() {
           )}
         </main>
       </div>
+      )}
 
       <ChangePasswordModal open={pwdModal} onClose={() => setPwdModal(false)} />
 

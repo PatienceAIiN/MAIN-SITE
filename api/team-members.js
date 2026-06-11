@@ -20,6 +20,19 @@ const ALLOWED_DOMAIN = '@patienceai.in';
 
 const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
 const TEAM_ROLES = ['member', 'software_dev', 'team_lead', 'engineering_manager', 'product_manager', 'qa'];
+export const ALL_PERMS = ['github_read', 'github_write', 'roster_manage'];
+// Defaults by role when admin hasn't set explicit per-user permissions.
+export const ROLE_DEFAULT_PERMS = {
+  software_dev: ['github_read', 'github_write'],
+  team_lead: ['github_read', 'github_write'],
+  engineering_manager: ['github_read', 'github_write', 'roster_manage'],
+  product_manager: ['github_read', 'roster_manage'],
+  qa: ['github_read'],
+  member: []
+};
+export const resolvePerms = (row) => row?.permissions
+  ? String(row.permissions).split(',').map((x) => x.trim()).filter(Boolean)
+  : (ROLE_DEFAULT_PERMS[row?.team_role] || []);
 // Product / engineering managers can also manage the roster (not delete).
 const isManager = async (req) => {
   const m = getMemberSession(req);
@@ -110,10 +123,11 @@ export default async function handler(req, res) {
     let teamRole = 'member';
     try {
       await queryDb(`UPDATE ${TABLE} SET last_seen_at=NOW() WHERE id=$1`, [member.id]);
-      const rows = await queryDb(`SELECT team_role FROM ${TABLE} WHERE id=$1`, [member.id]);
+      const rows = await queryDb(`SELECT team_role, permissions FROM ${TABLE} WHERE id=$1`, [member.id]);
       teamRole = rows[0]?.team_role || 'member';
-    } catch { /* ignore */ }
-    return res.status(200).json({ member: { ...member, teamRole } });
+      var perms = resolvePerms(rows[0]);
+    } catch { perms = []; }
+    return res.status(200).json({ member: { ...member, teamRole, permissions: perms } });
   }
 
   // ── DELETE /api/team-members/logout ───────────────────────────────────────
@@ -153,7 +167,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const rows = await queryDb(
-        `SELECT id, email, name, status, team_role, last_seen_at, created_at FROM ${TABLE} ORDER BY created_at DESC`
+        `SELECT id, email, name, status, team_role, permissions, last_seen_at, created_at FROM ${TABLE} ORDER BY created_at DESC`
       );
       return res.status(200).json({ members: rows });
     } catch (err) {
@@ -217,14 +231,18 @@ export default async function handler(req, res) {
 
   // PATCH — activate/deactivate a member
   if (req.method === 'PATCH') {
-    const { id, status, teamRole } = req.body || {};
-    if (!id || (!status && !teamRole)) return res.status(400).json({ error: 'id and status or teamRole required' });
+    const { id, status, teamRole, permissions } = req.body || {};
+    if (!id || (!status && !teamRole && permissions === undefined)) return res.status(400).json({ error: 'id and status, teamRole or permissions required' });
+    if (permissions !== undefined && (!Array.isArray(permissions) || permissions.some((x) => !ALL_PERMS.includes(x))))
+      return res.status(400).json({ error: 'Invalid permissions' });
     if (status && !['active', 'inactive'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
     if (teamRole && !TEAM_ROLES.includes(teamRole)) return res.status(400).json({ error: 'Invalid team role' });
     try {
       const rows = await queryDb(
-        `UPDATE ${TABLE} SET status=COALESCE($1,status), team_role=COALESCE($2,team_role), updated_at=NOW() WHERE id=$3 RETURNING id, email, name, status, team_role`,
-        [status || null, teamRole || null, id]
+        `UPDATE ${TABLE} SET status=COALESCE($1,status), team_role=COALESCE($2,team_role),
+           permissions=CASE WHEN $3::text IS NULL THEN permissions ELSE $3 END, updated_at=NOW()
+         WHERE id=$4 RETURNING id, email, name, status, team_role, permissions`,
+        [status || null, teamRole || null, permissions === undefined ? null : permissions.join(','), id]
       );
       await logAudit('admin', 'admin', 'team_member_status_changed', rows[0]?.email, { status });
       return res.status(200).json({ member: rows[0] });

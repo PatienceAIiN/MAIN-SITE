@@ -1868,6 +1868,26 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                             {m.last_seen_at && (
                               <p className="text-xs text-white/30 mt-0.5">Last seen {formatDate(m.last_seen_at)}</p>
                             )}
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {['github_read', 'github_write', 'roster_manage'].map((perm) => {
+                                const current = m.permissions ? m.permissions.split(',').filter(Boolean) : null;
+                                const roleDefaults = { software_dev: ['github_read','github_write'], team_lead: ['github_read','github_write'], engineering_manager: ['github_read','github_write','roster_manage'], product_manager: ['github_read','roster_manage'], qa: ['github_read'], member: [] };
+                                const effective = current || roleDefaults[m.team_role || 'member'] || [];
+                                const on = effective.includes(perm);
+                                return (
+                                  <button key={perm} type="button"
+                                    title={current ? 'Custom permission' : 'Role default — click to customise'}
+                                    onClick={() => {
+                                      const next = on ? effective.filter((x) => x !== perm) : [...effective, perm];
+                                      fetchJson('/api/team-members', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: m.id, permissions: next }) }).then(loadTeamMembers).catch((e) => setTeamError(e.message));
+                                    }}
+                                    className={['text-[10px] px-2 py-0.5 rounded-full border transition-colors',
+                                      on ? 'border-emerald-400/40 bg-emerald-400/15 text-emerald-300' : 'border-white/10 text-white/30 hover:text-white/60'].join(' ')}>
+                                    {perm.replace('_', ' ')} {on ? '✓' : '＋'}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <select value={m.team_role || 'member'}

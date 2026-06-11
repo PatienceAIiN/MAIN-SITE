@@ -3,10 +3,25 @@
 // (+ optional GITHUB_OWNER default org/user). Read endpoints for repos,
 // branches and PRs; write endpoints for branch create and PR merge/close.
 // Admin + executives only. Degrades with a clear hint when unconfigured.
-import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, getExecSession } from './_security.js';
+import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, getExecSession, getMemberSession } from './_security.js';
 import { logAudit } from './_ticketing.js';
+import { queryDb } from './_db.js';
+import { resolvePerms } from './team-members.js';
 
-const allowed = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)) || getExecSession(req));
+// admin/executive: full access. Team members: per-user permission flags
+// (github_read / github_write) set by admin, defaulting by team role.
+const getGhActor = async (req) => {
+  if (verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME))) return { email: 'admin', read: true, write: true };
+  const e = getExecSession(req);
+  if (e) return { email: e.email, read: true, write: true };
+  const m = getMemberSession(req);
+  if (m) {
+    const [row] = await queryDb(`SELECT team_role, permissions FROM team_members WHERE id=$1`, [m.id]).catch(() => []);
+    const perms = resolvePerms(row);
+    return { email: m.email, read: perms.includes('github_read') || perms.includes('github_write'), write: perms.includes('github_write') };
+  }
+  return null;
+};
 
 const gh = async (path, { method = 'GET', body } = {}) => {
   const token = process.env.GITHUB_TOKEN;
@@ -27,7 +42,10 @@ const gh = async (path, { method = 'GET', body } = {}) => {
 };
 
 export default async function handler(req, res) {
-  if (!allowed(req)) return res.status(401).json({ error: 'Not authenticated' });
+  const actor = await getGhActor(req);
+  if (!actor) return res.status(401).json({ error: 'Not authenticated' });
+  if (req.method === 'GET' && !actor.read) return res.status(403).json({ error: 'No GitHub access — ask an admin to grant the github_read permission' });
+  if (req.method === 'POST' && !actor.write) return res.status(403).json({ error: 'No GitHub write access — ask an admin to grant the github_write permission' });
   const owner = req.query.owner || process.env.GITHUB_OWNER;
   const repo = req.query.repo;
 
@@ -37,7 +55,7 @@ export default async function handler(req, res) {
       if (req.query.status === '1') {
         if (!process.env.GITHUB_TOKEN) return res.status(200).json({ connected: false });
         const me = await gh('/user').catch(() => null);
-        return res.status(200).json({ connected: true, login: me?.login || 'token', owner: owner || null });
+        return res.status(200).json({ connected: true, login: me?.login || 'token', owner: owner || null, canWrite: actor.write });
       }
       // repos
       if (req.query.repos === '1') {
@@ -72,8 +90,7 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const { action } = req.body || {};
       if (!owner || !repo) return res.status(400).json({ error: 'owner and repo required' });
-      const exec = getExecSession(req);
-      const actorEmail = exec?.email || 'admin';
+      const actorEmail = actor.email;
 
       if (action === 'create_branch') {
         const { branch, from } = req.body;
@@ -83,6 +100,21 @@ export default async function handler(req, res) {
         await gh(`/repos/${owner}/${repo}/git/refs`, { method: 'POST', body: { ref: `refs/heads/${branch}`, sha: ref.object.sha } });
         await logAudit('staff', actorEmail, 'github_branch_created', `${repo}:${branch}`);
         return res.status(200).json({ ok: true, branch });
+      }
+      if (action === 'create_pr') {
+        const { title, head, base, body: prBody } = req.body;
+        if (!title || !head) return res.status(400).json({ error: 'title and head branch required' });
+        const baseBranch = base || (await gh(`/repos/${owner}/${repo}`)).default_branch;
+        const pr = await gh(`/repos/${owner}/${repo}/pulls`, { method: 'POST', body: { title, head, base: baseBranch, body: prBody || '' } });
+        await logAudit('staff', actorEmail, 'github_pr_created', `${repo}#${pr.number}`);
+        return res.status(200).json({ ok: true, number: pr.number, url: pr.html_url });
+      }
+      if (action === 'delete_branch') {
+        const { branch } = req.body;
+        if (!branch) return res.status(400).json({ error: 'branch required' });
+        await gh(`/repos/${owner}/${repo}/git/refs/heads/${branch}`, { method: 'DELETE' });
+        await logAudit('staff', actorEmail, 'github_branch_deleted', `${repo}:${branch}`);
+        return res.status(200).json({ ok: true });
       }
       if (action === 'merge_pr') {
         const { number } = req.body;
