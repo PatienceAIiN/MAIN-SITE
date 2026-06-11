@@ -104,7 +104,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [teamMembers, setTeamMembers]           = useState([]);
   const [teamLoading, setTeamLoading]           = useState(false);
   const [teamError, setTeamError]               = useState('');
-  const [teamInviteForm, setTeamInviteForm]     = useState({ name: '', email: '' });
+  const [teamInviteForm, setTeamInviteForm]     = useState({ name: '', email: '', teamRole: 'member' });
   const [teamInviteSending, setTeamInviteSending] = useState(false);
   const [teamInviteSuccess, setTeamInviteSuccess] = useState('');
   const selectedSubmission = submissions.find((item) => item.id === selectedId) || submissions[0] || null;
@@ -279,7 +279,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
       } else {
         setTeamInviteSuccess(`Invite sent to ${teamInviteForm.email}`);
       }
-      setTeamInviteForm({ name: '', email: '' });
+      setTeamInviteForm({ name: '', email: '', teamRole: 'member' });
       await loadTeamMembers();
     } catch (e) { setTeamError(e.message); }
     finally { setTeamInviteSending(false); }
@@ -1870,6 +1870,13 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                             )}
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
+                            <select value={m.team_role || 'member'}
+                              onChange={(e) => fetchJson('/api/team-members', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: m.id, teamRole: e.target.value }) }).then(loadTeamMembers)}
+                              className="text-xs rounded-lg border border-white/10 bg-slate-900 px-2 py-1 text-cyan-200 focus:outline-none">
+                              {['member','software_dev','team_lead','engineering_manager','product_manager','qa'].map((r) => (
+                                <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>
+                              ))}
+                            </select>
                             <span className={['text-xs px-2.5 py-1 rounded-full font-medium',
                               m.status === 'active' ? 'bg-emerald-400/20 text-emerald-300' :
                               m.status === 'invited' ? 'bg-amber-400/20 text-amber-300' :
@@ -1914,6 +1921,16 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                           required placeholder="name@patienceai.in" pattern=".*@patienceai\.in$"
                           title="Must be a @patienceai.in email address"
                           className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70" />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-white/70 mb-1.5">Role</label>
+                        <select value={teamInviteForm.teamRole}
+                          onChange={(e) => setTeamInviteForm((f) => ({ ...f, teamRole: e.target.value }))}
+                          className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-300/70">
+                          {['member','software_dev','team_lead','engineering_manager','product_manager','qa'].map((r) => (
+                            <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>
+                          ))}
+                        </select>
                       </div>
                       <Button variant="white" className="rounded-2xl px-5 py-3 w-full gap-2" disabled={teamInviteSending}>
                         {teamInviteSending ? 'Sending invite…' : 'Send invite email'}
