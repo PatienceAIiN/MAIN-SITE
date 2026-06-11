@@ -3,7 +3,7 @@
 // pagination and edit/delete, web-push subscriptions and the per-member
 // notification toggle.
 import { queryDb, isMissingTableError } from './_db.js';
-import { getMemberSession } from './_security.js';
+import { getMemberSession, getExecSession } from './_security.js';
 import { presenceSnapshot, broadcastToEmails, hasActiveSocket } from './_teamhub.js';
 import { getVapidPublicKey, sendPushToEmails } from './_push.js';
 
@@ -15,7 +15,9 @@ const loadChat = async (id) => (await queryDb(`SELECT * FROM team_chats WHERE id
 const notifyChat = (chat, payload) => broadcastToEmails(chatMembers(chat), payload);
 
 export default async function handler(req, res) {
-  const me = getMemberSession(req);
+  // Team members and support executives are both first-class participants —
+  // they share the same roster, chats, groups and calls (cross-side enabled).
+  const me = getMemberSession(req) || getExecSession(req);
   if (!me) return res.status(401).json({ error: 'Not authenticated' });
   const myEmail = me.email;
 
@@ -60,10 +62,13 @@ export default async function handler(req, res) {
         return res.status(200).send(Buffer.from(f.data_base64, 'base64'));
       }
 
-      // Colleague roster + presence
+      // Colleague roster + presence — team members ∪ support executives
       if (req.query.list === '1') {
         const rows = await queryDb(
-          `SELECT email, name, team_role, last_seen_at FROM team_members WHERE status='active' ORDER BY name ASC`
+          `SELECT email, name, team_role, last_seen_at FROM team_members WHERE status='active'
+           UNION ALL
+           SELECT email, name, 'support_executive' AS team_role, last_seen_at FROM support_executives WHERE status='active'
+           ORDER BY name ASC`
         );
         const presence = presenceSnapshot();
         return res.status(200).json({
@@ -111,7 +116,9 @@ export default async function handler(req, res) {
       if (action === 'create_chat') {
         const { kind = 'dm', memberEmails = [], name } = req.body;
         const valid = await queryDb(
-          `SELECT email FROM team_members WHERE status='active' AND email = ANY(string_to_array($1, ','))`,
+          `SELECT email FROM team_members WHERE status='active' AND email = ANY(string_to_array($1, ','))
+           UNION
+           SELECT email FROM support_executives WHERE status='active' AND email = ANY(string_to_array($1, ','))`,
           [memberEmails.join(',')]
         );
         const others = valid.map((r) => r.email).filter((e) => e !== myEmail);

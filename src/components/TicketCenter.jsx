@@ -504,12 +504,11 @@ export function TicketDetail({ ticket, onChanged, canReassign = true }) {
           </details>
         )}
         <div className="flex flex-wrap items-center gap-2 mt-3">
-          {STATUSES.map((s) => (
-            <button key={s} onClick={() => update({ status: s })}
-              className={`text-[11px] px-2.5 py-1 rounded-full border font-medium capitalize transition-colors ${ticket.status === s ? STATUS_BADGE[s] + ' ring-2 ring-slate-900/10' : 'border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
-              {statusLabel(s)}
-            </button>
-          ))}
+          {/* deliberate dropdown (not tap-pills) so a stray click can't change status */}
+          <select value={ticket.status} onChange={(e) => update({ status: e.target.value })}
+            className={`text-[11px] rounded-full border px-2 py-1 font-medium capitalize focus:outline-none ${STATUS_BADGE[ticket.status]}`}>
+            {STATUSES.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}
+          </select>
           <select value={ticket.priority} onChange={(e) => update({ priority: e.target.value })}
             className="text-[11px] rounded-full border border-slate-200 px-2 py-1 text-slate-600 bg-white capitalize focus:outline-none">
             {PRIORITIES.map((p) => <option key={p} value={p}>{p} priority</option>)}

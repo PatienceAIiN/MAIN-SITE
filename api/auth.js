@@ -7,6 +7,7 @@ import {
   verifySessionToken
 } from './_security.js';
 import { queryDb } from './_db.js';
+import { logAudit } from './_ticketing.js';
 
 const getJsonBody = (req) => req.body || {};
 
@@ -90,12 +91,14 @@ export default async function handler(req, res) {
 
     if (!secureEqual(username, adminUser) || !secureEqual(password, adminPass)) {
       await logAdminAuth(req, username, 'failure');
+      await logAudit('admin', String(req.body?.username || ''), 'login_failed', 'admin_panel').catch(() => {});
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const token = createSessionToken({ username: adminUser });
     setAuthCookie(res, token);
     await logAdminAuth(req, adminUser, 'success');
+    await logAudit('admin', adminUser, 'login', 'admin_panel').catch(() => {});
     return res.status(200).json({ authenticated: true, user: { username: adminUser } });
   }
 

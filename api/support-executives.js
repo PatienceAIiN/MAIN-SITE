@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { logAudit } from './_ticketing.js';
 import { queryDb, isMissingTableError } from './_db.js';
 import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, hashPassword, verifyPassword,
   createExecSessionToken, EXEC_SESSION_COOKIE_NAME, serializeCookie, getExecSession } from './_security.js';
@@ -90,6 +91,7 @@ export default async function handler(req, res) {
       if (!verifyPassword(password, exec.password_salt, exec.password_hash))
         return res.status(401).json({ error: 'Invalid credentials' });
       // update last_seen and set online status
+      await logAudit('executive', exec.email, 'login', exec.email).catch(() => {});
       await queryDb(`UPDATE ${TABLE} SET last_seen_at=NOW(), online_status='online', updated_at=NOW() WHERE id=$1`, [exec.id]);
       await logExecutiveActivity(exec.id, 'login', null, 'online');
       const token = createExecSessionToken({ id: exec.id, email: exec.email, name: exec.name });

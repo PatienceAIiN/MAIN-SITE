@@ -55,7 +55,7 @@ export const runEscalationSweep = async () => {
         await safeSendEmail({
           to: { email: t.assignee_email, name: t.assignee_name || undefined },
           subject: `Reminder: ticket ${key} is waiting for your response — ${t.subject}`,
-          text: `Hi ${t.assignee_name || ''},\n\nTicket ${key} ("${t.subject}", ${t.priority} priority) was assigned to you and has not received a response yet. Please follow up from the ticket portal.\n\n— Patience AI Support`
+          text: `Hi ${t.assignee_name || ''},\n\nTicket ${key} ("${t.subject}", ${t.priority} priority) was assigned to you and has not received a response yet. Please follow up from the team portal.\n\n— Patience AI Support`
         });
         await notify(t.assignee_email, 'escalation', t.id, `Reminder: ${key} is waiting for your first response`);
         await recordEscalation(t, 1, reason, t.assignee_email);

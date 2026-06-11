@@ -6,7 +6,57 @@ import AdminTicketOps from '../components/AdminTicketOps';
 import AdminPeos from '../components/AdminPeos';
 import { fetchJson } from '../common/fetchJson';
 
-const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support', 'executives', 'team', 'tickets', 'engineering'];
+const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support', 'executives', 'team', 'tickets', 'engineering', 'logs'];
+
+/* ── Security & audit log viewer: every recorded event, exportable ───────── */
+function AdminLogs() {
+  const [logs, setLogs] = useState([]);
+  const [q, setQ] = useState('');
+  const [loading, setLoading] = useState(false);
+  const load = () => {
+    setLoading(true);
+    fetchJson('/api/ticket-stats?audit=1&limit=1000').then((d) => setLogs(d.logs || [])).catch(() => {}).finally(() => setLoading(false));
+  };
+  useEffect(() => { load(); const i = setInterval(load, 30000); return () => clearInterval(i); }, []);
+  const needle = q.trim().toLowerCase();
+  const filtered = logs.filter((l) => !needle || JSON.stringify(l).toLowerCase().includes(needle));
+  const COLOR = { login: 'text-emerald-300', login_failed: 'text-red-300', team_member_removed: 'text-red-300', ticket_escalated: 'text-amber-300' };
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-semibold">Security & Audit Logs</h2>
+          <p className="text-white/55 text-sm mt-1">Every recorded event — logins (incl. failures), permission & roster changes, GitHub actions, deployments via webhook, escalations, deletions. Newest first.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <a href="/api/ticket-stats?audit=1&limit=5000&format=pdf" className="text-xs px-4 py-2 rounded-xl bg-white text-slate-950 font-semibold hover:bg-white/90">Download PDF report</a>
+          <a href="/api/ticket-stats?audit=1&limit=5000&format=xlsx" className="text-xs px-4 py-2 rounded-xl border border-white/15 text-white/80 hover:bg-white/5">Download XLSX</a>
+          <button onClick={load} className="text-xs px-3 py-2 rounded-xl border border-white/10 text-white/50 hover:text-white hover:bg-white/5">{loading ? 'Loading…' : 'Refresh'}</button>
+        </div>
+      </div>
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter by actor, action, target, details…"
+        className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70" />
+      <div className="rounded-[1.75rem] border border-white/10 bg-white/5 overflow-hidden">
+        <div className="grid grid-cols-[150px_90px_1fr_1fr_1fr] gap-2 px-4 py-2.5 text-[10px] uppercase tracking-wider text-white/40 border-b border-white/10">
+          <span>Time</span><span>Role</span><span>Actor</span><span>Action → Target</span><span>Details</span>
+        </div>
+        <div className="max-h-[60vh] overflow-y-auto divide-y divide-white/5">
+          {!filtered.length && <p className="text-white/35 text-sm p-5 text-center">{loading ? 'Loading…' : 'No log entries match.'}</p>}
+          {filtered.map((l, i) => (
+            <div key={i} className="grid grid-cols-[150px_90px_1fr_1fr_1fr] gap-2 px-4 py-2 text-xs items-start hover:bg-white/[0.03]">
+              <span className="text-white/40 font-mono text-[10px]">{new Date(l.created_at).toLocaleString()}</span>
+              <span className="text-white/50 capitalize">{l.actor_role || '—'}</span>
+              <span className="text-white/70 truncate">{l.actor_email || '—'}</span>
+              <span className={`font-medium truncate ${COLOR[l.action] || 'text-cyan-200'}`}>{l.action}{l.target ? ` → ${l.target}` : ''}</span>
+              <span className="text-white/45 truncate">{l.metadata ? (typeof l.metadata === 'string' ? l.metadata : JSON.stringify(l.metadata)) : ''}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <p className="text-[11px] text-white/30">Exports include up to 5,000 most recent events; the table shows 1,000 and auto-refreshes every 30s.</p>
+    </div>
+  );
+}
 
 const Spinner = ({ size = 16 }) => (
   <svg
@@ -1853,12 +1903,12 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
               <div className="space-y-6">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
-                    <h2 className="text-2xl font-semibold">Ticket Portal Members</h2>
+                    <h2 className="text-2xl font-semibold">Team Members</h2>
                     <p className="text-white/55 text-sm mt-1">Invite teammates (@patienceai.in) who receive and resolve support tickets.</p>
                   </div>
                   <a href="/team" target="_blank" rel="noopener noreferrer"
                     className="text-sm text-cyan-300 hover:text-cyan-100 underline underline-offset-2">
-                    Open ticket portal ↗
+                    Open team portal ↗
                   </a>
                 </div>
 
@@ -2015,6 +2065,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
             {activeTab === 'tickets' && <AdminTicketOps />}
 
             {activeTab === 'engineering' && <AdminPeos />}
+            {activeTab === 'logs' && <AdminLogs />}
           </div>
         </div>
       </section>

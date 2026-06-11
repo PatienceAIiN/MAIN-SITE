@@ -36,8 +36,8 @@ export const sendPushToEmails = async (emails, payload) => {
     const placeholders = emails.map((_, i) => `$${i + 1}`).join(',');
     const rows = await queryDb(
       `SELECT s.id, s.email, s.subscription FROM push_subscriptions s
-       JOIN team_members m ON m.email = s.email
-       WHERE s.email IN (${placeholders}) AND m.notifications_enabled = true`,
+       WHERE s.email IN (${placeholders})
+         AND NOT EXISTS (SELECT 1 FROM team_members m WHERE m.email = s.email AND m.notifications_enabled = false)`,
       emails
     );
     const body = JSON.stringify(payload);

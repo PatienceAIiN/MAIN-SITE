@@ -315,3 +315,23 @@ test('colleagues: reply-to works in dm and group chats', async () => {
   await api('/api/colleagues', { method: 'DELETE', jar: 'suite-dev@patienceai.in', body: { chatId: dm.data.chat.id } });
   await api('/api/colleagues', { method: 'DELETE', jar: 'suite-dev@patienceai.in', body: { chatId: grp.data.chat.id } });
 });
+
+test('colleagues: support executives join roster, cross-side dm works, groups stay member-only', async () => {
+  const roster = await api('/api/colleagues?list=1', { jar: 'exec' });
+  assert.equal(roster.status, 200);
+  assert.ok(roster.data.colleagues.some((c) => c.email === 'suite-dev@patienceai.in'), 'exec sees team members');
+  const fromDev = await api('/api/colleagues?list=1', { jar: 'suite-dev@patienceai.in' });
+  assert.ok(fromDev.data.colleagues.some((c) => c.team_role === 'support_executive'), 'member sees executives');
+  const dm = await api('/api/colleagues', { method: 'POST', jar: 'exec', body: { action: 'create_chat', kind: 'dm', memberEmails: ['suite-dev@patienceai.in'] } });
+  assert.equal(dm.status, 200);
+  const sent = await api('/api/colleagues', { method: 'POST', jar: 'exec', body: { action: 'send', chatId: dm.data.chat.id, message: 'SUITE: cross-side' } });
+  assert.equal(sent.status, 200);
+  const seen = await api(`/api/colleagues?messages=${dm.data.chat.id}`, { jar: 'suite-dev@patienceai.in' });
+  assert.ok(seen.data.messages.some((m) => m.message === 'SUITE: cross-side'));
+  // group privacy: QA not in the exec↔dev group cannot see it
+  const grp = await api('/api/colleagues', { method: 'POST', jar: 'exec', body: { action: 'create_chat', kind: 'group', name: 'SUITE xg', memberEmails: ['suite-dev@patienceai.in'] } });
+  const qaChats = await api('/api/colleagues?chats=1', { jar: 'suite-qa@patienceai.in' });
+  assert.ok(!qaChats.data.chats.some((c) => c.id === grp.data.chat.id), 'group hidden from non-members');
+  await api('/api/colleagues', { method: 'DELETE', jar: 'exec', body: { chatId: grp.data.chat.id } });
+  await api('/api/colleagues', { method: 'DELETE', jar: 'exec', body: { chatId: dm.data.chat.id } });
+});

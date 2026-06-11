@@ -10,7 +10,7 @@ import { TicketModal, TicketsPanel, NotificationBell } from '../components/Ticke
 const STATUS_DOT = { online: 'bg-emerald-500', away: 'bg-amber-500', offline: 'bg-slate-300' };
 const IDLE_LIMIT_MS = 10 * 60 * 1000; // 10 min without activity → auto-offline
 import { fetchJson } from '../common/fetchJson';
-import { lastSeenText } from '../components/Colleagues';
+import Colleagues, { lastSeenText } from '../components/Colleagues';
 
 const fmt = (v) => v ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(v)) : '—';
 const PAGE_SIZE = 10;
@@ -366,6 +366,7 @@ export default function SupportExecutivePage() {
   // Team presence, internal chat & transfers
   const [colleagues,    setColleagues]    = useState([]);
   const [teamOpen,      setTeamOpen]      = useState(false);
+  const [colleaguesOpen, setColleaguesOpen] = useState(false);
   const [internalWith,  setInternalWith]  = useState(null);   // colleague object
   const [internalMsgs,  setInternalMsgs]  = useState([]);
   const [internalInput, setInternalInput] = useState('');
@@ -1058,6 +1059,11 @@ export default function SupportExecutivePage() {
               </button>
             ))}
           </div>
+          {/* Colleagues workspace: chat / groups / files / voice & video calls with team members and executives */}
+          <button onClick={() => setColleaguesOpen(true)}
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors">
+            <FiMessageSquare size={14} /> Colleagues
+          </button>
           {/* Team presence dropdown */}
           <div className="relative">
             <button onClick={() => setTeamOpen(o => !o)}
@@ -1445,6 +1451,17 @@ export default function SupportExecutivePage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Colleagues workspace — stays mounted so presence and incoming calls work portal-wide */}
+      {executive && (
+        <div className={colleaguesOpen ? 'fixed inset-0 z-40 bg-white flex flex-col' : 'hidden'}>
+          <div className="px-4 py-2.5 border-b border-slate-200 flex items-center justify-between shrink-0">
+            <p className="font-bold text-sm text-slate-900 flex items-center gap-2"><FiUsers size={14} /> Colleagues — team & support</p>
+            <button onClick={() => setColleaguesOpen(false)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><FiX size={16} /></button>
+          </div>
+          <Colleagues member={{ email: executive.email, name: executive.name }} visible={colleaguesOpen} />
+        </div>
+      )}
     </div>
   );
 }

@@ -144,13 +144,13 @@ function useCall(me, wsSend) {
     setCall(null); setMuted(false); setCamOff(false); setSharing(false);
   }, []);
 
-  const newPc = async (peer) => {
+  const newPc = async (peer, withVideo = true) => {
     const { iceServers } = await fetchJson('/api/voice-room/ice-servers').catch(() => ({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }));
     const pc = new RTCPeerConnection({ iceServers });
     pc.onicecandidate = (e) => { if (e.candidate) wsSend({ type: 'rtc', to: peer, data: { kind: 'ice', candidate: e.candidate } }); };
     pc.ontrack = (e) => { if (remoteRef.current) remoteRef.current.srcObject = e.streams[0]; };
     pc.onconnectionstatechange = () => { if (['failed', 'closed'].includes(pc.connectionState)) cleanup(); };
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia({ video: withVideo, audio: true });
     localStream.current = stream;
     stream.getTracks().forEach((t) => pc.addTrack(t, stream));
     if (localRef.current) localRef.current.srcObject = stream;
@@ -158,13 +158,14 @@ function useCall(me, wsSend) {
     return pc;
   };
 
-  const startCall = async (peer, peerName) => {
+  // withVideo=false → voice-only call (no camera captured on either side)
+  const startCall = async (peer, peerName, withVideo = true) => {
     try {
-      setCall({ phase: 'outgoing', peer, peerName });
-      const pc = await newPc(peer);
+      setCall({ phase: 'outgoing', peer, peerName, video: withVideo });
+      const pc = await newPc(peer, withVideo);
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      wsSend({ type: 'rtc', to: peer, data: { kind: 'offer', sdp: offer } });
+      wsSend({ type: 'rtc', to: peer, data: { kind: 'offer', sdp: offer, video: withVideo } });
     } catch (e) { window.alert(`Could not start the call: ${e.message}`); cleanup(); }
   };
 
@@ -172,7 +173,7 @@ function useCall(me, wsSend) {
     const c = callRef.current;
     if (!c?.offer) return;
     try {
-      const pc = await newPc(c.peer);
+      const pc = await newPc(c.peer, c.video !== false);
       await pc.setRemoteDescription(new RTCSessionDescription(c.offer));
       for (const cand of pendingIce.current) await pc.addIceCandidate(cand).catch(() => {});
       pendingIce.current = [];
@@ -193,7 +194,7 @@ function useCall(me, wsSend) {
     const c = callRef.current;
     if (data.kind === 'offer') {
       if (c) { wsSend({ type: 'rtc', to: from, data: { kind: 'decline', busy: true } }); return; }
-      setCall({ phase: 'incoming', peer: from, peerName: fromName, offer: data.sdp });
+      setCall({ phase: 'incoming', peer: from, peerName: fromName, offer: data.sdp, video: data.video !== false });
       return;
     }
     if (!c || from !== c.peer) return;
@@ -255,7 +256,7 @@ function CallOverlay({ callApi }) {
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 text-center shadow-2xl w-full max-w-xs">
           <p className="text-3xl mb-2">📞</p>
           <p className="font-bold text-slate-900 dark:text-white">{call.peerName || call.peer}</p>
-          <p className="text-xs text-slate-400 mb-6">Incoming video call…</p>
+          <p className="text-xs text-slate-400 mb-6">Incoming {call.video ? 'video' : 'voice'} call…</p>
           <div className="flex justify-center gap-4">
             <button onClick={acceptCall} className={`${rb} bg-emerald-600 hover:bg-emerald-700`} title="Accept"><FiPhone size={18} /></button>
             <button onClick={() => hangup()} className={`${rb} bg-red-600 hover:bg-red-700`} title="Decline"><FiPhoneOff size={18} /></button>
@@ -265,9 +266,9 @@ function CallOverlay({ callApi }) {
         <div className="w-full max-w-3xl">
           <div className="relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-700">
             <video ref={remoteRef} autoPlay playsInline className="w-full aspect-video object-contain bg-black" />
-            {call.phase === 'outgoing' && (
+            {(call.phase === 'outgoing' || !call.video) && (
               <div className="absolute inset-0 flex items-center justify-center text-white text-sm">
-                Calling {call.peerName || call.peer}…
+                {call.phase === 'outgoing' ? `Calling ${call.peerName || call.peer}…` : `🎙 Voice call · ${call.peerName || call.peer}`}
               </div>
             )}
             <video ref={localRef} autoPlay playsInline muted className="absolute bottom-3 right-3 w-36 aspect-video object-cover rounded-lg border border-slate-600 bg-black" />
@@ -276,12 +277,14 @@ function CallOverlay({ callApi }) {
             <button onClick={toggleMute} className={`${rb} ${muted ? 'bg-amber-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={muted ? 'Unmute' : 'Mute'}>
               {muted ? <FiMicOff size={17} /> : <FiMic size={17} />}
             </button>
-            <button onClick={toggleCam} className={`${rb} ${camOff ? 'bg-amber-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={camOff ? 'Camera on' : 'Camera off'}>
-              {camOff ? <FiVideoOff size={17} /> : <FiVideo size={17} />}
-            </button>
-            <button onClick={toggleShare} className={`${rb} ${sharing ? 'bg-indigo-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={sharing ? 'Stop sharing' : 'Share screen'}>
-              <FiMonitor size={17} />
-            </button>
+            {call.video && <>
+              <button onClick={toggleCam} className={`${rb} ${camOff ? 'bg-amber-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={camOff ? 'Camera on' : 'Camera off'}>
+                {camOff ? <FiVideoOff size={17} /> : <FiVideo size={17} />}
+              </button>
+              <button onClick={toggleShare} className={`${rb} ${sharing ? 'bg-indigo-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={sharing ? 'Stop sharing' : 'Share screen'}>
+                <FiMonitor size={17} />
+              </button>
+            </>}
             <button onClick={() => hangup()} className={`${rb} bg-red-600 hover:bg-red-700`} title="Hang up"><FiPhoneOff size={17} /></button>
           </div>
         </div>
@@ -662,14 +665,14 @@ export default function Colleagues({ member, visible }) {
                         : (PRESENCE[presence[peerEmail]]).label}
                 </p>
               </div>
-              {activeChat.kind === 'dm' && (
-                <button onClick={() => callApi.startCall(peerEmail, chatTitle(activeChat))}
+              {activeChat.kind === 'dm' && ['voice', 'video'].map((k) => (
+                <button key={k} onClick={() => callApi.startCall(peerEmail, chatTitle(activeChat), k === 'video')}
                   disabled={(presence[peerEmail] || 'offline') === 'offline' || Boolean(callApi.call)}
-                  title={(presence[peerEmail] || 'offline') === 'offline' ? 'Colleague is offline' : 'Start video call'}
+                  title={(presence[peerEmail] || 'offline') === 'offline' ? 'Colleague is offline' : `Start ${k} call`}
                   className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40">
-                  <FiVideo size={15} />
+                  {k === 'video' ? <FiVideo size={15} /> : <FiPhone size={15} />}
                 </button>
-              )}
+              ))}
               {activeChat.kind === 'group' && (
                 <button onClick={() => setGroupModal(activeChat)} title="Edit group" className={tb2}><FiEdit2 size={12} /></button>
               )}

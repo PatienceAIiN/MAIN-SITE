@@ -103,7 +103,7 @@ function LoginForm({ onLogin }) {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
       <div className={`w-full max-w-md rounded-2xl p-8 shadow-sm ${cardCls}`}>
-        <p className="text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2 font-medium">Patience AI · Ticket portal</p>
+        <p className="text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2 font-medium">Patience AI · Team</p>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">Sign in</h1>
         <form onSubmit={submit} className="space-y-4">
           <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
@@ -343,50 +343,45 @@ function MemberTicketDetail({ ticket, myRole, onChanged, onClose }) {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 overflow-y-auto max-h-[45%]">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex items-start gap-2">
-            {/* Close icon — top-left, closes the open ticket chat */}
-            <button onClick={onClose} title="Close chat"
-              className="mt-0.5 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0">
-              <FiX size={15} />
-            </button>
-            <div className="min-w-0">
-              <p className="text-xs font-mono text-slate-400 dark:text-slate-500">{ticket.key}</p>
-              <h3 className="font-bold text-slate-900 dark:text-white text-base leading-snug">{ticket.subject}</h3>
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-1 shrink-0">
-            <span className={`text-[10px] px-2 py-1 rounded-full border font-semibold capitalize ${PRIORITY_BADGE[ticket.priority]}`}>
-              {ticket.priority}
-            </span>
-            <SlaBadge ticket={ticket} />
-          </div>
+      <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 overflow-y-auto max-h-[40%] space-y-1.5">
+        {/* Row 1: close · key · subject · priority/SLA */}
+        <div className="flex items-center gap-2">
+          <button onClick={onClose} title="Close chat"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0">
+            <FiX size={14} />
+          </button>
+          <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500 shrink-0">{ticket.key}</span>
+          <h3 className="font-bold text-slate-900 dark:text-white text-sm leading-tight truncate flex-1">{ticket.subject}</h3>
+          <SlaBadge ticket={ticket} />
+          <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold capitalize shrink-0 ${PRIORITY_BADGE[ticket.priority]}`}>
+            {ticket.priority}
+          </span>
         </div>
-        {ticket.description && <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 whitespace-pre-wrap">{ticket.description}</p>}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-[11px] text-slate-500 dark:text-slate-400">
-          <span className="flex items-center gap-1"><FiUser size={11} /> Raised by {ticket.created_by_name || 'Support team'}</span>
-          {ticket.customer_email && <span className="flex items-center gap-1"><FiMail size={11} /> Client: {ticket.customer_email}</span>}
-          <span className="flex items-center gap-1"><FiClock size={11} /> {fmt(ticket.created_at)}</span>
+        {/* Row 2: description + meta, one compact line each */}
+        {ticket.description && <p className="text-[11px] text-slate-500 dark:text-slate-400 whitespace-pre-wrap line-clamp-2 pl-7">{ticket.description}</p>}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-slate-400 dark:text-slate-500 pl-7">
+          <span className="flex items-center gap-1"><FiUser size={10} /> {ticket.created_by_name || 'Support team'}</span>
+          {ticket.customer_email && <span className="flex items-center gap-1"><FiMail size={10} /> {ticket.customer_email}</span>}
+          <span className="flex items-center gap-1"><FiClock size={10} /> {fmt(ticket.created_at)}</span>
           {Number(ticket.escalation_level) > 0 && (
-            <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1"><FiAlertTriangle size={11} /> Escalation level {ticket.escalation_level}</span>
+            <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1"><FiAlertTriangle size={10} /> Escalation L{ticket.escalation_level}</span>
           )}
         </div>
         <WorkflowActions ticket={ticket} myRole={myRole} onChanged={onChanged} />
-        {attachments.length > 0 && <div className="mt-3"><AttachmentList attachments={attachments} /></div>}
-        <div className="flex flex-wrap items-center gap-2 mt-3">
-          {STATUSES.map((s) => (
-            <button key={s} onClick={() => update({ status: s })}
-              className={`text-[11px] px-2.5 py-1 rounded-full border font-medium capitalize transition-colors ${ticket.status === s ? STATUS_BADGE[s] + ' ring-2 ring-slate-900/10 dark:ring-white/20' : 'border-slate-200 text-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800'}`}>
-              {statusLabel(s)}
-            </button>
-          ))}
+        {/* Row 3: attachments · status dropdown · priority dropdown — one wrapping row */}
+        <div className="flex flex-wrap items-center gap-1.5 pl-7">
+          {attachments.length > 0 && <AttachmentList attachments={attachments} />}
+          {/* deliberate dropdown (not tap-pills) so a stray tap can't move the workflow */}
+          <select value={ticket.status} onChange={(e) => update({ status: e.target.value })}
+            className={`text-[10px] rounded-full border px-1.5 py-0.5 font-medium capitalize focus:outline-none ${STATUS_BADGE[ticket.status]}`}>
+            {STATUSES.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}
+          </select>
           <select value={ticket.priority} onChange={(e) => update({ priority: e.target.value })}
-            className="text-[11px] rounded-full border border-slate-200 dark:border-slate-700 px-2 py-1 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 capitalize focus:outline-none">
+            className="text-[10px] rounded-full border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 capitalize focus:outline-none">
             {PRIORITIES.map((p) => <option key={p} value={p}>{p} priority</option>)}
           </select>
         </div>
-        {err && <p className="text-red-500 text-xs mt-2">{err}</p>}
+        {err && <p className="text-red-500 text-xs">{err}</p>}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50 dark:bg-slate-950 min-h-0">
@@ -708,7 +703,7 @@ export default function TeamPortalPage() {
       {/* Header */}
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-4 flex items-center justify-between shrink-0 shadow-sm">
         <div>
-          <p className="text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 font-medium">Patience AI · Ticket portal</p>
+          <p className="text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 font-medium">Patience AI · Team</p>
           <h1 className="text-lg font-bold text-slate-900 dark:text-white">{member.name}</h1>
         </div>
         <div className="flex items-center gap-2">

@@ -21,6 +21,113 @@ const Badge = ({ v }) => v ? <span className={`text-[10px] uppercase tracking-wi
 
 const Empty = ({ children }) => <div className="text-center py-8 text-white/35 text-sm">{children}</div>;
 
+/* ── KPI drill-down modal: view + CRUD on the entities behind each number ── */
+const KPI_STATUSES = ['open', 'in_progress', 'resolved', 'closed'];
+const KPI_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
+function KpiModal({ kpi, dash, onClose, onChanged }) {
+  const [tickets, setTickets] = useState(null);
+  const [incidents, setIncidents] = useState(null);
+  const [sprints, setSprints] = useState(null);
+  const [err, setErr] = useState('');
+  const load = () => {
+    if (['Open tickets', 'Overdue', 'SLA breaches', 'Closed (7d)'].includes(kpi))
+      fetchJson('/api/tickets').then((d) => setTickets(d.tickets || [])).catch((e) => setErr(e.message));
+    if (kpi === 'Critical incidents') fetchJson('/api/peos?resource=incidents').then((d) => setIncidents(d.items || [])).catch((e) => setErr(e.message));
+    if (kpi === 'Sprint velocity') fetchJson('/api/peos?resource=sprints').then((d) => setSprints(d.items || [])).catch((e) => setErr(e.message));
+  };
+  useEffect(load, [kpi]);  
+  const patchTicket = (id, body) => fetchJson('/api/tickets', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, ...body }) }).then(() => { load(); onChanged(); }).catch((e) => setErr(e.message));
+  const delTicket = (id) => window.confirm(`Delete PA-${id}?`) && fetchJson('/api/tickets', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }).then(() => { load(); onChanged(); }).catch((e) => setErr(e.message));
+  const peosCall = (resource, method, body) => fetchJson(`/api/peos?resource=${resource}`, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(() => { load(); onChanged(); }).catch((e) => setErr(e.message));
+
+  const now = Date.now();
+  const rows = tickets && {
+    'Open tickets': tickets.filter((t) => ['open', 'in_progress'].includes(t.status)),
+    'Overdue': tickets.filter((t) => ['open', 'in_progress'].includes(t.status) && t.due_at && new Date(t.due_at) < now),
+    'SLA breaches': tickets.filter((t) => t.sla_breached),
+    'Closed (7d)': tickets.filter((t) => t.resolved_at && now - new Date(t.resolved_at) < 7 * 86400000)
+  }[kpi];
+
+  const TicketRow = ({ t }) => (
+    <div className="flex items-center gap-2 py-2 border-b border-white/5 text-sm">
+      <span className="font-mono text-[11px] text-white/40 w-14 shrink-0">PA-{t.id}</span>
+      <span className="flex-1 min-w-0 truncate text-white/85">{t.subject}</span>
+      <span className="text-[11px] text-white/40 truncate max-w-[140px] hidden md:block">{t.assignee_email}</span>
+      {t.due_at && <span className={`text-[10px] shrink-0 ${new Date(t.due_at) < now && !t.resolved_at ? 'text-red-300' : 'text-white/35'}`}>due {fmt(t.due_at)}</span>}
+      <select value={t.priority} onChange={(e) => patchTicket(t.id, { priority: e.target.value })} className="text-[11px] rounded-lg border border-white/10 bg-slate-900 px-1.5 py-1 text-white/70 capitalize">
+        {KPI_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+      </select>
+      <select value={t.status} onChange={(e) => patchTicket(t.id, { status: e.target.value })} className="text-[11px] rounded-lg border border-white/10 bg-slate-900 px-1.5 py-1 text-cyan-200 capitalize">
+        {KPI_STATUSES.map((x) => <option key={x} value={x}>{x.replace('_', ' ')}</option>)}
+      </select>
+      <button onClick={() => delTicket(t.id)} className="text-[11px] px-2 py-1 rounded-lg border border-red-400/20 text-red-300/70 hover:bg-red-500/10">✕</button>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-slate-950 border border-white/10 rounded-[1.5rem] shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col">
+        <div className="px-5 py-3.5 border-b border-white/10 flex items-center justify-between shrink-0">
+          <p className="font-semibold text-white">{kpi}</p>
+          <button onClick={onClose} className="text-white/40 hover:text-white text-lg leading-none">✕</button>
+        </div>
+        <div className="p-5 overflow-y-auto">
+          {err && <p className="text-red-300 text-xs mb-2">{err}</p>}
+
+          {kpi === 'Health score' && (
+            <div className="space-y-3 text-sm text-white/75">
+              <p className="text-3xl font-bold text-cyan-300">{dash?.health ?? 0} / 100</p>
+              <p className="text-white/50 text-xs">Health = 100 − (overdue × 5) − (SLA breaches × 5) − (critical incidents × 15)</p>
+              {[['Overdue tickets', dash?.tickets?.overdue, 5], ['SLA breaches', dash?.tickets?.breaches, 5], ['Critical incidents', dash?.incidents?.critical, 15]].map(([l, v, w]) => (
+                <div key={l} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-2.5">
+                  <span>{l}</span><span className={Number(v) > 0 ? 'text-red-300 font-semibold' : 'text-emerald-300'}>{v ?? 0} × −{w} = −{(v || 0) * w}</span>
+                </div>
+              ))}
+              <p className="text-[11px] text-white/40">Open the alerting card (overdue / breaches / incidents) to act on the items dragging the score down.</p>
+            </div>
+          )}
+
+          {rows && (rows.length ? rows.map((t) => <TicketRow key={t.id} t={t} />) : <Empty>No tickets in this bucket right now.</Empty>)}
+
+          {kpi === 'Critical incidents' && incidents && (
+            (incidents.filter((i) => ['SEV-1', 'SEV-2'].includes(i.severity) && i.status !== 'closed').length ? incidents.filter((i) => ['SEV-1', 'SEV-2'].includes(i.severity) && i.status !== 'closed') : []).map((i) => (
+              <div key={i.id} className="flex items-center gap-2 py-2 border-b border-white/5 text-sm">
+                <Badge v={i.severity} />
+                <span className="flex-1 min-w-0 truncate text-white/85">{i.title}</span>
+                <span className="text-[11px] text-white/40 hidden md:block">{i.service}</span>
+                <select value={i.status} onChange={(e) => peosCall('incidents', 'PATCH', { id: i.id, status: e.target.value })} className="text-[11px] rounded-lg border border-white/10 bg-slate-900 px-1.5 py-1 text-amber-200 capitalize">
+                  {['investigating', 'resolved', 'postmortem', 'closed'].map((x) => <option key={x} value={x}>{x}</option>)}
+                </select>
+                <button onClick={() => window.confirm('Delete incident?') && peosCall('incidents', 'DELETE', { id: i.id })} className="text-[11px] px-2 py-1 rounded-lg border border-red-400/20 text-red-300/70 hover:bg-red-500/10">✕</button>
+              </div>
+            ))
+          )}
+          {kpi === 'Critical incidents' && incidents && !incidents.some((i) => ['SEV-1', 'SEV-2'].includes(i.severity) && i.status !== 'closed') && <Empty>No open critical incidents. 🎉</Empty>}
+
+          {kpi === 'Sprint velocity' && (
+            <div className="space-y-2 text-sm">
+              <p className="text-3xl font-bold text-cyan-300">{dash?.velocity ?? 0} <span className="text-sm text-white/40 font-normal">story points resolved in active sprints</span></p>
+              {(sprints || []).map((sp) => (
+                <div key={sp.id} className="flex items-center gap-2 py-2 border-b border-white/5">
+                  <Badge v={sp.status} />
+                  <span className="flex-1 truncate text-white/85">{sp.name}</span>
+                  <span className="text-[11px] text-white/40">{sp.capacity_points || 0} pts cap · {fmt(sp.starts_on)} → {fmt(sp.ends_on)}</span>
+                  {sp.status === 'planned' && <button className={btn} onClick={() => peosCall('sprints', 'PATCH', { id: sp.id, status: 'active' })}>Start</button>}
+                  {sp.status === 'active' && <button className={btn} onClick={() => peosCall('sprints', 'PATCH', { id: sp.id, status: 'done' })}>Finish</button>}
+                  <button onClick={() => window.confirm('Delete sprint?') && peosCall('sprints', 'DELETE', { id: sp.id })} className="text-[11px] px-2 py-1 rounded-lg border border-red-400/20 text-red-300/70 hover:bg-red-500/10">✕</button>
+                </div>
+              ))}
+              {!sprints?.length && <Empty>No sprints yet — create one in the Delivery tab.</Empty>}
+            </div>
+          )}
+
+          {(rows === undefined && !['Health score', 'Critical incidents', 'Sprint velocity'].includes(kpi)) && <Empty>Loading…</Empty>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // field: [key, label, type] — type: text | textarea | date | number | select:opt1|opt2
 const FORMS = {
   sprints: [['name', 'Sprint name'], ['goal', 'Goal'], ['starts_on', 'Start', 'date'], ['ends_on', 'End', 'date'], ['capacity_points', 'Capacity pts', 'number'], ['status', 'Status', 'select:planned|active|done']],
@@ -264,6 +371,7 @@ const SUBTABS = ['overview', 'delivery', 'quality', 'operations', 'org', 'github
 export default function AdminPeos() {
   const [tab, setTab] = useState('overview');
   const [dash, setDash] = useState(null);
+  const [kpiModal, setKpiModal] = useState(null);
   const [q, setQ] = useState('');
   const [results, setResults] = useState(null);
   const [plan, setPlan] = useState({ ticket: '', sprintId: '', epicId: '', storyPoints: '' });
@@ -323,12 +431,14 @@ export default function AdminPeos() {
               { label: 'Critical incidents', value: inc.critical, alert: inc.critical > 0 },
               { label: 'Sprint velocity', value: dash?.velocity }
             ].map((k) => (
-              <div key={k.label} className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 text-center">
+              <button key={k.label} onClick={() => setKpiModal(k.label)} title="Click for details & actions"
+                className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 text-center hover:border-cyan-300/40 hover:bg-white/10 transition-colors cursor-pointer">
                 <p className={`text-2xl font-bold ${k.alert ? 'text-red-300' : 'text-cyan-300'}`}>{k.value ?? 0}</p>
                 <p className="text-xs text-white/50 mt-1">{k.label}</p>
-              </div>
+              </button>
             ))}
           </div>
+          {kpiModal && <KpiModal kpi={kpiModal} dash={dash} onClose={() => setKpiModal(null)} onChanged={loadDash} />}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
             <div className={card}>
               <h3 className="text-lg font-semibold mb-2">Universal search</h3>

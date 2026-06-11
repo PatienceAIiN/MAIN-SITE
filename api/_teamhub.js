@@ -7,7 +7,7 @@
 //  - chat fan-out (REST writes call broadcastToEmails to push instantly)
 //  - WebRTC signaling relay for 1:1 video calls (offer/answer/ice/hangup)
 import { WebSocketServer } from 'ws';
-import { getCookieValue, MEMBER_SESSION_COOKIE_NAME, verifySessionToken } from './_security.js';
+import { getCookieValue, MEMBER_SESSION_COOKIE_NAME, EXEC_SESSION_COOKIE_NAME, verifySessionToken } from './_security.js';
 import { sendPushToEmails } from './_push.js';
 import { queryDb } from './_db.js';
 
@@ -50,8 +50,13 @@ export const attachTeamHub = (server) => {
   const wss = new WebSocketServer({ server, path: '/ws/team' });
 
   wss.on('connection', (ws, req) => {
-    const payload = verifySessionToken(getCookieValue(req, MEMBER_SESSION_COOKIE_NAME));
-    if (!payload || payload.role !== 'member') { ws.close(4001, 'unauthorized'); return; }
+    // Team members AND support executives share the hub — chat, presence and
+    // calls work across both sides.
+    let payload = verifySessionToken(getCookieValue(req, MEMBER_SESSION_COOKIE_NAME));
+    if (!payload || payload.role !== 'member') {
+      payload = verifySessionToken(getCookieValue(req, EXEC_SESSION_COOKIE_NAME));
+      if (!payload || payload.role !== 'executive') { ws.close(4001, 'unauthorized'); return; }
+    }
     const email = payload.email;
 
     let u = users.get(email);
@@ -100,8 +105,9 @@ export const attachTeamHub = (server) => {
         if (u.sockets.size === 0) {
           users.delete(email);
           broadcastPresence();
-          // durable "last seen" for the roster
+          // durable "last seen" for the roster (member or executive)
           queryDb(`UPDATE team_members SET last_seen_at=NOW() WHERE email=$1`, [email]).catch(() => {});
+          queryDb(`UPDATE support_executives SET last_seen_at=NOW() WHERE email=$1`, [email]).catch(() => {});
         }
       }, 5000);
       else broadcastPresence();

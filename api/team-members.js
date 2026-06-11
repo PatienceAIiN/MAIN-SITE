@@ -104,8 +104,11 @@ export default async function handler(req, res) {
       if (!member) return res.status(401).json({ error: 'Invalid credentials' });
       if (member.status === 'invited') return res.status(403).json({ error: 'Account not activated. Check your invite email.' });
       if (member.status === 'inactive') return res.status(403).json({ error: 'Account is deactivated. Contact your admin.' });
-      if (!verifyPassword(password, member.password_salt, member.password_hash))
+      if (!verifyPassword(password, member.password_salt, member.password_hash)) {
+        await logAudit('member', email.toLowerCase(), 'login_failed', email.toLowerCase()).catch(() => {});
         return res.status(401).json({ error: 'Invalid credentials' });
+      }
+      await logAudit('member', member.email, 'login', member.email).catch(() => {});
       await queryDb(`UPDATE ${TABLE} SET last_seen_at=NOW(), updated_at=NOW() WHERE id=$1`, [member.id]);
       setMemberCookie(res, createMemberSessionToken({ id: member.id, email: member.email, name: member.name }));
       return res.status(200).json({ ok: true, member: { id: member.id, email: member.email, name: member.name } });

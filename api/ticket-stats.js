@@ -12,14 +12,52 @@ export default async function handler(req, res) {
   if (!admin && !exec) return res.status(401).json({ error: 'Not authenticated' });
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-  // ── Audit logs (admin only) ────────────────────────────────────────────────
+  // ── Audit / security logs (admin only) — JSON, XLSX or PDF report ─────────
   if (req.query.audit === '1') {
     if (!admin) return res.status(403).json({ error: 'Admin only' });
     try {
+      const limit = Math.min(parseInt(req.query.limit, 10) || 500, 5000);
       const rows = await queryDb(
         `SELECT actor_role, actor_email, action, target, metadata, created_at
-         FROM audit_logs ORDER BY created_at DESC LIMIT 200`
+         FROM audit_logs ORDER BY created_at DESC LIMIT ${limit}`
       );
+
+      if (req.query.format === 'xlsx') {
+        const XLSX = (await import('xlsx')).default;
+        const ws = XLSX.utils.json_to_sheet(rows.map((r) => ({
+          Time: new Date(r.created_at).toISOString(), Role: r.actor_role || '', Actor: r.actor_email || '',
+          Action: r.action, Target: r.target || '',
+          Details: r.metadata ? (typeof r.metadata === 'string' ? r.metadata : JSON.stringify(r.metadata)) : ''
+        })));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Security & Audit Log');
+        const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="security-audit-log.xlsx"');
+        return res.status(200).send(buf);
+      }
+
+      if (req.query.format === 'pdf') {
+        const PDFDocument = (await import('pdfkit')).default;
+        const doc = new PDFDocument({ margin: 36, size: 'A4' });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename="security-audit-report.pdf"');
+        doc.pipe(res);
+        doc.fontSize(16).text('Patience AI — Security & Audit Report', { align: 'center' });
+        doc.fontSize(9).fillColor('#64748b').text(`Generated ${new Date().toUTCString()} · ${rows.length} events`, { align: 'center' });
+        doc.moveDown();
+        for (const r of rows) {
+          doc.fillColor('#0f172a').fontSize(9)
+            .text(`${new Date(r.created_at).toISOString()}  [${r.actor_role || '-'}] ${r.actor_email || '-'}`, { continued: false });
+          doc.fillColor('#334155').fontSize(9)
+            .text(`  ${r.action}${r.target ? ` → ${r.target}` : ''}${r.metadata ? `  ${typeof r.metadata === 'string' ? r.metadata : JSON.stringify(r.metadata)}` : ''}`);
+          doc.moveDown(0.3);
+          if (doc.y > 760) doc.addPage();
+        }
+        doc.end();
+        return;
+      }
+
       return res.status(200).json({ logs: rows });
     } catch (err) {
       if (isMissingTableError(err.message)) return res.status(200).json({ logs: [] });

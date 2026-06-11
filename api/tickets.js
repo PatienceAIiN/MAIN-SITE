@@ -75,7 +75,7 @@ const sendAssigneeEmail = async (ticket) => {
     subject: `[${ticket.priority.toUpperCase()}] Ticket ${ticketKey(ticket.id)} assigned to you — ${ticket.subject}`,
     html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px">
       <h2 style="color:#0f172a">New ticket assigned to you</h2>
-      <p style="color:#475569">The support team has assigned you a task. Please follow up from the ticket portal.</p>
+      <p style="color:#475569">The support team has assigned you a task. Please follow up from the team portal.</p>
       <div style="border:1px solid #e2e8f0;border-radius:12px;padding:16px 20px;margin:20px 0">
         <p style="margin:4px 0;color:#0f172a"><strong>Ticket:</strong> ${ticketKey(ticket.id)}</p>
         <p style="margin:4px 0;color:#0f172a"><strong>Subject:</strong> ${ticket.subject}</p>
@@ -86,10 +86,10 @@ const sendAssigneeEmail = async (ticket) => {
         ${ticket.customer_email ? `<p style="margin:4px 0;color:#0f172a"><strong>Client:</strong> ${ticket.customer_name || ''} ${ticket.customer_email}</p>` : ''}
       </div>
       ${ticket.description ? `<p style="color:#475569;white-space:pre-wrap">${ticket.description}</p>` : ''}
-      <a href="${link}" style="display:inline-block;margin:24px 0;padding:12px 28px;background:#0f172a;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Open Ticket Portal</a>
+      <a href="${link}" style="display:inline-block;margin:24px 0;padding:12px 28px;background:#0f172a;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Open Team Portal</a>
       <p style="color:#94a3b8;font-size:12px">— Patience AI Support</p>
     </div>`,
-    text: `New ticket assigned to you.\n\nTicket: ${ticketKey(ticket.id)}\nSubject: ${ticket.subject}\nCategory: ${ticket.category}\nPriority: ${ticket.priority}\nRaised by: ${ticket.created_by_name || 'Support team'}\n${ticket.customer_email ? `Client: ${ticket.customer_email}\n` : ''}\n${ticket.description || ''}\n\nOpen the ticket portal: ${link}`
+    text: `New ticket assigned to you.\n\nTicket: ${ticketKey(ticket.id)}\nSubject: ${ticket.subject}\nCategory: ${ticket.category}\nPriority: ${ticket.priority}\nRaised by: ${ticket.created_by_name || 'Support team'}\n${ticket.customer_email ? `Client: ${ticket.customer_email}\n` : ''}\n${ticket.description || ''}\n\nOpen the team portal: ${link}`
   });
 };
 
