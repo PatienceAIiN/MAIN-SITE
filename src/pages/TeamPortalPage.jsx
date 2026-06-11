@@ -659,7 +659,12 @@ export default function TeamPortalPage() {
     fetchJson('/api/team-members/me').then((d) => { setMyPerms(d.member?.permissions || []); setMyRepos(d.member?.allowedRepos || []); }).catch(() => {});
     try { if (!window.localStorage.getItem(`pa_tour_done_${member.email}`)) setShowTour(true); } catch { /* ignore */ }
     loadTickets();
-    const id = setInterval(loadTickets, 8000);
+    // perms/repo grants also refresh on this poll — belt-and-suspenders next
+    // to the instant WS push, so tab visibility can never go stale
+    const id = setInterval(() => {
+      loadTickets();
+      fetchJson('/api/team-members/me').then((d) => { setMyPerms(d.member?.permissions || []); setMyRepos(d.member?.allowedRepos || []); }).catch(() => {});
+    }, 8000);
     return () => clearInterval(id);
 
   }, [member, statusFilter, search]);
