@@ -105,3 +105,18 @@ Email side-effects (Brevo/SMTP via `api/_email.js`): client confirmation with a 
 - **AI auto-assignment / summaries / suggested replies**: subject + description + `ticket_comments` timeline provide the full prompt context; assignment is a single `PATCH`.
 - **CSAT**: add a `ticket_ratings` table keyed by ticket + client email; the client portal close-flow is the natural collection point.
 - **Multi-team**: add `team` column to `team_members` and a team filter on the list endpoint — the version-stamped cache keys already namespace by filter hash.
+
+---
+
+## 9. PEOS — Engineering Operating System (June 2026)
+
+Tickets remain the central entity; PEOS layers engineering ops on top via `/api/peos` (RBAC by existing roles) and the admin **engineering** tab:
+
+- **Sprints & epics**: tickets gain `sprint_id`, `epic_id`, `story_points`, `ticket_type`; sprint board (`?sprintBoard=ID`); velocity feeds the dashboard.
+- **Incidents** (SEV-1..4, investigate→resolve→postmortem→close), **service catalog** (owner/backup/repo/runbook/SLA/dependencies — doubles as API & architecture registry), **OKRs** (company→department→team→sprint), **announcements**.
+- **Executive dashboard** (`?dashboard=1`): health score, open/overdue/breaches, critical incidents, sprint velocity.
+- **Universal search** (`?search=`): tickets, incidents, services, epics, docs, people, GitHub links.
+- **GitHub**: webhook `/api/github-webhook` (HMAC `GITHUB_WEBHOOK_SECRET`). Branches/commits/PRs/releases mentioning `PA-<n>` auto-link, post timeline entries, notify the assignee, and advance workflow: branch/commit/PR-open → in_progress, PR merged → resolved.
+- **AI copilot**: provider-abstracted `api/_ai.js` (Groq default; Anthropic/OpenAI via `AI_PROVIDER`); ticket summaries `?summarize=PA-n`.
+
+Backward compatible: no existing API/table changed shape; new columns are additive with defaults.

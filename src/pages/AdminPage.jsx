@@ -3,9 +3,10 @@ import { FiAlertTriangle, FiEye, FiEyeOff } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import Button from '../components/ui/Button';
 import AdminTicketOps from '../components/AdminTicketOps';
+import AdminPeos from '../components/AdminPeos';
 import { fetchJson } from '../common/fetchJson';
 
-const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support', 'executives', 'team', 'tickets'];
+const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support', 'executives', 'team', 'tickets', 'engineering'];
 
 const Spinner = ({ size = 16 }) => (
   <svg
@@ -1928,6 +1929,8 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
             )}
 
             {activeTab === 'tickets' && <AdminTicketOps />}
+
+            {activeTab === 'engineering' && <AdminPeos />}
           </div>
         </div>
       </section>

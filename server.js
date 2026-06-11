@@ -67,6 +67,8 @@ import attachmentsHandler from './api/attachments.js';
 import kbHandler from './api/kb.js';
 import clientTicketsHandler from './api/client-tickets.js';
 import { runEscalationSweep } from './api/_escalation.js';
+import peosHandler from './api/peos.js';
+import githubWebhookHandler from './api/github-webhook.js';
 import voiceRoomHandler from './api/voice-room.js';
 import {
   createSessionToken, verifySessionToken,
@@ -364,6 +366,8 @@ app.all('/api/attachments',                  wrap(attachmentsHandler));
 app.all('/api/kb',                           wrap(kbHandler));
 const clientTicketLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, message: 'Too many requests. Try again shortly.' });
 app.all('/api/client-tickets',               clientTicketLimiter, wrap(clientTicketsHandler));
+app.all('/api/peos',                         wrap(peosHandler));
+app.post('/api/github-webhook',              wrap(githubWebhookHandler));
 
 // ── Marketing Automation OS ───────────────────────────────────────────────────
 const MKT_COOKIE = 'pa_mkt_session';
