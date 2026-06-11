@@ -141,13 +141,15 @@ export default async function handler(req, res) {
     const member = getMemberSession(req);
     if (!member) return res.status(401).json({ error: 'Not authenticated' });
     let teamRole = 'member';
+    let notificationsEnabled = true;
     try {
       await queryDb(`UPDATE ${TABLE} SET last_seen_at=NOW() WHERE id=$1`, [member.id]);
-      const rows = await queryDb(`SELECT team_role, permissions FROM ${TABLE} WHERE id=$1`, [member.id]);
+      const rows = await queryDb(`SELECT team_role, permissions, notifications_enabled FROM ${TABLE} WHERE id=$1`, [member.id]);
       teamRole = rows[0]?.team_role || 'member';
+      notificationsEnabled = rows[0]?.notifications_enabled !== false;
       var perms = resolvePerms(rows[0]);
     } catch { perms = []; }
-    return res.status(200).json({ member: { ...member, teamRole, permissions: perms } });
+    return res.status(200).json({ member: { ...member, teamRole, permissions: perms, notificationsEnabled } });
   }
 
   // ── DELETE /api/team-members/logout ───────────────────────────────────────
@@ -187,7 +189,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const rows = await queryDb(
-        `SELECT id, email, name, status, team_role, permissions, last_seen_at, created_at FROM ${TABLE} ORDER BY created_at DESC`
+        `SELECT id, email, name, status, team_role, permissions, allowed_repos, last_seen_at, created_at FROM ${TABLE} ORDER BY created_at DESC`
       );
       return res.status(200).json({ members: rows });
     } catch (err) {
@@ -251,18 +253,22 @@ export default async function handler(req, res) {
 
   // PATCH — activate/deactivate a member
   if (req.method === 'PATCH') {
-    const { id, status, teamRole, permissions } = req.body || {};
-    if (!id || (!status && !teamRole && permissions === undefined)) return res.status(400).json({ error: 'id and status, teamRole or permissions required' });
+    const { id, status, teamRole, permissions, allowedRepos } = req.body || {};
+    if (!id || (!status && !teamRole && permissions === undefined && allowedRepos === undefined)) return res.status(400).json({ error: 'id and status, teamRole, permissions or allowedRepos required' });
     if (permissions !== undefined && (!Array.isArray(permissions) || permissions.some((x) => !ALL_PERMS.includes(x))))
       return res.status(400).json({ error: 'Invalid permissions' });
+    if (allowedRepos !== undefined && !Array.isArray(allowedRepos))
+      return res.status(400).json({ error: 'allowedRepos must be an array of owner/repo names' });
     if (status && !['active', 'inactive'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
     if (teamRole && !TEAM_ROLES.includes(teamRole)) return res.status(400).json({ error: 'Invalid team role' });
     try {
       const rows = await queryDb(
         `UPDATE ${TABLE} SET status=COALESCE($1,status), team_role=COALESCE($2,team_role),
-           permissions=CASE WHEN $3::text IS NULL THEN permissions ELSE $3 END, updated_at=NOW()
-         WHERE id=$4 RETURNING id, email, name, status, team_role, permissions`,
-        [status || null, teamRole || null, permissions === undefined ? null : permissions.join(','), id]
+           permissions=CASE WHEN $3::text IS NULL THEN permissions ELSE $3 END,
+           allowed_repos=CASE WHEN $4::text IS NULL THEN allowed_repos ELSE $4 END, updated_at=NOW()
+         WHERE id=$5 RETURNING id, email, name, status, team_role, permissions, allowed_repos`,
+        [status || null, teamRole || null, permissions === undefined ? null : permissions.join(','),
+         allowedRepos === undefined ? null : allowedRepos.join(','), id]
       );
       await logAudit('admin', 'admin', 'team_member_status_changed', rows[0]?.email, { status });
       if (status === 'inactive') await revokeMember(id);      // instant lockout

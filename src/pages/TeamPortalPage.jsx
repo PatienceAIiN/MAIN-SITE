@@ -2,11 +2,13 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FiEye, FiEyeOff, FiLogOut, FiMoon, FiSun, FiSend, FiRefreshCw, FiSearch,
-  FiLock, FiX, FiTag, FiUser, FiMail, FiClock, FiMessageSquare
+  FiLock, FiX, FiTag, FiUser, FiMail, FiClock, FiMessageSquare, FiSettings,
+  FiBell, FiBellOff
 } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import { NotificationBell, SlaBadge, AttachmentList, uploadFiles } from '../components/TicketCenter';
 import TeamEngineering from '../components/TeamEngineering';
+import Colleagues, { enablePushNotifications, disablePushNotifications } from '../components/Colleagues';
 import { FiPaperclip, FiAlertTriangle } from 'react-icons/fi';
 
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
@@ -126,16 +128,36 @@ function LoginForm({ onLogin }) {
   );
 }
 
-/* ── Change password modal ───────────────────────────────────────────────── */
-function ChangePasswordModal({ open, onClose }) {
+/* ── Settings modal: notifications toggle + change password ──────────────── */
+function SettingsModal({ open, onClose }) {
   const [form, setForm] = useState({ currentPassword: '', newPassword: '', confirm: '' });
   const [err, setErr] = useState('');
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [notifOn, setNotifOn] = useState(true);
+  const [notifMsg, setNotifMsg] = useState('');
+  const [notifBusy, setNotifBusy] = useState(false);
 
   useEffect(() => {
-    if (open) { setForm({ currentPassword: '', newPassword: '', confirm: '' }); setErr(''); setDone(false); }
+    if (open) {
+      setForm({ currentPassword: '', newPassword: '', confirm: '' }); setErr(''); setDone(false); setNotifMsg('');
+      fetchJson('/api/team-members/me').then((d) => setNotifOn(d.member?.notificationsEnabled !== false)).catch(() => {});
+    }
   }, [open]);
+
+  const toggleNotifications = async () => {
+    setNotifBusy(true); setNotifMsg('');
+    const next = !notifOn;
+    try {
+      if (next) await enablePushNotifications();
+      else await disablePushNotifications();
+      await fetchJson('/api/colleagues', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'settings', notificationsEnabled: next }) });
+      setNotifOn(next);
+      setNotifMsg(next ? 'Notifications enabled — you’ll get pushes for messages and calls.' : 'Notifications disabled.');
+    } catch (ex) { setNotifMsg(ex.message); }
+    finally { setNotifBusy(false); }
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -160,9 +182,26 @@ function ChangePasswordModal({ open, onClose }) {
           <motion.div initial={{ scale: 0.93, y: 18 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.93, y: 18 }}
             className={`rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden ${cardCls}`}>
             <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-              <p className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2"><FiLock size={14} /> Change password</p>
+              <p className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2"><FiSettings size={14} /> Settings</p>
               <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><FiX size={16} /></button>
             </div>
+            {/* Notifications */}
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    {notifOn ? <FiBell size={13} /> : <FiBellOff size={13} />} Notifications
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Browser pushes for new messages and incoming calls.</p>
+                </div>
+                <button onClick={toggleNotifications} disabled={notifBusy} aria-label="Toggle notifications"
+                  className={`relative w-11 h-6 rounded-full transition-colors shrink-0 disabled:opacity-50 ${notifOn ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}>
+                  <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${notifOn ? 'left-[22px]' : 'left-0.5'}`} />
+                </button>
+              </div>
+              {notifMsg && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">{notifMsg}</p>}
+            </div>
+            <p className="px-5 pt-4 text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5"><FiLock size={11} /> Change password</p>
             {done ? (
               <div className="p-5 space-y-4">
                 <p className="text-sm text-emerald-600 dark:text-emerald-400">Password updated successfully.</p>
@@ -241,7 +280,7 @@ function WorkflowActions({ ticket, myRole, onChanged }) {
 }
 
 /* ── Ticket detail with comment chat ─────────────────────────────────────── */
-function MemberTicketDetail({ ticket, myRole, onChanged }) {
+function MemberTicketDetail({ ticket, myRole, onChanged, onClose }) {
   const [comments, setComments] = useState([]);
   const [attachments, setAttachments] = useState([]);
   const [input, setInput] = useState('');
@@ -306,9 +345,16 @@ function MemberTicketDetail({ ticket, myRole, onChanged }) {
     <div className="flex flex-col h-full min-h-0">
       <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 overflow-y-auto max-h-[45%]">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs font-mono text-slate-400 dark:text-slate-500">{ticket.key}</p>
-            <h3 className="font-bold text-slate-900 dark:text-white text-base leading-snug">{ticket.subject}</h3>
+          <div className="min-w-0 flex items-start gap-2">
+            {/* Close icon — top-left, closes the open ticket chat */}
+            <button onClick={onClose} title="Close chat"
+              className="mt-0.5 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0">
+              <FiX size={15} />
+            </button>
+            <div className="min-w-0">
+              <p className="text-xs font-mono text-slate-400 dark:text-slate-500">{ticket.key}</p>
+              <h3 className="font-bold text-slate-900 dark:text-white text-base leading-snug">{ticket.subject}</h3>
+            </div>
           </div>
           <div className="flex flex-col items-end gap-1 shrink-0">
             <span className={`text-[10px] px-2 py-1 rounded-full border font-semibold capitalize ${PRIORITY_BADGE[ticket.priority]}`}>
@@ -439,6 +485,9 @@ function GitHubWorkspace({ canWrite }) {
           </select>
           {msg && <p className="text-[11px] text-amber-600 dark:text-amber-400 w-full truncate">{msg}</p>}
         </div>
+        {!repos.length && !msg && (
+          <p className="text-xs text-slate-400 mt-2">No repositories granted to you yet — an admin can grant specific repos from the admin panel (Team → repos).</p>
+        )}
       </div>
       {repo && (
         <>
@@ -632,7 +681,7 @@ export default function TeamPortalPage() {
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-              {['tickets', 'engineering', ...((myPerms.includes('github_read') || myPerms.includes('github_write')) ? ['github'] : [])].map((v) => (
+              {['tickets', 'engineering', ...((myPerms.includes('github_read') || myPerms.includes('github_write')) ? ['github'] : []), 'colleagues'].map((v) => (
                 <button key={v} onClick={() => setView(v)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors ${view === v ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-300'}`}>
                   {v}
@@ -644,13 +693,13 @@ export default function TeamPortalPage() {
             className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
             {dark ? <FiSun size={15} /> : <FiMoon size={15} />}
           </button>
-          <button onClick={() => setPwdModal(true)}
-            className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-            <FiLock size={13} /> Change password
-          </button>
           <button onClick={loadTickets}
             className="p-2 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
             <FiRefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+          </button>
+          <button onClick={() => setPwdModal(true)} title="Settings"
+            className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <FiSettings size={15} />
           </button>
           <button onClick={() => setLogoutConfirm(true)}
             className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
@@ -659,11 +708,11 @@ export default function TeamPortalPage() {
         </div>
       </header>
 
-      {view === 'github' ? (
-        <GitHubWorkspace canWrite={myPerms.includes('github_write')} />
-      ) : view === 'engineering' ? (
-        <TeamEngineering myRole={myRole} />
-      ) : (
+      {view === 'github' && <GitHubWorkspace canWrite={myPerms.includes('github_write')} />}
+      {view === 'engineering' && <TeamEngineering myRole={myRole} />}
+      {/* Colleagues stays mounted so presence, pushes and incoming calls work on every tab */}
+      <Colleagues member={member} visible={view === 'colleagues'} />
+      {view === 'tickets' && (
       <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
         {/* Ticket list */}
         <aside className="w-full md:w-80 max-h-[45vh] md:max-h-none border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col shrink-0">
@@ -716,7 +765,7 @@ export default function TeamPortalPage() {
         {/* Detail */}
         <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950">
           {selected ? (
-            <MemberTicketDetail ticket={selected} myRole={myRole} onChanged={loadTickets} />
+            <MemberTicketDetail ticket={selected} myRole={myRole} onChanged={loadTickets} onClose={() => setSelectedId(null)} />
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 text-sm gap-2">
               <FiMessageSquare size={26} className="text-slate-300 dark:text-slate-600" />
@@ -734,7 +783,7 @@ export default function TeamPortalPage() {
         }} />
       )}
 
-      <ChangePasswordModal open={pwdModal} onClose={() => setPwdModal(false)} />
+      <SettingsModal open={pwdModal} onClose={() => setPwdModal(false)} />
 
       {/* Logout confirmation dialog */}
       <AnimatePresence>

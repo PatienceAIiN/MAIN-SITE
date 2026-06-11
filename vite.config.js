@@ -20,6 +20,10 @@ export default defineConfig({
       '/api': {
         target: `http://localhost:${process.env.PORT || 3000}`,
         changeOrigin: true
+      },
+      '/ws': {
+        target: `ws://localhost:${process.env.PORT || 3000}`,
+        ws: true
       }
     }
   },

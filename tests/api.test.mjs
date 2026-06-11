@@ -30,6 +30,7 @@ const api = async (path, { method = 'GET', body, jar, raw } = {}) => {
 const { queryDb } = await import('../api/_db.js');
 const cleanup = async () => {
   await queryDb(`DELETE FROM support_tickets WHERE subject LIKE 'SUITE:%'`);
+  await queryDb(`DELETE FROM team_chats WHERE created_by LIKE 'suite-%@patienceai.in'`).catch(() => {});
   await queryDb(`DELETE FROM team_members WHERE email LIKE 'suite-%@patienceai.in'`);
   await queryDb(`DELETE FROM support_executives WHERE email LIKE 'suite-%@patienceai.in'`);
   await queryDb(`DELETE FROM sprints WHERE name LIKE 'SUITE:%'`);
@@ -216,4 +217,84 @@ test('openapi contract served', async () => {
   const r = await api('/api/openapi.json');
   assert.equal(r.data.openapi, '3.0.3');
   assert.ok(r.data.paths['/api/dev-workflow']);
+});
+
+test('colleagues: roster, dm + group chat CRUD, message edit/delete, pagination', async () => {
+  // roster excludes self, includes presence field
+  const roster = await api('/api/colleagues?list=1', { jar: 'suite-dev@patienceai.in' });
+  assert.equal(roster.status, 200);
+  assert.ok(roster.data.colleagues.every((c) => c.email !== 'suite-dev@patienceai.in'));
+  assert.ok(roster.data.colleagues.some((c) => c.email === 'suite-qa@patienceai.in'));
+  assert.ok(['online', 'away', 'offline'].includes(roster.data.colleagues[0].presence));
+
+  // dm create is idempotent (same chat returned twice)
+  const dm1 = await api('/api/colleagues', { method: 'POST', jar: 'suite-dev@patienceai.in', body: { action: 'create_chat', kind: 'dm', memberEmails: ['suite-qa@patienceai.in'] } });
+  assert.equal(dm1.status, 200);
+  const dm2 = await api('/api/colleagues', { method: 'POST', jar: 'suite-dev@patienceai.in', body: { action: 'create_chat', kind: 'dm', memberEmails: ['suite-qa@patienceai.in'] } });
+  assert.equal(dm2.data.chat.id, dm1.data.chat.id);
+
+  // send → edit → delete a message; non-author cannot edit
+  const sent = await api('/api/colleagues', { method: 'POST', jar: 'suite-dev@patienceai.in', body: { action: 'send', chatId: dm1.data.chat.id, message: 'SUITE: hello' } });
+  assert.equal(sent.status, 200);
+  const edited = await api('/api/colleagues', { method: 'POST', jar: 'suite-dev@patienceai.in', body: { action: 'edit_message', id: sent.data.message.id, message: 'SUITE: hello v2' } });
+  assert.equal(edited.data.message.edited, true);
+  const foreign = await api('/api/colleagues', { method: 'POST', jar: 'suite-qa@patienceai.in', body: { action: 'edit_message', id: sent.data.message.id, message: 'hax' } });
+  assert.equal(foreign.status, 403);
+  const del = await api('/api/colleagues', { method: 'POST', jar: 'suite-dev@patienceai.in', body: { action: 'delete_message', id: sent.data.message.id } });
+  assert.equal(del.data.message.deleted, true);
+
+  // history pagination shape + membership privacy (PM not in dm)
+  const hist = await api(`/api/colleagues?messages=${dm1.data.chat.id}`, { jar: 'suite-qa@patienceai.in' });
+  assert.ok(Array.isArray(hist.data.messages));
+  const spy = await api(`/api/colleagues?messages=${dm1.data.chat.id}`, { jar: 'suite-pm@patienceai.in' });
+  assert.equal(spy.status, 404);
+
+  // group chat: create, rename, both members listed, delete
+  const grp = await api('/api/colleagues', { method: 'POST', jar: 'suite-dev@patienceai.in', body: { action: 'create_chat', kind: 'group', name: 'SUITE group', memberEmails: ['suite-qa@patienceai.in', 'suite-pm@patienceai.in'] } });
+  assert.equal(grp.data.chat.kind, 'group');
+  const ren = await api('/api/colleagues', { method: 'POST', jar: 'suite-dev@patienceai.in', body: { action: 'update_chat', chatId: grp.data.chat.id, name: 'SUITE group v2' } });
+  assert.equal(ren.data.chat.name, 'SUITE group v2');
+  const chats = await api('/api/colleagues?chats=1', { jar: 'suite-pm@patienceai.in' });
+  assert.ok(chats.data.chats.some((c) => c.id === grp.data.chat.id));
+  const gone = await api('/api/colleagues', { method: 'DELETE', jar: 'suite-qa@patienceai.in', body: { chatId: grp.data.chat.id } });
+  assert.equal(gone.status, 200);
+  await api('/api/colleagues', { method: 'DELETE', jar: 'suite-dev@patienceai.in', body: { chatId: dm1.data.chat.id } });
+});
+
+test('colleagues: settings toggle + vapid key + unauthenticated rejected', async () => {
+  assert.equal((await api('/api/colleagues?list=1')).status, 401);
+  const off = await api('/api/colleagues', { method: 'POST', jar: 'suite-dev@patienceai.in', body: { action: 'settings', notificationsEnabled: false } });
+  assert.equal(off.data.notificationsEnabled, false);
+  const me = await api('/api/team-members/me', { jar: 'suite-dev@patienceai.in' });
+  assert.equal(me.data.member.notificationsEnabled, false);
+  await api('/api/colleagues', { method: 'POST', jar: 'suite-dev@patienceai.in', body: { action: 'settings', notificationsEnabled: true } });
+  const vap = await api('/api/colleagues?vapid=1', { jar: 'suite-dev@patienceai.in' });
+  assert.ok(typeof vap.data.key === 'string' && vap.data.key.length > 20, 'vapid public key served');
+});
+
+test('github repo grants: members see only admin-granted repos', async () => {
+  const [dev] = await queryDb(`SELECT id FROM team_members WHERE email='suite-dev@patienceai.in'`);
+  // no grants → repo-scoped reads are forbidden even with github_read
+  const ungranted = await api('/api/github?branches=1&owner=someorg&repo=somerepo', { jar: 'suite-dev@patienceai.in' });
+  assert.equal(ungranted.status, 403);
+  // grant a repo → that owner/repo passes the gate (may 503 without GITHUB_TOKEN, but never 403)
+  await api('/api/team-members', { method: 'PATCH', jar: 'admin', body: { id: dev.id, allowedRepos: ['someorg/somerepo'] } });
+  const granted = await api('/api/github?branches=1&owner=someorg&repo=somerepo', { jar: 'suite-dev@patienceai.in' });
+  assert.notEqual(granted.status, 403);
+  await api('/api/team-members', { method: 'PATCH', jar: 'admin', body: { id: dev.id, allowedRepos: [] } });
+});
+
+test('colleagues: file upload, preview fetch, privacy, oversize rejected', async () => {
+  const dm = await api('/api/colleagues', { method: 'POST', jar: 'suite-dev@patienceai.in', body: { action: 'create_chat', kind: 'dm', memberEmails: ['suite-qa@patienceai.in'] } });
+  const up = await api(`/api/colleagues/upload?chatId=${dm.data.chat.id}&fileName=suite.png`, { method: 'POST', jar: 'suite-dev@patienceai.in', body: Buffer.from('suite-img-bytes'), raw: true });
+  assert.equal(up.status, 200);
+  assert.equal(up.data.message.file_name, 'suite.png');
+  const f = await fetch(`${BASE}/api/colleagues?file=${up.data.message.id}`, { headers: { Cookie: jars['suite-qa@patienceai.in'] } });
+  assert.equal(f.status, 200);
+  assert.equal(await f.text(), 'suite-img-bytes');
+  const spy = await api(`/api/colleagues?file=${up.data.message.id}`, { jar: 'suite-pm@patienceai.in' });
+  assert.equal(spy.status, 404);
+  const big = await api(`/api/colleagues/upload?chatId=${dm.data.chat.id}&fileName=big.bin`, { method: 'POST', jar: 'suite-dev@patienceai.in', body: Buffer.alloc(11 * 1024 * 1024), raw: true });
+  assert.equal(big.status, 413);
+  await api('/api/colleagues', { method: 'DELETE', jar: 'suite-dev@patienceai.in', body: { chatId: dm.data.chat.id } });
 });

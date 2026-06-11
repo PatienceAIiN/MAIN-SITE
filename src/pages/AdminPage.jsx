@@ -107,7 +107,29 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [teamInviteForm, setTeamInviteForm]     = useState({ name: '', email: '', teamRole: 'member' });
   const [teamInviteSending, setTeamInviteSending] = useState(false);
   const [teamInviteSuccess, setTeamInviteSuccess] = useState('');
+  const [ghRepoList, setGhRepoList]             = useState(null); // null = not loaded yet
+  const [repoPanelFor, setRepoPanelFor]         = useState(null); // member id whose repo-grant panel is open
   const selectedSubmission = submissions.find((item) => item.id === selectedId) || submissions[0] || null;
+
+  // Per-member GitHub repo grants: only admin-granted repos are visible to a member.
+  const toggleRepoPanel = async (memberId) => {
+    if (repoPanelFor === memberId) { setRepoPanelFor(null); return; }
+    setRepoPanelFor(memberId);
+    if (ghRepoList === null) {
+      try {
+        const d = await fetchJson('/api/github?repos=1');
+        setGhRepoList(d.repos || []);
+      } catch (e) { setGhRepoList([]); setTeamError(e.message); }
+    }
+  };
+  const toggleRepoGrant = (m, fullName) => {
+    const current = String(m.allowed_repos || '').split(',').map((x) => x.trim()).filter(Boolean);
+    const next = current.includes(fullName) ? current.filter((x) => x !== fullName) : [...current, fullName];
+    fetchJson('/api/team-members', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: m.id, allowedRepos: next })
+    }).then(loadTeamMembers).catch((e) => setTeamError(e.message));
+  };
 
   const loadSiteContent = async () => {
     try {
@@ -1887,7 +1909,32 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                                   </button>
                                 );
                               })}
+                              <button type="button" onClick={() => toggleRepoPanel(m.id)}
+                                title="Grant specific GitHub repositories — members only see repos granted here"
+                                className={['text-[10px] px-2 py-0.5 rounded-full border transition-colors',
+                                  String(m.allowed_repos || '').trim()
+                                    ? 'border-cyan-400/40 bg-cyan-400/15 text-cyan-300'
+                                    : 'border-white/10 text-white/30 hover:text-white/60'].join(' ')}>
+                                repos: {String(m.allowed_repos || '').split(',').filter(Boolean).length} granted {repoPanelFor === m.id ? '▴' : '▾'}
+                              </button>
                             </div>
+                            {repoPanelFor === m.id && (
+                              <div className="mt-2 rounded-xl border border-white/10 bg-white/5 p-2.5 max-h-44 overflow-y-auto space-y-1">
+                                {ghRepoList === null && <p className="text-xs text-white/40">Loading repositories…</p>}
+                                {ghRepoList !== null && !ghRepoList.length && <p className="text-xs text-white/40">No repositories found (is GITHUB_TOKEN configured?).</p>}
+                                {(ghRepoList || []).map((r) => {
+                                  const granted = String(m.allowed_repos || '').split(',').map((x) => x.trim()).filter(Boolean).includes(r.full_name);
+                                  return (
+                                    <button key={r.full_name} type="button" onClick={() => toggleRepoGrant(m, r.full_name)}
+                                      className={['w-full text-left text-xs px-2.5 py-1.5 rounded-lg border transition-colors flex items-center justify-between gap-2',
+                                        granted ? 'border-cyan-400/40 bg-cyan-400/10 text-cyan-200' : 'border-white/5 text-white/50 hover:text-white/80 hover:bg-white/5'].join(' ')}>
+                                      <span className="truncate">{r.full_name}{r.private ? ' · private' : ''}</span>
+                                      <span className="shrink-0">{granted ? '✓ granted' : 'grant'}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <select value={m.team_role || 'member'}

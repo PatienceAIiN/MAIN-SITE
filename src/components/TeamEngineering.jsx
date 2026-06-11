@@ -157,11 +157,14 @@ const WRITE = {
 const TITLE = (x) => x.title || x.name || x.objective || '—';
 const canWrite = (resource, role) => WRITE[resource] === 'all' || WRITE[resource].includes(role);
 
+const PER_PAGE = 5;
+
 function Resource({ name, title, myRole, actions }) {
   const [items, setItems] = useState([]);
   const [draft, setDraft] = useState({});
   const [show, setShow] = useState(false);
   const [err, setErr] = useState('');
+  const [page, setPage] = useState(0);
   const load = () => fetchJson(`/api/peos?resource=${name}`).then((d) => setItems(d.items || [])).catch((e) => setErr(e.message));
   useEffect(() => { load(); const i = setInterval(load, 20000); return () => clearInterval(i); }, [name]);
   const call = async (method, body) => {
@@ -172,30 +175,43 @@ function Resource({ name, title, myRole, actions }) {
   const canDelete = MGMT.includes(myRole);
   const [peek, setPeek] = useState(null);
   const [edit, setEdit] = useState({});
+  const pages = Math.max(1, Math.ceil(items.length / PER_PAGE));
+  const safePage = Math.min(page, pages - 1);
+  const paged = items.slice(safePage * PER_PAGE, safePage * PER_PAGE + PER_PAGE);
   return (
     <div className={box}>
       <div className="flex items-center justify-between mb-2">
-        <p className="text-sm font-bold text-slate-900 dark:text-white">{title}</p>
-        {writable && <button className={tb2} onClick={() => setShow((v) => !v)}>{show ? 'Close' : '+ New'}</button>}
+        <p className="text-sm font-bold text-slate-900 dark:text-white">{title} <span className="text-[11px] font-normal text-slate-400">({items.length})</span></p>
+        {writable && <button className={tb2} onClick={() => setShow(true)}>+ New</button>}
       </div>
       {err && <p className="text-red-500 text-xs mb-2">{err}</p>}
       {show && (
-        <div className="grid grid-cols-2 gap-2 mb-3 rounded-xl border border-slate-200 dark:border-slate-700 p-2.5 bg-slate-50 dark:bg-slate-800/50">
-          {FORMS[name].map(([k, label, type = 'text']) => type.startsWith('select:') ? (
-            <select key={k} value={draft[k] || ''} onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))} className={selCls}>
-              <option value="">{label}</option>
-              {type.slice(7).split('|').map((o) => <option key={o} value={o}>{o}</option>)}
-            </select>
-          ) : (
-            <input key={k} type={type} placeholder={label} title={label} value={draft[k] || ''}
-              onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))} className={inp} />
-          ))}
-          <button className={`${tb} col-span-2`} onClick={() => { call('POST', draft); setDraft({}); setShow(false); }}>Create</button>
-        </div>
+        <Modal title={`New — ${title}`} onClose={() => setShow(false)}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {FORMS[name].map(([k, label, type = 'text']) => (
+              <div key={k}>
+                <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">{label}</p>
+                {type.startsWith('select:') ? (
+                  <select value={draft[k] || ''} onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))} className={`${selCls} w-full`}>
+                    <option value="">{label}</option>
+                    {type.slice(7).split('|').map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ) : (
+                  <input type={type} placeholder={label} value={draft[k] || ''}
+                    onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))} className={`${inp} w-full`} />
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button className={tb} onClick={() => { call('POST', draft); setDraft({}); setShow(false); setPage(0); }}>Create</button>
+            <button className={tb2} onClick={() => setShow(false)}>Cancel</button>
+          </div>
+        </Modal>
       )}
-      <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+      <div className="space-y-2 pr-1">
         {!items.length && <p className="text-xs text-slate-400 text-center py-4">Nothing yet.</p>}
-        {items.map((x) => (
+        {paged.map((x) => (
           <div key={x.id} onClick={() => { setPeek(x); setEdit(x); }}
             className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 px-3 py-2.5 flex items-start justify-between gap-2 cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors">
             <div className="min-w-0 text-sm">
@@ -225,6 +241,13 @@ function Resource({ name, title, myRole, actions }) {
           </div>
         ))}
       </div>
+      {pages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-2">
+          <button className={tb2} disabled={safePage === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>‹ Prev</button>
+          <span className="text-[11px] text-slate-400">Page {safePage + 1} / {pages}</span>
+          <button className={tb2} disabled={safePage >= pages - 1} onClick={() => setPage((p) => Math.min(pages - 1, p + 1))}>Next ›</button>
+        </div>
+      )}
       {peek && (
         <Modal title={`${title}: ${TITLE(peek)}`} onClose={() => setPeek(null)} wide>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -256,6 +279,12 @@ function Resource({ name, title, myRole, actions }) {
                 call('PATCH', { id: peek.id, ...body }); setPeek(null);
               }}>Save changes</button>
               <button className={tb2} onClick={() => setPeek(null)}>Cancel</button>
+              {canDelete && (
+                <button className="text-[11px] px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-900 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 ml-auto"
+                  onClick={() => { if (window.confirm('Delete this item?')) { call('DELETE', { id: peek.id }); setPeek(null); } }}>
+                  Delete
+                </button>
+              )}
             </div>
           )}
         </Modal>

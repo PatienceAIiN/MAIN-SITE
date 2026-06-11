@@ -73,6 +73,8 @@ import githubHandler from './api/github.js';
 import devWorkflowHandler from './api/dev-workflow.js';
 import { openapiSpec } from './api/_openapi.js';
 import voiceRoomHandler from './api/voice-room.js';
+import colleaguesHandler from './api/colleagues.js';
+import { attachTeamHub } from './api/_teamhub.js';
 import {
   createSessionToken, verifySessionToken,
   getCookieValue, serializeCookie
@@ -381,6 +383,9 @@ app.all('/api/team-members/change-password', authLimiter, wrap(teamMembersHandle
 app.all('/api/team-members/me',              wrap(teamMembersHandler));
 app.all('/api/team-members/logout',          wrap(teamMembersHandler));
 app.all('/api/team-members',                 wrap(teamMembersHandler));
+// Chat file uploads: raw body (any format) up to 10 MB
+app.post('/api/colleagues/upload', express.raw({ type: () => true, limit: '10mb' }), wrap(colleaguesHandler));
+app.all('/api/colleagues',                   wrap(colleaguesHandler));
 app.all('/api/tickets/comments',             wrap(ticketsHandler));
 app.all('/api/tickets',                      wrap(ticketsHandler));
 app.all('/api/ticket-settings',              wrap(ticketSettingsHandler));
@@ -609,6 +614,8 @@ app.use((error, req, res, next) => {
   return res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(port, () => {
+const server = http.createServer(app);
+attachTeamHub(server); // realtime presence / chat / call signaling at /ws/team
+server.listen(port, () => {
   console.log(`Server listening on ${port}`);
 });

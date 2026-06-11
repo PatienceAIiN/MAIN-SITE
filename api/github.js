@@ -8,20 +8,33 @@ import { logAudit } from './_ticketing.js';
 import { queryDb } from './_db.js';
 import { resolvePerms } from './team-members.js';
 
-// admin/executive: full access. Team members: per-user permission flags
-// (github_read / github_write) set by admin, defaulting by team role.
+// admin/executive: full access to every repo. Team members: per-user
+// permission flags (github_read / github_write) set by admin, defaulting by
+// team role — PLUS an admin-granted repo allowlist (team_members.allowed_repos,
+// csv of owner/name). A member with github access but no granted repos sees
+// nothing: repos are never shown to the whole team by default.
 const getGhActor = async (req) => {
-  if (verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME))) return { email: 'admin', read: true, write: true };
+  if (verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME))) return { email: 'admin', read: true, write: true, allRepos: true };
   const e = getExecSession(req);
-  if (e) return { email: e.email, read: true, write: true };
+  if (e) return { email: e.email, read: true, write: true, allRepos: true };
   const m = getMemberSession(req);
   if (m) {
-    const [row] = await queryDb(`SELECT team_role, permissions FROM team_members WHERE id=$1`, [m.id]).catch(() => []);
+    const [row] = await queryDb(`SELECT team_role, permissions, allowed_repos FROM team_members WHERE id=$1`, [m.id]).catch(() => []);
     const perms = resolvePerms(row);
-    return { email: m.email, read: perms.includes('github_read') || perms.includes('github_write'), write: perms.includes('github_write') };
+    const allowed = String(row?.allowed_repos || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+    return {
+      email: m.email,
+      read: perms.includes('github_read') || perms.includes('github_write'),
+      write: perms.includes('github_write'),
+      allRepos: false,
+      allowed
+    };
   }
   return null;
 };
+
+const repoAllowed = (actor, owner, repo) =>
+  actor.allRepos || actor.allowed.includes(`${owner}/${repo}`.toLowerCase());
 
 const gh = async (path, { method = 'GET', body } = {}) => {
   const token = process.env.GITHUB_TOKEN;
@@ -62,11 +75,13 @@ export default async function handler(req, res) {
         const list = owner
           ? await gh(`/users/${owner}/repos?sort=pushed&per_page=30`).catch(() => gh(`/orgs/${owner}/repos?sort=pushed&per_page=30`))
           : await gh('/user/repos?sort=pushed&per_page=30');
+        const mapped = list.map((r) => ({ name: r.name, full_name: r.full_name, private: r.private, stars: r.stargazers_count, open_issues: r.open_issues_count, pushed_at: r.pushed_at, default_branch: r.default_branch, url: r.html_url }));
         return res.status(200).json({
-          repos: list.map((r) => ({ name: r.name, full_name: r.full_name, private: r.private, stars: r.stargazers_count, open_issues: r.open_issues_count, pushed_at: r.pushed_at, default_branch: r.default_branch, url: r.html_url }))
+          repos: actor.allRepos ? mapped : mapped.filter((r) => actor.allowed.includes(r.full_name.toLowerCase()))
         });
       }
       if (!owner || !repo) return res.status(400).json({ error: 'owner and repo required' });
+      if (!repoAllowed(actor, owner, repo)) return res.status(403).json({ error: 'This repository has not been granted to you by an admin' });
       // branches
       if (req.query.branches === '1') {
         const list = await gh(`/repos/${owner}/${repo}/branches?per_page=50`);
@@ -90,6 +105,7 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const { action } = req.body || {};
       if (!owner || !repo) return res.status(400).json({ error: 'owner and repo required' });
+      if (!repoAllowed(actor, owner, repo)) return res.status(403).json({ error: 'This repository has not been granted to you by an admin' });
       const actorEmail = actor.email;
 
       if (action === 'create_branch') {

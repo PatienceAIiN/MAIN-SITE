@@ -10,6 +10,7 @@ import { TicketModal, TicketsPanel, NotificationBell } from '../components/Ticke
 const STATUS_DOT = { online: 'bg-emerald-500', away: 'bg-amber-500', offline: 'bg-slate-300' };
 const IDLE_LIMIT_MS = 10 * 60 * 1000; // 10 min without activity → auto-offline
 import { fetchJson } from '../common/fetchJson';
+import { lastSeenText } from '../components/Colleagues';
 
 const fmt = (v) => v ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(v)) : '—';
 const PAGE_SIZE = 10;
@@ -1077,7 +1078,7 @@ export default function SupportExecutivePage() {
                     <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT[c.status] || 'bg-slate-300'}`} />
                     <span className="flex-1 min-w-0">
                       <span className="block text-sm text-slate-800 truncate">{c.name}</span>
-                      <span className="block text-[11px] text-slate-400 capitalize">{c.status}</span>
+                      <span className="block text-[11px] text-slate-400 capitalize">{c.status === 'offline' && c.last_seen_at ? lastSeenText(c.last_seen_at) : c.status}</span>
                     </span>
                     <FiSend size={12} className="text-slate-400" />
                   </button>
@@ -1221,7 +1222,7 @@ export default function SupportExecutivePage() {
                             className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-50 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                             <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT[c.status] || 'bg-slate-300'}`} />
                             <span className="flex-1 text-sm text-slate-800 truncate">{c.name}</span>
-                            <span className="text-[11px] text-slate-400 capitalize">{c.status}</span>
+                            <span className="text-[11px] text-slate-400 capitalize">{c.status === 'offline' && c.last_seen_at ? lastSeenText(c.last_seen_at) : c.status}</span>
                           </button>
                         ))}
                       </div>
