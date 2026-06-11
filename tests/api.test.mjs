@@ -298,3 +298,20 @@ test('colleagues: file upload, preview fetch, privacy, oversize rejected', async
   assert.equal(big.status, 413);
   await api('/api/colleagues', { method: 'DELETE', jar: 'suite-dev@patienceai.in', body: { chatId: dm.data.chat.id } });
 });
+
+test('colleagues: reply-to works in dm and group chats', async () => {
+  const dm = await api('/api/colleagues', { method: 'POST', jar: 'suite-dev@patienceai.in', body: { action: 'create_chat', kind: 'dm', memberEmails: ['suite-qa@patienceai.in'] } });
+  const m1 = await api('/api/colleagues', { method: 'POST', jar: 'suite-dev@patienceai.in', body: { action: 'send', chatId: dm.data.chat.id, message: 'SUITE: original' } });
+  const m2 = await api('/api/colleagues', { method: 'POST', jar: 'suite-qa@patienceai.in', body: { action: 'send', chatId: dm.data.chat.id, message: 'SUITE: reply', replyTo: m1.data.message.id } });
+  assert.equal(Number(m2.data.message.reply_to), Number(m1.data.message.id));
+  assert.equal(m2.data.message.reply_text, 'SUITE: original');
+  const grp = await api('/api/colleagues', { method: 'POST', jar: 'suite-dev@patienceai.in', body: { action: 'create_chat', kind: 'group', name: 'SUITE rg', memberEmails: ['suite-qa@patienceai.in', 'suite-pm@patienceai.in'] } });
+  const g1 = await api('/api/colleagues', { method: 'POST', jar: 'suite-pm@patienceai.in', body: { action: 'send', chatId: grp.data.chat.id, message: 'SUITE: g-orig' } });
+  const g2 = await api('/api/colleagues', { method: 'POST', jar: 'suite-dev@patienceai.in', body: { action: 'send', chatId: grp.data.chat.id, message: 'SUITE: g-reply', replyTo: g1.data.message.id } });
+  assert.equal(g2.data.message.reply_name, 'Suite PM');
+  // replying to a message from another chat is ignored (no cross-chat leak)
+  const x = await api('/api/colleagues', { method: 'POST', jar: 'suite-dev@patienceai.in', body: { action: 'send', chatId: dm.data.chat.id, message: 'SUITE: x', replyTo: g1.data.message.id } });
+  assert.equal(x.data.message.reply_to, null);
+  await api('/api/colleagues', { method: 'DELETE', jar: 'suite-dev@patienceai.in', body: { chatId: dm.data.chat.id } });
+  await api('/api/colleagues', { method: 'DELETE', jar: 'suite-dev@patienceai.in', body: { chatId: grp.data.chat.id } });
+});

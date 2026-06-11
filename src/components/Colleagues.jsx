@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import {
   FiSearch, FiSend, FiX, FiUsers, FiPlus, FiEdit2, FiTrash2, FiVideo,
   FiMic, FiMicOff, FiVideoOff, FiMonitor, FiPhoneOff, FiPhone, FiCheck,
-  FiPaperclip, FiFile, FiDownload
+  FiPaperclip, FiFile, FiDownload, FiCornerUpLeft
 } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 
@@ -346,6 +346,40 @@ function FileBubble({ m, onOpen }) {
   );
 }
 
+/* ── Swipe-to-reply wrapper (touch + mouse drag, works in dm & group) ────── */
+function SwipeReply({ children, onReply, mine }) {
+  const [dx, setDx] = useState(0);
+  const start = useRef(null);
+  const begin = (x, y) => { start.current = { x, y }; };
+  const move = (x, y) => {
+    if (!start.current) return;
+    const ddx = x - start.current.x;
+    if (Math.abs(y - start.current.y) > 40) { start.current = null; setDx(0); return; }
+    if (ddx > 0) setDx(Math.min(ddx, 72)); // swipe right only
+  };
+  const end = () => {
+    if (dx > 48) onReply();
+    start.current = null; setDx(0);
+  };
+  return (
+    <div className={`relative ${mine ? 'ml-auto' : ''} max-w-[78%]`}
+      onTouchStart={(e) => begin(e.touches[0].clientX, e.touches[0].clientY)}
+      onTouchMove={(e) => move(e.touches[0].clientX, e.touches[0].clientY)}
+      onTouchEnd={end}
+      onMouseDown={(e) => begin(e.clientX, e.clientY)}
+      onMouseMove={(e) => e.buttons === 1 && move(e.clientX, e.clientY)}
+      onMouseUp={end} onMouseLeave={() => { start.current = null; setDx(0); }}>
+      {dx > 8 && (
+        <FiCornerUpLeft size={16}
+          className={`absolute -left-6 top-1/2 -translate-y-1/2 transition-opacity ${dx > 48 ? 'text-indigo-500' : 'text-slate-300'}`} />
+      )}
+      <div style={{ transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform 150ms' }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /* ── Group chat create / edit modal ──────────────────────────────────────── */
 function GroupModal({ colleagues, chat, onClose, onSaved }) {
   const [name, setName] = useState(chat?.name || '');
@@ -403,6 +437,7 @@ export default function Colleagues({ member, visible }) {
   const [groupModal, setGroupModal] = useState(null); // false-y | 'new' | chat object
   const [preview, setPreview] = useState(null); // file message in popup
   const [uploading, setUploading] = useState(false);
+  const [replyTo, setReplyTo] = useState(null); // message being replied to
   const [typing, setTyping] = useState({}); // chatId -> {email,name,at}
   const endRef = useRef(null);
   const activeChatRef = useRef(null);
@@ -459,6 +494,7 @@ export default function Colleagues({ member, visible }) {
   activeChatRef.current = activeChatId;
 
   useEffect(() => {
+    setReplyTo(null); setEditing(null);
     if (!activeChatId) { setMessages([]); return; }
     fetchJson(`/api/colleagues?messages=${activeChatId}`)
       .then((d) => { setMessages(d.messages || []); setHasMore(Boolean(d.hasMore)); })
@@ -496,8 +532,9 @@ export default function Colleagues({ member, visible }) {
         body: JSON.stringify({ action: 'edit_message', id, message: text }) }).catch(() => {});
       return;
     }
+    const quoted = replyTo; setReplyTo(null);
     await fetchJson('/api/colleagues', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'send', chatId: activeChat.id, message: text }) }).catch(() => {});
+      body: JSON.stringify({ action: 'send', chatId: activeChat.id, message: text, replyTo: quoted?.id }) }).catch(() => {});
   };
 
   const deleteMessage = (id) => fetchJson('/api/colleagues', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -640,24 +677,37 @@ export default function Colleagues({ member, visible }) {
               {messages.map((m) => {
                 const mine = m.sender_email === member.email;
                 return (
-                  <div key={m.id} className={`group max-w-[78%] rounded-2xl px-3.5 py-2 text-sm shadow-sm ${mine
-                    ? 'ml-auto bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                  <SwipeReply key={m.id} mine={mine} onReply={() => !m.deleted && setReplyTo(m)}>
+                  <div className={`group rounded-2xl px-3.5 py-2 text-sm shadow-sm ${mine
+                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
                     : 'bg-white border border-slate-200 text-slate-800 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-100'}`}>
                     <p className={`text-[10px] mb-0.5 flex items-center gap-2 ${mine ? 'text-white/40 dark:text-slate-500' : 'text-slate-400'}`}>
                       {m.sender_name || m.sender_email} · {fmtT(m.created_at)}{m.edited && !m.deleted ? ' · edited' : ''}
-                      {mine && !m.deleted && (
+                      {!m.deleted && (
                         <span className="hidden group-hover:inline-flex gap-1.5">
-                          <button title="Edit" onClick={() => { setEditing(m); setInput(m.message); }} className="hover:opacity-70"><FiEdit2 size={10} /></button>
-                          <button title="Delete" onClick={() => deleteMessage(m.id)} className="hover:opacity-70"><FiTrash2 size={10} /></button>
+                          <button title="Reply" onClick={() => setReplyTo(m)} className="hover:opacity-70"><FiCornerUpLeft size={10} /></button>
+                          {mine && <>
+                            <button title="Edit" onClick={() => { setEditing(m); setInput(m.message); }} className="hover:opacity-70"><FiEdit2 size={10} /></button>
+                            <button title="Delete" onClick={() => deleteMessage(m.id)} className="hover:opacity-70"><FiTrash2 size={10} /></button>
+                          </>}
                         </span>
                       )}
                     </p>
+                    {m.reply_to && !m.deleted && (
+                      <div className={`mb-1 px-2 py-1 rounded-lg border-l-2 text-[11px] ${mine
+                        ? 'border-white/40 bg-white/10 dark:border-slate-400 dark:bg-slate-900/10'
+                        : 'border-indigo-400 bg-slate-50 dark:bg-slate-800/60'}`}>
+                        <span className="font-semibold">{m.reply_name}</span>
+                        <span className="block truncate opacity-70">{m.reply_text}</span>
+                      </div>
+                    )}
                     {m.deleted
                       ? <p className="italic opacity-50 text-xs">message deleted</p>
                       : m.file_name
                         ? <FileBubble m={m} onOpen={() => setPreview(m)} />
                         : <p className="whitespace-pre-wrap leading-snug">{m.message}</p>}
                   </div>
+                  </SwipeReply>
                 );
               })}
               {!messages.length && <p className="text-xs text-slate-400 text-center py-8">Say hello 👋</p>}
@@ -669,6 +719,15 @@ export default function Colleagues({ member, visible }) {
                 <p className="text-[11px] text-amber-600 dark:text-amber-400 mb-1.5 flex items-center gap-2">
                   Editing message <button onClick={() => { setEditing(null); setInput(''); }} className="underline">cancel</button>
                 </p>
+              )}
+              {replyTo && !editing && (
+                <div className="mb-1.5 px-3 py-1.5 rounded-lg border-l-2 border-indigo-400 bg-slate-50 dark:bg-slate-800/60 flex items-center gap-2">
+                  <FiCornerUpLeft size={12} className="text-indigo-400 shrink-0" />
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate flex-1">
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">{replyTo.sender_name}</span>: {replyTo.file_name ? `📎 ${replyTo.file_name}` : replyTo.message}
+                  </p>
+                  <button onClick={() => setReplyTo(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><FiX size={13} /></button>
+                </div>
               )}
               <div className="flex items-end gap-2">
                 <label title="Attach file (max 10 MB)"

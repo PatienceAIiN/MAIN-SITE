@@ -438,6 +438,10 @@ const SCHEMA_QUERIES = [
   )`,
   `create index if not exists push_subscriptions_email_idx on public.push_subscriptions (email)`,
   // Chat file attachments (≤10 MB): light meta on the message row, payload in its own table
+  // Reply-to (denormalized snapshot so quoted text survives pagination)
+  `alter table public.team_chat_messages add column if not exists reply_to bigint`,
+  `alter table public.team_chat_messages add column if not exists reply_name text`,
+  `alter table public.team_chat_messages add column if not exists reply_text text`,
   `alter table public.team_chat_messages add column if not exists file_name text`,
   `alter table public.team_chat_messages add column if not exists file_type text`,
   `alter table public.team_chat_messages add column if not exists file_size int`,

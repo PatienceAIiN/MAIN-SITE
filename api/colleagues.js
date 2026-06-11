@@ -151,14 +151,21 @@ export default async function handler(req, res) {
       }
 
       if (action === 'send') {
-        const { chatId, message } = req.body;
+        const { chatId, message, replyTo } = req.body;
         const text = String(message || '').trim();
         if (!text) return res.status(400).json({ error: 'message required' });
         const chat = await loadChat(chatId);
         if (!chat || !inChat(chat, myEmail)) return res.status(404).json({ error: 'Chat not found' });
+        // snapshot the quoted message (same chat only)
+        let quoted = null;
+        if (replyTo) {
+          const [q] = await queryDb(`SELECT id, sender_name, message, file_name, deleted FROM team_chat_messages WHERE id=$1 AND chat_id=$2 LIMIT 1`, [replyTo, chat.id]);
+          if (q && !q.deleted) quoted = { id: q.id, name: q.sender_name, text: (q.file_name ? `📎 ${q.file_name}` : q.message).slice(0, 180) };
+        }
         const rows = await queryDb(
-          `INSERT INTO team_chat_messages (chat_id, sender_email, sender_name, message) VALUES ($1,$2,$3,$4) RETURNING *`,
-          [chat.id, myEmail, me.name, text.slice(0, 4000)]);
+          `INSERT INTO team_chat_messages (chat_id, sender_email, sender_name, message, reply_to, reply_name, reply_text)
+           VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+          [chat.id, myEmail, me.name, text.slice(0, 4000), quoted?.id || null, quoted?.name || null, quoted?.text || null]);
         const msg = rows[0];
         notifyChat(chat, { type: 'chat', event: 'new', chatId: chat.id, message: msg });
         // Web-push colleagues who don't have the portal open right now
