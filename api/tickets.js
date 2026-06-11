@@ -278,6 +278,17 @@ export default async function handler(req, res) {
       );
       const ticket = rows[0];
       const key = ticketKey(ticket.id);
+      // Duplicate detection: surface similar open tickets to the creator.
+      const words = subject.trim().toLowerCase().split(/\s+/).filter((w) => w.length > 3).slice(0, 5);
+      let similar = [];
+      if (words.length) {
+        similar = await queryDb(
+          `SELECT id, subject, status FROM support_tickets
+           WHERE id != $1 AND status IN ('open','in_progress') AND (${words.map((_, i) => `lower(subject) LIKE $${i + 2}`).join(' OR ')})
+           ORDER BY created_at DESC LIMIT 3`,
+          [ticket.id, ...words.map((w) => `%${w}%`)]
+        ).catch(() => []);
+      }
       await addSystemComment(ticket.id, `Ticket created by ${actor.name} and assigned to ${finalAssigneeName} (${assignee}) — ${priority} priority, ${category}. SLA: respond within ${slaHours}h.`);
       await notify(assignee, 'assignment', ticket.id, `${actor.name} assigned ${key} to you: ${ticket.subject}`);
       await logAudit(actor.role, actor.email, 'ticket_created', key, { assignee, priority, category });
@@ -307,7 +318,7 @@ export default async function handler(req, res) {
       }
 
       await bumpVersion(verScopes.tickets, verScopes.ticket(ticket.id));
-      return res.status(200).json({ ticket: { ...updated[0], key } });
+      return res.status(200).json({ ticket: { ...updated[0], key }, similar: similar.map((x) => ({ key: ticketKey(x.id), subject: x.subject, status: x.status })) });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }

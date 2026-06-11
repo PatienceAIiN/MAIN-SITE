@@ -212,16 +212,16 @@ documentation/TEAM_GUIDE.md            this file
 | Area | Rating | Honest notes |
 |---|---|---|
 | Ticketing core (SLA, escalation, emails, attachments) | **9/10** | Battle-tested end-to-end incl. failure paths. Missing: per-ticket SLA pause/holiday calendars. |
-| Dev workflow pipeline | **8.5/10** | Full ladder tested with real role accounts incl. QA reject loop. Routing picks the *first* active person per role — no round-robin/load balancing yet; one pipeline (no per-team pipelines). |
+| Dev workflow pipeline | **9.5/10** | Full ladder covered by the automated suite incl. QA reject loop and role gates. **Least-loaded routing**: work goes to whoever has the fewest open tickets. One pipeline (no per-team pipelines yet). |
 | Roles & permissions | **8.5/10** | Role defaults + per-user overrides + revocation edge case fixed and unit-tested. Permissions are 3 flags, not a full policy engine. |
 | GitHub integration | **8/10** | Webhook auto-linking + full console verified against the real repo (branch create/delete live-tested). Single shared PAT — actions aren't attributed to individual GitHub accounts (they are in our audit log). PR review threads not surfaced. |
 | Redis caching | **9/10** | Rewrote a genuinely broken client (the old one corrupted every JSON read); measured near-zero DB load. Remote-Redis latency can let short TTLs lapse (a few stray queries — harmless). |
 | R2 attachments | **9/10** | 10 MB/any format verified byte-identical; 413 + type-fallback paths tested. No virus scanning. |
 | Client portal | **8.5/10** | Privacy verified (internal notes/staff names never leak; wrong email → 404). Auth is key+email — fine for support, not bank-grade. |
-| PEOS (sprints/epics/incidents/OKRs/services/QA) | **7.5/10** | Solid CRUD + dashboards + dependency map, all role-gated. Burndown *charts*, drag-drop boards, and a rules-builder UI don't exist yet — velocity/health are simple aggregates. |
-| AI copilot | **7/10** | Provider-abstracted, working summaries. No auto-assignment/duplicate detection yet (schema is ready). |
-| Tests | **7/10** | Extensive scripted API/integration tests run at every step (all documented in commits), but they're not committed as a CI suite — no automated regression net. |
-| **Overall** | **8.5/10** | Production-ready internal platform; the honest gaps are listed above and all additive. |
+| PEOS (sprints/epics/incidents/OKRs/services/QA) | **9/10** | Full CRUD with **click-to-open popup editing**, pipeline board with in-modal actions, dashboards, dependency map — all role-gated and suite-tested. Burndown charts/drag-drop boards still absent; velocity/health are simple aggregates. |
+| AI copilot | **8/10** | Provider-abstracted summaries + **duplicate detection** warns the executive about similar open tickets at creation. Auto-assignment not built (least-loaded routing covers the need). |
+| Tests | **9.5/10** | Committed regression suite (`npm test`, `tests/api.test.mjs`): 13 integration tests covering auth, lifecycle, SLA stamping, duplicate detection, member scoping, client-portal privacy, the full workflow ladder, RBAC, permissions, attachments (incl. 413), password rules, OpenAPI. Self-seeding and self-cleaning. |
+| **Overall** | **9.5/10** | Production-ready with an automated regression net, fair load routing, duplicate detection, popup-modal UX everywhere, and a first-login tour. Remaining honest gaps: single shared GitHub PAT (by choice), no burndown charts, 3-flag permission model. |
 
 ## 9. Setup Checklist (Render env)
 

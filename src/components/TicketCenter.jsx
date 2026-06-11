@@ -266,7 +266,7 @@ export function TicketModal({ open, onClose, prefill = {}, onCreated }) {
         const uploadErrors = await uploadFiles(d.ticket.id, files);
         if (uploadErrors.length) setErr(`Ticket created, but some files failed: ${uploadErrors.join('; ')}`);
       }
-      setResult(d.ticket);
+      setResult({ ...d.ticket, similar: d.similar || [] });
       onCreated?.(d.ticket);
     } catch (ex) { setErr(ex.message); }
     finally { setSaving(false); }
@@ -311,6 +311,14 @@ export function TicketModal({ open, onClose, prefill = {}, onCreated }) {
                     </span>
                   </p>
                 </div>
+                {result.similar?.length > 0 && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                    <p className="text-xs font-semibold text-amber-800 mb-1">⚠ Possible duplicates already open:</p>
+                    {result.similar.map((sm) => (
+                      <p key={sm.key} className="text-xs text-amber-700">{sm.key} — {sm.subject} ({sm.status})</p>
+                    ))}
+                  </div>
+                )}
                 {err && <p className="text-amber-600 text-xs">{err}</p>}
                 <button onClick={onClose}
                   className="w-full rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2.5 text-sm transition-colors">

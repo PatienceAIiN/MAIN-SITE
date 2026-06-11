@@ -23,8 +23,14 @@ const getActor = async (req) => {
   return null;
 };
 
+// Least-loaded routing: among active holders of the role, pick whoever has
+// the fewest open tickets currently assigned (fair round-robin under load).
 const firstWithRole = async (role) => {
-  const rows = await queryDb(`SELECT email, name FROM team_members WHERE status='active' AND team_role=$1 ORDER BY id ASC LIMIT 1`, [role]);
+  const rows = await queryDb(
+    `SELECT m.email, m.name FROM team_members m
+     LEFT JOIN support_tickets t ON t.assignee_email = m.email AND t.status IN ('open','in_progress')
+     WHERE m.status='active' AND m.team_role=$1
+     GROUP BY m.id, m.email, m.name ORDER BY count(t.id) ASC, m.id ASC LIMIT 1`, [role]);
   return rows[0] || null;
 };
 

@@ -24,6 +24,86 @@ const BADGE = {
 const Badge = ({ v }) => v ? <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full font-semibold ${BADGE[v] || 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>{v}</span> : null;
 
 const MGMT = ['admin', 'executive', 'product_manager', 'engineering_manager', 'team_lead'];
+
+/* ── Generic popup modal ─────────────────────────────────────────────────── */
+export function Modal({ title, onClose, children, wide }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full ${wide ? 'max-w-2xl' : 'max-w-lg'} max-h-[88vh] overflow-y-auto`}>
+        <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-900 z-10">
+          <p className="font-bold text-sm text-slate-900 dark:text-white truncate">{title}</p>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-lg leading-none">✕</button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Ticket peek modal (pipeline click) — timeline + workflow actions ────── */
+function TicketPeek({ id, myRole, onClose }) {
+  const [d, setD] = useState(null);
+  const [err, setErr] = useState('');
+  const load = () => fetchJson(`/api/tickets?id=${id}`).then(setD).catch((e) => setErr(e.message));
+  useEffect(() => { load(); const i = setInterval(load, 5000); return () => clearInterval(i); }, [id]);
+  const act = async (action, comment = '', assigneeEmail = '') => {
+    setErr('');
+    try {
+      await fetchJson('/api/dev-workflow', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticketId: id, action, comment, assigneeEmail }) });
+      load();
+    } catch (e) { setErr(e.message); }
+  };
+  const ask = (action, label) => { const c = window.prompt(label); if (c) act(action, c); };
+  const t = d?.ticket;
+  const stage = t?.stage;
+  const ACTIONS = {
+    pm_review: [['pm_approve', 'Approve → next', () => act('pm_approve'), ['product_manager']], ['pm_reject', 'Reject', () => ask('pm_reject', 'Reason for rejection:'), ['product_manager']]],
+    em_review: [['em_approve', 'Approve → Lead', () => act('em_approve'), ['engineering_manager']], ['em_reject', 'Reject', () => ask('em_reject', 'Reason:'), ['engineering_manager']]],
+    lead_triage: [['lead_assign', 'Assign to dev…', () => { const e = window.prompt('Developer email (@patienceai.in):'); if (e) act('lead_assign', '', e); }, ['team_lead', 'engineering_manager']]],
+    dev: [['dev_complete', 'Complete → QA', () => act('dev_complete'), ['software_dev', 'team_lead']]],
+    qa: [['qa_approve', 'QA approve ✓', () => act('qa_approve'), ['qa']], ['qa_reject', 'Send back', () => ask('qa_reject', 'What needs improvement?'), ['qa']]]
+  };
+  const allowed = (roles) => ['admin', 'executive'].includes(myRole) || roles.includes(myRole);
+  return (
+    <Modal title={t ? `${t.key} — ${t.subject}` : `PA-${id}`} onClose={onClose} wide>
+      {err && <p className="text-red-500 text-xs mb-2">{err}</p>}
+      {!t ? <p className="text-xs text-slate-400">Loading…</p> : (
+        <div className="space-y-3 text-sm">
+          <div className="flex flex-wrap gap-1.5">
+            <Badge v={t.status} /><Badge v={t.priority} />{stage && stage !== 'support' && <Badge v={stage} />}
+          </div>
+          {t.description && <p className="text-xs text-slate-600 dark:text-slate-300 whitespace-pre-wrap">{t.description}</p>}
+          <p className="text-[11px] text-slate-400">
+            Assignee: {t.assignee_name} ({t.assignee_email}) · By {t.created_by_name || 'Support'} · {fmt(t.created_at)}
+            {t.customer_email && <> · Client: {t.customer_email}</>}
+          </p>
+          {stage && ACTIONS[stage] && (
+            <div className="flex flex-wrap gap-2 rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-950/40 p-2.5">
+              {ACTIONS[stage].filter(([, , , roles]) => allowed(roles)).map(([k, label, fn]) => (
+                <button key={k} className={tb} onClick={fn}>{label}</button>
+              ))}
+              {!ACTIONS[stage].some(([, , , roles]) => allowed(roles)) && (
+                <p className="text-[11px] text-slate-400">Waiting on {stage.replace('_', ' ')} — not your step.</p>
+              )}
+            </div>
+          )}
+          <div className="space-y-1.5 max-h-64 overflow-y-auto rounded-xl border border-slate-100 dark:border-slate-800 p-2.5 bg-slate-50 dark:bg-slate-800/40">
+            {(d.comments || []).map((c) => (
+              <p key={c.id} className="text-[11px] text-slate-600 dark:text-slate-300">
+                <span className="font-semibold text-slate-800 dark:text-slate-100">{c.author_name || c.author_role}</span>
+                {c.is_internal && <span className="text-amber-600"> [internal]</span>}: {c.message}
+                <span className="text-slate-400"> · {fmt(c.created_at)}</span>
+              </p>
+            ))}
+            {!(d.comments || []).length && <p className="text-[11px] text-slate-400">No activity yet.</p>}
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
 const FORMS = {
   sprints: [['name', 'Sprint name'], ['goal', 'Goal'], ['starts_on', 'Start', 'date'], ['ends_on', 'End', 'date'], ['capacity_points', 'Capacity pts', 'number'], ['status', 'Status', 'select:planned|active|done']],
   epics: [['title', 'Epic title'], ['description', 'Description'], ['owner_email', 'Owner email'], ['milestone', 'Milestone']],
@@ -54,6 +134,8 @@ function Resource({ name, title, myRole, actions }) {
   };
   const writable = canWrite(name, myRole);
   const canDelete = MGMT.includes(myRole);
+  const [peek, setPeek] = useState(null);
+  const [edit, setEdit] = useState({});
   return (
     <div className={box}>
       <div className="flex items-center justify-between mb-2">
@@ -78,7 +160,8 @@ function Resource({ name, title, myRole, actions }) {
       <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
         {!items.length && <p className="text-xs text-slate-400 text-center py-4">Nothing yet.</p>}
         {items.map((x) => (
-          <div key={x.id} className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 px-3 py-2.5 flex items-start justify-between gap-2">
+          <div key={x.id} onClick={() => { setPeek(x); setEdit(x); }}
+            className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 px-3 py-2.5 flex items-start justify-between gap-2 cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors">
             <div className="min-w-0 text-sm">
               <p className="text-slate-900 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
                 <span className="truncate font-medium">{TITLE(x)}</span>
@@ -96,23 +179,59 @@ function Resource({ name, title, myRole, actions }) {
               </p>
               {(x.body || x.summary) && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{x.body || x.summary}</p>}
             </div>
-            <div className="flex flex-wrap gap-1 shrink-0 justify-end">
+            <div className="flex flex-wrap gap-1 shrink-0 justify-end" onClick={(e) => e.stopPropagation()}>
               {writable && actions?.(x, { patch: (id, b) => call('PATCH', { id, ...b }) })}
               {canDelete && (
                 <button className="text-[11px] px-2 py-1.5 rounded-lg border border-red-200 dark:border-red-900 text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
-                  onClick={() => window.confirm('Delete this item?') && call('DELETE', { id: x.id })}>✕</button>
+                  onClick={(e) => { e.stopPropagation(); if (window.confirm('Delete this item?')) call('DELETE', { id: x.id }); }}>✕</button>
               )}
             </div>
           </div>
         ))}
       </div>
+      {peek && (
+        <Modal title={`${title}: ${TITLE(peek)}`} onClose={() => setPeek(null)} wide>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {FORMS[name].map(([k, label, type = 'text']) => (
+              <div key={k} className={type === 'textarea' ? 'md:col-span-2' : ''}>
+                <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">{label}</p>
+                {writable ? (
+                  type.startsWith('select:') ? (
+                    <select value={edit[k] ?? ''} onChange={(e) => setEdit((d) => ({ ...d, [k]: e.target.value }))} className={`${selCls} w-full`}>
+                      <option value="">—</option>
+                      {type.slice(7).split('|').map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  ) : (
+                    <input type={type === 'number' ? 'number' : type === 'date' ? 'date' : 'text'} value={edit[k] ?? ''}
+                      onChange={(e) => setEdit((d) => ({ ...d, [k]: e.target.value }))} className={`${inp} w-full`} />
+                  )
+                ) : (
+                  <p className="text-sm text-slate-800 dark:text-slate-100">{String(peek[k] ?? '—')}</p>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-3">Created {fmt(peek.created_at)}{peek.run_by ? ` · last run by ${peek.run_by} ${fmt(peek.run_at)}` : ''}</p>
+          {writable && (
+            <div className="flex gap-2 mt-4">
+              <button className={tb} onClick={() => {
+                const body = {};
+                for (const [k] of FORMS[name]) if (edit[k] !== undefined && edit[k] !== peek[k]) body[k] = edit[k];
+                call('PATCH', { id: peek.id, ...body }); setPeek(null);
+              }}>Save changes</button>
+              <button className={tb2} onClick={() => setPeek(null)}>Cancel</button>
+            </div>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }
 
 const STAGE_COLS = [['pm_review', 'PM review'], ['em_review', 'EM review'], ['lead_triage', 'Lead triage'], ['dev', 'Development'], ['qa', 'QA'], ['done', 'Done']];
 
-export default function TeamEngineering({ myRole, onOpenTicket }) {
+export default function TeamEngineering({ myRole }) {
+  const [peekTicket, setPeekTicket] = useState(null);
   const [pipe, setPipe] = useState(null);
   const [dash, setDash] = useState(null);
   const load = () => {
@@ -143,7 +262,7 @@ export default function TeamEngineering({ myRole, onOpenTicket }) {
               <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 mb-1.5">{label} ({(pipe?.pipeline?.[stage] || []).length})</p>
               <div className="space-y-1.5">
                 {(pipe?.pipeline?.[stage] || []).map((tk) => (
-                  <button key={tk.id} onClick={() => onOpenTicket?.(tk.id)}
+                  <button key={tk.id} onClick={() => setPeekTicket(tk.id)}
                     className="w-full text-left rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1.5 hover:border-indigo-400 transition-colors">
                     <p className="text-[10px] font-mono text-slate-400">{tk.key} · {tk.priority}</p>
                     <p className="text-[11px] text-slate-800 dark:text-slate-100 truncate">{tk.subject}</p>
@@ -154,7 +273,7 @@ export default function TeamEngineering({ myRole, onOpenTicket }) {
             </div>
           ))}
         </div>
-        <p className="text-[10px] text-slate-400 mt-2">Tickets assigned to you appear in “My tickets” — act on them there (approve, assign, complete, QA).</p>
+        <p className="text-[10px] text-slate-400 mt-2">Click any card to open it — actions for your role appear inside.</p>
       </div>
 
       {/* Resources */}
@@ -186,6 +305,7 @@ export default function TeamEngineering({ myRole, onOpenTicket }) {
         <Resource name="services" title="Service catalog" myRole={myRole} />
         <Resource name="announcements" title="Announcements" myRole={myRole} />
       </div>
+      {peekTicket && <TicketPeek id={peekTicket} myRole={myRole} onClose={() => setPeekTicket(null)} />}
     </div>
   );
 }

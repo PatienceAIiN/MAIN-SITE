@@ -493,6 +493,42 @@ function GitHubWorkspace({ canWrite }) {
   );
 }
 
+/* ── First-login tour (shown once per user, tracked in localStorage) ─────── */
+const TOUR_STEPS = [
+  { icon: '🎫', title: 'Your ticket bucket', body: 'Everything assigned to you lives in "tickets" — statuses, SLA countdowns, file attachments and a chat thread with the support executive on every ticket.' },
+  { icon: '⚙️', title: 'Engineering workspace', body: 'The "engineering" view shows the live pipeline board (PM → Lead → Dev → QA), sprints, epics, incidents, QA test cases, OKRs and announcements. Click any card to open it in a popup — actions for your role appear automatically.' },
+  { icon: '🔀', title: 'Workflow actions', body: 'When a ticket reaches your stage, action buttons appear on it: approve, assign a developer, complete to QA, or QA approve/send-back. Rejections always ask for a comment.' },
+  { icon: '🐙', title: 'GitHub', body: 'If your admin granted GitHub access, a "github" view appears: browse repos, create branches named PA-<ticket> and open/merge pull requests. PA-named work auto-updates the ticket.' },
+  { icon: '🔔', title: 'Stay in the loop', body: 'The bell shows assignments, @mentions, SLA warnings and escalations. You also get emails for new assignments. Toggle dark mode and change your password from the header. That\u2019s it — welcome aboard!' }
+];
+function TourGuide({ member, onDone }) {
+  const [step, setStep] = useState(0);
+  const s2 = TOUR_STEPS[step];
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6 text-center">
+        <p className="text-3xl mb-3">{s2.icon}</p>
+        <p className="text-xs uppercase tracking-widest text-indigo-500 font-semibold mb-1">Step {step + 1} of {TOUR_STEPS.length}</p>
+        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{s2.title}</h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">{s2.body}</p>
+        <div className="flex items-center justify-center gap-1.5 my-4">
+          {TOUR_STEPS.map((_, i) => (
+            <span key={i} className={`h-1.5 rounded-full transition-all ${i === step ? 'w-6 bg-indigo-500' : 'w-1.5 bg-slate-300 dark:bg-slate-600'}`} />
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <button onClick={onDone} className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 text-sm font-medium py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800">Skip tour</button>
+          {step < TOUR_STEPS.length - 1 ? (
+            <button onClick={() => setStep((v) => v + 1)} className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2.5">Next →</button>
+          ) : (
+            <button onClick={onDone} className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold py-2.5">Get started 🚀</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main portal ─────────────────────────────────────────────────────────── */
 export default function TeamPortalPage() {
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
@@ -515,6 +551,7 @@ export default function TeamPortalPage() {
   const [myRole, setMyRole] = useState('member');
   const [myPerms, setMyPerms] = useState([]);
   const [view, setView] = useState('tickets');
+  const [showTour, setShowTour] = useState(false);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
 
   useEffect(() => {
@@ -545,6 +582,7 @@ export default function TeamPortalPage() {
     if (!member) return;
     fetchJson('/api/dev-workflow?bucket=1').then((d) => setMyRole(d.myRole || 'member')).catch(() => {});
     fetchJson('/api/team-members/me').then((d) => setMyPerms(d.member?.permissions || [])).catch(() => {});
+    try { if (!window.localStorage.getItem(`pa_tour_done_${member.email}`)) setShowTour(true); } catch { /* ignore */ }
     loadTickets();
     const id = setInterval(loadTickets, 8000);
     return () => clearInterval(id);
@@ -617,7 +655,7 @@ export default function TeamPortalPage() {
       {view === 'github' ? (
         <GitHubWorkspace canWrite={myPerms.includes('github_write')} />
       ) : view === 'engineering' ? (
-        <TeamEngineering myRole={myRole} onOpenTicket={(id) => { setView('tickets'); setSelectedId(id); }} />
+        <TeamEngineering myRole={myRole} />
       ) : (
       <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
         {/* Ticket list */}
@@ -680,6 +718,13 @@ export default function TeamPortalPage() {
           )}
         </main>
       </div>
+      )}
+
+      {showTour && (
+        <TourGuide member={member} onDone={() => {
+          setShowTour(false);
+          try { window.localStorage.setItem(`pa_tour_done_${member.email}`, '1'); } catch { /* ignore */ }
+        }} />
       )}
 
       <ChangePasswordModal open={pwdModal} onClose={() => setPwdModal(false)} />
