@@ -350,3 +350,21 @@ select {
   background-color: rgba(30, 41, 59, 0.92) !important;
   color: #ffffff !important;
 }
+
+/* Light-locked admin: catch remaining pale/dark-theme text shades */
+.admin-light, .admin-light.text-white { color: #0f172a; }
+.admin-light .text-white\/85, .admin-light .text-white\/75 { color: #0f172a !important; }
+.admin-light .text-white\/25 { color: #475569 !important; }
+.admin-light ::placeholder { color: #94a3b8 !important; }
+.admin-light .text-cyan-300, .admin-light .text-cyan-200, .admin-light .text-cyan-300\/80,
+.admin-light .text-cyan-100 { color: #0e7490 !important; }
+.admin-light .text-emerald-300, .admin-light .text-emerald-200, .admin-light .text-emerald-100,
+.admin-light .text-emerald-300\/80 { color: #047857 !important; }
+.admin-light .text-amber-300, .admin-light .text-amber-200 { color: #b45309 !important; }
+.admin-light .text-red-300, .admin-light .text-red-200, .admin-light .text-red-100,
+.admin-light .text-red-300\/70 { color: #b91c1c !important; }
+.admin-light .text-blue-300 { color: #1d4ed8 !important; }
+.admin-light .text-purple-300 { color: #7e22ce !important; }
+.admin-light .text-slate-300 { color: #475569 !important; }
+.admin-light input, .admin-light textarea, .admin-light select { color: #0f172a !important; }
+.admin-light option { color: #0f172a; background: #ffffff; }
