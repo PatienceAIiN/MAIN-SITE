@@ -558,6 +558,13 @@ export default function TeamPortalPage() {
     try { window.localStorage.setItem('pa_team_theme', dark ? 'dark' : 'light'); } catch { /* ignore */ }
   }, [dark]);
 
+  // Instant teardown when an admin revokes this account mid-session.
+  useEffect(() => {
+    const onRevoked = () => setMember(null);
+    window.addEventListener('pa-session-revoked', onRevoked);
+    return () => window.removeEventListener('pa-session-revoked', onRevoked);
+  }, []);
+
   useEffect(() => {
     if (inviteToken && !activated) { setAuthLoading(false); return; }
     fetchJson('/api/team-members/me')

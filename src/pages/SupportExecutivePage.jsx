@@ -400,6 +400,13 @@ export default function SupportExecutivePage() {
 
   callRoomIdRef.current = callRoomId;
 
+  /* ── Instant teardown when admin revokes this account ─────────────────── */
+  useEffect(() => {
+    const onRevoked = () => setExecutive(null);
+    window.addEventListener('pa-session-revoked', onRevoked);
+    return () => window.removeEventListener('pa-session-revoked', onRevoked);
+  }, []);
+
   /* ── Auth ───────────────────────────────────────────────────────────── */
   useEffect(() => {
     if (inviteToken && !activated) { setAuthLoading(false); return; }

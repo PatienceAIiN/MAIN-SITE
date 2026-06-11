@@ -24,6 +24,11 @@ export const rateLimit = ({ windowMs, max, message = 'Too many requests. Please 
       req.socket?.remoteAddress ||
       'unknown';
 
+    // Local development/test bypass — production (Render sets NODE_ENV) keeps full protection.
+    if (process.env.NODE_ENV !== 'production' && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(ip)) {
+      return next();
+    }
+
     const key = `${req.path}:${ip}`;
     const now = Date.now();
     const entry = store.get(key);

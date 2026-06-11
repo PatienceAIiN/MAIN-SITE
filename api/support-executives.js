@@ -3,7 +3,7 @@ import { queryDb, isMissingTableError } from './_db.js';
 import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, hashPassword, verifyPassword,
   createExecSessionToken, EXEC_SESSION_COOKIE_NAME, serializeCookie, getExecSession } from './_security.js';
 import { sendEmail } from './_email.js';
-import { redisSetJson, redisGetJson } from './_redis.js';
+import { redisSetJson, redisGetJson, redisDel } from './_redis.js';
 import { invalidate, cacheKeys } from './_cache.js';
 
 const TABLE = 'support_executives';
@@ -441,6 +441,9 @@ export default async function handler(req, res) {
         `UPDATE ${TABLE} SET status=$1, updated_at=NOW() WHERE id=$2 RETURNING id, email, name, status`,
         [status, id]
       );
+      // instant lockout / restore for live sessions
+      if (status === 'inactive') await redisSetJson(`revoked:exec:${id}`, 1, 7 * 24 * 3600).catch(() => {});
+      else await redisDel(`revoked:exec:${id}`).catch(() => {});
       return res.status(200).json({ executive: rows[0] });
     } catch (err) {
       return res.status(500).json({ error: err.message });
@@ -453,6 +456,7 @@ export default async function handler(req, res) {
     if (!id) return res.status(400).json({ error: 'id required' });
     try {
       await queryDb(`DELETE FROM ${TABLE} WHERE id=$1`, [id]);
+      await redisSetJson(`revoked:exec:${id}`, 1, 7 * 24 * 3600).catch(() => {});
       return res.status(200).json({ ok: true });
     } catch (err) {
       return res.status(500).json({ error: err.message });

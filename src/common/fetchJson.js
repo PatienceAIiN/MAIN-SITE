@@ -20,6 +20,10 @@ export const fetchJson = async (url, options = {}) => {
   }
 
   if (!response.ok) {
+    // Admin revoked this session — tell the whole app instantly (no refresh).
+    if (response.status === 401 && data?.revoked && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('pa-session-revoked', { detail: data.error }));
+    }
     throw new Error(data?.error || `Request failed with status ${response.status}`);
   }
 

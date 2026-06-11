@@ -6,6 +6,11 @@ import {
 } from './_security.js';
 import { sendEmail } from './_email.js';
 import { logAudit } from './_ticketing.js';
+import { redisSetJson, redisDel } from './_redis.js';
+
+const SEVEN_DAYS = 7 * 24 * 3600;
+const revokeMember = (id) => redisSetJson(`revoked:member:${id}`, 1, SEVEN_DAYS).catch(() => {});
+const unrevokeMember = (id) => redisDel(`revoked:member:${id}`).catch(() => {});
 
 const TABLE = 'team_members';
 
@@ -260,6 +265,8 @@ export default async function handler(req, res) {
         [status || null, teamRole || null, permissions === undefined ? null : permissions.join(','), id]
       );
       await logAudit('admin', 'admin', 'team_member_status_changed', rows[0]?.email, { status });
+      if (status === 'inactive') await revokeMember(id);      // instant lockout
+      if (status === 'active') await unrevokeMember(id);
       return res.status(200).json({ member: rows[0] });
     } catch (err) {
       return res.status(500).json({ error: err.message });
@@ -273,6 +280,7 @@ export default async function handler(req, res) {
     if (!id) return res.status(400).json({ error: 'id required' });
     try {
       await queryDb(`DELETE FROM ${TABLE} WHERE id=$1`, [id]);
+      await revokeMember(id);                                 // instant lockout
       await logAudit('admin', 'admin', 'team_member_removed', String(id));
       return res.status(200).json({ ok: true });
     } catch (err) {

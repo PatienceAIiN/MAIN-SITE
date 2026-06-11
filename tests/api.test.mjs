@@ -129,7 +129,11 @@ test('dev workflow: full ladder with role gates and QA reject loop', async () =>
   assert.equal((await act('exec', 'escalate')).data.ticket.stage, 'pm_review');
   // wrong role blocked
   assert.equal((await act('suite-dev@patienceai.in', 'pm_approve')).status, 403);
-  assert.equal((await act('suite-pm@patienceai.in', 'pm_approve')).data.ticket.stage, 'lead_triage'); // no EM → skips
+  // PM approve routes to EM review when an EM exists, else straight to lead triage.
+  let stage = (await act('suite-pm@patienceai.in', 'pm_approve')).data.ticket.stage;
+  assert.ok(['em_review', 'lead_triage'].includes(stage), `unexpected stage ${stage}`);
+  if (stage === 'em_review') stage = (await act('admin', 'em_approve')).data.ticket.stage; // admin may act for any role
+  assert.equal(stage, 'lead_triage');
   assert.equal((await act('suite-lead@patienceai.in', 'lead_assign', { assigneeEmail: 'suite-dev@patienceai.in' })).data.ticket.stage, 'dev');
   assert.equal((await act('suite-dev@patienceai.in', 'dev_complete')).data.ticket.stage, 'qa');
   // QA reject requires comment

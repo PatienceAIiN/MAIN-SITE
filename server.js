@@ -77,6 +77,7 @@ import {
   createSessionToken, verifySessionToken,
   getCookieValue, serializeCookie
 } from './api/_security.js';
+import { redisGetJson } from './api/_redis.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, 'dist');
@@ -311,6 +312,28 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
   if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
+// ── Instant session teardown ──────────────────────────────────────────────────
+// When an admin removes or deactivates a member/executive, their id is marked
+// revoked in Redis. Stateless cookies stay valid cryptographically, so this
+// middleware is what makes the removal take effect on the very next request:
+// the session is rejected and the cookie cleared — the portal UI sees the 401
+// on its next poll (seconds) and drops to the login screen, no refresh needed.
+app.use('/api', async (req, res, next) => {
+  try {
+    for (const [cookieName, kind] of [['pa_member_session', 'member'], ['pa_exec_session', 'exec']]) {
+      const token = getCookieValue(req, cookieName);
+      if (!token) continue;
+      const payload = verifySessionToken(token);
+      if (!payload?.id) continue;
+      if (await redisGetJson(`revoked:${kind}:${payload.id}`)) {
+        res.setHeader('Set-Cookie', serializeCookie(cookieName, '', { maxAge: 0 }));
+        return res.status(401).json({ error: 'Your access was removed by an administrator.', revoked: true });
+      }
+    }
+  } catch { /* Redis down → fall through; cookie expiry still applies */ }
   next();
 });
 
