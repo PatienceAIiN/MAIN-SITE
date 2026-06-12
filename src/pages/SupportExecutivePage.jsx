@@ -969,6 +969,17 @@ export default function SupportExecutivePage() {
     } catch (err) { setError(err.message); }
   };
 
+  // Reclaim a chat that was transferred away — reassign it to me and continue.
+  const reclaimChat = async (convId) => {
+    try {
+      await fetchJson('/api/support-executives/transfer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversationId: convId, retract: true }) }).catch(() => {});
+      await fetchJson('/api/support-chat', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversationId: convId, status: 'active', assignedExecutive: executive.name }) });
+      await fetchJson('/api/support-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversationId: convId, sender: 'system', message: `${executive.name} took the chat back.` }) }).catch(() => {});
+      joinedRef.current.add(convId);
+      await loadSessions();
+    } catch (err) { setError(err.message); }
+  };
+
   const respondTransfer = async (action) => {
     if (!incomingTransfer) return;
     const t = incomingTransfer;
@@ -1266,8 +1277,8 @@ export default function SupportExecutivePage() {
                         )}
                         {colleagues.filter(c => c.email !== executive.email).map(c => (
                           <button key={c.id} onClick={() => transferTo(c)}
-                            disabled={c.status === 'offline'}
-                            className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-50 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                            title={c.status === 'offline' ? 'Offline — they’ll be notified by push & email' : ''}
+                            className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-50 text-left transition-colors">
                             <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT[c.status] || 'bg-slate-300'}`} />
                             <span className="flex-1 text-sm text-slate-800 truncate">{c.name}</span>
                             <span className="text-[11px] text-slate-400 capitalize">{c.status === 'offline' && c.last_seen_at ? lastSeenText(c.last_seen_at) : c.status}</span>
@@ -1309,6 +1320,8 @@ export default function SupportExecutivePage() {
               {!chatOwned ? (
                 <div className="px-4 py-4 bg-white border-t border-slate-200 shrink-0 text-center">
                   <p className="text-xs text-slate-500">This chat was transferred to <span className="font-semibold text-slate-700">{selectedSession?.assigned_executive}</span>. It's read-only for you now.</p>
+                  <button onClick={() => reclaimChat(selectedId)}
+                    className="mt-2 text-xs px-3 py-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-800">Take it back &amp; continue</button>
                 </div>
               ) : (
               <>

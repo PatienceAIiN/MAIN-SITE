@@ -4,6 +4,7 @@ import { queryDb, isMissingTableError } from './_db.js';
 import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, hashPassword, verifyPassword,
   createExecSessionToken, EXEC_SESSION_COOKIE_NAME, serializeCookie, getExecSession } from './_security.js';
 import { sendEmail } from './_email.js';
+import { sendPushToEmails } from './_push.js';
 import { redisSetJson, redisGetJson, redisDel } from './_redis.js';
 import { invalidate, cacheKeys } from './_cache.js';
 
@@ -279,11 +280,17 @@ export default async function handler(req, res) {
     if (!exec) return res.status(401).json({ error: 'Not authenticated' });
 
     if (req.method === 'POST') {
-      const { conversationId, toId, kind = 'chat' } = req.body || {};
-      if (!conversationId || !toId) return res.status(400).json({ error: 'conversationId and toId required' });
+      const { conversationId, toId, kind = 'chat', retract = false } = req.body || {};
+      if (!conversationId) return res.status(400).json({ error: 'conversationId required' });
+      // Retract: the original agent reclaims the chat — cancel any pending transfer.
+      if (retract) {
+        await queryDb(`UPDATE chat_transfers SET status='cancelled', updated_at=NOW() WHERE conversation_id=$1 AND status='pending'`, [conversationId]).catch(() => {});
+        return res.status(200).json({ ok: true });
+      }
+      if (!toId) return res.status(400).json({ error: 'toId required' });
       if (Number(toId) === Number(exec.id)) return res.status(400).json({ error: 'Cannot transfer to yourself' });
       try {
-        const target = await queryDb(`SELECT name FROM ${TABLE} WHERE id=$1 LIMIT 1`, [toId]);
+        const target = await queryDb(`SELECT name, email FROM ${TABLE} WHERE id=$1 LIMIT 1`, [toId]);
         if (!target.length) return res.status(404).json({ error: 'Executive not found' });
         // Cancel any other pending transfer for this conversation, then create a fresh request.
         await queryDb(`UPDATE chat_transfers SET status='cancelled', updated_at=NOW() WHERE conversation_id=$1 AND status='pending'`, [conversationId]).catch(() => {});
@@ -292,6 +299,14 @@ export default async function handler(req, res) {
            VALUES ($1,$2,$3,$4,$5,$6,'pending',NOW(),NOW()) RETURNING *`,
           [conversationId, exec.id, exec.name, toId, target[0].name, kind === 'call' ? 'call' : 'chat']
         );
+        // Inform the target even if they're offline — web-push + email so a
+        // transfer to an away/offline executive still reaches them.
+        const tEmail = target[0].email;
+        if (tEmail) {
+          sendPushToEmails([tEmail], { title: `Chat transferred to you`, body: `${exec.name} transferred a ${kind === 'call' ? 'call' : 'chat'} to you. Open the support console to accept.`, url: '/support-executive', tag: 'transfer' }).catch(() => {});
+          sendEmail({ to: tEmail, subject: `A ${kind === 'call' ? 'call' : 'chat'} was transferred to you`, html: `<p style="color:#475569">${exec.name} transferred a ${kind === 'call' ? 'call' : 'chat'} (conversation <b>${conversationId}</b>) to you. Open the support console to accept it.</p>`, text: `${exec.name} transferred a chat (${conversationId}) to you. Open the support console to accept.` }).catch(() => {});
+        }
+        await logAudit('executive', exec.email, 'chat_transferred', tEmail || String(toId)).catch(() => {});
         return res.status(200).json({ transfer: rows[0] });
       } catch (err) {
         if (isMissingTableError(err.message)) return res.status(500).json({ error: 'Transfer table not ready' });
