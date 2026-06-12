@@ -225,7 +225,7 @@ function App() {
 
   if (isAdminRoute) {
     return (
-      <div className="admin-light min-h-screen bg-slate-50">
+      <div className="min-h-screen">
         <Routes>
           <Route path="/admin" element={
             <AdminPage onAction={handleAction} defaultContent={defaultSiteContent}

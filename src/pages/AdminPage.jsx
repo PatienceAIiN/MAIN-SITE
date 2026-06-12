@@ -1030,12 +1030,12 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const blogPosts = contentObject?.blogPage?.posts || [];
 
   return (
-    <main className={`admin-console ${themeClass} bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10`}>
+    <main className={`admin-console ${themeClass} bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10 min-h-screen`}>
       <section className="max-w-7xl mx-auto">
         <div className="rounded-[2rem] overflow-hidden border border-white/10 bg-[linear-gradient(135deg,#0f172a_0%,#111827_45%,#1f2937_100%)] shadow-2xl">
           <div className="p-6 md:p-8 border-b border-white/10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.35em] text-cyan-300/80 mb-3">NeonDB admin</p>
+              <p className="text-xs uppercase tracking-[0.35em] text-cyan-300/80 mb-3">Patience AI Admin panel</p>
               <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">Submission + content console</h1>
             </div>
             <div className="flex flex-wrap gap-3 items-center">
