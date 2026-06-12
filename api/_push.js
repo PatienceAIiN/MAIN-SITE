@@ -11,8 +11,8 @@ let keys = null;
 // deploy and silently invalidate every existing subscription. Override with
 // VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY env vars for stricter key custody.
 const DEFAULT_VAPID = {
-  publicKey: 'BBWKB42_SS7pb3qX8kuXgyz6d_8zMnYAp7dd_R7oo5YwPgVSqvJnvOZqD38cnrTPB-8-Z2I3MXdiW-1aH8u-9UE',
-  privateKey: 'lfi8fFSAblQB2Vv0PpOw3TbNJ-ruZBupvsJ-Yz8SfLc'
+  publicKey: 'BJ5m55KRGpjjdNta-b2vVfJKMphLPgL0K57ZCgzkGAooI1wL9SoDLsj3nfWifqvwYXZsUfSUoT8U0tCyuTahSV0',
+  privateKey: 'hZkPFfS2J2och_UZwXHbrwzxhLs-hSz2mAvSooj1yDE'
 };
 
 // base64url → byte length (0 if it isn't decodable base64). A valid VAPID
