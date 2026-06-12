@@ -10,6 +10,7 @@ import NetworkDot from '../common/NetworkDot';
 import { NotificationBell, SlaBadge, AttachmentList, uploadFiles } from '../components/TicketCenter';
 import TeamEngineering, { Modal } from '../components/TeamEngineering';
 import DevTickets from '../components/DevTickets';
+import { NotesTab, MeetingsTab } from '../components/TeamNotes';
 import Colleagues, { enablePushNotifications, disablePushNotifications } from '../components/Colleagues';
 import { FiPaperclip, FiAlertTriangle } from 'react-icons/fi';
 
@@ -1061,7 +1062,7 @@ export default function TeamPortalPage() {
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-              {['dev-tickets', 'tickets', 'engineering', ...((myPerms.includes('github_read') || myPerms.includes('github_write') || myRepos.length > 0) ? ['github'] : []), 'colleagues'].map((v) => (
+              {['dev-tickets', 'tickets', 'engineering', ...((myPerms.includes('github_read') || myPerms.includes('github_write') || myRepos.length > 0) ? ['github'] : []), 'notes', 'meetings', 'colleagues'].map((v) => (
                 <button key={v} onClick={() => setView(v)}
                   className={`relative px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors ${view === v ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-300'}`}>
                   {v === 'dev-tickets' ? 'Dev Tickets' : v}
@@ -1106,6 +1107,8 @@ export default function TeamPortalPage() {
 
       {view === 'github' && <GitHubWorkspace canWrite={myPerms.includes('github_write')} />}
       {view === 'dev-tickets' && <DevTickets member={member} />}
+      {view === 'notes' && <NotesTab />}
+      {view === 'meetings' && <MeetingsTab />}
       {view === 'engineering' && <TeamEngineering myRole={myRole} />}
       {/* Colleagues stays mounted so presence, pushes and incoming calls work on every tab */}
       <Colleagues member={member} visible={view === 'colleagues'} onUnread={setColUnread} canManageRoster={myPerms.includes('roster_manage')} />

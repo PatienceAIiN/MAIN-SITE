@@ -353,18 +353,34 @@ function useCall(me, wsSend) {
     setChat((m) => [...m, { mine: true, text: text.trim(), at: Date.now() }]);
   };
 
-  return { call, startCall, acceptCall, hangup, onRtc, localRef, remoteRef, muted, camOff, sharing, toggleMute, toggleCam, toggleShare, chat, sendChat };
+  return { call, startCall, acceptCall, hangup, onRtc, localRef, remoteRef, muted, camOff, sharing, toggleMute, toggleCam, toggleShare, chat, sendChat, me };
 }
 
 function CallOverlay({ callApi }) {
-  const { call, acceptCall, hangup, localRef, remoteRef, muted, camOff, sharing, toggleMute, toggleCam, toggleShare, chat, sendChat } = callApi;
+  const { call, acceptCall, hangup, localRef, remoteRef, muted, camOff, sharing, toggleMute, toggleCam, toggleShare, chat, sendChat, me } = callApi;
   const [minimized, setMinimized] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [noteText, setNoteText] = useState('');
   const [draft, setDraft] = useState('');
   const chatEndRef = useRef(null);
+  const callRef = useRef(call);
+  callRef.current = call;
+  const noteRef = useRef('');
+  noteRef.current = noteText;
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chat, chatOpen]);
-  useEffect(() => { if (!call) { setMinimized(false); setFullscreen(false); setChatOpen(false); } }, [call]);
+  useEffect(() => { if (!call) { setMinimized(false); setFullscreen(false); setChatOpen(false); setNotesOpen(false); setNoteText(''); } }, [call]);
+
+  // End the call AND, if notes were taken, save+email the Minutes of Meeting.
+  const endCall = () => {
+    const c = callRef.current; const text = noteRef.current.trim();
+    if (text && c) {
+      fetchJson('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: `MoM — call with ${c.peerName || c.peer}`, body: text, kind: 'mom', emailTo: [c.peer, me?.email].filter(Boolean) }) }).catch(() => {});
+    }
+    hangup();
+  };
   if (!call) return null;
   const rb = 'h-11 w-11 rounded-full flex items-center justify-center text-white transition-colors';
   const unread = chat.length;
@@ -430,7 +446,8 @@ function CallOverlay({ callApi }) {
               </button>
             </>}
             <button onClick={() => setChatOpen((o) => !o)} className={`${rb} ${chatOpen ? 'bg-indigo-500' : 'bg-slate-700 hover:bg-slate-600'}`} title="Chat"><FiMessageSquare size={17} /></button>
-            <button onClick={() => hangup()} className={`${rb} bg-red-600 hover:bg-red-700`} title="Hang up"><FiPhoneOff size={17} /></button>
+            <button onClick={() => setNotesOpen((o) => !o)} className={`${rb} ${notesOpen ? 'bg-indigo-500' : 'bg-slate-700 hover:bg-slate-600'}`} title="Meeting notes"><FiEdit2 size={16} /></button>
+            <button onClick={endCall} className={`${rb} bg-red-600 hover:bg-red-700`} title="Hang up"><FiPhoneOff size={17} /></button>
           </div>
         </div>
 
@@ -456,6 +473,19 @@ function CallOverlay({ callApi }) {
                 className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none" />
               <button type="submit" className="h-9 w-9 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center"><FiSend size={14} /></button>
             </form>
+          </div>
+        )}
+
+        {/* In-call meeting note-taker — saved + emailed as MoM when the call ends */}
+        {notesOpen && (
+          <div className="w-72 shrink-0 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden">
+            <div className="px-3 py-2.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <p className="text-sm font-bold text-slate-900 dark:text-white">Meeting notes</p>
+              <button onClick={() => setNotesOpen(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><FiX size={15} /></button>
+            </div>
+            <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Jot minutes here… emailed to both participants &amp; saved in Notes when the call ends."
+              className="flex-1 min-h-[220px] w-full text-sm bg-transparent text-slate-800 dark:text-slate-100 p-3 focus:outline-none resize-none" />
+            <p className="px-3 py-2 text-[10px] text-slate-400 border-t border-slate-200 dark:border-slate-800">Auto-saved as Minutes of Meeting on hang-up.</p>
           </div>
         )}
       </div>
