@@ -363,6 +363,7 @@ export default function SupportExecutivePage() {
 
   // Sidebar pagination + search
   const [sessPage,   setSessPage]   = useState(1);
+  const [sessTab,    setSessTab]    = useState('all'); // all | incoming | mine
   const [sessSearch, setSessSearch] = useState('');
 
   // Team presence, internal chat & transfers
@@ -502,13 +503,16 @@ export default function SupportExecutivePage() {
   /* ── Filtered + paginated sessions ──────────────────────────────────── */
   const filteredSessions = useMemo(() => {
     const q = sessSearch.toLowerCase();
-    return sessions.filter(s =>
-      !q ||
-      s.conversation_id?.toLowerCase().includes(q) ||
-      s.customer_email?.toLowerCase().includes(q) ||
-      s.assigned_executive?.toLowerCase().includes(q)
-    );
-  }, [sessions, sessSearch]);
+    return sessions.filter(s => {
+      if (sessTab === 'incoming' && s.status !== 'waiting') return false;     // new + transferred-back land in 'waiting'
+      if (sessTab === 'mine' && s.assigned_executive !== executive?.name) return false;
+      return !q ||
+        s.conversation_id?.toLowerCase().includes(q) ||
+        s.customer_email?.toLowerCase().includes(q) ||
+        s.assigned_executive?.toLowerCase().includes(q);
+    });
+  }, [sessions, sessSearch, sessTab, executive]);
+  const incomingCount = useMemo(() => sessions.filter(s => s.status === 'waiting').length, [sessions]);
 
   const totalPages    = Math.max(1, Math.ceil(filteredSessions.length / PAGE_SIZE));
   const pagedSessions = filteredSessions.slice((sessPage - 1) * PAGE_SIZE, sessPage * PAGE_SIZE);
@@ -1010,7 +1014,12 @@ export default function SupportExecutivePage() {
   // accepted, assigned_executive becomes the new agent → the previous agent goes
   // read-only. Calling the customer is only allowed on a live (active) chat.
   const chatOwned = Boolean(selectedSession) && (!selectedSession.assigned_executive || selectedSession.assigned_executive === executive?.name);
-  const chatLive = selectedSession?.status === 'active';
+  // Customer is "live" only if their widget polled within the last 75s AND the
+  // chat isn't closed — a transferred/abandoned chat stays 'active' but the
+  // customer's last-seen goes stale, so the call button correctly disables.
+  const chatLive = selectedSession?.status !== 'closed'
+    && Boolean(selectedSession?.customer_last_seen_at)
+    && (Date.now() - new Date(selectedSession.customer_last_seen_at).getTime() < 75000);
 
   return (
     <div className={`support-console support-${supportTheme} min-h-screen bg-slate-50 text-slate-900 flex flex-col`}>
@@ -1139,6 +1148,18 @@ export default function SupportExecutivePage() {
                 placeholder="Search sessions…"
                 className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 py-2 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900/20" />
             </div>
+            {/* New / transferred chats land in "Incoming"; accepting one opens it. */}
+            <div className="flex items-center bg-slate-100 rounded-lg p-1 mt-2">
+              {[['all', 'All'], ['incoming', 'Incoming'], ['mine', 'Mine']].map(([k, label]) => (
+                <button key={k} onClick={() => { setSessTab(k); setSessPage(1); }}
+                  className={`relative flex-1 py-1.5 text-[11px] font-medium rounded-md transition-colors ${sessTab === k ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+                  {label}
+                  {k === 'incoming' && incomingCount > 0 && (
+                    <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[15px] h-[15px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold animate-pulse">{incomingCount > 9 ? '9+' : incomingCount}</span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
             <p className="text-xs font-medium text-slate-500">Sessions <span className="ml-1 text-slate-400">({filteredSessions.length})</span></p>
@@ -1164,13 +1185,13 @@ export default function SupportExecutivePage() {
                 }`}
               >
                 <div className="flex items-center justify-between gap-2 mb-1">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold inline-flex items-center gap-1 ${
                     s.status === 'waiting'
-                      ? selectedId === s.conversation_id ? 'bg-amber-400/30 text-amber-200' : 'bg-amber-100 text-amber-700'
+                      ? selectedId === s.conversation_id ? 'bg-amber-400/30 text-amber-200' : 'bg-amber-100 text-amber-700 animate-pulse'
                       : s.status === 'closed'
                       ? selectedId === s.conversation_id ? 'bg-slate-400/30 text-slate-300' : 'bg-slate-100 text-slate-500'
                       : selectedId === s.conversation_id ? 'bg-emerald-400/30 text-emerald-200' : 'bg-emerald-100 text-emerald-700'
-                  }`}>{s.status}</span>
+                  }`}>{s.status === 'waiting' ? '● Incoming' : s.status}</span>
                   <span className={`text-[10px] ${selectedId === s.conversation_id ? 'text-white/40' : 'text-slate-400'}`}>{fmt(s.updated_at)}</span>
                 </div>
                 <p className="text-xs font-mono font-medium truncate">{s.conversation_id}</p>

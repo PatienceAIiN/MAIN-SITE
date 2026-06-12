@@ -100,6 +100,13 @@ export default async function handler(req, res) {
     if (!authorized && !conversationId.startsWith('PatienceAILive-'))
       return res.status(403).json({ error: 'Forbidden' });
 
+    // Customer heartbeat: a poll from the widget (unauthenticated) means the
+    // customer is present right now — bump last-seen so execs only get the
+    // "Call customer" button while the customer is actually there.
+    if (!authorized) {
+      queryDb(`UPDATE ${SESSIONS_TABLE} SET customer_last_seen_at=NOW() WHERE conversation_id=$1`, [conversationId]).catch(() => {});
+    }
+
     try {
       // Incremental (`since`) reads stay uncached. The full read is what both the
       // executive console and the customer widget poll every ~2s — cache it briefly.

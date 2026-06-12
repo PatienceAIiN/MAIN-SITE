@@ -491,7 +491,10 @@ const SCHEMA_QUERIES = [
     status text not null check (status in ('online', 'away', 'offline')),
     at timestamptz not null default now()
   )`,
-  `create index if not exists presence_log_email_at_idx on public.presence_log (email, at)`];
+  `create index if not exists presence_log_email_at_idx on public.presence_log (email, at)`,
+  // Customer presence on a live-chat session — bumped on every widget poll so
+  // execs only see "Call customer" enabled while the customer is actually there.
+  `alter table public.support_sessions add column if not exists customer_last_seen_at timestamptz`];
 
 let schemaReady = false;
 let schemaPromise = null;
