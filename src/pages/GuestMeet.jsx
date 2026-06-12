@@ -23,7 +23,10 @@ export default function GuestMeet() {
     const ws = new WebSocket(`${proto}://${window.location.host}/ws/team?guestRoom=${encodeURIComponent(room)}&guestName=${encodeURIComponent(name.trim() || 'Guest')}`);
     wsRef.current = ws;
     ws.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch { return; } if (m.type === 'gcall') apiRef.current.onGcall(m); else if (m.type === 'rtc' && m.data?.room) apiRef.current.onRtc(m.from, m.fromName, m.data); };
-    ws.onopen = () => { setJoined(true); apiRef.current.joinMeeting(room, 'Meeting').catch((e2) => setErr(e2.message)); };
+    ws.onopen = () => {
+      setJoined(true);
+      Promise.resolve(apiRef.current.joinMeeting(room, 'Meeting')).catch((e2) => { console.error('[guest] joinMeeting failed:', e2?.message); setErr(e2?.message || 'Could not start your camera/mic.'); });
+    };
     ws.onerror = () => setErr('Could not connect. Check the link and your camera/mic permissions.');
   };
 
@@ -51,5 +54,5 @@ export default function GuestMeet() {
     );
   }
   // In-call: the GroupCallOverlay (fixed, fullscreen) renders the mesh grid.
-  return wrap(<><p className="text-slate-400 text-sm">Connecting you to the meeting…</p><GroupCallOverlay api={groupApi} /></>);
+  return wrap(<div className="text-center"><p className="text-slate-400 text-sm">Connecting you to the meeting…</p>{err && <p className="text-red-400 text-xs mt-2">{err}</p>}<GroupCallOverlay api={groupApi} /></div>);
 }
