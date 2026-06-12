@@ -36,7 +36,7 @@ const logPresence = (email, name, role, status) => {
 
 export const presenceSnapshot = () => {
   const out = {};
-  for (const [email, u] of users) out[email] = statusOf(u);
+  for (const [email, u] of users) { if (u.guest) continue; out[email] = statusOf(u); }
   return out;
 };
 
@@ -68,25 +68,40 @@ export const attachTeamHub = (server) => {
     let payload = verifySessionToken(getCookieValue(req, MEMBER_SESSION_COOKIE_NAME));
     if (!payload || payload.role !== 'member') {
       payload = verifySessionToken(getCookieValue(req, EXEC_SESSION_COOKIE_NAME));
-      if (!payload || payload.role !== 'executive') { ws.close(4001, 'unauthorized'); return; }
+      if (!payload || payload.role !== 'executive') {
+        // Public guest: allowed ONLY to join a specific meeting room via its
+        // shared link (the unguessable room token is the access credential). No
+        // account, no presence, and restricted to gcall/rtc for that one room.
+        const guestRoom = new URL(req.url, 'http://x').searchParams.get('guestRoom');
+        if (!guestRoom) { ws.close(4001, 'unauthorized'); return; }
+        const gname = (new URL(req.url, 'http://x').searchParams.get('guestName') || 'Guest').slice(0, 40);
+        payload = { email: 'guest:' + Math.random().toString(36).slice(2, 11), name: gname, role: 'guest', guestRoom };
+      }
     }
     const email = payload.email;
+    const isGuest = payload.role === 'guest';
 
     let u = users.get(email);
     const wasOffline = !u || u.sockets.size === 0;
-    if (!u) { u = { name: payload.name, sockets: new Set(), lastActivity: Date.now(), busy: false, loggedStatus: 'offline' }; users.set(email, u); }
+    if (!u) { u = { name: payload.name, sockets: new Set(), lastActivity: Date.now(), busy: false, loggedStatus: 'offline', guest: isGuest }; users.set(email, u); }
     u.sockets.add(ws);
     u.lastActivity = Date.now();
     ws.isAlive = true;
-    if (wasOffline) { u.loggedStatus = 'online'; logPresence(email, payload.name, payload.role, 'online'); }
+    if (!isGuest && wasOffline) { u.loggedStatus = 'online'; logPresence(email, payload.name, payload.role, 'online'); }
 
-    safeSend(ws, { type: 'presence', users: presenceSnapshot() });
-    broadcastPresence();
+    if (!isGuest) { safeSend(ws, { type: 'presence', users: presenceSnapshot() }); broadcastPresence(); }
 
     ws.on('pong', () => { ws.isAlive = true; });
     ws.on('message', (raw) => {
       let msg;
       try { msg = JSON.parse(raw); } catch { return; }
+
+      // Guests are confined to call signalling for their own room only.
+      if (isGuest) {
+        if (msg.type === 'rtc' && msg.data?.room === payload.guestRoom) { /* allowed */ }
+        else if (msg.type === 'gcall' && msg.room === payload.guestRoom) { /* allowed */ }
+        else return;
+      }
 
       if (msg.type === 'activity') {
         const wasAway = statusOf(u) !== 'online';
@@ -148,6 +163,16 @@ export const attachTeamHub = (server) => {
 
     ws.on('close', () => {
       u.sockets.delete(ws);
+      // Guests carry no presence — just remove them from their room and notify.
+      if (isGuest) {
+        if (u.sockets.size === 0) {
+          users.delete(email);
+          for (const [rid, room] of gcallRooms) {
+            if (room.delete(email)) { broadcastToEmails([...room.keys()], { type: 'gcall', op: 'left', room: rid, email }); if (!room.size) gcallRooms.delete(rid); }
+          }
+        }
+        return;
+      }
       if (u.sockets.size === 0) setTimeout(() => {
         // grace period so a page refresh doesn't flash offline
         if (u.sockets.size === 0) {

@@ -360,6 +360,10 @@ const analyticsLimiter = rateLimit({ windowMs: 60 * 1000,     max: 120, message:
 const consentLimiter  = rateLimit({ windowMs: 60 * 60 * 1000, max: 30,  message: 'Too many consent updates. Try again shortly.' });
 const podcastLimiter  = rateLimit({ windowMs: 60 * 1000,     max: 30,  message: 'Too many podcast requests. Try again shortly.' });
 const newsletterLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10, message: 'Too many newsletter requests. Try again shortly.' });
+// Anti-spam on writes only (POST/PATCH/DELETE) — never throttles the frequent
+// GET polls, so legit usage is unaffected while message/comment flooding is capped.
+const _writeRl = rateLimit({ windowMs: 60 * 1000, max: 100, message: 'Too many actions — slow down a moment.' });
+const writeLimit = (req, res, next) => (req.method === 'GET' || req.method === 'OPTIONS' ? next() : _writeRl(req, res, next));
 
 app.all('/api/admin', wrap(adminHandler));
 app.all('/api/analytics', analyticsLimiter, wrap(analyticsHandler));
@@ -376,7 +380,7 @@ app.all('/api/podcast-translate', podcastLimiter, wrap(podcastTranslateHandler))
 app.all('/api/blog-podcast', podcastLimiter, wrap(blogPodcastHandler));
 app.all('/api/newsletter', newsletterLimiter, wrap(newsletterHandler));
 app.all('/api/support-auth', authLimiter, wrap(supportAuthHandler));
-app.all('/api/support-chat', wrap(supportChatHandler));
+app.all('/api/support-chat', writeLimit, wrap(supportChatHandler));
 app.all('/api/support-executives/login',    wrap(supportExecutivesHandler));
 app.all('/api/support-executives/activate', wrap(supportExecutivesHandler));
 app.all('/api/support-executives/me',       wrap(supportExecutivesHandler));
@@ -400,13 +404,13 @@ app.all('/api/deploy/cancel',                wrap(deployHandler));
 app.all('/api/deploy/logs',                  wrap(deployHandler));
 app.all('/api/deploy',                       wrap(deployHandler));
 app.all('/api/work-log',                     wrap(workLogHandler));
-app.all('/api/notes',                        wrap(notesHandler));
-app.all('/api/meetings',                     wrap(meetingsHandler));
+app.all('/api/notes',                        writeLimit, wrap(notesHandler));
+app.all('/api/meetings',                     writeLimit, wrap(meetingsHandler));
 // Chat file uploads: raw body (any format) up to 10 MB
 app.post('/api/colleagues/upload', express.raw({ type: () => true, limit: '10mb' }), wrap(colleaguesHandler));
-app.all('/api/colleagues',                   wrap(colleaguesHandler));
-app.all('/api/tickets/comments',             wrap(ticketsHandler));
-app.all('/api/tickets',                      wrap(ticketsHandler));
+app.all('/api/colleagues', writeLimit, wrap(colleaguesHandler));
+app.all('/api/tickets/comments',             writeLimit, wrap(ticketsHandler));
+app.all('/api/tickets',                      writeLimit, wrap(ticketsHandler));
 app.all('/api/ticket-settings',              wrap(ticketSettingsHandler));
 app.all('/api/ticket-stats',                 wrap(ticketStatsHandler));
 app.all('/api/notifications',                wrap(notificationsHandler));

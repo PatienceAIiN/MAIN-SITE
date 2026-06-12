@@ -15,6 +15,7 @@ import Home from './pages/Home';
 import FAQPage from './pages/FAQPage';
 import DetailPage from './pages/DetailPage';
 import AdminPage from './pages/AdminPage';
+import GuestMeet from './pages/GuestMeet';
 import SupportExecutivePage from './pages/SupportExecutivePage';
 import TeamPortalPage from './pages/TeamPortalPage';
 import ClientTicketPage from './pages/ClientTicketPage';
@@ -134,6 +135,7 @@ function App() {
   const isAdminRoute        = location.pathname === '/admin';
   const isExecRoute         = location.pathname === '/support-executive';
   const isTeamRoute         = location.pathname === '/team';
+  const isMeetRoute         = location.pathname === '/meet';
   const isMyTicketRoute     = location.pathname === '/my-ticket';
   const isLiveChatRoute     = location.pathname === '/live-chat' || location.pathname === '/support-chat';
 
@@ -222,6 +224,8 @@ function App() {
     },
     [navigate]
   );
+
+  if (isMeetRoute) return <GuestMeet />;
 
   if (isAdminRoute) {
     return (
