@@ -65,9 +65,12 @@ export default async function handler(req, res) {
   if (!actor) return res.status(401).json({ error: 'Not authenticated' });
 
   try {
-    // ── GET ?pipeline=1 — all tickets grouped by stage (staff + leads/managers) ──
+    // ── GET — tickets grouped by stage. Only triage roles (leads/managers/execs/
+    // admin) see the whole pipeline; everyone else is scoped to their OWN tickets
+    // so one user never sees another user's tickets. ──
     if (req.method === 'GET') {
-      const mine = req.query.bucket === '1';
+      const SEE_ALL = ['admin', 'executive', 'team_lead', 'engineering_manager', 'product_manager'];
+      const mine = req.query.bucket === '1' || !SEE_ALL.includes(actor.teamRole);
       const rows = await queryDb(
         `SELECT id, subject, status, stage, priority, assignee_email, assignee_name, dev_email, created_by_name, updated_at
          FROM support_tickets WHERE stage != 'support' ${mine ? 'AND assignee_email=$1' : ''}
