@@ -15,16 +15,33 @@ const DEFAULT_VAPID = {
   privateKey: 'lfi8fFSAblQB2Vv0PpOw3TbNJ-ruZBupvsJ-Yz8SfLc'
 };
 
+// base64url → byte length (0 if it isn't decodable base64). A valid VAPID
+// public key is 65 bytes (uncompressed P-256 point) and the private key 32.
+const byteLen = (b64) => {
+  try {
+    const s = String(b64 || '').trim().replace(/\s+/g, '');
+    const std = (s + '='.repeat((4 - (s.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+    return Buffer.from(std, 'base64').length;
+  } catch { return 0; }
+};
+const validVapid = (pub, priv) => byteLen(pub) === 65 && byteLen(priv) === 32;
+
 const loadKeys = () => {
   if (keys) return keys;
-  if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-    // .trim() guards against trailing newlines pasted into the env var.
-    keys = { publicKey: process.env.VAPID_PUBLIC_KEY.trim(), privateKey: process.env.VAPID_PRIVATE_KEY.trim() };
+  const envPub = (process.env.VAPID_PUBLIC_KEY || '').trim();
+  const envPriv = (process.env.VAPID_PRIVATE_KEY || '').trim();
+  // Use env keys ONLY if they're a valid base64url P-256 keypair; otherwise a
+  // malformed env value (wrong length / not base64url) would make the browser
+  // throw "Vapid public key should be 65 bytes long". Fall back to baked-in.
+  if (envPub && envPriv && validVapid(envPub, envPriv)) {
+    keys = { publicKey: envPub, privateKey: envPriv };
   } else {
-    // Stable baked-in keys (no per-restart regeneration). env overrides above.
+    if (envPub || envPriv) console.warn('[push] VAPID env keys are invalid (public must decode to 65 bytes, private to 32) — using built-in keypair.');
     keys = DEFAULT_VAPID;
   }
-  webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'mailto:growth@patienceai.in', keys.publicKey, keys.privateKey);
+  const subject = (process.env.VAPID_SUBJECT || 'mailto:growth@patienceai.in').trim();
+  try { webpush.setVapidDetails(/^https?:|^mailto:/.test(subject) ? subject : 'mailto:growth@patienceai.in', keys.publicKey, keys.privateKey); }
+  catch (e) { console.error('[push] setVapidDetails failed, retrying with built-in keys:', e.message); keys = DEFAULT_VAPID; webpush.setVapidDetails('mailto:growth@patienceai.in', keys.publicKey, keys.privateKey); }
   return keys;
 };
 
