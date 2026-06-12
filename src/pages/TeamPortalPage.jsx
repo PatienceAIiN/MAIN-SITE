@@ -600,16 +600,25 @@ function DeployControl() {
   const [logsBig, setLogsBig] = useState(false);
   const logRef = useRef(null);
 
+  const shownRef = useRef(null); // last deploy id we already auto-surfaced
   const load = async () => {
     try {
       const d = await fetchJson('/api/deploy');
       setData(d);
       // Only a recently-triggered deploy (last 15 min) counts as "in progress".
       const running = (d.recent || []).find((r) => r.status === 'triggered' && (Date.now() - new Date(r.created_at).getTime()) < 15 * 60 * 1000);
-      if (running && !activeId) setActive(running.id);
+      // A brand-new deploy (any source — manual, scheduled, git push) auto-opens
+      // the modal live and clears the previous deploy's logs.
+      if (running && running.id !== shownRef.current) {
+        shownRef.current = running.id;
+        setActive(running.id);
+        setLogs({ status: null, lines: [], note: '' });
+        if (d.canDeploy) setOpen(true);
+      }
     } catch { /* ignore */ }
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+  // Keep watching even while closed so an in-progress deploy surfaces on its own.
+  useEffect(() => { load(); const i = setInterval(load, 15000); return () => clearInterval(i); /* eslint-disable-next-line */ }, []);
   useEffect(() => { if (open) load(); /* eslint-disable-next-line */ }, [open]);
 
   // Poll live logs/status for the active deploy.
@@ -641,7 +650,7 @@ function DeployControl() {
   const deployNow = async () => {
     if (needPw()) return;
     setBusy(true); setMsg(''); setLogs({ status: null, lines: [], note: '' });
-    try { const r = await fetchJson('/api/deploy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pwBody()) }); setMsg(r.message || 'Deploy triggered.'); setActive(r.id); setPwd(''); load(); }
+    try { const r = await fetchJson('/api/deploy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pwBody()) }); setMsg(r.message || 'Deploy triggered.'); shownRef.current = r.id; setActive(r.id); setPwd(''); load(); }
     catch (e) { setMsg(e.message); }
     finally { setBusy(false); }
   };

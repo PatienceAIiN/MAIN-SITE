@@ -87,12 +87,20 @@ function useTeamSocket(memberEmail, onEvent) {
   const [presence, setPresence] = useState({});
 
   useEffect(() => {
-    let alive = true, retryTimer;
+    let alive = true, retryTimer, hadConnected = false;
     const connect = () => {
       if (!alive) return;
+      // Drop any stale socket first (e.g. a half-open one after the network cut).
+      try { wsRef.current && wsRef.current.readyState <= 1 && wsRef.current.close(); } catch { /* ignore */ }
       const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
       const ws = new WebSocket(`${proto}://${window.location.host}/ws/team`);
       wsRef.current = ws;
+      ws.onopen = () => {
+        // On a *reconnect* (network restored / tab woke), pull fresh state so the
+        // user sees live data again without manually refreshing the page.
+        if (hadConnected) handlerRef.current?.({ type: 'reconnected' });
+        hadConnected = true;
+      };
       ws.onmessage = (e) => {
         let m; try { m = JSON.parse(e.data); } catch { return; }
         if (m.type === 'presence') setPresence(m.users || {});
@@ -101,6 +109,17 @@ function useTeamSocket(memberEmail, onEvent) {
       ws.onclose = () => { wsRef.current = null; if (alive) retryTimer = setTimeout(connect, 3000); };
     };
     connect();
+
+    // Reconnect immediately when the network comes back or the tab is refocused,
+    // instead of waiting out the 3s retry — so live presence/calls/chat resume.
+    const wake = () => {
+      if (!alive) return;
+      if (document.visibilityState === 'hidden') return;
+      if (!wsRef.current || wsRef.current.readyState > 1) { clearTimeout(retryTimer); connect(); }
+    };
+    window.addEventListener('online', wake);
+    window.addEventListener('focus', wake);
+    document.addEventListener('visibilitychange', wake);
 
     // Report user activity (throttled) so the server can flip online ↔ away.
     let last = 0;
@@ -116,6 +135,9 @@ function useTeamSocket(memberEmail, onEvent) {
     return () => {
       alive = false;
       clearTimeout(retryTimer);
+      window.removeEventListener('online', wake);
+      window.removeEventListener('focus', wake);
+      document.removeEventListener('visibilitychange', wake);
       events.forEach((ev) => window.removeEventListener(ev, act));
       wsRef.current?.close();
     };
@@ -503,6 +525,12 @@ export default function Colleagues({ member, visible, onUnread, canManageRoster 
     fetchJson('/api/colleagues?list=1').then((d) => setColleagues(d.colleagues || [])).catch(() => {});
   }, []);
 
+  const loadMessages = useCallback((chatId) => {
+    if (!chatId) { setMessages([]); return; }
+    fetchJson(`/api/colleagues?messages=${chatId}`)
+      .then((d) => { setMessages(d.messages || []); setHasMore(Boolean(d.hasMore)); })
+      .catch(() => setMessages([]));
+  }, []);
   const onWsEvent = useCallback((m) => {
     if (m.type === 'chat') {
       loadChats();
@@ -530,8 +558,12 @@ export default function Colleagues({ member, visible, onUnread, canManageRoster 
       window.dispatchEvent(new Event('pa-perms-updated'));
     } else if (m.type === 'rtc') {
       callApi.onRtc(m.from, m.fromName, m.data);
+    } else if (m.type === 'reconnected') {
+      // Network/tab came back — refetch so missed messages/roster show live.
+      loadChats(); loadColleagues();
+      if (activeChatRef.current) loadMessages(activeChatRef.current);
     }
-  }, [loadChats, member.email]);
+  }, [loadChats, loadColleagues, loadMessages, member.email]);
 
   // Clear a chat's unread badge once you're actually viewing it; report the
   // running total up to the portal so it can badge the "Colleagues" button.
@@ -570,11 +602,8 @@ export default function Colleagues({ member, visible, onUnread, canManageRoster 
 
   useEffect(() => {
     setReplyTo(null); setEditing(null);
-    if (!activeChatId) { setMessages([]); return; }
-    fetchJson(`/api/colleagues?messages=${activeChatId}`)
-      .then((d) => { setMessages(d.messages || []); setHasMore(Boolean(d.hasMore)); })
-      .catch(() => setMessages([]));
-  }, [activeChatId]);
+    loadMessages(activeChatId);
+  }, [activeChatId, loadMessages]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages.length, activeChatId]);
 
   const loadOlder = async () => {
