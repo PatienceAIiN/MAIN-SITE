@@ -590,18 +590,36 @@ function SwipeReply({ children, onReply, mine }) {
 /* ── Group chat create / edit modal ──────────────────────────────────────── */
 function GroupModal({ colleagues, chat, onClose, onSaved }) {
   const [name, setName] = useState(chat?.name || '');
-  const [picked, setPicked] = useState(() => new Set(chat ? chat.member_list : []));
+  // Selection is keyed per ROW (side:email) so the same person listed under both
+  // Team and Support can be picked independently. (Editing pre-selects every row
+  // whose email is already a member.)
+  const rowKey = (c) => `${c.side || 'team'}:${c.email}`;
+  const [picked, setPicked] = useState(() => new Set(
+    chat ? colleagues.filter((c) => (chat.member_list || []).includes(c.email)).map(rowKey) : []
+  ));
   const [err, setErr] = useState('');
-  const toggle = (email) => setPicked((s) => { const n = new Set(s); n.has(email) ? n.delete(email) : n.add(email); return n; });
+  const toggle = (k) => setPicked((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; });
   const save = async () => {
     setErr('');
+    // A chat member is an email, so collapse picked rows to unique emails.
+    const memberEmails = [...new Set([...picked].map((k) => k.slice(k.indexOf(':') + 1)))];
     try {
       const body = chat
-        ? { action: 'update_chat', chatId: chat.id, name: name.trim() || 'Group chat', memberEmails: [...picked] }
-        : { action: 'create_chat', kind: 'group', name: name.trim() || 'Group chat', memberEmails: [...picked] };
+        ? { action: 'update_chat', chatId: chat.id, name: name.trim() || 'Group chat', memberEmails }
+        : { action: 'create_chat', kind: 'group', name: name.trim() || 'Group chat', memberEmails };
       const d = await fetchJson('/api/colleagues', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       onSaved(d.chat);
     } catch (e) { setErr(e.message); }
+  };
+  const Row = (c) => {
+    const k = rowKey(c); const on = picked.has(k);
+    return (
+      <button key={k} onClick={() => toggle(k)}
+        className={`w-full flex items-center justify-between text-left text-xs px-2.5 py-2 rounded-lg ${on ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300' : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}>
+        <span className="truncate">{c.name} <span className="text-slate-400">· {c.email}</span></span>
+        {on && <FiCheck size={13} />}
+      </button>
+    );
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
@@ -613,16 +631,20 @@ function GroupModal({ colleagues, chat, onClose, onSaved }) {
         </div>
         <div className="p-5 space-y-3">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Group name" className={`${inp} w-full`} />
-          <div className="max-h-52 overflow-y-auto space-y-1 rounded-xl border border-slate-100 dark:border-slate-800 p-2">
-            {colleagues.map((c) => (
-              <button key={c.email} onClick={() => toggle(c.email)}
-                className={`w-full flex items-center justify-between text-left text-xs px-2.5 py-2 rounded-lg ${picked.has(c.email) ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300' : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}>
-                <span className="truncate">{c.name} <span className="text-slate-400">· {(c.team_role || '').replace(/_/g, ' ')}</span></span>
-                {picked.has(c.email) && <FiCheck size={13} />}
-              </button>
-            ))}
+          <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-100 dark:border-slate-800 p-2">
+            {[{ key: 'team', label: 'Team' }, { key: 'support', label: 'Support' }].map(({ key, label }) => {
+              const group = colleagues.filter((c) => (c.side || 'team') === key);
+              if (!group.length) return null;
+              return (
+                <div key={key} className="mb-1">
+                  <p className="px-1 pt-1.5 pb-1 text-[10px] uppercase tracking-wider font-semibold text-slate-400">{label}</p>
+                  {group.map(Row)}
+                </div>
+              );
+            })}
             {!colleagues.length && <p className="text-xs text-slate-400 p-2">No active colleagues yet.</p>}
           </div>
+          {picked.size > 0 && <p className="text-[11px] text-slate-400">{new Set([...picked].map((k) => k.slice(k.indexOf(':') + 1))).size} colleague(s) selected</p>}
           {err && <p className="text-red-500 text-xs">{err}</p>}
           <button onClick={save} disabled={!picked.size} className={`${tb} w-full !py-2.5`}>{chat ? 'Save changes' : 'Create group'}</button>
         </div>

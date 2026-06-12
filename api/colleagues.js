@@ -93,18 +93,12 @@ export default async function handler(req, res) {
            ORDER BY name ASC`
         ));
         const presence = presenceSnapshot();
-        // Someone may exist in BOTH team_members and support_executives (same
-        // email). Collapse to one entry per email — keyed selection in the group
-        // picker would otherwise tick "both" Harshes at once. Prefer the
-        // team-member record over the support one.
-        const byEmail = new Map();
-        for (const r of rows) {
-          const k = (r.email || '').toLowerCase();
-          const ex = byEmail.get(k);
-          if (!ex || (ex.team_role === 'support_executive' && r.team_role !== 'support_executive')) byEmail.set(k, r);
-        }
+        // Keep BOTH the team and support entries for someone who exists in both
+        // (same email) — they belong under their respective tabs and the group
+        // picker selects them per-row, so support-Harsh and team-Harsh are
+        // independently choosable.
         return res.status(200).json({
-          colleagues: [...byEmail.values()].filter((r) => r.email !== myEmail).map((r) => ({
+          colleagues: rows.filter((r) => r.email !== myEmail).map((r) => ({
             ...r,
             // Which portal this colleague belongs to, so the UI can list Team and
             // Support people in separate groups instead of one mixed roster.
