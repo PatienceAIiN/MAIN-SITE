@@ -18,7 +18,9 @@ const users = new Map();
 
 const statusOf = (u) => {
   if (!u || u.sockets.size === 0) return 'offline';
+  if (u.manualStatus === 'offline') return 'offline';   // user chose "appear offline"
   if (u.busy) return 'busy';   // on a call — others see a chip and can't dial in
+  if (u.manualStatus === 'away' || u.manualStatus === 'online') return u.manualStatus;
   return Date.now() - u.lastActivity > AWAY_AFTER_MS ? 'away' : 'online';
 };
 
@@ -91,6 +93,12 @@ export const attachTeamHub = (server) => {
           if (u.loggedStatus !== 'online') { u.loggedStatus = 'online'; logPresence(email, u.name, payload.role, 'online'); }
           broadcastPresence();
         }
+        return;
+      }
+      // Manual presence override (online / away / appear offline).
+      if (msg.type === 'setstatus') {
+        u.manualStatus = ['online', 'away', 'offline'].includes(msg.status) ? msg.status : null;
+        broadcastPresence();
         return;
       }
       // Call busy state — flip presence to 'busy' while on a call.

@@ -49,8 +49,11 @@ const Badge = ({ n }) => n ? (
 
 /* ── Web-push helpers (used here and by the settings modal) ──────────────── */
 const b64ToUint8 = (s) => {
-  const pad = '='.repeat((4 - (s.length % 4)) % 4);
-  const raw = window.atob((s + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  // Strip whitespace/newlines first — a VAPID key pasted into an env var often
+  // carries a trailing newline, which makes atob throw "not correctly encoded".
+  const clean = String(s || '').trim().replace(/\s+/g, '');
+  const pad = '='.repeat((4 - (clean.length % 4)) % 4);
+  const raw = window.atob((clean + pad).replace(/-/g, '+').replace(/_/g, '/'));
   return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
 };
 
@@ -129,6 +132,9 @@ function useTeamSocket(memberEmail, onEvent) {
     window.addEventListener('online', wake);
     window.addEventListener('focus', wake);
     document.addEventListener('visibilitychange', wake);
+    // Manual presence override from the portal header (online/away/offline).
+    const onSetStatus = (e) => { if (wsRef.current?.readyState === 1) wsRef.current.send(JSON.stringify({ type: 'setstatus', status: e.detail })); };
+    window.addEventListener('pa-set-status', onSetStatus);
 
     // Report user activity (throttled) so the server can flip online ↔ away.
     let last = 0;
@@ -146,6 +152,7 @@ function useTeamSocket(memberEmail, onEvent) {
       clearTimeout(retryTimer);
       window.removeEventListener('online', wake);
       window.removeEventListener('focus', wake);
+      window.removeEventListener('pa-set-status', onSetStatus);
       document.removeEventListener('visibilitychange', wake);
       events.forEach((ev) => window.removeEventListener(ev, act));
       wsRef.current?.close();

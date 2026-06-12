@@ -18,7 +18,8 @@ const DEFAULT_VAPID = {
 const loadKeys = () => {
   if (keys) return keys;
   if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-    keys = { publicKey: process.env.VAPID_PUBLIC_KEY, privateKey: process.env.VAPID_PRIVATE_KEY };
+    // .trim() guards against trailing newlines pasted into the env var.
+    keys = { publicKey: process.env.VAPID_PUBLIC_KEY.trim(), privateKey: process.env.VAPID_PRIVATE_KEY.trim() };
   } else {
     // Stable baked-in keys (no per-restart regeneration). env overrides above.
     keys = DEFAULT_VAPID;

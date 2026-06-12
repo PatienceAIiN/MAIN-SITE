@@ -949,6 +949,8 @@ export default function TeamPortalPage() {
   }, [member]);
   const [view, setView] = useState('tickets');
   const [colUnread, setColUnread] = useState(0);
+  const [myStatus, setMyStatus] = useState('online'); // manual presence override
+  const setStatus = (s) => { setMyStatus(s); window.dispatchEvent(new CustomEvent('pa-set-status', { detail: s })); };
   const [showTour, setShowTour] = useState(false);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
 
@@ -1046,6 +1048,17 @@ export default function TeamPortalPage() {
               ))}
             </div>
           <NetworkDot className="mr-1" />
+          {/* Manual presence: online / away / appear offline */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+            {['online', 'away', 'offline'].map((s) => (
+              <button key={s} onClick={() => setStatus(s)}
+                className={`px-2.5 py-1 text-[11px] font-medium rounded-md capitalize transition-colors ${myStatus === s
+                  ? (s === 'online' ? 'bg-emerald-500 text-white' : s === 'away' ? 'bg-amber-500 text-white' : 'bg-slate-400 text-white')
+                  : 'text-slate-500 dark:text-slate-400'}`}>
+                {s}
+              </button>
+            ))}
+          </div>
           <DeployControl />
           <NotificationBell dark={dark} />
           <button onClick={() => setDark((d) => !d)} title="Toggle theme"

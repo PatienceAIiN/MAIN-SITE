@@ -1006,6 +1006,11 @@ export default function SupportExecutivePage() {
   }
 
   const selectedSession = sessions.find(s => s.conversation_id === selectedId);
+  // You can only chat/call on a session you currently own. After a transfer is
+  // accepted, assigned_executive becomes the new agent → the previous agent goes
+  // read-only. Calling the customer is only allowed on a live (active) chat.
+  const chatOwned = Boolean(selectedSession) && (!selectedSession.assigned_executive || selectedSession.assigned_executive === executive?.name);
+  const chatLive = selectedSession?.status === 'active';
 
   return (
     <div className={`support-console support-${supportTheme} min-h-screen bg-slate-50 text-slate-900 flex flex-col`}>
@@ -1092,7 +1097,7 @@ export default function SupportExecutivePage() {
               <div className="absolute right-0 mt-2 w-64 max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl z-30 p-2">
                 <p className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Colleagues</p>
                 {colleagues.length === 0 && <p className="px-2 py-2 text-xs text-slate-400">No colleagues yet.</p>}
-                {colleagues.filter(c => c.name !== executive.name).map(c => (
+                {colleagues.filter(c => c.email !== executive.email).map(c => (
                   <button key={c.id}
                     onClick={() => { setInternalWith(c); setTeamOpen(false); }}
                     className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-50 text-left transition-colors">
@@ -1220,8 +1225,9 @@ export default function SupportExecutivePage() {
                     <FiTag size={12}/> Create ticket
                   </button>
                   {!callState && (
-                    <button onClick={startVoiceCall}
-                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors">
+                    <button onClick={startVoiceCall} disabled={!chatLive || !chatOwned}
+                      title={!chatOwned ? 'This chat is handled by another agent' : !chatLive ? 'The customer is not in an active chat' : 'Call the customer'}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                       <FiPhone size={12}/> Call customer
                     </button>
                   )}
@@ -1234,10 +1240,10 @@ export default function SupportExecutivePage() {
                     {transferOpen && (
                       <div className="absolute right-0 mt-2 w-60 max-h-72 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl z-30 p-2">
                         <p className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Transfer to</p>
-                        {colleagues.filter(c => c.name !== executive.name).length === 0 && (
+                        {colleagues.filter(c => c.email !== executive.email).length === 0 && (
                           <p className="px-2 py-2 text-xs text-slate-400">No colleagues available.</p>
                         )}
-                        {colleagues.filter(c => c.name !== executive.name).map(c => (
+                        {colleagues.filter(c => c.email !== executive.email).map(c => (
                           <button key={c.id} onClick={() => transferTo(c)}
                             disabled={c.status === 'offline'}
                             className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-50 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
@@ -1279,6 +1285,12 @@ export default function SupportExecutivePage() {
                 <div ref={messagesEndRef} />
               </div>
 
+              {!chatOwned ? (
+                <div className="px-4 py-4 bg-white border-t border-slate-200 shrink-0 text-center">
+                  <p className="text-xs text-slate-500">This chat was transferred to <span className="font-semibold text-slate-700">{selectedSession?.assigned_executive}</span>. It's read-only for you now.</p>
+                </div>
+              ) : (
+              <>
               <div className="border-t border-slate-200 px-3 pt-2 bg-white flex flex-wrap gap-1.5 shrink-0">
                 {CANNED_REPLIES.map((c) => (
                   <button
@@ -1303,6 +1315,8 @@ export default function SupportExecutivePage() {
                   <FiSend size={15} className="text-white"/>
                 </button>
               </div>
+              </>
+              )}
             </>
           )}
         </main>

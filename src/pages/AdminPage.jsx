@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FiAlertTriangle, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiAlertTriangle, FiEye, FiEyeOff, FiSun, FiMoon } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import Button from '../components/ui/Button';
 import AdminTicketOps from '../components/AdminTicketOps';
@@ -240,6 +240,9 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [activeTab, setActiveTab] = useState('content');
+  const [theme, setTheme] = useState(() => { try { return localStorage.getItem('pa_admin_theme') || 'light'; } catch { return 'light'; } });
+  const themeClass = theme === 'light' ? 'admin-light' : 'admin-dark';
+  const toggleTheme = () => setTheme((t) => { const n = t === 'light' ? 'dark' : 'light'; try { localStorage.setItem('pa_admin_theme', n); } catch { /* ignore */ } return n; });
   const [contentJson, setContentJson] = useState(JSON.stringify(currentContent || defaultContent, null, 2));
   const [contentError, setContentError] = useState('');
   const [contentSaving, setContentSaving] = useState(false);
@@ -934,7 +937,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
 
   if (loadingAuth) {
     return (
-      <main className={`admin-console admin-light bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10 min-h-[70vh] flex items-center justify-center`}>
+      <main className={`admin-console ${themeClass} bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10 min-h-[70vh] flex items-center justify-center`}>
         <p className="text-white/60">Loading admin console...</p>
       </main>
     );
@@ -942,7 +945,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
 
   if (!authenticated) {
     return (
-      <main className={`admin-console admin-light bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10 min-h-[70vh] flex items-center justify-center`}>
+      <main className={`admin-console ${themeClass} bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10 min-h-[70vh] flex items-center justify-center`}>
         <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-white/5 p-8 shadow-2xl relative overflow-hidden">
           {loginSuccess ? (
             <motion.div
@@ -1027,7 +1030,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
   const blogPosts = contentObject?.blogPage?.posts || [];
 
   return (
-    <main className={`admin-console admin-light bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10`}>
+    <main className={`admin-console ${themeClass} bg-slate-950 text-white px-4 py-6 md:px-8 lg:px-10`}>
       <section className="max-w-7xl mx-auto">
         <div className="rounded-[2rem] overflow-hidden border border-white/10 bg-[linear-gradient(135deg,#0f172a_0%,#111827_45%,#1f2937_100%)] shadow-2xl">
           <div className="p-6 md:p-8 border-b border-white/10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
@@ -1035,7 +1038,11 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
               <p className="text-xs uppercase tracking-[0.35em] text-cyan-300/80 mb-3">NeonDB admin</p>
               <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">Submission + content console</h1>
             </div>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-3 items-center">
+              <button onClick={toggleTheme} title={theme === 'light' ? 'Switch to dark' : 'Switch to light'}
+                className="rounded-2xl p-3 border border-white/15 text-white/80 hover:bg-white/5 transition-colors">
+                {theme === 'light' ? <FiMoon size={16} /> : <FiSun size={16} />}
+              </button>
               <Button variant="white" className="rounded-2xl px-6 py-3" onClick={() => onAction({ type: 'route', to: '/' })}>
                 Back home
               </Button>
