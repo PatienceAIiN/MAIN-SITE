@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useGroupCall, GroupCallOverlay } from '../components/GroupCall';
 
 // Public, no-login guest meeting page at /meet?room=<token>. The unguessable room
@@ -28,7 +28,7 @@ export default function GuestMeet() {
   };
 
   // When the call ends (leave/host-end), show a friendly closed screen.
-  if (joined && !groupApi.room && !left) setLeft(true);
+  useEffect(() => { if (joined && !groupApi.room) setLeft(true); }, [joined, groupApi.room]);
 
   const wrap = (children) => (
     <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">{children}</div>
