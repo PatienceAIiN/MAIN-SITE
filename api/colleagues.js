@@ -7,6 +7,7 @@ import { getMemberSession, getExecSession } from './_security.js';
 import { presenceSnapshot, broadcastToEmails, hasActiveSocket } from './_teamhub.js';
 import { getVapidPublicKey, sendPushToEmails } from './_push.js';
 import { resolvePerms } from './team-members.js';
+import { cached } from './_cache.js';
 
 // Group create/edit/delete is roster management — gated on the roster_manage
 // permission. Support executives manage the support roster; team members need
@@ -82,12 +83,15 @@ export default async function handler(req, res) {
 
       // Colleague roster + presence — team members ∪ support executives
       if (req.query.list === '1') {
-        const rows = await queryDb(
+        // The roster (names/roles) changes rarely but is refetched on every
+        // presence change — cache the DB read ~8s; presence is overlaid live
+        // from the in-memory hub, so it stays fresh without hitting Neon.
+        const rows = await cached('cache:colleagues:roster', 8, () => queryDb(
           `SELECT email, name, team_role, last_seen_at FROM team_members WHERE status='active'
            UNION ALL
            SELECT email, name, 'support_executive' AS team_role, last_seen_at FROM support_executives WHERE status='active'
            ORDER BY name ASC`
-        );
+        ));
         const presence = presenceSnapshot();
         return res.status(200).json({
           colleagues: rows.filter((r) => r.email !== myEmail).map((r) => ({

@@ -919,7 +919,7 @@ export default function SupportExecutivePage() {
     const load = () => fetchJson('/api/support-executives?colleagues=1')
       .then(d => setColleagues(d.colleagues || [])).catch(() => {});
     load();
-    const id = setInterval(load, 10000);
+    const id = setInterval(load, 15000);
     return () => clearInterval(id);
   }, [executive]);
 
@@ -929,7 +929,7 @@ export default function SupportExecutivePage() {
     const load = () => fetchJson('/api/support-executives/transfer')
       .then(d => setIncomingTransfer((d.incoming || [])[0] || null)).catch(() => {});
     load();
-    const id = setInterval(load, 3000);
+    const id = setInterval(load, 8000);
     return () => clearInterval(id);
   }, [executive]);
 

@@ -2,6 +2,11 @@ import { queryDb, isMissingTableError } from './_db.js';
 import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, getExecSession } from './_security.js';
 import { sendEmail } from './_email.js';
 import { cached, invalidate, cacheKeys } from './_cache.js';
+import { redisSetJson, redisGetJson } from './_redis.js';
+
+// Customer presence lives in Redis (TTL), NOT Neon — the widget polls every ~2s
+// and writing that to Postgres would hammer the free tier. Key per conversation.
+const custKey = (id) => `cust:seen:${id}`;
 
 const CHATS_TABLE = 'support_chats';
 const SESSIONS_TABLE = 'support_sessions';
@@ -87,8 +92,15 @@ export default async function handler(req, res) {
         // Cache only the default polling window (offset 0, full page) — that's what
         // every executive/admin hits every few seconds. Custom pages skip the cache.
         const payload = (offset === 0 && limit === 100)
-          ? await cached(cacheKeys.sessionList, 4, produce)
+          ? await cached(cacheKeys.sessionList, 8, produce)
           : await produce();
+        // Overlay live customer presence from Redis (kept out of the cache so it
+        // stays fresh) onto non-closed sessions, so the "Call customer" gating works.
+        await Promise.all((payload.sessions || []).map(async (s) => {
+          if (s.status === 'closed') return;
+          const seen = await redisGetJson(custKey(s.conversation_id)).catch(() => null);
+          if (seen) s.customer_last_seen_at = seen;
+        }));
         return res.status(200).json(payload);
       } catch (err) {
         if (isMissingTableError(err.message)) return res.status(200).json({ sessions: [] });
@@ -100,11 +112,9 @@ export default async function handler(req, res) {
     if (!authorized && !conversationId.startsWith('PatienceAILive-'))
       return res.status(403).json({ error: 'Forbidden' });
 
-    // Customer heartbeat: a poll from the widget (unauthenticated) means the
-    // customer is present right now — bump last-seen so execs only get the
-    // "Call customer" button while the customer is actually there.
+    // Customer heartbeat → Redis only (90s TTL). No Neon write on the ~2s poll.
     if (!authorized) {
-      queryDb(`UPDATE ${SESSIONS_TABLE} SET customer_last_seen_at=NOW() WHERE conversation_id=$1`, [conversationId]).catch(() => {});
+      redisSetJson(custKey(conversationId), new Date().toISOString(), 90).catch(() => {});
     }
 
     try {
