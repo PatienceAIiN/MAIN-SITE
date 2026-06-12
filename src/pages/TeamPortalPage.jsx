@@ -456,6 +456,7 @@ function BranchExplorer({ repo, branch, canWrite, onClose }) {
   const [files, setFiles] = useState([]);
   const [filter, setFilter] = useState('');
   const [active, setActive] = useState(null); // {path, content, sha, canWrite}
+  const [bigEdit, setBigEdit] = useState(false); // enlarged editor modal
   const [edited, setEdited] = useState('');
   const [commits, setCommits] = useState([]);
   const [commit, setCommit] = useState(null); // {sha,message,files:[...]}
@@ -522,8 +523,11 @@ function BranchExplorer({ repo, branch, canWrite, onClose }) {
             {!active ? <p className="text-xs text-slate-400 m-auto">Select a file to view{canWrite ? ' or edit' : ''}.</p> : (
               <>
                 <div className="flex items-center justify-between gap-2 mb-2">
-                  <p className="text-xs font-mono text-slate-500 truncate">{active.path}</p>
-                  {canWrite && active.canWrite && <button className={tb2} disabled={busy || edited === active.content} onClick={save}>{busy ? 'Committing…' : 'Commit changes'}</button>}
+                  <p className="text-xs font-mono text-slate-500 truncate">{active.path}{canWrite && active.canWrite ? '' : ' · read-only'}</p>
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    {canWrite && active.canWrite && <button className={tb2} disabled={busy || edited === active.content} onClick={save}>{busy ? 'Committing…' : 'Commit changes'}</button>}
+                    <button className={tb2} title={canWrite && active.canWrite ? 'Open larger to edit' : 'Open larger'} onClick={() => setBigEdit(true)}><FiMaximize2 size={13} /></button>
+                  </span>
                 </div>
                 <textarea value={edited} onChange={(e) => setEdited(e.target.value)} readOnly={!canWrite || !active.canWrite} spellCheck={false}
                   className="flex-1 w-full font-mono text-[11px] leading-relaxed rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-950 text-slate-100 p-3 focus:outline-none resize-none" />
@@ -553,6 +557,25 @@ function BranchExplorer({ repo, branch, canWrite, onClose }) {
             </button>
           ))}
           {!commits.length && <p className="text-xs text-slate-400 p-3 text-center">No commits.</p>}
+        </div>
+      )}
+
+      {/* Enlarged editor — edit + commit if write permission, else read-only. */}
+      {bigEdit && active && (
+        <div className="fixed inset-0 z-[95] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 md:p-8" onClick={(e) => { if (e.target === e.currentTarget) setBigEdit(false); }}>
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-5xl h-[88vh] flex flex-col">
+            <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-700">
+              <p className="text-sm font-mono text-slate-200 truncate">{active.path} <span className="text-slate-500">· {branch}{canWrite && active.canWrite ? '' : ' · read-only'}</span></p>
+              <span className="flex items-center gap-2 shrink-0">
+                {canWrite && active.canWrite && (
+                  <button className={tb2} disabled={busy || edited === active.content} onClick={async () => { await save(); }}>{busy ? 'Committing…' : 'Commit changes'}</button>
+                )}
+                <button className={tb2} onClick={() => setBigEdit(false)}><FiX size={14} /></button>
+              </span>
+            </div>
+            <textarea value={edited} onChange={(e) => setEdited(e.target.value)} readOnly={!canWrite || !active.canWrite} spellCheck={false}
+              className="flex-1 w-full font-mono text-[13px] leading-relaxed bg-slate-950 text-slate-100 p-4 focus:outline-none resize-none rounded-b-2xl" />
+          </div>
         </div>
       )}
     </Modal>
