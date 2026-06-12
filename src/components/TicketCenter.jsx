@@ -5,6 +5,7 @@ import {
   FiBell, FiPaperclip, FiDownload, FiLock, FiBookOpen, FiAlertTriangle, FiCheckSquare, FiSquare, FiFilter
 } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
+import Dropdown from '../common/Dropdown';
 
 export const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 export const STATUSES = ['open', 'in_progress', 'resolved', 'closed'];
@@ -607,12 +608,12 @@ function ReassignControl({ ticket, onReassign }) {
     );
   }
   return (
-    <span className="flex items-center gap-1.5 w-56">
+    <Dropdown open={open} onClose={() => setOpen(false)} className="flex items-center gap-1.5 w-56">
       <span className="flex-1"><AssigneePicker value={email} onChange={setEmail} /></span>
       <button onClick={() => { onReassign(email); setOpen(false); }}
         className="text-[11px] px-2 py-1.5 rounded-lg bg-slate-900 text-white">OK</button>
       <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-700"><FiX size={13} /></button>
-    </span>
+    </Dropdown>
   );
 }
 

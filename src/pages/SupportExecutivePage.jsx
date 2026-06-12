@@ -10,6 +10,7 @@ import { TicketModal, TicketsPanel, NotificationBell } from '../components/Ticke
 const STATUS_DOT = { online: 'bg-emerald-500', away: 'bg-amber-500', offline: 'bg-slate-300' };
 const IDLE_LIMIT_MS = 10 * 60 * 1000; // 10 min without activity → auto-offline
 import { fetchJson } from '../common/fetchJson';
+import Dropdown from '../common/Dropdown';
 import Colleagues, { lastSeenText } from '../components/Colleagues';
 
 const fmt = (v) => v ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(v)) : '—';
@@ -1069,7 +1070,7 @@ export default function SupportExecutivePage() {
             )}
           </button>
           {/* Team presence dropdown */}
-          <div className="relative">
+          <Dropdown open={teamOpen} onClose={() => setTeamOpen(false)} className="relative">
             <button onClick={() => setTeamOpen(o => !o)}
               className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors">
               <FiUsers size={14} /> Team
@@ -1095,7 +1096,7 @@ export default function SupportExecutivePage() {
                 ))}
               </div>
             )}
-          </div>
+          </Dropdown>
 <ThemeToggle
             theme={supportTheme}
             onToggle={() => setSupportTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
@@ -1215,7 +1216,7 @@ export default function SupportExecutivePage() {
                     </button>
                   )}
                   {/* Transfer / handoff */}
-                  <div className="relative">
+                  <Dropdown open={transferOpen} onClose={() => setTransferOpen(false)} className="relative">
                     <button onClick={() => setTransferOpen(o => !o)}
                       className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 transition-colors">
                       <FiCornerUpRight size={12}/> Transfer
@@ -1237,7 +1238,7 @@ export default function SupportExecutivePage() {
                         ))}
                       </div>
                     )}
-                  </div>
+                  </Dropdown>
                   <button onClick={() => closeSession(selectedId)}
                     className="text-xs text-slate-500 hover:text-slate-900 px-3 py-1.5 rounded-lg hover:bg-slate-100 border border-slate-200 transition-colors">
                     Close chat
