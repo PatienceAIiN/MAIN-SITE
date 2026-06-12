@@ -5,6 +5,7 @@ import {
   FiPaperclip, FiFile, FiDownload, FiCornerUpLeft, FiMessageSquare, FiMinimize2, FiMaximize2
 } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
+import { useGroupCall, GroupCallOverlay } from './GroupCall';
 
 // Colleague chat workspace: searchable roster with live presence, 1:1 and
 // group chats (create / rename / delete), typing indicators, web-push and
@@ -688,7 +689,8 @@ export default function Colleagues({ member, visible, onUnread, canManageRoster 
       // admin changed this member's role/permissions/repo grants — portal refetches instantly
       window.dispatchEvent(new Event('pa-perms-updated'));
     } else if (m.type === 'rtc') {
-      callApi.onRtc(m.from, m.fromName, m.data);
+      if (m.data?.room) groupApi.onRtc(m.from, m.fromName, m.data); // group (mesh) call
+      else callApi.onRtc(m.from, m.fromName, m.data);               // 1:1 call
     } else if (m.type === 'reconnected') {
       // Network/tab came back — refetch so missed messages/roster show live.
       loadChats(); loadColleagues();
@@ -710,6 +712,7 @@ export default function Colleagues({ member, visible, onUnread, canManageRoster 
 
   const { presence, send } = useTeamSocket(member.email, onWsEvent);
   const callApi = useCall(member, send);
+  const groupApi = useGroupCall(member, send);
 
   useEffect(() => { loadColleagues(); loadChats(); }, [loadColleagues, loadChats]);
   // presence changes: instant chip update + refetch for fresh last_seen_at
@@ -823,6 +826,7 @@ export default function Colleagues({ member, visible, onUnread, canManageRoster 
         kept mounted (never under display:none) by the portals — so an incoming
         call rings fullscreen no matter which screen/tab the user is on. */}
     <CallOverlay callApi={callApi} />
+    <GroupCallOverlay api={groupApi} />
     <div className={visible
       ? (fullscreen ? 'fixed inset-0 z-40 bg-slate-50 dark:bg-slate-950 flex flex-col md:flex-row' : 'flex flex-1 overflow-hidden flex-col md:flex-row')
       : 'hidden'}>
@@ -949,6 +953,13 @@ export default function Colleagues({ member, visible, onUnread, canManageRoster 
                   </button>
                 );
               })}
+              {activeChat.kind === 'group' && (
+                <button onClick={() => groupApi.start(activeChat.id, activeChat.member_list || [], chatTitle(activeChat))}
+                  disabled={Boolean(groupApi.room)} title="Start group video call"
+                  className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40">
+                  <FiVideo size={15} />
+                </button>
+              )}
               {activeChat.kind === 'group' && canManageRoster && (
                 <button onClick={() => setGroupModal(activeChat)} title="Edit group" className={tb2}><FiEdit2 size={12} /></button>
               )}
