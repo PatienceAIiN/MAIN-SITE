@@ -6,6 +6,7 @@ import {
 } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import { useGroupCall, GroupCallOverlay } from './GroupCall';
+import { playRingtone, playPing } from '../common/sounds';
 
 // Colleague chat workspace: searchable roster with live presence, 1:1 and
 // group chats (create / rename / delete), typing indicators, web-push and
@@ -372,6 +373,8 @@ function CallOverlay({ callApi }) {
   noteRef.current = noteText;
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chat, chatOpen]);
   useEffect(() => { if (!call) { setMinimized(false); setFullscreen(false); setChatOpen(false); setNotesOpen(false); setNoteText(''); } }, [call]);
+  // Ring while a 1:1 call is incoming; stop on accept/decline.
+  useEffect(() => { if (call?.phase === 'incoming') return playRingtone(); }, [call?.phase]);
 
   // End the call AND, if notes were taken, save+email the Minutes of Meeting.
   const endCall = () => {
@@ -672,6 +675,7 @@ export default function Colleagues({ member, visible, onUnread, canManageRoster 
       // that chat — so the chip shows even from other portal tabs.
       if (!mine && !viewing && m.event !== 'edit' && !m.message?.deleted) {
         setUnread((u) => ({ ...u, [m.chatId]: (u[m.chatId] || 0) + 1 }));
+        playPing(); // notify sound for an incoming message
       }
       if (m.chatId === activeChatRef.current) {
         setMessages((prev) => {
