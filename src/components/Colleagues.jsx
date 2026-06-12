@@ -77,6 +77,13 @@ export async function enablePushNotifications() {
   if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey });
   await fetchJson('/api/colleagues', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'push_subscribe', subscription: sub.toJSON() }) });
+  // Instant confirmation so the user knows push is actually working now.
+  try {
+    await reg.showNotification('🔔 Notifications enabled', {
+      body: "You'll now get alerts for new messages and calls — even when this tab is closed.",
+      icon: '/favicon-32.png', badge: '/favicon-32.png', tag: 'pa-push-enabled'
+    });
+  } catch { /* showNotification unsupported — subscription still saved */ }
 }
 
 export async function isPushSubscribed() {
