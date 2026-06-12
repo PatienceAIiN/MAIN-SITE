@@ -124,13 +124,15 @@ export function useGroupCall(me, wsSend) {
   return { room, peers, muted, camOff, sharing, localStream, start, accept, leave, onRtc, toggleMute, toggleCam, toggleShare, me };
 }
 
-function Tile({ stream, name, muted, mine }) {
+function Tile({ stream, name, muted, mine, speaking }) {
   const ref = useRef(null);
   useEffect(() => { if (ref.current && stream) ref.current.srcObject = stream; }, [stream]);
   return (
-    <div className="relative rounded-xl overflow-hidden bg-slate-800 aspect-video">
+    <div className={`relative rounded-2xl overflow-hidden bg-slate-800 aspect-video transition-shadow ${speaking ? 'ring-2 ring-emerald-400 shadow-[0_0_0_4px_rgba(16,185,129,0.25)]' : 'ring-1 ring-white/10'}`}>
       <video ref={ref} autoPlay playsInline muted={mine || muted} className="w-full h-full object-cover" />
-      <span className="absolute bottom-1 left-2 text-[11px] text-white/90 bg-black/40 px-1.5 rounded">{name}{mine ? ' (you)' : ''}</span>
+      <span className="absolute bottom-2 left-2 flex items-center gap-1 text-[11px] text-white bg-black/55 backdrop-blur-sm px-2 py-0.5 rounded-full">
+        {speaking && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}{name}{mine ? ' (you)' : ''}
+      </span>
     </div>
   );
 }
@@ -217,7 +219,7 @@ export function GroupCallOverlay({ api }) {
         {focus ? (
           <>
             <div className="w-full max-w-4xl flex-1 min-h-0 flex items-center justify-center">
-              <div className="w-full"><Tile stream={peers[focus].stream} name={peers[focus].name || focus} /></div>
+              <div className="w-full"><Tile stream={peers[focus].stream} name={peers[focus].name || focus} speaking /></div>
             </div>
             <div className="flex gap-2 overflow-x-auto shrink-0 max-w-full pb-1">
               <div className="w-32 shrink-0"><Tile stream={localStream.current} name={me.name || 'You'} mine /></div>

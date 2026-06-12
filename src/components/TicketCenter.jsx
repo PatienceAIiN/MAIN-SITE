@@ -424,6 +424,8 @@ export function TicketDetail({ ticket, onChanged, canReassign = true }) {
   const [savedResponses, setSavedResponses] = useState([]);
   const [err, setErr] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [savingField, setSavingField] = useState('');
   const endRef = useRef(null);
 
   const load = async () => {
@@ -447,7 +449,7 @@ export function TicketDetail({ ticket, onChanged, canReassign = true }) {
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [comments.length]);
 
   const update = async (patch) => {
-    setErr('');
+    setErr(''); setSavingField(Object.keys(patch)[0] || '');
     try {
       await fetchJson('/api/tickets', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -455,19 +457,22 @@ export function TicketDetail({ ticket, onChanged, canReassign = true }) {
       });
       onChanged?.();
     } catch (ex) { setErr(ex.message); }
+    finally { setSavingField(''); }
   };
 
   const sendComment = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || sending) return;
     const text = input.trim();
-    setInput('');
+    setSending(true);
     try {
       await fetchJson('/api/tickets/comments', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ticketId: ticket.id, message: text, isInternal })
       });
+      setInput('');
       await load();
     } catch (ex) { setErr(ex.message); }
+    finally { setSending(false); }
   };
 
   const onUpload = async (fileList) => {
@@ -526,6 +531,7 @@ export function TicketDetail({ ticket, onChanged, canReassign = true }) {
           {canReassign && (
             <ReassignControl ticket={ticket} onReassign={(email) => update({ assigneeEmail: email })} />
           )}
+          {savingField && <span className="text-[10px] text-slate-400 flex items-center gap-1"><svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" opacity="0.3"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg> Saving…</span>}
           {(!ticket.stage || ticket.stage === 'support') ? (
             <button onClick={async () => {
               try {
@@ -549,23 +555,30 @@ export function TicketDetail({ ticket, onChanged, canReassign = true }) {
 
       <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50 min-h-0">
         {comments.length === 0 && <p className="text-slate-400 text-xs text-center py-6">No activity yet.</p>}
-        {comments.map((c) => (
-          c.author_role === 'system' ? (
-            <p key={c.id} className="text-center text-[11px] text-slate-400 py-1">{c.message} · {fmt(c.created_at)}</p>
-          ) : (
-            <div key={c.id} className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm ${c.is_internal
-              ? 'border border-amber-300 bg-amber-50 text-amber-900'
-              : c.author_role === 'member' || c.author_role === 'client'
-                ? 'bg-white border border-slate-200 text-slate-800'
-                : 'ml-auto bg-slate-900 text-white'}`}>
-              <p className={`text-[10px] uppercase tracking-wider mb-1 ${c.is_internal ? 'text-amber-600' : (c.author_role === 'member' || c.author_role === 'client') ? 'text-slate-400' : 'text-white/40'}`}>
-                {c.is_internal && <FiLock size={9} className="inline mr-1" />}
-                {c.author_name || c.author_role}{c.author_role === 'client' ? ' (client)' : ''} · {fmt(c.created_at)}{c.is_internal ? ' · internal note' : ''}
-              </p>
-              <p className="whitespace-pre-wrap leading-snug">{c.message}</p>
+        {comments.map((c) => {
+          if (c.author_role === 'system') return (
+            <p key={c.id} className="text-center text-[11px] text-slate-400 py-1.5">{c.message} <span className="text-slate-300">· {fmt(c.created_at)}</span></p>
+          );
+          const incoming = c.author_role === 'member' || c.author_role === 'client';
+          const who = c.author_name || c.author_role;
+          const initials = String(who).trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+          return (
+            <div key={c.id} className={`flex items-end gap-2 ${incoming ? '' : 'flex-row-reverse'}`}>
+              <span className={`shrink-0 h-7 w-7 rounded-full grid place-items-center text-[10px] font-bold ${c.is_internal ? 'bg-amber-200 text-amber-800' : incoming ? 'bg-slate-200 text-slate-600' : 'bg-indigo-100 text-indigo-700'}`}>{initials || '?'}</span>
+              <div className={`w-fit max-w-[76%] rounded-2xl px-3.5 py-2 text-sm shadow-sm ${c.is_internal
+                ? 'border border-amber-300 bg-amber-50 text-amber-900 rounded-bl-sm'
+                : incoming
+                  ? 'bg-white border border-slate-200 text-slate-800 rounded-bl-sm'
+                  : 'bg-indigo-600 text-white rounded-br-sm'}`}>
+                <p className={`text-[10px] mb-0.5 ${c.is_internal ? 'text-amber-600' : incoming ? 'text-slate-400' : 'text-white/55'}`}>
+                  {c.is_internal && <FiLock size={9} className="inline mr-1" />}
+                  {who}{c.author_role === 'client' ? ' · client' : ''} · {fmt(c.created_at)}{c.is_internal ? ' · internal' : ''}
+                </p>
+                <p className="whitespace-pre-wrap leading-snug">{c.message}</p>
+              </div>
             </div>
-          )
-        ))}
+          );
+        })}
         <div ref={endRef} />
       </div>
 
@@ -591,9 +604,9 @@ export function TicketDetail({ ticket, onChanged, canReassign = true }) {
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendComment(); } }}
             rows={2} placeholder={isInternal ? 'Internal note (hidden from the client)…' : 'Message the assignee… (Enter to send)'}
             className={`flex-1 rounded-xl border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 resize-none ${isInternal ? 'border-amber-300 bg-amber-50 focus:ring-amber-400/40' : 'border-slate-200 bg-slate-50 focus:ring-slate-900/20'}`} />
-          <button onClick={sendComment} disabled={!input.trim()}
-            className="h-10 w-10 rounded-xl bg-slate-900 hover:bg-slate-800 flex items-center justify-center disabled:opacity-40 transition-colors">
-            <FiSend size={15} className="text-white" />
+          <button onClick={sendComment} disabled={!input.trim() || sending}
+            className="h-10 w-10 rounded-xl bg-indigo-600 hover:bg-indigo-700 flex items-center justify-center disabled:opacity-40 transition-colors">
+            {sending ? <svg className="animate-spin text-white" width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" opacity="0.3"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg> : <FiSend size={15} className="text-white" />}
           </button>
         </div>
         <label className="flex items-center gap-1.5 mt-2 text-[11px] text-slate-500 cursor-pointer select-none w-fit">

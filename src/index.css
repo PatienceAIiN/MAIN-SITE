@@ -23,13 +23,19 @@ html {
 }
 
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: #1a1a1a;
   background-color: #ffffff;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* Inter refinements: contextual alternates, tabular numerals, smoother spacing */
+  font-feature-settings: 'cv11', 'ss01', 'tnum';
+  letter-spacing: -0.005em;
   overflow-x: hidden;
 }
+/* The support + team consoles read better slightly tighter and crisper. */
+.support-console, .admin-console, .pa-portal { font-feature-settings: 'cv11', 'ss01', 'tnum'; }
 
 input,
 textarea,
