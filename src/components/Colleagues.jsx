@@ -475,7 +475,7 @@ function GroupModal({ colleagues, chat, onClose, onSaved }) {
 }
 
 /* ── Main component ──────────────────────────────────────────────────────── */
-export default function Colleagues({ member, visible, onUnread, canManageRoster = true }) {
+export default function Colleagues({ member, visible, onUnread, canManageRoster = true, fullscreen = false, onClose }) {
   const [colleagues, setColleagues] = useState([]);
   const [chats, setChats] = useState([]);
   const [search, setSearch] = useState('');
@@ -659,10 +659,19 @@ export default function Colleagues({ member, visible, onUnread, canManageRoster 
 
   return (
     <>
-    {/* CallOverlay lives OUTSIDE the visibility gate so an incoming call rings
-        fullscreen no matter which portal tab is open. */}
+    {/* CallOverlay lives OUTSIDE the visibility gate — and the whole component is
+        kept mounted (never under display:none) by the portals — so an incoming
+        call rings fullscreen no matter which screen/tab the user is on. */}
     <CallOverlay callApi={callApi} />
-    <div className={visible ? 'flex flex-1 overflow-hidden flex-col md:flex-row' : 'hidden'}>
+    <div className={visible
+      ? (fullscreen ? 'fixed inset-0 z-40 bg-slate-50 dark:bg-slate-950 flex flex-col md:flex-row' : 'flex flex-1 overflow-hidden flex-col md:flex-row')
+      : 'hidden'}>
+      {fullscreen && onClose && (
+        <button onClick={onClose} title="Close colleagues"
+          className="absolute top-2 right-3 z-50 p-2 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 bg-white/80 dark:bg-slate-800/80 shadow">
+          <FiX size={18} />
+        </button>
+      )}
       {/* Left: roster + chat history */}
       <aside className="w-full md:w-80 max-h-[45vh] md:max-h-none border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col shrink-0">
         <div className="p-3 border-b border-slate-100 dark:border-slate-800 space-y-2">

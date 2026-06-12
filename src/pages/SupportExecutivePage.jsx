@@ -1457,15 +1457,12 @@ export default function SupportExecutivePage() {
         )}
       </AnimatePresence>
 
-      {/* Colleagues workspace — stays mounted so presence and incoming calls work portal-wide */}
+      {/* Colleagues workspace — ALWAYS mounted (never under display:none) so
+          presence, incoming calls and message notifications work portal-wide,
+          regardless of which screen the executive is on. */}
       {executive && (
-        <div className={colleaguesOpen ? 'fixed inset-0 z-40 bg-white flex flex-col' : 'hidden'}>
-          <div className="px-4 py-2.5 border-b border-slate-200 flex items-center justify-between shrink-0">
-            <p className="font-bold text-sm text-slate-900 flex items-center gap-2"><FiUsers size={14} /> Colleagues — team & support</p>
-            <button onClick={() => setColleaguesOpen(false)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><FiX size={16} /></button>
-          </div>
-          <Colleagues member={{ email: executive.email, name: executive.name }} visible={colleaguesOpen} onUnread={setColUnread} />
-        </div>
+        <Colleagues member={{ email: executive.email, name: executive.name }}
+          visible={colleaguesOpen} fullscreen onClose={() => setColleaguesOpen(false)} onUnread={setColUnread} />
       )}
     </div>
   );
