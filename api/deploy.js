@@ -35,14 +35,20 @@ const loadConfig = async () => {
   } catch { return { passwordHash: null, passwordSalt: null, allowedEmails: [] }; }
 };
 
-// Resolve who is acting and whether they may deploy.
+// Resolve who is acting and whether they may deploy. A team-member session is
+// evaluated FIRST (and purely against the admin-managed allow-list), so a
+// lingering admin cookie in the same browser can never grant a team member
+// deploy access or bypass the password. Pure-admin (no member session) is only
+// used for the /config management endpoints.
 const getActor = async (req) => {
   const cfg = await loadConfig();
-  if (isAdmin(req)) return { who: 'admin', admin: true, allowed: true, cfg };
   const member = getMemberSession(req);
-  if (!member) return { who: null, allowed: false, cfg };
-  const email = (member.email || '').toLowerCase();
-  return { who: member.email || member.name || 'team_member', email, admin: false, allowed: cfg.allowedEmails.includes(email), cfg };
+  if (member) {
+    const email = (member.email || '').toLowerCase();
+    return { who: member.name || member.email || 'team_member', email, admin: false, allowed: cfg.allowedEmails.includes(email), cfg };
+  }
+  if (isAdmin(req)) return { who: 'admin', admin: true, allowed: true, cfg };
+  return { who: null, allowed: false, cfg };
 };
 
 // Best-effort: the latest commit on main (the one a hook deploy will build).
@@ -96,7 +102,7 @@ export default async function handler(req, res) {
 
   // ── Admin-only config: allow-list + password ─────────────────────────────
   if (req.url?.includes('/config')) {
-    if (!actor.admin) return res.status(403).json({ error: 'Admin only' });
+    if (!isAdmin(req)) return res.status(403).json({ error: 'Admin only' });
     if (req.method === 'GET') {
       return res.status(200).json({ allowedEmails: actor.cfg.allowedEmails, passwordSet: Boolean(actor.cfg.passwordHash) });
     }
@@ -162,11 +168,12 @@ export default async function handler(req, res) {
 
   if (!actor.allowed) return res.status(403).json({ error: 'You are not allowed to deploy. Ask an admin to grant access.' });
 
-  // Password gate (non-admins) when a deploy password is configured.
+  // Password gate: whenever a deploy password is configured it must match —
+  // for everyone, admin included. No password set ⇒ allow-list alone governs.
   const checkPassword = () => {
-    if (actor.admin || !actor.cfg.passwordHash) return true;
+    if (!actor.cfg.passwordHash) return true;
     const pw = (req.body || {}).password;
-    return pw && verifyPassword(String(pw), actor.cfg.passwordSalt, actor.cfg.passwordHash);
+    return Boolean(pw) && verifyPassword(String(pw), actor.cfg.passwordSalt, actor.cfg.passwordHash);
   };
 
   // POST /api/deploy/cancel { id } — cancel a scheduled deploy, or abort a running one.
