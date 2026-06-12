@@ -24,8 +24,11 @@ export default function GuestMeet() {
     wsRef.current = ws;
     ws.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch { return; } if (m.type === 'gcall') apiRef.current.onGcall(m); else if (m.type === 'rtc' && m.data?.room) apiRef.current.onRtc(m.from, m.fromName, m.data); };
     ws.onopen = () => {
+      window.__diag = 'ws-open';
       setJoined(true);
-      Promise.resolve(apiRef.current.joinMeeting(room, 'Meeting')).catch((e2) => { console.error('[guest] joinMeeting failed:', e2?.message); setErr(e2?.message || 'Could not start your camera/mic.'); });
+      Promise.resolve(apiRef.current && apiRef.current.joinMeeting(room, 'Meeting'))
+        .then(() => { window.__diag = 'join-done room=' + (apiRef.current && apiRef.current.room ? 'set' : 'null'); })
+        .catch((e2) => { window.__diag = 'join-err:' + (e2 && e2.message); setErr((e2 && e2.message) || 'Could not start your camera/mic.'); });
     };
     ws.onerror = () => setErr('Could not connect. Check the link and your camera/mic permissions.');
   };
