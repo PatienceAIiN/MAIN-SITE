@@ -589,8 +589,11 @@ export default function Colleagues({ member, visible }) {
   };
 
   const q = search.trim().toLowerCase();
+  // Toggle which side's colleagues the roster shows (Team vs Support).
+  const [sideTab, setSideTab] = useState('team');
   const filteredColleagues = useMemo(() => colleagues.filter((c) =>
-    !q || c.name?.toLowerCase().includes(q) || c.email.toLowerCase().includes(q) || (c.team_role || '').includes(q)), [colleagues, q]);
+    (c.side || 'team') === sideTab &&
+    (!q || c.name?.toLowerCase().includes(q) || c.email.toLowerCase().includes(q) || (c.team_role || '').includes(q))), [colleagues, q, sideTab]);
   const filteredChats = useMemo(() => chats.filter((c) =>
     !q || chatTitle(c).toLowerCase().includes(q)), [chats, q, colleagues]);  
 
@@ -610,6 +613,16 @@ export default function Colleagues({ member, visible }) {
           <button onClick={() => setGroupModal('new')} className={`${tb2} w-full flex items-center justify-center gap-1.5`}>
             <FiPlus size={12} /> New group chat
           </button>
+          {/* Toggle which side's colleagues to show — Team and Support are kept
+              separate; both remain reachable for chat / call / video / screenshare. */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+            {['team', 'support'].map((s) => (
+              <button key={s} onClick={() => setSideTab(s)}
+                className={`flex-1 py-1.5 text-xs font-medium rounded-md capitalize transition-colors ${sideTab === s ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}>
+                {s}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto">
           {/* Chats */}

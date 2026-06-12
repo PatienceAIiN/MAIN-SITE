@@ -603,7 +603,8 @@ function DeployControl({ myRole }) {
     try {
       const d = await fetchJson('/api/deploy');
       setData(d);
-      const running = (d.recent || []).find((r) => r.status === 'triggered');
+      // Only a recently-triggered deploy (last 15 min) counts as "in progress".
+      const running = (d.recent || []).find((r) => r.status === 'triggered' && (Date.now() - new Date(r.created_at).getTime()) < 15 * 60 * 1000);
       if (running && !activeId) setActive(running.id);
     } catch { /* ignore */ }
   };
