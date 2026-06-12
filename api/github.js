@@ -99,10 +99,35 @@ export default async function handler(req, res) {
           prs: list.map((p) => ({ number: p.number, title: p.title, author: p.user?.login, state: p.state, draft: p.draft, branch: p.head?.ref, base: p.base?.ref, url: p.html_url, created_at: p.created_at, reviewers: (p.requested_reviewers || []).map((u) => u.login) }))
         });
       }
-      // commits
+      // commits (optionally for a branch via &sha=)
       if (req.query.commits === '1') {
-        const list = await gh(`/repos/${owner}/${repo}/commits?per_page=20`);
-        return res.status(200).json({ commits: list.map((c) => ({ sha: c.sha.slice(0, 7), message: c.commit?.message?.split('\n')[0], author: c.commit?.author?.name, date: c.commit?.author?.date, url: c.html_url })) });
+        const shaQ = req.query.ref ? `&sha=${encodeURIComponent(req.query.ref)}` : '';
+        const list = await gh(`/repos/${owner}/${repo}/commits?per_page=30${shaQ}`);
+        return res.status(200).json({ commits: list.map((c) => ({ sha: c.sha.slice(0, 7), fullSha: c.sha, message: c.commit?.message?.split('\n')[0], author: c.commit?.author?.name, date: c.commit?.author?.date, url: c.html_url })) });
+      }
+      // file tree for a branch — { files:[{path,size}] }
+      if (req.query.tree === '1') {
+        const refName = req.query.ref || (await gh(`/repos/${owner}/${repo}`)).default_branch;
+        const br = await gh(`/repos/${owner}/${repo}/branches/${encodeURIComponent(refName)}`);
+        const t = await gh(`/repos/${owner}/${repo}/git/trees/${br.commit.commit.tree.sha}?recursive=1`);
+        const files = (t.tree || []).filter((n) => n.type === 'blob').map((n) => ({ path: n.path, size: n.size }));
+        return res.status(200).json({ files, truncated: Boolean(t.truncated), ref: refName });
+      }
+      // a single file's content at a ref
+      if (req.query.file) {
+        const ref = req.query.ref ? `?ref=${encodeURIComponent(req.query.ref)}` : '';
+        const ghPath = String(req.query.file).split('/').map(encodeURIComponent).join('/');
+        const f = await gh(`/repos/${owner}/${repo}/contents/${ghPath}${ref}`);
+        const content = f.content ? Buffer.from(f.content, 'base64').toString('utf8') : '';
+        return res.status(200).json({ path: f.path, content, sha: f.sha, size: f.size, canWrite: actor.write });
+      }
+      // a single commit with its file diffs/patches
+      if (req.query.commit) {
+        const c = await gh(`/repos/${owner}/${repo}/commits/${encodeURIComponent(req.query.commit)}`);
+        return res.status(200).json({
+          sha: c.sha.slice(0, 7), message: c.commit?.message, author: c.commit?.author?.name, date: c.commit?.author?.date,
+          files: (c.files || []).map((f) => ({ filename: f.filename, status: f.status, additions: f.additions, deletions: f.deletions, patch: f.patch || '' }))
+        });
       }
       return res.status(400).json({ error: 'Unknown query' });
     }
@@ -148,6 +173,18 @@ export default async function handler(req, res) {
         await gh(`/repos/${owner}/${repo}/pulls/${number}`, { method: 'PATCH', body: { state: 'closed' } });
         await logAudit('staff', actorEmail, 'github_pr_closed', `${repo}#${number}`);
         return res.status(200).json({ ok: true });
+      }
+      if (action === 'put_file') {
+        // Commit an edited file (write permission enforced by the POST guard above).
+        const { path: fp, content, message, branch, sha } = req.body;
+        if (!fp || content === undefined) return res.status(400).json({ error: 'path and content required' });
+        const ghPath = String(fp).split('/').map(encodeURIComponent).join('/');
+        const out = await gh(`/repos/${owner}/${repo}/contents/${ghPath}`, {
+          method: 'PUT',
+          body: { message: message || `Update ${fp} via portal`, content: Buffer.from(String(content), 'utf8').toString('base64'), sha: sha || undefined, branch: branch || undefined }
+        });
+        await logAudit('staff', actorEmail, 'github_file_committed', `${repo}:${fp}`);
+        return res.status(200).json({ ok: true, commit: out.commit?.sha?.slice(0, 7) });
       }
       if (action === 'request_review') {
         const { number, reviewers } = req.body;

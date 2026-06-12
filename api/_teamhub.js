@@ -22,6 +22,14 @@ const statusOf = (u) => {
   return Date.now() - u.lastActivity > AWAY_AFTER_MS ? 'away' : 'online';
 };
 
+// Record a work/presence transition for the admin timesheet. 'busy' counts as
+// working time, so it's logged as 'online'. Fire-and-forget.
+const logPresence = (email, name, role, status) => {
+  const s = status === 'busy' ? 'online' : status;
+  if (!['online', 'away', 'offline'].includes(s)) return;
+  queryDb(`INSERT INTO presence_log (email, name, role, status) VALUES ($1,$2,$3,$4)`, [email, name || null, role || null, s]).catch(() => {});
+};
+
 export const presenceSnapshot = () => {
   const out = {};
   for (const [email, u] of users) out[email] = statusOf(u);
@@ -61,10 +69,12 @@ export const attachTeamHub = (server) => {
     const email = payload.email;
 
     let u = users.get(email);
-    if (!u) { u = { name: payload.name, sockets: new Set(), lastActivity: Date.now(), busy: false }; users.set(email, u); }
+    const wasOffline = !u || u.sockets.size === 0;
+    if (!u) { u = { name: payload.name, sockets: new Set(), lastActivity: Date.now(), busy: false, loggedStatus: 'offline' }; users.set(email, u); }
     u.sockets.add(ws);
     u.lastActivity = Date.now();
     ws.isAlive = true;
+    if (wasOffline) { u.loggedStatus = 'online'; logPresence(email, payload.name, payload.role, 'online'); }
 
     safeSend(ws, { type: 'presence', users: presenceSnapshot() });
     broadcastPresence();
@@ -77,7 +87,10 @@ export const attachTeamHub = (server) => {
       if (msg.type === 'activity') {
         const wasAway = statusOf(u) !== 'online';
         u.lastActivity = Date.now();
-        if (wasAway) broadcastPresence();
+        if (wasAway) {
+          if (u.loggedStatus !== 'online') { u.loggedStatus = 'online'; logPresence(email, u.name, payload.role, 'online'); }
+          broadcastPresence();
+        }
         return;
       }
       // Call busy state — flip presence to 'busy' while on a call.
@@ -112,6 +125,7 @@ export const attachTeamHub = (server) => {
         if (u.sockets.size === 0) {
           users.delete(email);
           broadcastPresence();
+          logPresence(email, u.name, payload.role, 'offline');
           // durable "last seen" for the roster (member or executive)
           queryDb(`UPDATE team_members SET last_seen_at=NOW() WHERE email=$1`, [email]).catch(() => {});
           queryDb(`UPDATE support_executives SET last_seen_at=NOW() WHERE email=$1`, [email]).catch(() => {});
@@ -128,6 +142,11 @@ export const attachTeamHub = (server) => {
       if (client.isAlive === false) { client.terminate(); continue; }
       client.isAlive = false;
       try { client.ping(); } catch { /* closing */ }
+    }
+    // Log online→away transitions for the timesheet.
+    for (const [email, u] of users) {
+      const st = statusOf(u);
+      if (st === 'away' && u.loggedStatus === 'online') { u.loggedStatus = 'away'; logPresence(email, u.name, null, 'away'); }
     }
     const snap = JSON.stringify(presenceSnapshot());
     if (snap !== lastSnapshot) { lastSnapshot = snap; broadcastPresence(); }

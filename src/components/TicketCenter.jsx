@@ -88,7 +88,7 @@ export function AttachmentList({ attachments, dark = false }) {
 }
 
 /* ── Notification bell (exec console + team portal) ──────────────────────── */
-export function NotificationBell({ dark = false }) {
+export function NotificationBell({ dark = false, pushOn = false, onTogglePush = null }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
   const [unread, setUnread] = useState(0);
@@ -138,6 +138,15 @@ export function NotificationBell({ dark = false }) {
           <p className={`px-3 py-2 text-[10px] uppercase tracking-wider font-semibold border-b ${dark ? 'text-slate-400 border-slate-800' : 'text-slate-400 border-slate-100'}`}>
             Notifications
           </p>
+          {onTogglePush && (
+            <div className={`flex items-center justify-between px-3 py-2.5 border-b ${dark ? 'border-slate-800' : 'border-slate-100'}`}>
+              <span className={`text-xs ${dark ? 'text-slate-300' : 'text-slate-600'}`}>Push for messages & calls</span>
+              <button onClick={onTogglePush} aria-label="Toggle push notifications"
+                className={`relative w-9 h-5 rounded-full transition-colors ${pushOn ? 'bg-emerald-500' : dark ? 'bg-slate-700' : 'bg-slate-300'}`}>
+                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${pushOn ? 'left-[18px]' : 'left-0.5'}`} />
+              </button>
+            </div>
+          )}
           {items.length === 0 && <p className={`px-3 py-4 text-xs text-center ${dark ? 'text-slate-500' : 'text-slate-400'}`}>You're all caught up 🎉</p>}
           {items.map((n) => (
             <div key={n.id} className={`px-3 py-2.5 border-b last:border-0 ${dark ? 'border-slate-800' : 'border-slate-100'} ${!n.read ? (dark ? 'bg-slate-800/60' : 'bg-sky-50/60') : ''}`}>

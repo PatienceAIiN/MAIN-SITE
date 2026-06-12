@@ -59,6 +59,7 @@ import supportAuthHandler from './api/support-auth.js';
 import supportChatHandler from './api/support-chat.js';
 import supportExecutivesHandler, { seedExecutive } from './api/support-executives.js';
 import deployHandler, { sweepDeploys } from './api/deploy.js';
+import workLogHandler from './api/work-log.js';
 import teamMembersHandler from './api/team-members.js';
 import ticketsHandler from './api/tickets.js';
 import ticketSettingsHandler from './api/ticket-settings.js';
@@ -393,6 +394,7 @@ app.all('/api/deploy/schedule',              wrap(deployHandler));
 app.all('/api/deploy/cancel',                wrap(deployHandler));
 app.all('/api/deploy/logs',                  wrap(deployHandler));
 app.all('/api/deploy',                       wrap(deployHandler));
+app.all('/api/work-log',                     wrap(workLogHandler));
 // Chat file uploads: raw body (any format) up to 10 MB
 app.post('/api/colleagues/upload', express.raw({ type: () => true, limit: '10mb' }), wrap(colleaguesHandler));
 app.all('/api/colleagues',                   wrap(colleaguesHandler));

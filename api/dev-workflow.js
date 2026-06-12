@@ -12,7 +12,9 @@ export const TEAM_ROLES = ['member', 'software_dev', 'team_lead', 'engineering_m
 const STAGES = ['support', 'pm_review', 'em_review', 'lead_triage', 'dev', 'qa', 'done'];
 
 const getActor = async (req) => {
-  if (verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME))) return { role: 'admin', email: 'admin', name: 'Admin', teamRole: 'admin' };
+  // Evaluate the PORTAL session first so a stray admin cookie in the same
+  // browser can never escalate a team member to admin (which would let, e.g., a
+  // software dev approve PM/EM/QA stages). Admin is only used as a last resort.
   const e = getExecSession(req);
   if (e) return { role: 'executive', email: e.email, name: e.name, teamRole: 'executive' };
   const m = getMemberSession(req);
@@ -20,6 +22,7 @@ const getActor = async (req) => {
     const [row] = await queryDb(`SELECT team_role FROM team_members WHERE id=$1`, [m.id]).catch(() => [{}]);
     return { role: 'member', email: m.email, name: m.name, teamRole: row?.team_role || 'member' };
   }
+  if (verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME))) return { role: 'admin', email: 'admin', name: 'Admin', teamRole: 'admin' };
   return null;
 };
 

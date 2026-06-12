@@ -6,7 +6,7 @@ import AdminTicketOps from '../components/AdminTicketOps';
 import AdminPeos from '../components/AdminPeos';
 import { fetchJson } from '../common/fetchJson';
 
-const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support', 'executives', 'team', 'deploy', 'tickets', 'engineering', 'logs'];
+const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support', 'executives', 'team', 'deploy', 'tickets', 'engineering', 'worklog', 'logs'];
 
 /* ── Security & audit log viewer: every recorded event, exportable ───────── */
 function AdminLogs() {
@@ -54,6 +54,51 @@ function AdminLogs() {
         </div>
       </div>
       <p className="text-[11px] text-white/30">Exports include up to 5,000 most recent events; the table shows 1,000 and auto-refreshes every 30s.</p>
+    </div>
+  );
+}
+
+/* ── Worklog: per-person daily worked hours from presence transitions ─────── */
+function AdminWorkLog() {
+  const [data, setData] = useState({ rows: [], targetHours: 9 });
+  const [loading, setLoading] = useState(false);
+  const load = () => { setLoading(true); fetchJson('/api/work-log?days=14').then(setData).catch(() => {}).finally(() => setLoading(false)); };
+  useEffect(() => { load(); const i = setInterval(load, 30000); return () => clearInterval(i); }, []);
+  const hrs = (s) => (s / 3600);
+  const fmtH = (s) => `${Math.floor(s / 3600)}h ${Math.round((s % 3600) / 60)}m`;
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-semibold">Worklog</h2>
+          <p className="text-white/55 text-sm mt-1">Daily worked hours per team member &amp; executive (online time; away/offline excluded). Target {data.targetHours}h/day. Last 14 days.</p>
+        </div>
+        <button onClick={load} className="text-xs px-3 py-2 rounded-xl border border-white/10 text-white/50 hover:text-white hover:bg-white/5">{loading ? 'Loading…' : 'Refresh'}</button>
+      </div>
+      <div className="rounded-[1.75rem] border border-white/10 bg-white/5 overflow-hidden">
+        <div className="grid grid-cols-[110px_1fr_120px_120px_1fr] gap-2 px-4 py-2.5 text-[10px] uppercase tracking-wider text-white/40 border-b border-white/10">
+          <span>Date</span><span>Person</span><span>Worked</span><span>Away</span><span>vs {data.targetHours}h target</span>
+        </div>
+        <div className="max-h-[62vh] overflow-y-auto divide-y divide-white/5">
+          {!data.rows.length && <p className="text-white/35 text-sm p-5 text-center">No work activity recorded yet.</p>}
+          {data.rows.map((r, i) => {
+            const pct = Math.min(100, (hrs(r.workedSeconds) / data.targetHours) * 100);
+            const met = hrs(r.workedSeconds) >= data.targetHours;
+            return (
+              <div key={i} className="grid grid-cols-[110px_1fr_120px_120px_1fr] gap-2 px-4 py-2 text-xs text-white/70 items-center">
+                <span className="text-white/50">{r.day}</span>
+                <span className="truncate">{r.name} <span className="text-white/35">· {(r.role || '').replace(/_/g, ' ')}</span></span>
+                <span className={met ? 'text-emerald-300' : 'text-amber-300'}>{fmtH(r.workedSeconds)}</span>
+                <span className="text-white/40">{fmtH(r.awaySeconds)}</span>
+                <span className="flex items-center gap-2">
+                  <span className="flex-1 h-1.5 rounded-full bg-white/10"><span className={`block h-1.5 rounded-full ${met ? 'bg-emerald-400' : 'bg-amber-400'}`} style={{ width: `${pct}%` }} /></span>
+                  <span className="text-[10px] text-white/40 w-9 text-right">{Math.round(pct)}%</span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2164,6 +2209,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
 
             {activeTab === 'engineering' && <AdminPeos />}
             {activeTab === 'deploy' && <AdminDeploy />}
+            {activeTab === 'worklog' && <AdminWorkLog />}
             {activeTab === 'logs' && <AdminLogs />}
           </div>
         </div>

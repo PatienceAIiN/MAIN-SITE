@@ -67,6 +67,15 @@ export async function enablePushNotifications() {
     body: JSON.stringify({ action: 'push_subscribe', subscription: sub.toJSON() }) });
 }
 
+export async function isPushSubscribed() {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
+    if (Notification.permission !== 'granted') return false;
+    const reg = await navigator.serviceWorker.getRegistration('/sw.js');
+    return Boolean(await reg?.pushManager.getSubscription());
+  } catch { return false; }
+}
+
 export async function disablePushNotifications() {
   try {
     const reg = await navigator.serviceWorker?.getRegistration('/sw.js');

@@ -8,17 +8,19 @@ import { logAudit } from './_ticketing.js';
 
 const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
 const getActor = async (req) => {
-  if (isAdmin(req)) return { role: 'admin', email: 'admin', name: 'Admin', teamRole: 'admin' };
+  // Portal session first — a stray admin cookie must not escalate a member.
   const e = getExecSession(req); if (e) return { role: 'executive', teamRole: 'executive', ...e };
   const m = getMemberSession(req);
   if (m) {
     const [row] = await queryDb(`SELECT team_role FROM team_members WHERE id=$1`, [m.id]).catch(() => [{}]);
     return { role: 'member', teamRole: row?.team_role || 'member', ...m };
   }
+  if (isAdmin(req)) return { role: 'admin', email: 'admin', name: 'Admin', teamRole: 'admin' };
   return null;
 };
 const MGMT = ['admin', 'executive', 'product_manager', 'engineering_manager', 'team_lead'];
 const ALL_STAFF = [...MGMT, 'software_dev', 'qa', 'member'];
+const QA_MGMT = [...MGMT, 'qa']; // test cases are QA's artifact
 
 // resource → { table, columns writable, who can write }
 const RESOURCES = {
@@ -28,7 +30,7 @@ const RESOURCES = {
   services: { table: 'services_catalog', cols: ['name', 'description', 'owner_email', 'backup_owner_email', 'team', 'repository', 'runbook', 'sla', 'dependencies', 'api_docs'], write: MGMT },
   okrs: { table: 'okrs', cols: ['level', 'objective', 'key_result', 'progress', 'owner_email', 'parent_id', 'quarter'], write: MGMT },
   announcements: { table: 'announcements', cols: ['kind', 'title', 'body', 'author'], write: MGMT },
-  testcases: { table: 'qa_test_cases', cols: ['ticket_id', 'title', 'steps', 'expected', 'last_result', 'run_notes', 'run_by', 'run_at'], write: ALL_STAFF }
+  testcases: { table: 'qa_test_cases', cols: ['ticket_id', 'title', 'steps', 'expected', 'last_result', 'run_notes', 'run_by', 'run_at'], write: QA_MGMT }
 };
 
 export default async function handler(req, res) {

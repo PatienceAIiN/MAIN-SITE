@@ -11,7 +11,8 @@ const STATUS_DOT = { online: 'bg-emerald-500', away: 'bg-amber-500', offline: 'b
 const IDLE_LIMIT_MS = 10 * 60 * 1000; // 10 min without activity → auto-offline
 import { fetchJson } from '../common/fetchJson';
 import Dropdown from '../common/Dropdown';
-import Colleagues, { lastSeenText, enablePushNotifications, disablePushNotifications } from '../components/Colleagues';
+import NetworkDot from '../common/NetworkDot';
+import Colleagues, { lastSeenText, enablePushNotifications, disablePushNotifications, isPushSubscribed } from '../components/Colleagues';
 
 const fmt = (v) => v ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(v)) : '—';
 const PAGE_SIZE = 10;
@@ -370,6 +371,7 @@ export default function SupportExecutivePage() {
   const [colleaguesOpen, setColleaguesOpen] = useState(false);
   const [colUnread, setColUnread] = useState(0);
   const [pushOn, setPushOn] = useState(false);
+  useEffect(() => { isPushSubscribed().then(setPushOn); }, []);
   const togglepush = async () => {
     try {
       if (pushOn) { await disablePushNotifications(); setPushOn(false); }
@@ -1076,11 +1078,7 @@ export default function SupportExecutivePage() {
               <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold animate-pulse">{colUnread > 9 ? '9+' : colUnread}</span>
             )}
           </button>
-          {/* Push notifications toggle */}
-          <button onClick={togglepush} title={pushOn ? 'Notifications on — incoming messages & calls' : 'Enable notifications for messages & calls'}
-            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border transition-colors ${pushOn ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600 hover:bg-slate-100'}`}>
-            {pushOn ? <FiBell size={14} /> : <FiBellOff size={14} />}
-          </button>
+          <NetworkDot className="mr-1" />
           {/* Team presence dropdown */}
           <Dropdown open={teamOpen} onClose={() => setTeamOpen(false)} className="relative">
             <button onClick={() => setTeamOpen(o => !o)}
@@ -1113,7 +1111,7 @@ export default function SupportExecutivePage() {
             theme={supportTheme}
             onToggle={() => setSupportTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
           />
-          <NotificationBell />
+          <NotificationBell pushOn={pushOn} onTogglePush={togglepush} />
           <button onClick={loadSessions} className="text-slate-400 hover:text-slate-700 p-2 rounded-lg hover:bg-slate-100 transition-colors">
             <FiRefreshCw size={16} />
           </button>

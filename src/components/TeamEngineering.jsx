@@ -151,7 +151,7 @@ const FORMS = {
 };
 const WRITE = {
   sprints: MGMT, epics: MGMT, okrs: MGMT,
-  incidents: 'all', testcases: 'all',
+  incidents: 'all', testcases: [...MGMT, 'qa'],
   announcements: MGMT, services: MGMT
 };
 const TITLE = (x) => x.title || x.name || x.objective || '—';

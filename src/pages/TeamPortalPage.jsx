@@ -6,8 +6,9 @@ import {
   FiBell, FiBellOff, FiUploadCloud, FiFileText, FiMaximize2
 } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
+import NetworkDot from '../common/NetworkDot';
 import { NotificationBell, SlaBadge, AttachmentList, uploadFiles } from '../components/TicketCenter';
-import TeamEngineering from '../components/TeamEngineering';
+import TeamEngineering, { Modal } from '../components/TeamEngineering';
 import Colleagues, { enablePushNotifications, disablePushNotifications } from '../components/Colleagues';
 import { FiPaperclip, FiAlertTriangle } from 'react-icons/fi';
 
@@ -433,11 +434,137 @@ function MemberTicketDetail({ ticket, myRole, onChanged, onClose }) {
 }
 
 /* ── GitHub workspace for software team members ──────────────────────────── */
+/* ── Branch explorer: browse files (read/write per permission), view commit
+   history and per-commit diffs in a popup — GitHub-style, in-portal. ──────── */
+function DiffView({ patch }) {
+  if (!patch) return <p className="text-[11px] text-slate-400">No textual diff (binary or empty).</p>;
+  return (
+    <pre className="text-[11px] font-mono overflow-x-auto rounded-lg bg-slate-950 p-3 leading-relaxed">
+      {patch.split('\n').map((ln, i) => {
+        const c = ln.startsWith('+') && !ln.startsWith('+++') ? 'text-emerald-400'
+          : ln.startsWith('-') && !ln.startsWith('---') ? 'text-red-400'
+          : ln.startsWith('@@') ? 'text-indigo-400' : 'text-slate-300';
+        return <div key={i} className={c}>{ln || ' '}</div>;
+      })}
+    </pre>
+  );
+}
+
+function BranchExplorer({ repo, branch, canWrite, onClose }) {
+  const [o, n] = repo.split('/');
+  const [tab, setTab] = useState('files');
+  const [files, setFiles] = useState([]);
+  const [filter, setFilter] = useState('');
+  const [active, setActive] = useState(null); // {path, content, sha, canWrite}
+  const [edited, setEdited] = useState('');
+  const [commits, setCommits] = useState([]);
+  const [commit, setCommit] = useState(null); // {sha,message,files:[...]}
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const q = `owner=${o}&repo=${n}&ref=${encodeURIComponent(branch)}`;
+
+  useEffect(() => {
+    fetchJson(`/api/github?tree=1&${q}`).then((d) => setFiles(d.files || [])).catch((e) => setMsg(e.message));
+    fetchJson(`/api/github?commits=1&${q}`).then((d) => setCommits(d.commits || [])).catch(() => {});
+  }, [branch]);
+
+  const openFile = async (path) => {
+    setMsg(''); setActive({ path, content: '…', loading: true });
+    try {
+      const d = await fetchJson(`/api/github?file=${encodeURIComponent(path)}&${q}`);
+      setActive(d); setEdited(d.content);
+    } catch (e) { setMsg(e.message); setActive(null); }
+  };
+  const save = async () => {
+    if (!active) return;
+    setBusy(true); setMsg('');
+    try {
+      await fetchJson(`/api/github?owner=${o}&repo=${n}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'put_file', path: active.path, content: edited, sha: active.sha, branch, message: `Update ${active.path} via portal` }) });
+      setMsg('Committed ✓');
+      fetchJson(`/api/github?commits=1&${q}`).then((d) => setCommits(d.commits || [])).catch(() => {});
+    } catch (e) { setMsg(e.message); }
+    finally { setBusy(false); }
+  };
+  const openCommit = async (c) => {
+    setMsg('');
+    try { setCommit(await fetchJson(`/api/github?commit=${c.fullSha}&owner=${o}&repo=${n}`)); }
+    catch (e) { setMsg(e.message); }
+  };
+
+  const shown = files.filter((f) => !filter || f.path.toLowerCase().includes(filter.toLowerCase())).slice(0, 500);
+  const tb2 = 'text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800';
+  return (
+    <Modal title={`${repo} · ${branch}`} onClose={onClose} wide>
+      <div className="flex gap-2 mb-3">
+        <button className={`${tb2} ${tab === 'files' ? '!bg-slate-900 !text-white dark:!bg-white dark:!text-slate-900' : ''}`} onClick={() => { setTab('files'); setCommit(null); }}>Files ({files.length})</button>
+        <button className={`${tb2} ${tab === 'commits' ? '!bg-slate-900 !text-white dark:!bg-white dark:!text-slate-900' : ''}`} onClick={() => { setTab('commits'); setActive(null); }}>Commits</button>
+        <span className="ml-auto text-[11px] text-slate-400 self-center">{canWrite ? 'read & write' : 'read only'}</span>
+      </div>
+      {msg && <p className="text-[11px] text-amber-600 dark:text-amber-400 mb-2">{msg}</p>}
+
+      {tab === 'files' ? (
+        <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-3 h-[60vh]">
+          <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex flex-col">
+            <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter files…"
+              className="px-2.5 py-2 text-xs border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 focus:outline-none" />
+            <div className="overflow-y-auto flex-1">
+              {shown.map((f) => (
+                <button key={f.path} onClick={() => openFile(f.path)}
+                  className={`block w-full text-left px-2.5 py-1.5 text-[11px] font-mono truncate hover:bg-slate-100 dark:hover:bg-slate-800 ${active?.path === f.path ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300'}`}>
+                  {f.path}
+                </button>
+              ))}
+              {!shown.length && <p className="text-[11px] text-slate-400 p-3">No files.</p>}
+            </div>
+          </div>
+          <div className="flex flex-col min-w-0">
+            {!active ? <p className="text-xs text-slate-400 m-auto">Select a file to view{canWrite ? ' or edit' : ''}.</p> : (
+              <>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <p className="text-xs font-mono text-slate-500 truncate">{active.path}</p>
+                  {canWrite && active.canWrite && <button className={tb2} disabled={busy || edited === active.content} onClick={save}>{busy ? 'Committing…' : 'Commit changes'}</button>}
+                </div>
+                <textarea value={edited} onChange={(e) => setEdited(e.target.value)} readOnly={!canWrite || !active.canWrite} spellCheck={false}
+                  className="flex-1 w-full font-mono text-[11px] leading-relaxed rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-950 text-slate-100 p-3 focus:outline-none resize-none" />
+              </>
+            )}
+          </div>
+        </div>
+      ) : commit ? (
+        <div className="h-[60vh] overflow-y-auto">
+          <button className={`${tb2} mb-2`} onClick={() => setCommit(null)}>‹ Back to commits</button>
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">{commit.message}</p>
+          <p className="text-[11px] text-slate-400 mb-3">{commit.author} · {commit.sha}</p>
+          {commit.files.map((f) => (
+            <div key={f.filename} className="mb-3">
+              <p className="text-[11px] font-mono text-slate-600 dark:text-slate-300 mb-1">{f.filename} <span className="text-emerald-500">+{f.additions}</span> <span className="text-red-500">−{f.deletions}</span> <span className="text-slate-400">({f.status})</span></p>
+              <DiffView patch={f.patch} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="h-[60vh] overflow-y-auto space-y-1">
+          {commits.map((c) => (
+            <button key={c.fullSha} onClick={() => openCommit(c)}
+              className="block w-full text-left rounded-lg border border-slate-100 dark:border-slate-800 px-3 py-2 hover:border-indigo-300 dark:hover:border-indigo-700">
+              <p className="text-xs text-slate-800 dark:text-slate-100 truncate">{c.message}</p>
+              <p className="text-[10px] text-slate-400 font-mono">{c.sha} · {c.author} · {c.date ? new Date(c.date).toLocaleString() : ''}</p>
+            </button>
+          ))}
+          {!commits.length && <p className="text-xs text-slate-400 p-3 text-center">No commits.</p>}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 function GitHubWorkspace({ canWrite }) {
   const [repos, setRepos] = useState([]);
   const [repo, setRepo] = useState('');
   const [data, setData] = useState({ branches: [], prs: [] });
   const [forms, setForms] = useState({ branch: '', prTitle: '', prHead: '' });
+  const [explore, setExplore] = useState(null); // branch name being explored
   const [msg, setMsg] = useState('');
   const box = 'rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4';
   const tin = 'rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400';
@@ -534,16 +661,22 @@ function GitHubWorkspace({ canWrite }) {
             <div className="space-y-1 max-h-56 overflow-y-auto">
               {data.branches.map((b) => (
                 <div key={b.name} className="flex items-center justify-between text-sm text-slate-700 dark:text-slate-200">
-                  <span className="truncate">{b.name} <span className="text-xs text-slate-400 font-mono">{b.sha}</span>{b.protected && <span className="text-[10px] text-amber-600 ml-1">protected</span>}</span>
-                  {canWrite && !b.protected && (
-                    <button className={tb2} onClick={() => window.confirm(`Delete branch ${b.name}?`) && act({ action: 'delete_branch', branch: b.name })}>Delete</button>
-                  )}
+                  <button onClick={() => setExplore(b.name)} title="Browse files & commits" className="truncate text-left hover:text-indigo-600 dark:hover:text-indigo-400">
+                    <span className="underline underline-offset-2">{b.name}</span> <span className="text-xs text-slate-400 font-mono">{b.sha}</span>{b.protected && <span className="text-[10px] text-amber-600 ml-1">protected</span>}
+                  </button>
+                  <span className="flex gap-1.5 shrink-0">
+                    <button className={tb2} onClick={() => setExplore(b.name)}>Open</button>
+                    {canWrite && !b.protected && (
+                      <button className={tb2} onClick={() => window.confirm(`Delete branch ${b.name}?`) && act({ action: 'delete_branch', branch: b.name })}>Delete</button>
+                    )}
+                  </span>
                 </div>
               ))}
             </div>
           </div>
         </>
       )}
+      {explore && <BranchExplorer repo={repo} branch={explore} canWrite={canWrite} onClose={() => setExplore(null)} />}
     </div>
   );
 }
@@ -912,6 +1045,7 @@ export default function TeamPortalPage() {
                 </button>
               ))}
             </div>
+          <NetworkDot className="mr-1" />
           <DeployControl />
           <NotificationBell dark={dark} />
           <button onClick={() => setDark((d) => !d)} title="Toggle theme"
