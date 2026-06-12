@@ -69,10 +69,12 @@ export function useGroupCall(me, wsSend) {
   // Join an OPEN meeting room via its shared link — discovery via the hub
   // registry (anyone with the link can join, not just invitees).
   const joinMeeting = async (roomId, name) => {
+    try { console.log('[gcall] joinMeeting start', roomId, 'existing room?', !!roomRef.current); } catch { /* noop */ }
     if (roomRef.current) return;
     await ensureMedia();
     const r = { id: roomId, name: name || 'Meeting', members: [], host: false, meeting: true };
     setRoom(r); roomRef.current = r;
+    try { console.log('[gcall] joinMeeting room set, sending gcall join'); } catch { /* noop */ }
     wsSend({ type: 'gcall', room: roomId, op: 'join' }); // hub returns roster + notifies occupants
   };
 
