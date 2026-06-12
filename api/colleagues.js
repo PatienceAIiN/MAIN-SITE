@@ -75,7 +75,11 @@ export default async function handler(req, res) {
         const presence = presenceSnapshot();
         return res.status(200).json({
           colleagues: rows.filter((r) => r.email !== myEmail).map((r) => ({
-            ...r, presence: presence[r.email] || 'offline'
+            ...r,
+            // Which portal this colleague belongs to, so the UI can list Team and
+            // Support people in separate groups instead of one mixed roster.
+            side: r.team_role === 'support_executive' ? 'support' : 'team',
+            presence: presence[r.email] || 'offline'
           })),
           presence
         });

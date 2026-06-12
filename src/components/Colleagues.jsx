@@ -133,6 +133,7 @@ function useCall(me, wsSend) {
   const remoteRef = useRef(null);
   const localStream = useRef(null);
   const screenStream = useRef(null);
+  const remoteStream = useRef(null);
   const pendingIce = useRef([]);
   const callRef = useRef(null);
   callRef.current = call;
@@ -140,6 +141,7 @@ function useCall(me, wsSend) {
   const cleanup = useCallback(() => {
     pcRef.current?.close(); pcRef.current = null;
     [localStream, screenStream].forEach((r) => { r.current?.getTracks().forEach((t) => t.stop()); r.current = null; });
+    remoteStream.current = null;
     pendingIce.current = [];
     setCall(null); setMuted(false); setCamOff(false); setSharing(false);
   }, []);
@@ -148,7 +150,7 @@ function useCall(me, wsSend) {
     const { iceServers } = await fetchJson('/api/voice-room/ice-servers').catch(() => ({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }));
     const pc = new RTCPeerConnection({ iceServers });
     pc.onicecandidate = (e) => { if (e.candidate) wsSend({ type: 'rtc', to: peer, data: { kind: 'ice', candidate: e.candidate } }); };
-    pc.ontrack = (e) => { if (remoteRef.current) remoteRef.current.srcObject = e.streams[0]; };
+    pc.ontrack = (e) => { remoteStream.current = e.streams[0]; if (remoteRef.current) remoteRef.current.srcObject = e.streams[0]; };
     pc.onconnectionstatechange = () => { if (['failed', 'closed'].includes(pc.connectionState)) cleanup(); };
     const stream = await navigator.mediaDevices.getUserMedia({ video: withVideo, audio: true });
     localStream.current = stream;
@@ -242,6 +244,16 @@ function useCall(me, wsSend) {
       setSharing(true);
     } catch { /* user cancelled the picker */ }
   };
+
+  // Attach captured streams to the <video> elements whenever the in-call UI is
+  // mounted. The callee renders no <video> during the 'incoming' phase, so the
+  // imperative srcObject assignments in newPc/ontrack can run before the refs
+  // exist (or ontrack can race the mount) — this effect re-binds on phase change.
+  useEffect(() => {
+    if (!call || call.phase === 'incoming') return;
+    if (localRef.current) localRef.current.srcObject = screenStream.current || localStream.current;
+    if (remoteRef.current) remoteRef.current.srcObject = remoteStream.current;
+  }, [call, sharing]);
 
   return { call, startCall, acceptCall, hangup, onRtc, localRef, remoteRef, muted, camOff, sharing, toggleMute, toggleCam, toggleShare };
 }
@@ -625,21 +637,30 @@ export default function Colleagues({ member, visible }) {
               </div>
             </div>
           ))}
-          {/* Colleagues */}
-          <p className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Colleagues ({filteredColleagues.length})</p>
-          {filteredColleagues.map((c) => (
-            <button key={c.email} onClick={() => openDm(c.email)}
-              className="w-full flex items-center justify-between gap-2 px-3 py-2.5 border-b border-slate-50 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-left">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{c.name}</p>
-                <p className="text-[11px] text-slate-400 truncate">{(c.team_role || 'member').replace(/_/g, ' ')} · {c.email}</p>
-                {c.presence === 'offline' && c.last_seen_at && (
-                  <p className="text-[10px] text-slate-400/80 truncate">{lastSeenText(c.last_seen_at)}</p>
-                )}
+          {/* Colleagues — Team and Support kept in separate groups (never mixed),
+              but both are fully reachable for chat / call / video / screenshare. */}
+          {[{ key: 'team', label: 'Team' }, { key: 'support', label: 'Support' }].map(({ key, label }) => {
+            const group = filteredColleagues.filter((c) => (c.side || 'team') === key);
+            if (!group.length) return null;
+            return (
+              <div key={key}>
+                <p className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wider font-semibold text-slate-400">{label} ({group.length})</p>
+                {group.map((c) => (
+                  <button key={c.email} onClick={() => openDm(c.email)}
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2.5 border-b border-slate-50 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-left">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{c.name}</p>
+                      <p className="text-[11px] text-slate-400 truncate">{(c.team_role || 'member').replace(/_/g, ' ')} · {c.email}</p>
+                      {c.presence === 'offline' && c.last_seen_at && (
+                        <p className="text-[10px] text-slate-400/80 truncate">{lastSeenText(c.last_seen_at)}</p>
+                      )}
+                    </div>
+                    <PresenceChip status={c.presence} />
+                  </button>
+                ))}
               </div>
-              <PresenceChip status={c.presence} />
-            </button>
-          ))}
+            );
+          })}
           {!filteredColleagues.length && <p className="text-xs text-slate-400 text-center py-5">No colleagues match.</p>}
         </div>
       </aside>

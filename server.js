@@ -58,6 +58,7 @@ import newsletterHandler from './api/newsletter.js';
 import supportAuthHandler from './api/support-auth.js';
 import supportChatHandler from './api/support-chat.js';
 import supportExecutivesHandler, { seedExecutive } from './api/support-executives.js';
+import deployHandler, { sweepDeploys } from './api/deploy.js';
 import teamMembersHandler from './api/team-members.js';
 import ticketsHandler from './api/tickets.js';
 import ticketSettingsHandler from './api/ticket-settings.js';
@@ -246,6 +247,8 @@ setTimeout(seedExecutive, 6000);
 // Escalation + SLA engine — first sweep shortly after boot, then every 5 minutes
 setTimeout(runEscalationSweep, 15000);
 setInterval(runEscalationSweep, 5 * 60 * 1000);
+// Fire any due scheduled deploys — check every minute.
+setInterval(sweepDeploys, 60 * 1000);
 
 const wrap = (handler) => async (req, res, next) => {
   try {
@@ -280,8 +283,10 @@ app.use((req, res, next) => {
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   // Control referrer info sent to third parties
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  // Disable browser features not needed
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(self), geolocation=(), payment=()');
+  // Disable browser features not needed. camera + microphone + display-capture
+  // are required for the colleague voice/video calls and screenshare (getUserMedia
+  // / getDisplayMedia in Colleagues.jsx) — they must be allowed for our own origin.
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), display-capture=(self), geolocation=(), payment=()');
   // Basic XSS protection for older browsers
   res.setHeader('X-XSS-Protection', '1; mode=block');
   // Stop browsers from pre-resolving DNS for embedded links — minor privacy win.
@@ -383,6 +388,8 @@ app.all('/api/team-members/change-password', authLimiter, wrap(teamMembersHandle
 app.all('/api/team-members/me',              wrap(teamMembersHandler));
 app.all('/api/team-members/logout',          wrap(teamMembersHandler));
 app.all('/api/team-members',                 wrap(teamMembersHandler));
+app.all('/api/deploy/schedule',              wrap(deployHandler));
+app.all('/api/deploy',                       wrap(deployHandler));
 // Chat file uploads: raw body (any format) up to 10 MB
 app.post('/api/colleagues/upload', express.raw({ type: () => true, limit: '10mb' }), wrap(colleaguesHandler));
 app.all('/api/colleagues',                   wrap(colleaguesHandler));

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   FiEye, FiEyeOff, FiLogOut, FiMoon, FiSun, FiSend, FiRefreshCw, FiSearch,
   FiLock, FiX, FiTag, FiUser, FiMail, FiClock, FiMessageSquare, FiSettings,
-  FiBell, FiBellOff
+  FiBell, FiBellOff, FiUploadCloud
 } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import { NotificationBell, SlaBadge, AttachmentList, uploadFiles } from '../components/TicketCenter';
@@ -585,6 +585,92 @@ function TourGuide({ member, onDone }) {
 }
 
 /* ── Main portal ─────────────────────────────────────────────────────────── */
+/* ── Deploy control: trigger a Render deploy now or schedule one for later.
+   Hidden for QA and Software Developers (server enforces the same rule). ─── */
+const DEPLOY_BLOCKED_ROLES = ['qa', 'software_dev'];
+function DeployControl({ myRole }) {
+  const [open, setOpen]   = useState(false);
+  const [busy, setBusy]   = useState(false);
+  const [msg, setMsg]     = useState('');
+  const [when, setWhen]   = useState('');
+  const [data, setData]   = useState({ scheduled: [], recent: [] });
+
+  const load = () => fetchJson('/api/deploy').then(setData).catch(() => {});
+  useEffect(() => { if (open) load(); }, [open]);
+
+  if (DEPLOY_BLOCKED_ROLES.includes(myRole)) return null;
+
+  const deployNow = async () => {
+    if (!window.confirm('Trigger a production deploy on Render now?')) return;
+    setBusy(true); setMsg('');
+    try { const r = await fetchJson('/api/deploy', { method: 'POST' }); setMsg(r.message || 'Deploy triggered.'); load(); }
+    catch (e) { setMsg(e.message); }
+    finally { setBusy(false); }
+  };
+  const schedule = async () => {
+    if (!when) { setMsg('Pick a date & time first.'); return; }
+    setBusy(true); setMsg('');
+    try {
+      await fetchJson('/api/deploy/schedule', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runAt: new Date(when).toISOString() }) });
+      setMsg('Deploy scheduled.'); setWhen(''); load();
+    } catch (e) { setMsg(e.message); }
+    finally { setBusy(false); }
+  };
+  const cancel = async (id) => {
+    try { await fetchJson(`/api/deploy/schedule?id=${id}`, { method: 'DELETE' }); load(); } catch { /* ignore */ }
+  };
+
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen((o) => !o)} title="Deploy"
+        className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors">
+        <FiUploadCloud size={15} /> Deploy
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl z-50 p-4 text-left">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-bold text-slate-900 dark:text-white">Deploy</p>
+            <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><FiX size={15} /></button>
+          </div>
+          <button onClick={deployNow} disabled={busy}
+            className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium py-2 rounded-lg mb-3">
+            <FiUploadCloud size={14} /> Deploy now
+          </button>
+          <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 mb-1.5 flex items-center gap-1"><FiClock size={10} /> Schedule for later</p>
+          <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)}
+            className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-xs text-slate-700 dark:text-slate-200 mb-2" />
+          <button onClick={schedule} disabled={busy}
+            className="w-full bg-slate-900 dark:bg-white dark:text-slate-900 text-white text-sm font-medium py-2 rounded-lg disabled:opacity-50">Schedule deploy</button>
+          {msg && <p className="text-[11px] mt-2 text-slate-500 dark:text-slate-400">{msg}</p>}
+          {data.scheduled?.length > 0 && (
+            <div className="mt-3 border-t border-slate-100 dark:border-slate-800 pt-2">
+              <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 mb-1">Scheduled</p>
+              {data.scheduled.map((s) => (
+                <div key={s.id} className="flex items-center justify-between gap-2 text-[11px] text-slate-600 dark:text-slate-300 py-1">
+                  <span className="truncate">{new Date(s.run_at).toLocaleString()}</span>
+                  <button onClick={() => cancel(s.id)} className="text-red-500 hover:text-red-600 shrink-0">Cancel</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {data.recent?.length > 0 && (
+            <div className="mt-2 border-t border-slate-100 dark:border-slate-800 pt-2">
+              <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 mb-1">Recent</p>
+              {data.recent.slice(0, 5).map((r) => (
+                <div key={r.id} className="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400 py-0.5">
+                  <span className="truncate">{new Date(r.created_at).toLocaleString()}</span>
+                  <span className={`shrink-0 ${r.status === 'failed' ? 'text-red-500' : 'text-emerald-500'}`}>{r.status}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TeamPortalPage() {
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
   const inviteToken = urlParams.get('invite');
@@ -715,6 +801,7 @@ export default function TeamPortalPage() {
                 </button>
               ))}
             </div>
+          <DeployControl myRole={myRole} />
           <NotificationBell dark={dark} />
           <button onClick={() => setDark((d) => !d)} title="Toggle theme"
             className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
