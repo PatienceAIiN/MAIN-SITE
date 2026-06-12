@@ -225,7 +225,10 @@ export default async function handler(req, res) {
            ORDER BY created_at DESC LIMIT 500`,
           params
         );
-        return rows.map((t) => ({ ...t, key: ticketKey(t.id) }));
+        // List rows only need a short description preview — the full text (up to
+        // 8 KB) is fetched on demand by the detail view (?id=). Truncating here
+        // cuts a large chunk of response + cache bandwidth on the polled list.
+        return rows.map((t) => ({ ...t, description: t.description ? String(t.description).slice(0, 240) : t.description, key: ticketKey(t.id) }));
       });
 
       if (req.query.export === 'csv') {

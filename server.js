@@ -1,4 +1,5 @@
 import express from 'express';
+import compression from 'compression';
 import fs from 'node:fs';
 import http from 'node:http';
 import crypto from 'node:crypto';
@@ -89,6 +90,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, 'dist');
 const indexHtml = path.join(distDir, 'index.html');
 const app = express();
+// gzip/deflate all responses — big bandwidth cut for JSON polls + the JS bundle.
+app.use(compression());
 const port = process.env.PORT || 3000;
 const DOMAIN = process.env.SITE_URL || 'https://patienceai.in';
 
