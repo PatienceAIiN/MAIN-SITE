@@ -304,7 +304,7 @@ export default function TeamEngineering({ myRole }) {
     fetchJson('/api/dev-workflow').then(setPipe).catch(() => {});
     fetchJson('/api/peos?dashboard=1&resource=epics').then(setDash).catch(() => {});
   };
-  useEffect(() => { load(); const i = setInterval(load, 15000); return () => clearInterval(i); }, []);
+  useEffect(() => { load(); const i = setInterval(load, 30000); return () => clearInterval(i); }, []);
 
   const t = dash?.tickets || {};
   return (

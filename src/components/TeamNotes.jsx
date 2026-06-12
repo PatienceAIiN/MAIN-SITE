@@ -88,7 +88,14 @@ export function MeetingsTab() {
               <p className="text-[11px] text-slate-400">by {m.created_by_name}{m.attendees ? ` · ${m.attendees.split(',').length} invited` : ''}</p>
               {m.description && <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 whitespace-pre-wrap">{m.description}</p>}
             </div>
-            <button className="text-xs px-2 py-2 rounded-lg border border-red-200 dark:border-red-900 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 shrink-0" onClick={() => del(m.id)}>✕</button>
+            <span className="flex items-center gap-1.5 shrink-0">
+              {m.room && <>
+                <button className={tb} onClick={() => window.dispatchEvent(new CustomEvent('pa-join-meeting', { detail: { room: m.room, name: m.title } }))}>Join</button>
+                <button className={tb2} title="Copy join link (anyone with it can join)"
+                  onClick={() => { try { navigator.clipboard.writeText(`${location.origin}/team?meet=${m.room}`); } catch { /* ignore */ } }}>Copy link</button>
+              </>}
+              <button className="text-xs px-2 py-2 rounded-lg border border-red-200 dark:border-red-900 text-red-500 hover:bg-red-50 dark:hover:bg-red-950" onClick={() => del(m.id)}>✕</button>
+            </span>
           </div>
         ))}
       </div>

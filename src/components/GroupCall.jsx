@@ -66,8 +66,38 @@ export function useGroupCall(me, wsSend) {
     broadcast({ kind: 'g-join', name: me.name || me.email });   // existing members will offer to me
   };
 
-  // Host leaving ends the call for everyone (g-end); a guest just drops out.
-  const leave = useCallback(() => { broadcast({ kind: roomRef.current?.host ? 'g-end' : 'g-leave' }); cleanup(); }, [cleanup]);
+  // Join an OPEN meeting room via its shared link — discovery via the hub
+  // registry (anyone with the link can join, not just invitees).
+  const joinMeeting = async (roomId, name) => {
+    if (roomRef.current) return;
+    await ensureMedia();
+    const r = { id: roomId, name: name || 'Meeting', members: [], host: false, meeting: true };
+    setRoom(r); roomRef.current = r;
+    wsSend({ type: 'gcall', room: roomId, op: 'join' }); // hub returns roster + notifies occupants
+  };
+
+  // Hub room-registry events for open meeting rooms.
+  const onGcall = useCallback(async (m) => {
+    const r = roomRef.current;
+    if (!r || m.room !== r.id) return;
+    if (m.op === 'roster') {
+      r.members = (m.members || []).map((x) => x.email); // existing occupants will offer to me
+    } else if (m.op === 'joined') {
+      const pc = makePc(m.email, m.name);               // I'm already here → I offer to the newcomer
+      const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
+      send(m.email, { kind: 'g-offer', sdp: offer, name: me.name || me.email });
+    } else if (m.op === 'left') {
+      dropPeer(m.email);
+    }
+  }, [me, wsSend]);
+
+  // Leave: meeting rooms deregister via the hub; chat calls use g-end/g-leave.
+  const leave = useCallback(() => {
+    const r = roomRef.current;
+    if (r?.meeting) wsSend({ type: 'gcall', room: r.id, op: 'leave' });
+    else broadcast({ kind: r?.host ? 'g-end' : 'g-leave' });
+    cleanup();
+  }, [cleanup]);
 
   const onRtc = useCallback(async (from, fromName, data) => {
     if (!data?.room) return; // not a group message
@@ -121,7 +151,7 @@ export function useGroupCall(me, wsSend) {
     } catch { /* cancelled */ }
   };
 
-  return { room, peers, muted, camOff, sharing, localStream, start, accept, leave, onRtc, toggleMute, toggleCam, toggleShare, me };
+  return { room, peers, muted, camOff, sharing, localStream, start, accept, leave, onRtc, onGcall, joinMeeting, toggleMute, toggleCam, toggleShare, me };
 }
 
 function Tile({ stream, name, muted, mine, speaking }) {

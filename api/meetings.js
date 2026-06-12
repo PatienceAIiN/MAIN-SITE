@@ -24,10 +24,11 @@ export default async function handler(req, res) {
       const when = new Date(scheduledAt);
       if (isNaN(when.getTime())) return res.status(400).json({ error: 'Invalid scheduledAt' });
       const list = (Array.isArray(attendees) ? attendees : []).map((e) => String(e).trim().toLowerCase()).filter(Boolean);
+      const room = `mtg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
       const rows = await queryDb(
-        `INSERT INTO team_meetings (title, description, scheduled_at, duration_mins, created_by_email, created_by_name, attendees)
-         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-        [String(title).slice(0, 200), String(description).slice(0, 4000), when.toISOString(), parseInt(durationMins, 10) || 30, me.email, me.name || me.email, list.join(',')]
+        `INSERT INTO team_meetings (title, description, scheduled_at, duration_mins, created_by_email, created_by_name, attendees, room)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+        [String(title).slice(0, 200), String(description).slice(0, 4000), when.toISOString(), parseInt(durationMins, 10) || 30, me.email, me.name || me.email, list.join(','), room]
       );
       const when2 = when.toLocaleString();
       const html = `<h2>📅 Meeting: ${String(title).slice(0, 200)}</h2><p style="color:#475569"><b>When:</b> ${when2} (${durationMins} min)<br><b>Organizer:</b> ${me.name || me.email}</p>${description ? `<p style="color:#475569;white-space:pre-wrap">${String(description).replace(/</g, '&lt;')}</p>` : ''}<p style="color:#94a3b8;font-size:12px">Join from the PATIENCE AI team portal at the scheduled time.</p>`;

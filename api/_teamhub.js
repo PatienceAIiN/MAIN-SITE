@@ -15,6 +15,8 @@ const AWAY_AFTER_MS = 10 * 60 * 1000;
 
 // email -> { name, sockets:Set<ws>, lastActivity:ms, away:boolean }
 const users = new Map();
+// roomId -> Map<email,name> : live occupants of open group-call (meeting) rooms.
+const gcallRooms = new Map();
 
 const statusOf = (u) => {
   if (!u || u.sockets.size === 0) return 'offline';
@@ -95,6 +97,24 @@ export const attachTeamHub = (server) => {
         }
         return;
       }
+      // Open group-call room registry (for shareable meeting links): anyone with
+      // the link can join; the hub tells the joiner who's already there and tells
+      // the existing occupants a newcomer arrived, so the mesh forms for an
+      // un-predefined participant set.
+      if (msg.type === 'gcall' && msg.room) {
+        let room = gcallRooms.get(msg.room);
+        if (msg.op === 'join') {
+          if (!room) { room = new Map(); gcallRooms.set(msg.room, room); }
+          const others = [...room.entries()].filter(([e]) => e !== email).map(([e, n]) => ({ email: e, name: n }));
+          room.set(email, payload.name || email);
+          safeSend(ws, { type: 'gcall', op: 'roster', room: msg.room, members: others });
+          broadcastToEmails([...room.keys()].filter((e) => e !== email), { type: 'gcall', op: 'joined', room: msg.room, email, name: payload.name || email });
+        } else if (msg.op === 'leave') {
+          if (room) { room.delete(email); if (!room.size) gcallRooms.delete(msg.room); }
+          broadcastToEmails(room ? [...room.keys()] : [], { type: 'gcall', op: 'left', room: msg.room, email });
+        }
+        return;
+      }
       // Manual presence override (online / away / appear offline).
       if (msg.type === 'setstatus') {
         u.manualStatus = ['online', 'away', 'offline'].includes(msg.status) ? msg.status : null;
@@ -132,6 +152,10 @@ export const attachTeamHub = (server) => {
         // grace period so a page refresh doesn't flash offline
         if (u.sockets.size === 0) {
           users.delete(email);
+          // Drop them from any open call rooms and tell remaining occupants.
+          for (const [rid, room] of gcallRooms) {
+            if (room.delete(email)) { broadcastToEmails([...room.keys()], { type: 'gcall', op: 'left', room: rid, email }); if (!room.size) gcallRooms.delete(rid); }
+          }
           broadcastPresence();
           logPresence(email, u.name, payload.role, 'offline');
           // durable "last seen" for the roster (member or executive)

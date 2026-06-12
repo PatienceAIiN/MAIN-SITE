@@ -717,6 +717,8 @@ export default function Colleagues({ member, visible, onUnread, canManageRoster 
     } else if (m.type === 'rtc') {
       if (m.data?.room) groupApi.onRtc(m.from, m.fromName, m.data); // group (mesh) call
       else callApi.onRtc(m.from, m.fromName, m.data);               // 1:1 call
+    } else if (m.type === 'gcall') {
+      groupApi.onGcall(m);                                          // open meeting-room registry
     } else if (m.type === 'reconnected') {
       // Network/tab came back — refetch so missed messages/roster show live.
       loadChats(); loadColleagues();
@@ -739,6 +741,15 @@ export default function Colleagues({ member, visible, onUnread, canManageRoster 
   const { presence, send } = useTeamSocket(member.email, onWsEvent);
   const callApi = useCall(member, send);
   const groupApi = useGroupCall(member, send);
+  const groupRef = useRef(groupApi); groupRef.current = groupApi;
+  // Join a meeting room from its shared link (button dispatch or ?meet= URL).
+  useEffect(() => {
+    const onJoin = (e) => groupRef.current.joinMeeting(e.detail.room, e.detail.name);
+    window.addEventListener('pa-join-meeting', onJoin);
+    const meet = new URLSearchParams(window.location.search).get('meet');
+    if (meet) setTimeout(() => groupRef.current.joinMeeting(meet, 'Meeting'), 1500);
+    return () => window.removeEventListener('pa-join-meeting', onJoin);
+  }, []);
 
   useEffect(() => { loadColleagues(); loadChats(); }, [loadColleagues, loadChats]);
   // presence changes: instant chip update + refetch for fresh last_seen_at

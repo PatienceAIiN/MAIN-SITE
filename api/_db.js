@@ -519,7 +519,9 @@ const SCHEMA_QUERIES = [
     attendees text,
     created_at timestamptz not null default now()
   )`,
-  `create index if not exists team_meetings_when_idx on public.team_meetings (scheduled_at)`];
+  `create index if not exists team_meetings_when_idx on public.team_meetings (scheduled_at)`,
+  // Shareable room token — anyone with the link can join the meeting's video room.
+  `alter table public.team_meetings add column if not exists room text`];
 
 let schemaReady = false;
 let schemaPromise = null;

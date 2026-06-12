@@ -136,7 +136,7 @@ export default async function handler(req, res) {
         );
         return res.status(200).json({ messages: rows, session: sessionRows[0] || null });
       }
-      const payload = await cached(cacheKeys.messages(conversationId), 2, async () => {
+      const payload = await cached(cacheKeys.messages(conversationId), 4, async () => {
         const rows = await queryDb(
           `SELECT * FROM ${CHATS_TABLE} WHERE conversation_id=$1 ORDER BY created_at ASC LIMIT 200`,
           [conversationId]
