@@ -18,6 +18,7 @@ const users = new Map();
 
 const statusOf = (u) => {
   if (!u || u.sockets.size === 0) return 'offline';
+  if (u.busy) return 'busy';   // on a call — others see a chip and can't dial in
   return Date.now() - u.lastActivity > AWAY_AFTER_MS ? 'away' : 'online';
 };
 
@@ -60,7 +61,7 @@ export const attachTeamHub = (server) => {
     const email = payload.email;
 
     let u = users.get(email);
-    if (!u) { u = { name: payload.name, sockets: new Set(), lastActivity: Date.now() }; users.set(email, u); }
+    if (!u) { u = { name: payload.name, sockets: new Set(), lastActivity: Date.now(), busy: false }; users.set(email, u); }
     u.sockets.add(ws);
     u.lastActivity = Date.now();
     ws.isAlive = true;
@@ -77,6 +78,12 @@ export const attachTeamHub = (server) => {
         const wasAway = statusOf(u) !== 'online';
         u.lastActivity = Date.now();
         if (wasAway) broadcastPresence();
+        return;
+      }
+      // Call busy state — flip presence to 'busy' while on a call.
+      if (msg.type === 'callstate') {
+        const busy = Boolean(msg.busy);
+        if (u.busy !== busy) { u.busy = busy; broadcastPresence(); }
         return;
       }
       if (msg.type === 'typing' && Array.isArray(msg.to)) {

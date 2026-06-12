@@ -6,6 +6,16 @@ import { queryDb, isMissingTableError } from './_db.js';
 import { getMemberSession, getExecSession } from './_security.js';
 import { presenceSnapshot, broadcastToEmails, hasActiveSocket } from './_teamhub.js';
 import { getVapidPublicKey, sendPushToEmails } from './_push.js';
+import { resolvePerms } from './team-members.js';
+
+// Group create/edit/delete is roster management — gated on the roster_manage
+// permission. Support executives manage the support roster; team members need
+// the explicit grant. (1:1 DMs are open to everyone.)
+const canManageRoster = async (req, me) => {
+  if (!getMemberSession(req) && getExecSession(req)) return true;
+  const rows = await queryDb(`SELECT team_role, permissions FROM team_members WHERE email=$1 LIMIT 1`, [me.email]).catch(() => []);
+  return resolvePerms(rows[0]).includes('roster_manage');
+};
 
 const chatMembers = (chat) => String(chat.members || '').split(',').map((x) => x.trim()).filter(Boolean);
 const inChat = (chat, email) => chatMembers(chat).includes(email);
@@ -144,6 +154,7 @@ export default async function handler(req, res) {
           notifyChat(rows[0], { type: 'chat_meta', event: 'created', chat: rows[0] });
           return res.status(200).json({ chat: rows[0] });
         }
+        if (!(await canManageRoster(req, me))) return res.status(403).json({ error: 'You do not have permission to create group chats' });
         const members = [...new Set([myEmail, ...others])].join(',');
         const rows = await queryDb(
           `INSERT INTO team_chats (kind, name, members, created_by) VALUES ('group',$1,$2,$3) RETURNING *`,
@@ -157,6 +168,7 @@ export default async function handler(req, res) {
         const chat = await loadChat(chatId);
         if (!chat || !inChat(chat, myEmail)) return res.status(404).json({ error: 'Chat not found' });
         if (chat.kind !== 'group') return res.status(400).json({ error: 'Only group chats can be edited' });
+        if (!(await canManageRoster(req, me))) return res.status(403).json({ error: 'You do not have permission to edit group chats' });
         const members = Array.isArray(memberEmails) && memberEmails.length
           ? [...new Set([chat.created_by, ...memberEmails])].join(',')
           : chat.members;
@@ -243,6 +255,7 @@ export default async function handler(req, res) {
       const { chatId } = req.body || {};
       const chat = await loadChat(chatId);
       if (!chat || !inChat(chat, myEmail)) return res.status(404).json({ error: 'Chat not found' });
+      if (chat.kind === 'group' && !(await canManageRoster(req, me))) return res.status(403).json({ error: 'You do not have permission to delete group chats' });
       const recipients = chatMembers(chat);
       await queryDb(`DELETE FROM team_chats WHERE id=$1`, [chatId]);
       broadcastToEmails(recipients, { type: 'chat_meta', event: 'deleted', chatId: chat.id });

@@ -806,6 +806,7 @@ export default function TeamPortalPage() {
     return () => window.removeEventListener('pa-perms-updated', refresh);
   }, [member]);
   const [view, setView] = useState('tickets');
+  const [colUnread, setColUnread] = useState(0);
   const [showTour, setShowTour] = useState(false);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
 
@@ -894,8 +895,11 @@ export default function TeamPortalPage() {
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
               {['tickets', 'engineering', ...((myPerms.includes('github_read') || myPerms.includes('github_write') || myRepos.length > 0) ? ['github'] : []), 'colleagues'].map((v) => (
                 <button key={v} onClick={() => setView(v)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors ${view === v ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-300'}`}>
+                  className={`relative px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors ${view === v ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-300'}`}>
                   {v}
+                  {v === 'colleagues' && colUnread > 0 && view !== 'colleagues' && (
+                    <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold animate-pulse">{colUnread > 9 ? '9+' : colUnread}</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -923,7 +927,7 @@ export default function TeamPortalPage() {
       {view === 'github' && <GitHubWorkspace canWrite={myPerms.includes('github_write')} />}
       {view === 'engineering' && <TeamEngineering myRole={myRole} />}
       {/* Colleagues stays mounted so presence, pushes and incoming calls work on every tab */}
-      <Colleagues member={member} visible={view === 'colleagues'} />
+      <Colleagues member={member} visible={view === 'colleagues'} onUnread={setColUnread} canManageRoster={myPerms.includes('roster_manage')} />
       {view === 'tickets' && (
       <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
         {/* Ticket list */}

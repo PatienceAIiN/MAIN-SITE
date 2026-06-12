@@ -367,6 +367,7 @@ export default function SupportExecutivePage() {
   const [colleagues,    setColleagues]    = useState([]);
   const [teamOpen,      setTeamOpen]      = useState(false);
   const [colleaguesOpen, setColleaguesOpen] = useState(false);
+  const [colUnread, setColUnread] = useState(0);
   const [internalWith,  setInternalWith]  = useState(null);   // colleague object
   const [internalMsgs,  setInternalMsgs]  = useState([]);
   const [internalInput, setInternalInput] = useState('');
@@ -1061,8 +1062,11 @@ export default function SupportExecutivePage() {
           </div>
           {/* Colleagues workspace: chat / groups / files / voice & video calls with team members and executives */}
           <button onClick={() => setColleaguesOpen(true)}
-            className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors">
+            className="relative flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors">
             <FiMessageSquare size={14} /> Colleagues
+            {colUnread > 0 && !colleaguesOpen && (
+              <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold animate-pulse">{colUnread > 9 ? '9+' : colUnread}</span>
+            )}
           </button>
           {/* Team presence dropdown */}
           <div className="relative">
@@ -1459,7 +1463,7 @@ export default function SupportExecutivePage() {
             <p className="font-bold text-sm text-slate-900 flex items-center gap-2"><FiUsers size={14} /> Colleagues — team & support</p>
             <button onClick={() => setColleaguesOpen(false)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><FiX size={16} /></button>
           </div>
-          <Colleagues member={{ email: executive.email, name: executive.name }} visible={colleaguesOpen} />
+          <Colleagues member={{ email: executive.email, name: executive.name }} visible={colleaguesOpen} onUnread={setColUnread} />
         </div>
       )}
     </div>

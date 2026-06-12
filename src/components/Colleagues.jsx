@@ -30,6 +30,7 @@ const MAX_FILE = 10 * 1024 * 1024;
 const PRESENCE = {
   online: { label: 'Active', dot: 'bg-emerald-500', chip: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800' },
   away: { label: 'Away', dot: 'bg-amber-400', chip: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800' },
+  busy: { label: 'In call', dot: 'bg-red-500', chip: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800' },
   offline: { label: 'Offline', dot: 'bg-slate-300 dark:bg-slate-600', chip: 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700' }
 };
 const PresenceChip = ({ status }) => {
@@ -40,6 +41,11 @@ const PresenceChip = ({ status }) => {
     </span>
   );
 };
+
+// Animated unread chip — shown on chats/colleagues and the portal Colleagues tab.
+const Badge = ({ n }) => n ? (
+  <span className="inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold animate-pulse shadow">{n > 9 ? '9+' : n}</span>
+) : null;
 
 /* ── Web-push helpers (used here and by the settings modal) ──────────────── */
 const b64ToUint8 = (s) => {
@@ -137,12 +143,21 @@ function useCall(me, wsSend) {
   const pendingIce = useRef([]);
   const callRef = useRef(null);
   callRef.current = call;
+  const connectedRef = useRef(false);   // pc reached 'connected' at least once
+  const timerRef = useRef(null);        // ring (no-answer) / connect watchdog
+  const clearTimer = () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } };
+  // Once a call goes active, end it (notifying the peer) if media never connects.
+  const armConnectWatchdog = () => { clearTimer(); timerRef.current = setTimeout(() => { if (!connectedRef.current) hangup(true); }, 30000); };
 
   const cleanup = useCallback(() => {
-    pcRef.current?.close(); pcRef.current = null;
+    clearTimer();
+    const pc = pcRef.current; pcRef.current = null;   // null first so the state
+    pc && (pc.onconnectionstatechange = null);        // handler can't re-enter
+    pc?.close();
     [localStream, screenStream].forEach((r) => { r.current?.getTracks().forEach((t) => t.stop()); r.current = null; });
     remoteStream.current = null;
     pendingIce.current = [];
+    connectedRef.current = false;
     setCall(null); setMuted(false); setCamOff(false); setSharing(false);
   }, []);
 
@@ -151,7 +166,15 @@ function useCall(me, wsSend) {
     const pc = new RTCPeerConnection({ iceServers });
     pc.onicecandidate = (e) => { if (e.candidate) wsSend({ type: 'rtc', to: peer, data: { kind: 'ice', candidate: e.candidate } }); };
     pc.ontrack = (e) => { remoteStream.current = e.streams[0]; if (remoteRef.current) remoteRef.current.srcObject = e.streams[0]; };
-    pc.onconnectionstatechange = () => { if (['failed', 'closed'].includes(pc.connectionState)) cleanup(); };
+    // Never silently kill a still-negotiating call (that left the other side
+    // stuck on the dialer). Only end once it had connected and then dropped, and
+    // always notify the peer so both sides clear together. 'closed' is ignored —
+    // it's us tearing down. A connect watchdog handles never-connects.
+    pc.onconnectionstatechange = () => {
+      if (pcRef.current !== pc) return;
+      if (pc.connectionState === 'connected') { connectedRef.current = true; clearTimer(); }
+      else if (pc.connectionState === 'failed' && connectedRef.current) hangup(true);
+    };
     const stream = await navigator.mediaDevices.getUserMedia({ video: withVideo, audio: true });
     localStream.current = stream;
     stream.getTracks().forEach((t) => pc.addTrack(t, stream));
@@ -168,6 +191,9 @@ function useCall(me, wsSend) {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       wsSend({ type: 'rtc', to: peer, data: { kind: 'offer', sdp: offer, video: withVideo } });
+      // No-answer watchdog: cancel (and notify the callee) if unanswered.
+      clearTimer();
+      timerRef.current = setTimeout(() => { if (callRef.current?.phase === 'outgoing') hangup(true); }, 45000);
     } catch (e) { window.alert(`Could not start the call: ${e.message}`); cleanup(); }
   };
 
@@ -183,6 +209,7 @@ function useCall(me, wsSend) {
       await pc.setLocalDescription(answer);
       wsSend({ type: 'rtc', to: c.peer, data: { kind: 'answer', sdp: answer } });
       setCall({ ...c, phase: 'active' });
+      armConnectWatchdog();
     } catch (e) { window.alert(`Could not answer the call: ${e.message}`); hangup(); }
   };
 
@@ -197,6 +224,9 @@ function useCall(me, wsSend) {
     if (data.kind === 'offer') {
       if (c) { wsSend({ type: 'rtc', to: from, data: { kind: 'decline', busy: true } }); return; }
       setCall({ phase: 'incoming', peer: from, peerName: fromName, offer: data.sdp, video: data.video !== false });
+      // Auto-dismiss the ringing dialer if the caller never connects/cancels.
+      clearTimer();
+      timerRef.current = setTimeout(() => { if (callRef.current?.phase === 'incoming') cleanup(); }, 45000);
       return;
     }
     if (!c || from !== c.peer) return;
@@ -205,6 +235,7 @@ function useCall(me, wsSend) {
       for (const cand of pendingIce.current) await pcRef.current.addIceCandidate(cand).catch(() => {});
       pendingIce.current = [];
       setCall({ ...c, phase: 'active' });
+      armConnectWatchdog();
     } else if (data.kind === 'ice') {
       if (pcRef.current?.remoteDescription) await pcRef.current.addIceCandidate(data.candidate).catch(() => {});
       else pendingIce.current.push(data.candidate);
@@ -254,6 +285,10 @@ function useCall(me, wsSend) {
     if (localRef.current) localRef.current.srcObject = screenStream.current || localStream.current;
     if (remoteRef.current) remoteRef.current.srcObject = remoteStream.current;
   }, [call, sharing]);
+
+  // Tell the hub we're busy while on a call so colleagues see an "In call" chip
+  // and can't dial in; clears the moment the call ends.
+  useEffect(() => { wsSend({ type: 'callstate', busy: Boolean(call) && call.phase !== 'incoming' }); }, [call, wsSend]);
 
   return { call, startCall, acceptCall, hangup, onRtc, localRef, remoteRef, muted, camOff, sharing, toggleMute, toggleCam, toggleShare };
 }
@@ -440,7 +475,7 @@ function GroupModal({ colleagues, chat, onClose, onSaved }) {
 }
 
 /* ── Main component ──────────────────────────────────────────────────────── */
-export default function Colleagues({ member, visible }) {
+export default function Colleagues({ member, visible, onUnread, canManageRoster = true }) {
   const [colleagues, setColleagues] = useState([]);
   const [chats, setChats] = useState([]);
   const [search, setSearch] = useState('');
@@ -454,8 +489,11 @@ export default function Colleagues({ member, visible }) {
   const [uploading, setUploading] = useState(false);
   const [replyTo, setReplyTo] = useState(null); // message being replied to
   const [typing, setTyping] = useState({}); // chatId -> {email,name,at}
+  const [unread, setUnread] = useState({}); // chatId -> count of unseen messages
   const endRef = useRef(null);
   const activeChatRef = useRef(null);
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
   const lastTypingSent = useRef(0);
 
   const loadChats = useCallback(() => {
@@ -468,6 +506,13 @@ export default function Colleagues({ member, visible }) {
   const onWsEvent = useCallback((m) => {
     if (m.type === 'chat') {
       loadChats();
+      const mine = m.message?.sender_email === member.email;
+      const viewing = visibleRef.current && m.chatId === activeChatRef.current;
+      // Bump the unread badge for messages arriving while you're not looking at
+      // that chat — so the chip shows even from other portal tabs.
+      if (!mine && !viewing && m.event !== 'edit' && !m.message?.deleted) {
+        setUnread((u) => ({ ...u, [m.chatId]: (u[m.chatId] || 0) + 1 }));
+      }
       if (m.chatId === activeChatRef.current) {
         setMessages((prev) => {
           const i = prev.findIndex((x) => x.id === m.message.id);
@@ -486,7 +531,19 @@ export default function Colleagues({ member, visible }) {
     } else if (m.type === 'rtc') {
       callApi.onRtc(m.from, m.fromName, m.data);
     }
-  }, [loadChats]);  
+  }, [loadChats, member.email]);
+
+  // Clear a chat's unread badge once you're actually viewing it; report the
+  // running total up to the portal so it can badge the "Colleagues" button.
+  useEffect(() => { if (visible && activeChatId) setUnread((u) => (u[activeChatId] ? { ...u, [activeChatId]: 0 } : u)); }, [visible, activeChatId, messages]);
+  const totalUnread = useMemo(() => Object.values(unread).reduce((a, b) => a + b, 0), [unread]);
+  useEffect(() => { onUnread?.(totalUnread); }, [totalUnread, onUnread]);
+  // Per-colleague unread (for DM rows in the roster), keyed by peer email.
+  const dmUnread = useMemo(() => {
+    const map = {};
+    chats.forEach((c) => { if (c.kind === 'dm' && unread[c.id]) { const p = dmPeer(c); if (p) map[p] = unread[c.id]; } });
+    return map;
+  }, [chats, unread]);
 
   const { presence, send } = useTeamSocket(member.email, onWsEvent);
   const callApi = useCall(member, send);
@@ -601,6 +658,10 @@ export default function Colleagues({ member, visible }) {
   const peerEmail = dmPeer(activeChat);
 
   return (
+    <>
+    {/* CallOverlay lives OUTSIDE the visibility gate so an incoming call rings
+        fullscreen no matter which portal tab is open. */}
+    <CallOverlay callApi={callApi} />
     <div className={visible ? 'flex flex-1 overflow-hidden flex-col md:flex-row' : 'hidden'}>
       {/* Left: roster + chat history */}
       <aside className="w-full md:w-80 max-h-[45vh] md:max-h-none border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col shrink-0">
@@ -610,7 +671,9 @@ export default function Colleagues({ member, visible }) {
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search colleagues & chats…"
               className={`${inp} w-full !pl-8`} />
           </div>
-          <button onClick={() => setGroupModal('new')} className={`${tb2} w-full flex items-center justify-center gap-1.5`}>
+          <button onClick={() => setGroupModal('new')} disabled={!canManageRoster}
+            title={canManageRoster ? 'Create a group chat' : 'Read-only roster access — ask an admin for the roster permission'}
+            className={`${tb2} w-full flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed`}>
             <FiPlus size={12} /> New group chat
           </button>
           {/* Toggle which side's colleagues to show — Team and Support are kept
@@ -642,11 +705,14 @@ export default function Colleagues({ member, visible }) {
                     : c.last_message ? `${c.last_sender ? c.last_sender.split(' ')[0] + ': ' : ''}${c.last_deleted ? 'message deleted' : c.last_message}` : 'No messages yet'}
                 </p>
               </div>
+              {unread[c.id] > 0 && <span className="group-hover:hidden shrink-0"><Badge n={unread[c.id]} /></span>}
               <div className="hidden group-hover:flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                {c.kind === 'group' && (
+                {c.kind === 'group' && canManageRoster && (
                   <button title="Edit group" onClick={() => setGroupModal(c)} className="p-1.5 rounded text-slate-400 hover:text-indigo-500"><FiEdit2 size={12} /></button>
                 )}
-                <button title="Delete chat" onClick={() => deleteChat(c)} className="p-1.5 rounded text-slate-400 hover:text-red-500"><FiTrash2 size={12} /></button>
+                {(c.kind !== 'group' || canManageRoster) && (
+                  <button title="Delete chat" onClick={() => deleteChat(c)} className="p-1.5 rounded text-slate-400 hover:text-red-500"><FiTrash2 size={12} /></button>
+                )}
               </div>
             </div>
           ))}
@@ -668,7 +734,10 @@ export default function Colleagues({ member, visible }) {
                         <p className="text-[10px] text-slate-400/80 truncate">{lastSeenText(c.last_seen_at)}</p>
                       )}
                     </div>
-                    <PresenceChip status={c.presence} />
+                    <span className="flex items-center gap-1.5 shrink-0">
+                      <Badge n={dmUnread[c.email]} />
+                      <PresenceChip status={c.presence} />
+                    </span>
                   </button>
                 ))}
               </div>
@@ -699,15 +768,19 @@ export default function Colleagues({ member, visible }) {
                         : (PRESENCE[presence[peerEmail]]).label}
                 </p>
               </div>
-              {activeChat.kind === 'dm' && ['voice', 'video'].map((k) => (
-                <button key={k} onClick={() => callApi.startCall(peerEmail, chatTitle(activeChat), k === 'video')}
-                  disabled={(presence[peerEmail] || 'offline') === 'offline' || Boolean(callApi.call)}
-                  title={(presence[peerEmail] || 'offline') === 'offline' ? 'Colleague is offline' : `Start ${k} call`}
-                  className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40">
-                  {k === 'video' ? <FiVideo size={15} /> : <FiPhone size={15} />}
-                </button>
-              ))}
-              {activeChat.kind === 'group' && (
+              {activeChat.kind === 'dm' && ['voice', 'video'].map((k) => {
+                const peerStatus = presence[peerEmail] || 'offline';
+                const disabled = peerStatus === 'offline' || peerStatus === 'busy' || Boolean(callApi.call);
+                return (
+                  <button key={k} onClick={() => callApi.startCall(peerEmail, chatTitle(activeChat), k === 'video')}
+                    disabled={disabled}
+                    title={peerStatus === 'offline' ? 'Colleague is offline' : peerStatus === 'busy' ? 'Colleague is on another call' : callApi.call ? 'You are already on a call' : `Start ${k} call`}
+                    className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40">
+                    {k === 'video' ? <FiVideo size={15} /> : <FiPhone size={15} />}
+                  </button>
+                );
+              })}
+              {activeChat.kind === 'group' && canManageRoster && (
                 <button onClick={() => setGroupModal(activeChat)} title="Edit group" className={tb2}><FiEdit2 size={12} /></button>
               )}
             </div>
@@ -800,7 +873,7 @@ export default function Colleagues({ member, visible }) {
           onSaved={(chat) => { setGroupModal(null); loadChats(); if (chat?.id) setActiveChatId(chat.id); }} />
       )}
       {preview && <FilePreviewModal msg={preview} onClose={() => setPreview(null)} />}
-      <CallOverlay callApi={callApi} />
     </div>
+    </>
   );
 }
