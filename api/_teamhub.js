@@ -97,7 +97,7 @@ export const attachTeamHub = (server) => {
         // Push-notify an incoming call if the callee has no portal tab open.
         if (msg.data.kind === 'offer' && !hasActiveSocket(msg.to)) {
           sendPushToEmails([msg.to], {
-            title: `Incoming video call`,
+            title: `Incoming ${msg.data.video === false ? 'voice' : 'video'} call`,
             body: `${payload.name || email} is calling you`,
             url: '/team', tag: 'call'
           });

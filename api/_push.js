@@ -1,25 +1,27 @@
 // Web-push helper (open-source `web-push` lib). VAPID keys come from env
 // (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY) or are generated once and persisted
 // to .vapid.json so local dev keeps working subscriptions across restarts.
-import fs from 'node:fs';
-import path from 'node:path';
 import webpush from 'web-push';
 import { queryDb } from './_db.js';
 
 let keys = null;
+
+// Stable fallback keypair so push keeps working on hosts with an ephemeral
+// filesystem (e.g. Render), where a generated .vapid.json would reset every
+// deploy and silently invalidate every existing subscription. Override with
+// VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY env vars for stricter key custody.
+const DEFAULT_VAPID = {
+  publicKey: 'BBWKB42_SS7pb3qX8kuXgyz6d_8zMnYAp7dd_R7oo5YwPgVSqvJnvOZqD38cnrTPB-8-Z2I3MXdiW-1aH8u-9UE',
+  privateKey: 'lfi8fFSAblQB2Vv0PpOw3TbNJ-ruZBupvsJ-Yz8SfLc'
+};
 
 const loadKeys = () => {
   if (keys) return keys;
   if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
     keys = { publicKey: process.env.VAPID_PUBLIC_KEY, privateKey: process.env.VAPID_PRIVATE_KEY };
   } else {
-    const file = path.resolve(process.cwd(), '.vapid.json');
-    try {
-      keys = JSON.parse(fs.readFileSync(file, 'utf8'));
-    } catch {
-      keys = webpush.generateVAPIDKeys();
-      try { fs.writeFileSync(file, JSON.stringify(keys)); } catch { /* read-only fs is fine */ }
-    }
+    // Stable baked-in keys (no per-restart regeneration). env overrides above.
+    keys = DEFAULT_VAPID;
   }
   webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'mailto:growth@patienceai.in', keys.publicKey, keys.privateKey);
   return keys;

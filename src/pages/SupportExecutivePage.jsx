@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   FiPhone, FiPhoneOff, FiPhoneIncoming, FiMic, FiMicOff, FiSend,
   FiLogOut, FiUser, FiRefreshCw, FiCheck, FiEye, FiEyeOff, FiChevronLeft, FiChevronRight, FiSearch,
-  FiVolume2, FiSmartphone, FiUsers, FiX, FiCornerUpRight, FiSun, FiMoon, FiAlertTriangle, FiTag, FiMessageSquare
+  FiVolume2, FiSmartphone, FiUsers, FiX, FiCornerUpRight, FiSun, FiMoon, FiAlertTriangle, FiTag, FiMessageSquare, FiBell, FiBellOff
 } from 'react-icons/fi';
 import { TicketModal, TicketsPanel, NotificationBell } from '../components/TicketCenter';
 
@@ -11,7 +11,7 @@ const STATUS_DOT = { online: 'bg-emerald-500', away: 'bg-amber-500', offline: 'b
 const IDLE_LIMIT_MS = 10 * 60 * 1000; // 10 min without activity → auto-offline
 import { fetchJson } from '../common/fetchJson';
 import Dropdown from '../common/Dropdown';
-import Colleagues, { lastSeenText } from '../components/Colleagues';
+import Colleagues, { lastSeenText, enablePushNotifications, disablePushNotifications } from '../components/Colleagues';
 
 const fmt = (v) => v ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(v)) : '—';
 const PAGE_SIZE = 10;
@@ -369,6 +369,13 @@ export default function SupportExecutivePage() {
   const [teamOpen,      setTeamOpen]      = useState(false);
   const [colleaguesOpen, setColleaguesOpen] = useState(false);
   const [colUnread, setColUnread] = useState(0);
+  const [pushOn, setPushOn] = useState(false);
+  const togglepush = async () => {
+    try {
+      if (pushOn) { await disablePushNotifications(); setPushOn(false); }
+      else { await enablePushNotifications(); setPushOn(true); }
+    } catch (e) { window.alert(e.message || 'Could not change notifications'); }
+  };
   const [internalWith,  setInternalWith]  = useState(null);   // colleague object
   const [internalMsgs,  setInternalMsgs]  = useState([]);
   const [internalInput, setInternalInput] = useState('');
@@ -1068,6 +1075,11 @@ export default function SupportExecutivePage() {
             {colUnread > 0 && !colleaguesOpen && (
               <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold animate-pulse">{colUnread > 9 ? '9+' : colUnread}</span>
             )}
+          </button>
+          {/* Push notifications toggle */}
+          <button onClick={togglepush} title={pushOn ? 'Notifications on — incoming messages & calls' : 'Enable notifications for messages & calls'}
+            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border transition-colors ${pushOn ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600 hover:bg-slate-100'}`}>
+            {pushOn ? <FiBell size={14} /> : <FiBellOff size={14} />}
           </button>
           {/* Team presence dropdown */}
           <Dropdown open={teamOpen} onClose={() => setTeamOpen(false)} className="relative">
