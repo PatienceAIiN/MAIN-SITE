@@ -47,11 +47,7 @@ export function useGroupCall(me, wsSend) {
   };
   const dropPeer = (email) => { pcs.current.get(email)?.close(); pcs.current.delete(email); setPeers((p) => { const n = { ...p }; delete n[email]; return n; }); };
 
-  const broadcast = (data) => {
-    const targets = (roomRef.current?.members || []).filter((e) => e !== me.email);
-    try { console.log('[gcall] broadcast', data.kind, 'to', JSON.stringify(targets), 'as', me.email); } catch { /* noop */ }
-    targets.forEach((e) => send(e, data));
-  };
+  const broadcast = (data) => (roomRef.current?.members || []).filter((e) => e !== me.email).forEach((e) => send(e, data));
 
   // Start a call for a group chat.
   const start = async (chatId, members, name) => {
@@ -74,7 +70,6 @@ export function useGroupCall(me, wsSend) {
   const onRtc = useCallback(async (from, fromName, data) => {
     if (!data?.room) return; // not a group message
     const r = roomRef.current;
-    try { console.log('[gcall]', data.kind, 'from', from, '| myRoom', r?.id, 'incoming?', r?.incoming, '| msgRoom', data.room); } catch { /* noop */ }
     if (data.kind === 'g-invite') {
       if (r) return; // already busy
       setRoom({ incoming: true, id: data.room, name: data.name, members: data.members, from, fromName });
