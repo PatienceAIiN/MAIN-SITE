@@ -388,6 +388,7 @@ app.all('/api/team-members/change-password', authLimiter, wrap(teamMembersHandle
 app.all('/api/team-members/me',              wrap(teamMembersHandler));
 app.all('/api/team-members/logout',          wrap(teamMembersHandler));
 app.all('/api/team-members',                 wrap(teamMembersHandler));
+app.all('/api/deploy/config',                wrap(deployHandler));
 app.all('/api/deploy/schedule',              wrap(deployHandler));
 app.all('/api/deploy/cancel',                wrap(deployHandler));
 app.all('/api/deploy/logs',                  wrap(deployHandler));

@@ -587,14 +587,14 @@ function TourGuide({ member, onDone }) {
 /* ── Main portal ─────────────────────────────────────────────────────────── */
 /* ── Deploy control: trigger a Render deploy now or schedule one for later.
    Hidden for QA and Software Developers (server enforces the same rule). ─── */
-const DEPLOY_BLOCKED_ROLES = ['qa', 'software_dev'];
 const DEPLOY_DONE = ['live', 'failed', 'build_failed', 'update_failed', 'canceled', 'cancelled', 'deactivated'];
-function DeployControl({ myRole }) {
+function DeployControl() {
   const [open, setOpen]     = useState(false);
   const [busy, setBusy]     = useState(false);
   const [msg, setMsg]       = useState('');
   const [when, setWhen]     = useState('');
-  const [data, setData]     = useState({ scheduled: [], recent: [] });
+  const [pwd, setPwd]       = useState('');
+  const [data, setData]     = useState({ scheduled: [], recent: [], canDeploy: null });
   const [activeId, setActive] = useState(null);          // deploy currently in progress
   const [logs, setLogs]     = useState({ status: null, lines: [], note: '' });
   const logRef = useRef(null);
@@ -608,6 +608,7 @@ function DeployControl({ myRole }) {
       if (running && !activeId) setActive(running.id);
     } catch { /* ignore */ }
   };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
   useEffect(() => { if (open) load(); /* eslint-disable-next-line */ }, [open]);
 
   // Poll live logs/status for the active deploy.
@@ -630,26 +631,34 @@ function DeployControl({ myRole }) {
 
   useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [logs]);
 
-  if (DEPLOY_BLOCKED_ROLES.includes(myRole)) return null;
+  // Hidden entirely unless an admin has granted this user deploy access.
+  if (!data.canDeploy) return null;
+
+  const pwBody = (extra) => ({ ...(data.passwordSet ? { password: pwd } : {}), ...extra });
+  const needPw = () => { if (data.passwordSet && !pwd) { setMsg('Enter the deploy password.'); return true; } return false; };
 
   const deployNow = async () => {
+    if (needPw()) return;
     setBusy(true); setMsg(''); setLogs({ status: null, lines: [], note: '' });
-    try { const r = await fetchJson('/api/deploy', { method: 'POST' }); setMsg(r.message || 'Deploy triggered.'); setActive(r.id); load(); }
+    try { const r = await fetchJson('/api/deploy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pwBody()) }); setMsg(r.message || 'Deploy triggered.'); setActive(r.id); setPwd(''); load(); }
     catch (e) { setMsg(e.message); }
     finally { setBusy(false); }
   };
   const cancelActive = async () => {
     if (!activeId) return;
-    setBusy(true); setMsg('');
-    try { const r = await fetchJson('/api/deploy/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: activeId }) }); setMsg(r.message || 'Cancelled.'); setActive(null); load(); }
+    const id = activeId;
+    setActive(null); setMsg('Cancelling…');        // revert the button immediately
+    setBusy(true);
+    try { const r = await fetchJson('/api/deploy/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pwBody({ id })) }); setMsg(r.message || 'Cancelled.'); load(); }
     catch (e) { setMsg(e.message); }
     finally { setBusy(false); }
   };
   const schedule = async () => {
     if (!when) { setMsg('Pick a date & time first.'); return; }
+    if (needPw()) return;
     setBusy(true); setMsg('');
     try {
-      await fetchJson('/api/deploy/schedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runAt: new Date(when).toISOString() }) });
+      await fetchJson('/api/deploy/schedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pwBody({ runAt: new Date(when).toISOString() })) });
       setMsg('Deploy scheduled.'); setWhen(''); load();
     } catch (e) { setMsg(e.message); }
     finally { setBusy(false); }
@@ -671,6 +680,12 @@ function DeployControl({ myRole }) {
               <p className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2"><FiUploadCloud size={17} /> Deploy</p>
               <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><FiX size={17} /></button>
             </div>
+
+            {/* Deploy password (when an admin has set one) */}
+            {data.passwordSet && !activeId && (
+              <input type="password" value={pwd} onChange={(e) => setPwd(e.target.value)} placeholder="Deploy password"
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 mb-2" />
+            )}
 
             {/* Primary action: Deploy now → swaps to Cancel while a deploy is running */}
             {activeId ? (
@@ -720,9 +735,9 @@ function DeployControl({ myRole }) {
             {data.recent?.length > 0 && (
               <div className="mt-2 border-t border-slate-100 dark:border-slate-800 pt-2">
                 <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 mb-1">Recent</p>
-                {data.recent.slice(0, 5).map((r) => (
+                {data.recent.slice(0, 8).map((r) => (
                   <div key={r.id} className="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400 py-0.5">
-                    <span className="truncate">{new Date(r.created_at).toLocaleString()} · {r.triggered_by}</span>
+                    <span className="truncate">{new Date(r.created_at).toLocaleString()} · {r.triggered_by}{r.commit_sha ? ` · ${r.commit_sha}` : ''}{r.pr ? ` ${r.pr}` : ''}</span>
                     <span className={`shrink-0 ${['failed', 'build_failed', 'cancelled', 'canceled'].includes(r.status) ? 'text-red-500' : 'text-emerald-500'}`}>{r.status}</span>
                   </div>
                 ))}
@@ -865,7 +880,7 @@ export default function TeamPortalPage() {
                 </button>
               ))}
             </div>
-          <DeployControl myRole={myRole} />
+          <DeployControl />
           <NotificationBell dark={dark} />
           <button onClick={() => setDark((d) => !d)} title="Toggle theme"
             className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">

@@ -6,7 +6,7 @@ import AdminTicketOps from '../components/AdminTicketOps';
 import AdminPeos from '../components/AdminPeos';
 import { fetchJson } from '../common/fetchJson';
 
-const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support', 'executives', 'team', 'tickets', 'engineering', 'logs'];
+const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support', 'executives', 'team', 'deploy', 'tickets', 'engineering', 'logs'];
 
 /* ── Security & audit log viewer: every recorded event, exportable ───────── */
 function AdminLogs() {
@@ -54,6 +54,104 @@ function AdminLogs() {
         </div>
       </div>
       <p className="text-[11px] text-white/30">Exports include up to 5,000 most recent events; the table shows 1,000 and auto-refreshes every 30s.</p>
+    </div>
+  );
+}
+
+/* ── Deploy management: who may deploy, optional password, deploy history ─── */
+function AdminDeploy() {
+  const [members, setMembers]   = useState([]);
+  const [allowed, setAllowed]   = useState([]);          // emails granted deploy access
+  const [passwordSet, setPwSet] = useState(false);
+  const [newPw, setNewPw]       = useState('');
+  const [history, setHistory]   = useState([]);
+  const [msg, setMsg]           = useState('');
+  const [busy, setBusy]         = useState(false);
+
+  const load = async () => {
+    try {
+      const [cfg, tm, dep] = await Promise.all([
+        fetchJson('/api/deploy/config'),
+        fetchJson('/api/team-members').catch(() => ({ members: [] })),
+        fetchJson('/api/deploy').catch(() => ({ recent: [] }))
+      ]);
+      setAllowed(cfg.allowedEmails || []); setPwSet(Boolean(cfg.passwordSet));
+      setMembers(tm.members || []); setHistory(dep.recent || []);
+    } catch (e) { setMsg(e.message); }
+  };
+  useEffect(() => { load(); const i = setInterval(load, 30000); return () => clearInterval(i); }, []);
+
+  const toggle = (email) => setAllowed((a) => a.includes(email) ? a.filter((x) => x !== email) : [...a, email]);
+  const save = async (extra = {}) => {
+    setBusy(true); setMsg('');
+    try {
+      const r = await fetchJson('/api/deploy/config', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allowedEmails: allowed, ...extra }) });
+      setAllowed(r.allowedEmails || []); setPwSet(Boolean(r.passwordSet)); setNewPw('');
+      setMsg('Saved.');
+    } catch (e) { setMsg(e.message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-2xl font-semibold">Deploy</h2>
+        <p className="text-white/55 text-sm mt-1">Choose who can deploy from the team portal, set an optional deploy password, and review the deployment history (who, when, and which commit/PR).</p>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4">
+        {/* Allow-list */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <p className="text-sm font-semibold mb-1">Allowed deployers</p>
+          <p className="text-white/45 text-xs mb-3">Selected team members see the Deploy button & controls on login.</p>
+          <div className="max-h-64 overflow-y-auto divide-y divide-white/5">
+            {members.map((m) => (
+              <label key={m.email} className="flex items-center gap-3 py-2 cursor-pointer">
+                <input type="checkbox" checked={allowed.includes(m.email.toLowerCase())} onChange={() => toggle(m.email.toLowerCase())} className="accent-cyan-400" />
+                <span className="min-w-0">
+                  <span className="block text-sm text-white truncate">{m.name} <span className="text-white/40 text-xs">· {(m.team_role || 'member').replace(/_/g, ' ')}</span></span>
+                  <span className="block text-xs text-white/40 truncate">{m.email}</span>
+                </span>
+              </label>
+            ))}
+            {!members.length && <p className="text-white/35 text-sm py-3">No team members yet.</p>}
+          </div>
+          <button onClick={() => save()} disabled={busy} className="mt-3 text-xs px-4 py-2 rounded-xl bg-white text-slate-950 font-semibold hover:bg-white/90 disabled:opacity-50">Save access list</button>
+        </div>
+
+        {/* Password */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <p className="text-sm font-semibold mb-1">Deploy password</p>
+          <p className="text-white/45 text-xs mb-3">Status: <span className={passwordSet ? 'text-emerald-300' : 'text-amber-300'}>{passwordSet ? 'set — required to deploy' : 'not set'}</span></p>
+          <input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="New deploy password (min 4 chars)"
+            className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70 mb-3" />
+          <div className="flex items-center gap-2">
+            <button onClick={() => newPw && save({ password: newPw })} disabled={busy || !newPw} className="text-xs px-4 py-2 rounded-xl bg-white text-slate-950 font-semibold hover:bg-white/90 disabled:opacity-50">{passwordSet ? 'Change password' : 'Set password'}</button>
+            {passwordSet && <button onClick={() => save({ clearPassword: true })} disabled={busy} className="text-xs px-4 py-2 rounded-xl border border-white/15 text-white/80 hover:bg-white/5">Remove password</button>}
+          </div>
+        </div>
+      </div>
+      {msg && <p className="text-xs text-white/60">{msg}</p>}
+
+      {/* History */}
+      <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
+        <div className="grid grid-cols-[160px_1fr_90px_1fr_90px] gap-2 px-4 py-2.5 text-[10px] uppercase tracking-wider text-white/40 border-b border-white/10">
+          <span>Time</span><span>Triggered by</span><span>Commit</span><span>PR / Note</span><span>Status</span>
+        </div>
+        <div className="max-h-[50vh] overflow-y-auto divide-y divide-white/5">
+          {!history.length && <p className="text-white/35 text-sm p-5 text-center">No deployments recorded yet.</p>}
+          {history.map((d) => (
+            <div key={d.id} className="grid grid-cols-[160px_1fr_90px_1fr_90px] gap-2 px-4 py-2 text-xs text-white/70 items-center">
+              <span className="text-white/50">{new Date(d.created_at).toLocaleString()}</span>
+              <span className="truncate">{d.triggered_by}</span>
+              <span className="font-mono text-white/60">{d.commit_sha || '—'}</span>
+              <span className="truncate">{d.pr || d.commit_msg || d.note || '—'}</span>
+              <span className={['failed', 'build_failed', 'cancelled', 'canceled'].includes(d.status) ? 'text-red-300' : d.status === 'live' ? 'text-emerald-300' : 'text-amber-300'}>{d.status}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2065,6 +2163,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
             {activeTab === 'tickets' && <AdminTicketOps />}
 
             {activeTab === 'engineering' && <AdminPeos />}
+            {activeTab === 'deploy' && <AdminDeploy />}
             {activeTab === 'logs' && <AdminLogs />}
           </div>
         </div>

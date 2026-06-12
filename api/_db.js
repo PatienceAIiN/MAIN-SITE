@@ -468,7 +468,19 @@ const SCHEMA_QUERIES = [
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
   )`,
-  `alter table public.deploys add column if not exists deploy_id text`];
+  `alter table public.deploys add column if not exists deploy_id text`,
+  `alter table public.deploys add column if not exists commit_sha text`,
+  `alter table public.deploys add column if not exists commit_msg text`,
+  `alter table public.deploys add column if not exists pr text`,
+  // Admin-managed deploy access: optional password gate + the list of team
+  // member emails allowed to deploy from the team portal.
+  `create table if not exists public.deploy_config (
+    id int primary key default 1,
+    password_hash text,
+    password_salt text,
+    allowed_emails text,
+    updated_at timestamptz not null default now()
+  )`];
 
 let schemaReady = false;
 let schemaPromise = null;
