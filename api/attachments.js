@@ -14,7 +14,7 @@ import { notify, logAudit } from './_ticketing.js';
 import { bumpVersion, verScopes } from './_cache.js';
 import { isR2Configured, r2PutObject, r2SignedGetUrl, buildAttachmentKey } from './_r2.js';
 
-const MAX_BYTES = 10 * 1024 * 1024;      // 10 MB — R2 path
+const MAX_BYTES = 20 * 1024 * 1024;      // 20 MB — R2 path
 const MAX_DB_BYTES = 3 * 1024 * 1024;    // 3 MB — Postgres fallback only
 
 const parseTicketId = (value) => {
@@ -77,7 +77,7 @@ export default async function handler(req, res) {
     if (!ticketId || !fileName) return res.status(400).json({ error: 'ticketId and fileName required' });
     const body = req.body;
     if (!Buffer.isBuffer(body) || !body.length) return res.status(400).json({ error: 'Empty upload' });
-    if (body.length > MAX_BYTES) return res.status(413).json({ error: 'File too large (max 10 MB)' });
+    if (body.length > MAX_BYTES) return res.status(413).json({ error: 'File too large (max 20 MB)' });
     const contentType = req.headers['content-type'] || 'application/octet-stream';
 
     try {

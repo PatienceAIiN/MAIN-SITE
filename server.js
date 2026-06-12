@@ -404,7 +404,7 @@ app.all('/api/ticket-settings',              wrap(ticketSettingsHandler));
 app.all('/api/ticket-stats',                 wrap(ticketStatsHandler));
 app.all('/api/notifications',                wrap(notificationsHandler));
 // File uploads: raw body (any format) up to 10 MB, streamed to Cloudflare R2.
-app.post('/api/attachments/upload', express.raw({ type: () => true, limit: '10mb' }), wrap(attachmentsHandler));
+app.post('/api/attachments/upload', express.raw({ type: () => true, limit: '20mb' }), wrap(attachmentsHandler));
 app.all('/api/attachments',                  wrap(attachmentsHandler));
 app.all('/api/kb',                           wrap(kbHandler));
 const clientTicketLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, message: 'Too many requests. Try again shortly.' });
@@ -625,7 +625,7 @@ app.use((error, req, res, next) => {
   }
   // Body-parser limit exceeded (e.g. attachment over 10 MB)
   if (error?.type === 'entity.too.large' || error?.status === 413) {
-    return res.status(413).json({ error: 'File too large (max 10 MB)' });
+    return res.status(413).json({ error: 'File too large (max 20 MB)' });
   }
   console.error(error);
   return res.status(500).json({ error: 'Internal server error' });

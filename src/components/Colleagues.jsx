@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import {
   FiSearch, FiSend, FiX, FiUsers, FiPlus, FiEdit2, FiTrash2, FiVideo,
   FiMic, FiMicOff, FiVideoOff, FiMonitor, FiPhoneOff, FiPhone, FiCheck,
-  FiPaperclip, FiFile, FiDownload, FiCornerUpLeft
+  FiPaperclip, FiFile, FiDownload, FiCornerUpLeft, FiMessageSquare, FiMinimize2, FiMaximize2
 } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 
@@ -188,6 +188,7 @@ function useCall(me, wsSend) {
   const [muted, setMuted] = useState(false);
   const [camOff, setCamOff] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [chat, setChat] = useState([]); // in-call chat messages
   const pcRef = useRef(null);
   const localRef = useRef(null);
   const remoteRef = useRef(null);
@@ -212,7 +213,7 @@ function useCall(me, wsSend) {
     remoteStream.current = null;
     pendingIce.current = [];
     connectedRef.current = false;
-    setCall(null); setMuted(false); setCamOff(false); setSharing(false);
+    setCall(null); setMuted(false); setCamOff(false); setSharing(false); setChat([]);
   }, []);
 
   const newPc = async (peer, withVideo = true) => {
@@ -293,6 +294,8 @@ function useCall(me, wsSend) {
     } else if (data.kind === 'ice') {
       if (pcRef.current?.remoteDescription) await pcRef.current.addIceCandidate(data.candidate).catch(() => {});
       else pendingIce.current.push(data.candidate);
+    } else if (data.kind === 'chat') {
+      setChat((m) => [...m, { mine: false, text: data.text, name: fromName, at: Date.now() }]);
     } else if (data.kind === 'hangup' || data.kind === 'decline') {
       cleanup();
     }
@@ -344,16 +347,31 @@ function useCall(me, wsSend) {
   // and can't dial in; clears the moment the call ends.
   useEffect(() => { wsSend({ type: 'callstate', busy: Boolean(call) && call.phase !== 'incoming' }); }, [call, wsSend]);
 
-  return { call, startCall, acceptCall, hangup, onRtc, localRef, remoteRef, muted, camOff, sharing, toggleMute, toggleCam, toggleShare };
+  const sendChat = (text) => {
+    const c = callRef.current; if (!c || !text.trim()) return;
+    wsSend({ type: 'rtc', to: c.peer, data: { kind: 'chat', text: text.trim() } });
+    setChat((m) => [...m, { mine: true, text: text.trim(), at: Date.now() }]);
+  };
+
+  return { call, startCall, acceptCall, hangup, onRtc, localRef, remoteRef, muted, camOff, sharing, toggleMute, toggleCam, toggleShare, chat, sendChat };
 }
 
 function CallOverlay({ callApi }) {
-  const { call, acceptCall, hangup, localRef, remoteRef, muted, camOff, sharing, toggleMute, toggleCam, toggleShare } = callApi;
+  const { call, acceptCall, hangup, localRef, remoteRef, muted, camOff, sharing, toggleMute, toggleCam, toggleShare, chat, sendChat } = callApi;
+  const [minimized, setMinimized] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [draft, setDraft] = useState('');
+  const chatEndRef = useRef(null);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chat, chatOpen]);
+  useEffect(() => { if (!call) { setMinimized(false); setFullscreen(false); setChatOpen(false); } }, [call]);
   if (!call) return null;
   const rb = 'h-11 w-11 rounded-full flex items-center justify-center text-white transition-colors';
-  return (
-    <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      {call.phase === 'incoming' ? (
+  const unread = chat.length;
+
+  if (call.phase === 'incoming') {
+    return (
+      <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 text-center shadow-2xl w-full max-w-xs">
           <p className="text-3xl mb-2">📞</p>
           <p className="font-bold text-slate-900 dark:text-white">{call.peerName || call.peer}</p>
@@ -363,10 +381,35 @@ function CallOverlay({ callApi }) {
             <button onClick={() => hangup()} className={`${rb} bg-red-600 hover:bg-red-700`} title="Decline"><FiPhoneOff size={18} /></button>
           </div>
         </div>
-      ) : (
-        <div className="w-full max-w-3xl">
-          <div className="relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-700">
-            <video ref={remoteRef} autoPlay playsInline className="w-full aspect-video object-contain bg-black" />
+      </div>
+    );
+  }
+
+  // Minimized → small floating pill, call keeps running.
+  if (minimized) {
+    return (
+      <button onClick={() => setMinimized(false)} title="Return to call"
+        className="fixed bottom-4 right-4 z-[70] flex items-center gap-2 px-4 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xl animate-pulse">
+        <FiPhone size={15} /> <span className="text-xs font-semibold">{call.video ? 'Video' : 'Voice'} call · {call.peerName || call.peer}</span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className={`flex gap-3 w-full ${fullscreen ? 'max-w-full h-full' : 'max-w-3xl'}`}>
+        <div className="flex-1 min-w-0 flex flex-col">
+          <div className={`relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-700 ${fullscreen ? 'flex-1' : ''}`}>
+            {/* top-right window controls */}
+            <div className="absolute top-2 right-2 z-10 flex gap-1.5">
+              <button onClick={() => setChatOpen((o) => !o)} title="Chat" className="relative h-8 w-8 rounded-lg bg-black/50 hover:bg-black/70 text-white flex items-center justify-center">
+                <FiMessageSquare size={14} />
+                {!chatOpen && unread > 0 && <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">{unread > 9 ? '9+' : unread}</span>}
+              </button>
+              <button onClick={() => setFullscreen((f) => !f)} title={fullscreen ? 'Exit fullscreen' : 'Enlarge'} className="h-8 w-8 rounded-lg bg-black/50 hover:bg-black/70 text-white flex items-center justify-center"><FiMaximize2 size={14} /></button>
+              <button onClick={() => setMinimized(true)} title="Minimize (keep call running)" className="h-8 w-8 rounded-lg bg-black/50 hover:bg-black/70 text-white flex items-center justify-center"><FiMinimize2 size={14} /></button>
+            </div>
+            <video ref={remoteRef} autoPlay playsInline className={`w-full ${fullscreen ? 'h-full' : 'aspect-video'} object-contain bg-black`} />
             {(call.phase === 'outgoing' || !call.video) && (
               <div className="absolute inset-0 flex items-center justify-center text-white text-sm">
                 {call.phase === 'outgoing' ? `Calling ${call.peerName || call.peer}…` : `🎙 Voice call · ${call.peerName || call.peer}`}
@@ -386,10 +429,36 @@ function CallOverlay({ callApi }) {
                 <FiMonitor size={17} />
               </button>
             </>}
+            <button onClick={() => setChatOpen((o) => !o)} className={`${rb} ${chatOpen ? 'bg-indigo-500' : 'bg-slate-700 hover:bg-slate-600'}`} title="Chat"><FiMessageSquare size={17} /></button>
             <button onClick={() => hangup()} className={`${rb} bg-red-600 hover:bg-red-700`} title="Hang up"><FiPhoneOff size={17} /></button>
           </div>
         </div>
-      )}
+
+        {/* In-call chat (Google-Meet style) */}
+        {chatOpen && (
+          <div className="w-72 shrink-0 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden">
+            <div className="px-3 py-2.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <p className="text-sm font-bold text-slate-900 dark:text-white">In-call chat</p>
+              <button onClick={() => setChatOpen(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><FiX size={15} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-[200px]">
+              {!chat.length && <p className="text-xs text-slate-400 text-center py-6">No messages yet.</p>}
+              {chat.map((m, i) => (
+                <div key={i} className={`w-fit max-w-[85%] rounded-2xl px-3 py-1.5 text-sm ${m.mine ? 'ml-auto bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100'}`}>
+                  {!m.mine && m.name && <p className="text-[9px] opacity-50 mb-0.5">{m.name}</p>}
+                  {m.text}
+                </div>
+              ))}
+              <div ref={chatEndRef} />
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); sendChat(draft); setDraft(''); }} className="p-2 border-t border-slate-200 dark:border-slate-800 flex gap-2">
+              <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Message…"
+                className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none" />
+              <button type="submit" className="h-9 w-9 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center"><FiSend size={14} /></button>
+            </form>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -466,7 +535,7 @@ function SwipeReply({ children, onReply, mine }) {
     start.current = null; setDx(0);
   };
   return (
-    <div className={`relative ${mine ? 'ml-auto' : ''} max-w-[78%]`}
+    <div className={`relative ${mine ? 'ml-auto' : 'mr-auto'} w-fit max-w-[78%]`}
       onTouchStart={(e) => begin(e.touches[0].clientX, e.touches[0].clientY)}
       onTouchMove={(e) => move(e.touches[0].clientX, e.touches[0].clientY)}
       onTouchEnd={end}

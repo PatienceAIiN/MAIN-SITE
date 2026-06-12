@@ -181,7 +181,9 @@ export default async function handler(req, res) {
         return { ticket: { ...ticket, key: ticketKey(ticket.id) }, comments, attachments, escalations };
       });
       if (payload.missing) return res.status(404).json({ error: 'Ticket not found' });
-      if (actor.role === 'member' && payload.ticket.assignee_email !== actor.email)
+      // Members may open their own ticket OR any Dev Ticket (stage='dev') — dev
+      // tickets are a shared team workspace, so their comments are visible to all.
+      if (actor.role === 'member' && payload.ticket.assignee_email !== actor.email && payload.ticket.stage !== 'dev')
         return res.status(403).json({ error: 'Not your ticket' });
       return res.status(200).json(payload);
     } catch (err) {
@@ -245,14 +247,16 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── POST /api/tickets — create (executive/admin only) ─────────────────────
+  // ── POST /api/tickets — create. Execs/admin create support tickets; team
+  //    members may create Dev Tickets ({devTicket:true}) assigned to engineers. ─
   if (req.method === 'POST') {
-    if (actor.role === 'member') return res.status(403).json({ error: 'Only support executives can create tickets' });
     const {
       subject, description = '', priority = 'medium', assigneeEmail, assigneeName = '',
       category = 'General Inquiry',
-      conversationId = null, customerEmail = null, customerName = null
+      conversationId = null, customerEmail = null, customerName = null,
+      devTicket = false, storyPoints = null, ticketType = 'task'
     } = req.body || {};
+    if (actor.role === 'member' && !devTicket) return res.status(403).json({ error: 'Only support executives can create support tickets' });
     if (!subject?.trim()) return res.status(400).json({ error: 'subject required' });
     if (!PRIORITIES.includes(priority)) return res.status(400).json({ error: 'Invalid priority' });
     const assignee = String(assigneeEmail || '').trim().toLowerCase();
@@ -269,12 +273,13 @@ export default async function handler(req, res) {
       const rows = await queryDb(
         `INSERT INTO support_tickets
            (subject, description, priority, status, category, conversation_id, customer_email, customer_name,
-            created_by_id, created_by_name, assignee_email, assignee_name, due_at)
-         VALUES ($1,$2,$3,'open',$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+            created_by_id, created_by_name, assignee_email, assignee_name, due_at, stage, story_points, ticket_type)
+         VALUES ($1,$2,$3,'open',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
         [subject.trim().slice(0, 300), String(description).slice(0, 8000), priority,
          String(category).slice(0, 80), conversationId,
          customerEmail ? String(customerEmail).trim().toLowerCase() : null, customerName,
-         actor.id, actor.name, assignee, finalAssigneeName, dueAt]
+         actor.id, actor.name, assignee, finalAssigneeName, dueAt,
+         devTicket ? 'dev' : 'support', storyPoints != null && storyPoints !== '' ? parseInt(storyPoints, 10) : null, String(ticketType || 'task').slice(0, 30)]
       );
       const ticket = rows[0];
       const key = ticketKey(ticket.id);

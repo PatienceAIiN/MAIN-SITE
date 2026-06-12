@@ -51,12 +51,12 @@ export function SlaBadge({ ticket }) {
 }
 
 /* ── File helpers — raw upload to R2 via the server, any format, ≤ 10 MB ── */
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 export const uploadFiles = async (ticketId, files, clientEmail = '') => {
   const errors = [];
   for (const file of files) {
-    if (file.size > MAX_UPLOAD_BYTES) { errors.push(`${file.name}: too large (max 10 MB)`); continue; }
+    if (file.size > MAX_UPLOAD_BYTES) { errors.push(`${file.name}: too large (max 20 MB)`); continue; }
     try {
       const params = new URLSearchParams({ ticketId: String(ticketId), fileName: file.name });
       if (clientEmail) params.set('clientEmail', clientEmail);
