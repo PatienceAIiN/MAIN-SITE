@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   FiEye, FiEyeOff, FiLogOut, FiMoon, FiSun, FiSend, FiRefreshCw, FiSearch,
   FiLock, FiX, FiTag, FiUser, FiMail, FiClock, FiMessageSquare, FiSettings,
-  FiBell, FiBellOff, FiUploadCloud, FiFileText
+  FiBell, FiBellOff, FiUploadCloud, FiFileText, FiMaximize2
 } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import { NotificationBell, SlaBadge, AttachmentList, uploadFiles } from '../components/TicketCenter';
@@ -597,6 +597,7 @@ function DeployControl() {
   const [data, setData]     = useState({ scheduled: [], recent: [], canDeploy: null });
   const [activeId, setActive] = useState(null);          // deploy currently in progress
   const [logs, setLogs]     = useState({ status: null, lines: [], note: '' });
+  const [logsBig, setLogsBig] = useState(false);
   const logRef = useRef(null);
 
   const load = async () => {
@@ -673,6 +674,23 @@ function DeployControl() {
         className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors">
         <FiUploadCloud size={15} /> Deploy
       </button>
+      {/* Enlarged live-logs modal */}
+      {logsBig && (
+        <div className="fixed inset-0 z-[90] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 md:p-8" onClick={(e) => { if (e.target === e.currentTarget) setLogsBig(false); }}>
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-700">
+              <p className="text-sm font-bold text-white flex items-center gap-2">
+                <FiFileText size={15} /> Live deployment logs
+                {logs.status && <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${DEPLOY_DONE.includes(logs.status) && logs.status !== 'live' ? 'bg-red-900/40 text-red-300' : logs.status === 'live' ? 'bg-emerald-900/40 text-emerald-300' : 'bg-amber-900/40 text-amber-300'}`}>{logs.status}</span>}
+              </p>
+              <button onClick={() => setLogsBig(false)} className="text-slate-400 hover:text-white"><FiX size={18} /></button>
+            </div>
+            <pre className="flex-1 overflow-auto bg-slate-950 text-slate-100 text-xs leading-relaxed p-4 font-mono whitespace-pre-wrap rounded-b-2xl">
+{logs.lines?.length ? logs.lines.join('\n') : (logs.note || (activeId ? 'Waiting for Render…' : 'No active deploy. Trigger one to stream logs.'))}
+            </pre>
+          </div>
+        </div>
+      )}
       {open && (
         <div className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg max-h-[88vh] overflow-y-auto p-5 text-left">
@@ -705,6 +723,7 @@ function DeployControl() {
               <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 mb-1.5 flex items-center gap-1.5">
                 <FiFileText size={11} /> Live logs
                 {logs.status && <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${DEPLOY_DONE.includes(logs.status) && logs.status !== 'live' ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300' : logs.status === 'live' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300'}`}>{logs.status}</span>}
+                <button onClick={() => setLogsBig(true)} title="Enlarge logs" className="ml-auto text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><FiMaximize2 size={13} /></button>
               </p>
               <pre ref={logRef} className="h-40 overflow-auto rounded-lg bg-slate-950 text-slate-100 text-[11px] leading-relaxed p-3 font-mono whitespace-pre-wrap">
 {logs.lines?.length ? logs.lines.join('\n') : (logs.note || (activeId ? 'Waiting for Render…' : 'No active deploy. Trigger one to stream logs.'))}
