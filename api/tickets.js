@@ -331,7 +331,7 @@ export default async function handler(req, res) {
 
   // ── PATCH /api/tickets — update status/priority/assignee (single or bulk) ──
   if (req.method === 'PATCH') {
-    const { id, ids, status, priority, assigneeEmail } = req.body || {};
+    const { id, ids, status, priority, assigneeEmail, storyPoints, ticketType } = req.body || {};
     const targetIds = Array.isArray(ids) && ids.length ? ids.map(parseTicketId).filter(Boolean) : (id ? [parseTicketId(id)] : []);
     if (!targetIds.length) return res.status(400).json({ error: 'id or ids required' });
     if (targetIds.length > 1 && actor.role === 'member') return res.status(403).json({ error: 'Bulk operations are for support staff' });
@@ -340,13 +340,13 @@ export default async function handler(req, res) {
 
     let newAssignee = null;
     if (assigneeEmail) {
-      if (actor.role === 'member') return res.status(403).json({ error: 'Members cannot reassign tickets' });
       const a = String(assigneeEmail).trim().toLowerCase();
       if (!a.endsWith(ALLOWED_DOMAIN)) return res.status(400).json({ error: `Tickets can only be assigned to ${ALLOWED_DOMAIN} email addresses` });
       const memberRows = await queryDb(`SELECT name FROM team_members WHERE email=$1 LIMIT 1`, [a]).catch(() => []);
       newAssignee = { email: a, name: memberRows[0]?.name || a.split('@')[0] };
     }
-    if (!status && !priority && !newAssignee) return res.status(400).json({ error: 'Nothing to update' });
+    const spProvided = storyPoints !== undefined && storyPoints !== null && storyPoints !== '';
+    if (!status && !priority && !newAssignee && !spProvided && ticketType === undefined) return res.status(400).json({ error: 'Nothing to update' });
 
     try {
       const results = [];
@@ -354,7 +354,9 @@ export default async function handler(req, res) {
         const rows = await queryDb(`SELECT * FROM support_tickets WHERE id=$1 LIMIT 1`, [tid]);
         const ticket = rows[0];
         if (!ticket) continue;
-        if (actor.role === 'member' && ticket.assignee_email !== actor.email) continue;
+        // Members may edit their own ticket, or any Dev Ticket (team workspace).
+        const memberCanEdit = ticket.assignee_email === actor.email || ticket.stage === 'dev';
+        if (actor.role === 'member' && !memberCanEdit) continue;
 
         const sets = [];
         const params = [];
@@ -374,7 +376,13 @@ export default async function handler(req, res) {
           sets.push(`due_at = $${params.length}`);
           notes.push(`${actor.name} changed priority from ${ticket.priority} to ${priority}.`);
         }
-        if (newAssignee && newAssignee.email !== ticket.assignee_email) {
+        if (spProvided && parseInt(storyPoints, 10) !== ticket.story_points) {
+          params.push(parseInt(storyPoints, 10)); sets.push(`story_points = $${params.length}`);
+        }
+        if (ticketType !== undefined && ticketType !== ticket.ticket_type) {
+          params.push(String(ticketType).slice(0, 30)); sets.push(`ticket_type = $${params.length}`);
+        }
+        if (newAssignee && newAssignee.email !== ticket.assignee_email && (actor.role !== 'member' || ticket.stage === 'dev')) {
           params.push(newAssignee.email); sets.push(`assignee_email = $${params.length}`);
           params.push(newAssignee.name); sets.push(`assignee_name = $${params.length}`);
           notes.push(`${actor.name} reassigned the ticket from ${ticket.assignee_email} to ${newAssignee.email}.`);

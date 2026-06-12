@@ -92,6 +92,15 @@ export default function DevTickets({ member }) {
   const [files, setFiles] = useState([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [page, setPage] = useState(0);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const PER = 8;
+
+  // Inline-edit any ticket field from the sidebar meta panel.
+  const patch = async (fields) => {
+    try { await fetchJson('/api/tickets', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: selId, ...fields }) }); loadDetail(selId); loadList(); }
+    catch (e) { setErr(e.message); }
+  };
 
   const loadList = () => fetchJson('/api/tickets').then((d) => setTickets(d.tickets || [])).catch(() => {});
   const loadDetail = (id) => fetchJson(`/api/tickets?id=${id}`).then(setDetail).catch(() => setDetail(null));
@@ -122,7 +131,7 @@ export default function DevTickets({ member }) {
         <div className="flex-1 overflow-y-auto">
           <p className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Assigned to me ({list.length})</p>
           {!list.length && <p className="text-xs text-slate-400 text-center py-6">No dev tickets yet.</p>}
-          {list.map((tk) => (
+          {list.slice(page * PER, page * PER + PER).map((tk) => (
             <button key={tk.id} onClick={() => setSelId(tk.id)}
               className={`w-full text-left px-3 py-2.5 border-b border-slate-50 dark:border-slate-800/60 ${selId === tk.id ? 'bg-indigo-50 dark:bg-indigo-950/40' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}>
               <p className="text-[10px] font-mono text-slate-400">{TYPE_ICON[tk.ticket_type] || '✅'} PA-{tk.id} · {tk.story_points != null ? `${tk.story_points} pts` : '—'}</p>
@@ -130,6 +139,13 @@ export default function DevTickets({ member }) {
               <span className="flex gap-1 mt-1"><Chip t={tk.status} cls={ST_C[tk.status]} /><Chip t={tk.priority} cls={PRI_C[tk.priority]} /></span>
             </button>
           ))}
+          {list.length > PER && (
+            <div className="flex items-center justify-center gap-2 py-3">
+              <button className={tb2} disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>‹ Prev</button>
+              <span className="text-[11px] text-slate-400">{page + 1} / {Math.ceil(list.length / PER)}</span>
+              <button className={tb2} disabled={(page + 1) * PER >= list.length} onClick={() => setPage((p) => p + 1)}>Next ›</button>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -153,9 +169,14 @@ export default function DevTickets({ member }) {
                 )}
                 {/* Comments — visible to all team members */}
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 mb-2">Comments (visible to the whole team)</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Comments (visible to the whole team)</p>
+                    {(detail.comments || []).filter((c) => !c.is_internal).length > 3 && (
+                      <button className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline" onClick={() => setCommentsOpen(true)}>View all ({(detail.comments || []).filter((c) => !c.is_internal).length})</button>
+                    )}
+                  </div>
                   <div className="space-y-2 mb-3">
-                    {(detail.comments || []).filter((c) => !c.is_internal).map((c) => (
+                    {(detail.comments || []).filter((c) => !c.is_internal).slice(-3).map((c) => (
                       <div key={c.id} className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2">
                         <p className="text-[11px] text-slate-400">{c.author_name || c.author_role} · {fmt(c.created_at)}</p>
                         <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap">{c.message}</p>
@@ -173,17 +194,30 @@ export default function DevTickets({ member }) {
                   {err && <p className="text-red-500 text-xs mt-1">{err}</p>}
                 </div>
               </div>
-              {/* Meta panel */}
-              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 h-fit text-sm space-y-2.5">
-                {[['Status', <Chip key="s" t={t.status} cls={ST_C[t.status]} />], ['Priority', <Chip key="p" t={t.priority} cls={PRI_C[t.priority]} />],
-                  ['Type', `${TYPE_ICON[t.ticket_type] || ''} ${t.ticket_type || 'task'}`], ['Story points', t.story_points != null ? t.story_points : '—'],
-                  ['Assigned to', t.assignee_name || t.assignee_email], ['Assigned by', t.created_by_name || '—'],
-                  ['Created', fmt(t.created_at)], ['Due', fmt(t.due_at)]].map(([label, val]) => (
-                  <div key={label} className="flex justify-between gap-2">
-                    <span className="text-[11px] uppercase tracking-wider text-slate-400">{label}</span>
-                    <span className="text-slate-700 dark:text-slate-200 text-right text-xs">{val}</span>
-                  </div>
-                ))}
+              {/* Meta panel — all fields editable inline (saves immediately) */}
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 h-fit text-sm space-y-3">
+                <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Details · click to edit</p>
+                <label className="block"><span className="text-[10px] uppercase tracking-wider text-slate-400">Status</span>
+                  <select value={t.status} onChange={(e) => patch({ status: e.target.value })} className={inp}>{STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}</select>
+                </label>
+                <label className="block"><span className="text-[10px] uppercase tracking-wider text-slate-400">Priority</span>
+                  <select value={t.priority} onChange={(e) => patch({ priority: e.target.value })} className={inp}>{PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}</select>
+                </label>
+                <label className="block"><span className="text-[10px] uppercase tracking-wider text-slate-400">Type</span>
+                  <select value={t.ticket_type || 'task'} onChange={(e) => patch({ ticketType: e.target.value })} className={inp}>{TYPES.map((x) => <option key={x} value={x}>{TYPE_ICON[x]} {x}</option>)}</select>
+                </label>
+                <label className="block"><span className="text-[10px] uppercase tracking-wider text-slate-400">Story points</span>
+                  <input type="number" min="0" defaultValue={t.story_points ?? ''} onBlur={(e) => { if (String(e.target.value) !== String(t.story_points ?? '')) patch({ storyPoints: e.target.value }); }} className={inp} />
+                </label>
+                <label className="block"><span className="text-[10px] uppercase tracking-wider text-slate-400">Assigned to</span>
+                  <select value={t.assignee_email} onChange={(e) => patch({ assigneeEmail: e.target.value })} className={inp}>
+                    {!members.some((m) => m.email === t.assignee_email) && <option value={t.assignee_email}>{t.assignee_name || t.assignee_email}</option>}
+                    {members.map((m) => <option key={m.email} value={m.email}>{m.name || m.email}</option>)}
+                  </select>
+                </label>
+                <div className="flex justify-between gap-2 pt-1"><span className="text-[10px] uppercase tracking-wider text-slate-400">Assigned by</span><span className="text-xs text-slate-600 dark:text-slate-300">{t.created_by_name || '—'}</span></div>
+                <div className="flex justify-between gap-2"><span className="text-[10px] uppercase tracking-wider text-slate-400">Created</span><span className="text-xs text-slate-600 dark:text-slate-300">{fmt(t.created_at)}</span></div>
+                <div className="flex justify-between gap-2"><span className="text-[10px] uppercase tracking-wider text-slate-400">Due</span><span className="text-xs text-slate-600 dark:text-slate-300">{fmt(t.due_at)}</span></div>
               </div>
             </div>
           </div>
@@ -191,6 +225,31 @@ export default function DevTickets({ member }) {
       </main>
 
       {createOpen && <CreateModal me={member} members={members} onClose={() => setCreateOpen(false)} onCreated={(id) => { setCreateOpen(false); loadList(); if (id) setSelId(id); }} />}
+
+      {/* All comments — full view + add */}
+      {commentsOpen && detail && (
+        <div className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) setCommentsOpen(false); }}>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg h-[80vh] flex flex-col">
+            <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <p className="text-sm font-bold text-slate-900 dark:text-white">Comments · PA-{t.id}</p>
+              <button onClick={() => setCommentsOpen(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-lg">✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {(detail.comments || []).filter((c) => !c.is_internal).map((c) => (
+                <div key={c.id} className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2">
+                  <p className="text-[11px] text-slate-400">{c.author_name || c.author_role} · {fmt(c.created_at)}</p>
+                  <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap">{c.message}</p>
+                </div>
+              ))}
+              {!(detail.comments || []).filter((c) => !c.is_internal).length && <p className="text-xs text-slate-400 text-center py-6">No comments yet.</p>}
+            </div>
+            <div className="p-3 border-t border-slate-200 dark:border-slate-800 flex gap-2">
+              <textarea className={`${inp} min-h-10`} placeholder="Add a comment…" value={comment} onChange={(e) => setComment(e.target.value)} />
+              <button className={tb} disabled={busy} onClick={addComment}>{busy ? '…' : 'Send'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
