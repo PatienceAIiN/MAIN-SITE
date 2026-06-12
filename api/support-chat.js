@@ -2,7 +2,7 @@ import { queryDb, isMissingTableError } from './_db.js';
 import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, getExecSession } from './_security.js';
 import { sendEmail } from './_email.js';
 import { cached, invalidate, cacheKeys } from './_cache.js';
-import { redisSetJson, redisGetJson } from './_redis.js';
+import { redisSetJson, redisGetJson, isRedisConfigured } from './_redis.js';
 
 // Customer presence lives in Redis (TTL), NOT Neon — the widget polls every ~2s
 // and writing that to Postgres would hammer the free tier. Key per conversation.
@@ -95,12 +95,14 @@ export default async function handler(req, res) {
           ? await cached(cacheKeys.sessionList, 8, produce)
           : await produce();
         // Overlay live customer presence from Redis (kept out of the cache so it
-        // stays fresh) onto non-closed sessions, so the "Call customer" gating works.
-        await Promise.all((payload.sessions || []).map(async (s) => {
-          if (s.status === 'closed') return;
-          const seen = await redisGetJson(custKey(s.conversation_id)).catch(() => null);
-          if (seen) s.customer_last_seen_at = seen;
-        }));
+        // stays fresh). Without Redis the DB column is already on each row.
+        if (isRedisConfigured()) {
+          await Promise.all((payload.sessions || []).map(async (s) => {
+            if (s.status === 'closed') return;
+            const seen = await redisGetJson(custKey(s.conversation_id)).catch(() => null);
+            if (seen) s.customer_last_seen_at = seen;
+          }));
+        }
         return res.status(200).json(payload);
       } catch (err) {
         if (isMissingTableError(err.message)) return res.status(200).json({ sessions: [] });
@@ -112,9 +114,12 @@ export default async function handler(req, res) {
     if (!authorized && !conversationId.startsWith('PatienceAILive-'))
       return res.status(403).json({ error: 'Forbidden' });
 
-    // Customer heartbeat → Redis only (90s TTL). No Neon write on the ~2s poll.
+    // Customer heartbeat → Redis (90s TTL) to spare Neon on the ~2s poll. If
+    // Redis isn't configured, fall back to the DB column so the "Call customer"
+    // gating still works (just at the original write cost).
     if (!authorized) {
-      redisSetJson(custKey(conversationId), new Date().toISOString(), 90).catch(() => {});
+      if (isRedisConfigured()) redisSetJson(custKey(conversationId), new Date().toISOString(), 90).catch(() => {});
+      else queryDb(`UPDATE ${SESSIONS_TABLE} SET customer_last_seen_at=NOW() WHERE conversation_id=$1`, [conversationId]).catch(() => {});
     }
 
     try {
