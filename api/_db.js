@@ -464,9 +464,11 @@ const SCHEMA_QUERIES = [
     status text not null default 'triggered' check (status in ('scheduled', 'triggered', 'failed', 'cancelled')),
     run_at timestamptz,
     note text,
+    deploy_id text,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
-  )`];
+  )`,
+  `alter table public.deploys add column if not exists deploy_id text`];
 
 let schemaReady = false;
 let schemaPromise = null;

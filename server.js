@@ -389,6 +389,8 @@ app.all('/api/team-members/me',              wrap(teamMembersHandler));
 app.all('/api/team-members/logout',          wrap(teamMembersHandler));
 app.all('/api/team-members',                 wrap(teamMembersHandler));
 app.all('/api/deploy/schedule',              wrap(deployHandler));
+app.all('/api/deploy/cancel',                wrap(deployHandler));
+app.all('/api/deploy/logs',                  wrap(deployHandler));
 app.all('/api/deploy',                       wrap(deployHandler));
 // Chat file uploads: raw body (any format) up to 10 MB
 app.post('/api/colleagues/upload', express.raw({ type: () => true, limit: '10mb' }), wrap(colleaguesHandler));

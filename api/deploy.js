@@ -13,6 +13,15 @@ const DEPLOY_HOOK = process.env.RENDER_DEPLOY_HOOK
 
 const BLOCKED_ROLES = ['qa', 'software_dev'];
 
+// Render REST API (for cancelling a running deploy + reading its live logs).
+// Needs a RENDER_API_KEY; the deploy-hook key alone cannot do either.
+const SERVICE_ID = (DEPLOY_HOOK.match(/deploy\/(srv-[a-z0-9]+)/i) || [])[1];
+const RENDER_API_KEY = process.env.RENDER_API_KEY;
+const RENDER_OWNER_ID = process.env.RENDER_OWNER_ID;
+const renderApi = (path, init = {}) => fetch(`https://api.render.com/v1${path}`, {
+  ...init, headers: { Authorization: `Bearer ${RENDER_API_KEY}`, Accept: 'application/json', ...(init.headers || {}) }
+});
+
 const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
 
 // Resolve who is acting and whether they may deploy. Returns { who, allowed }.
@@ -31,7 +40,8 @@ const getActor = async (req) => {
 const fireDeploy = async () => {
   const r = await fetch(DEPLOY_HOOK, { method: 'POST' });
   if (!r.ok) throw new Error(`Render hook responded ${r.status}`);
-  return true;
+  const j = await r.json().catch(() => ({}));
+  return j?.deploy?.id || null; // Render returns the new deploy id
 };
 
 // Fire any scheduled deploys whose time has arrived. Called from server.js.
@@ -42,8 +52,8 @@ export const sweepDeploys = async () => {
     );
     for (const row of due) {
       try {
-        await fireDeploy();
-        await queryDb(`UPDATE deploys SET status='triggered', updated_at=NOW() WHERE id=$1`, [row.id]);
+        const deployId = await fireDeploy();
+        await queryDb(`UPDATE deploys SET status='triggered', deploy_id=$2, updated_at=NOW() WHERE id=$1`, [row.id, deployId]);
         await logAudit('system', 'scheduler', 'deploy_triggered', `deploy:${row.id}`).catch(() => {});
       } catch (e) {
         await queryDb(`UPDATE deploys SET status='failed', note=$2, updated_at=NOW() WHERE id=$1`, [row.id, e.message]).catch(() => {});
@@ -58,6 +68,31 @@ export default async function handler(req, res) {
   const actor = await getActor(req);
   if (!actor.who) return res.status(401).json({ error: 'Not authenticated' });
 
+  // GET /api/deploy/logs?id= — live deployment status + build log lines from Render.
+  if (req.method === 'GET' && req.url?.includes('/logs')) {
+    const id = parseInt(req.query.id, 10);
+    if (!RENDER_API_KEY) return res.status(200).json({ status: null, lines: [], note: 'Set RENDER_API_KEY (and optionally RENDER_OWNER_ID) on the server to stream live Render logs.' });
+    try {
+      const [row] = id ? await queryDb(`SELECT deploy_id FROM deploys WHERE id=$1`, [id]) : [];
+      const deployId = row?.deploy_id;
+      if (!deployId) return res.status(200).json({ status: null, lines: [], note: 'No Render deploy id recorded for this entry yet.' });
+      // Deploy status (build → update → live/failed).
+      const dRes = await renderApi(`/services/${SERVICE_ID}/deploys/${deployId}`);
+      const dep = dRes.ok ? await dRes.json() : null;
+      const status = dep?.status || dep?.deploy?.status || null;
+      // Best-effort log lines (requires owner id).
+      let lines = [];
+      if (RENDER_OWNER_ID) {
+        const q = new URLSearchParams({ ownerId: RENDER_OWNER_ID, resource: SERVICE_ID, limit: '100' });
+        const lRes = await renderApi(`/logs?${q}`);
+        if (lRes.ok) { const lj = await lRes.json(); lines = (lj?.logs || lj || []).map((l) => `${l.timestamp || ''} ${l.message || l.text || ''}`.trim()); }
+      }
+      return res.status(200).json({ status, lines, deployId });
+    } catch (e) {
+      return res.status(200).json({ status: null, lines: [], note: e.message });
+    }
+  }
+
   // GET — current schedule + recent history (visible to any authenticated member).
   if (req.method === 'GET') {
     try {
@@ -65,9 +100,9 @@ export default async function handler(req, res) {
         `SELECT id, triggered_by, run_at, note, created_at FROM deploys WHERE status='scheduled' ORDER BY run_at ASC`
       );
       const recent = await queryDb(
-        `SELECT id, triggered_by, status, run_at, note, created_at FROM deploys WHERE status<>'scheduled' ORDER BY created_at DESC LIMIT 10`
+        `SELECT id, triggered_by, status, run_at, note, deploy_id, created_at FROM deploys WHERE status<>'scheduled' ORDER BY created_at DESC LIMIT 10`
       );
-      return res.status(200).json({ scheduled, recent, canDeploy: actor.allowed });
+      return res.status(200).json({ scheduled, recent, canDeploy: actor.allowed, hasRenderApi: Boolean(RENDER_API_KEY) });
     } catch (e) {
       if (isMissingTableError(e.message)) return res.status(200).json({ scheduled: [], recent: [], canDeploy: actor.allowed });
       return res.status(500).json({ error: e.message });
@@ -96,6 +131,30 @@ export default async function handler(req, res) {
     }
   }
 
+  // POST /api/deploy/cancel { id } — cancel a scheduled deploy, or abort a
+  // running Render deploy (the latter needs RENDER_API_KEY).
+  if (req.method === 'POST' && req.url?.includes('/cancel')) {
+    const { id } = req.body || {};
+    if (!id) return res.status(400).json({ error: 'id required' });
+    try {
+      const [row] = await queryDb(`SELECT status, deploy_id FROM deploys WHERE id=$1`, [id]);
+      if (!row) return res.status(404).json({ error: 'Deploy not found' });
+      if (row.status === 'scheduled') {
+        await queryDb(`UPDATE deploys SET status='cancelled', updated_at=NOW() WHERE id=$1`, [id]);
+        return res.status(200).json({ ok: true, message: 'Scheduled deploy cancelled.' });
+      }
+      if (!RENDER_API_KEY) return res.status(400).json({ error: 'Set RENDER_API_KEY on the server to cancel a running deploy.' });
+      if (!row.deploy_id) return res.status(400).json({ error: 'No Render deploy id recorded for this deploy.' });
+      const r = await renderApi(`/services/${SERVICE_ID}/deploys/${row.deploy_id}/cancel`, { method: 'POST' });
+      if (!r.ok) return res.status(502).json({ error: `Render cancel failed (${r.status}).` });
+      await queryDb(`UPDATE deploys SET status='cancelled', updated_at=NOW() WHERE id=$1`, [id]);
+      await logAudit('team', actor.who, 'deploy_cancelled', `deploy:${id}`).catch(() => {});
+      return res.status(200).json({ ok: true, message: 'Deploy cancelled on Render.' });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   // DELETE /api/deploy/schedule?id= — cancel a scheduled deploy.
   if (req.method === 'DELETE') {
     const id = parseInt(req.query.id, 10);
@@ -115,9 +174,10 @@ export default async function handler(req, res) {
         `INSERT INTO deploys (triggered_by, status, note) VALUES ($1,'triggered','manual') RETURNING id`,
         [actor.who]
       );
-      await fireDeploy();
+      const deployId = await fireDeploy();
+      await queryDb(`UPDATE deploys SET deploy_id=$2 WHERE id=$1`, [rows[0].id, deployId]).catch(() => {});
       await logAudit('team', actor.who, 'deploy_triggered', `deploy:${rows[0].id}`).catch(() => {});
-      return res.status(200).json({ ok: true, message: 'Deploy triggered on Render.' });
+      return res.status(200).json({ ok: true, id: rows[0].id, deployId, message: 'Deploy triggered on Render.' });
     } catch (e) {
       return res.status(502).json({ error: `Deploy failed: ${e.message}` });
     }

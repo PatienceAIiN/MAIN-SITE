@@ -61,6 +61,12 @@ export default async function handler(req, res) {
         res.setHeader('Content-Type', unsafe ? 'application/octet-stream' : (msg.file_type || 'application/octet-stream'));
         res.setHeader('Content-Disposition', `${(req.query.download || unsafe) ? 'attachment' : 'inline'}; filename="${encodeURIComponent(msg.file_name)}"`);
         res.setHeader('Cache-Control', 'private, max-age=3600');
+        // The chat file-preview modal renders this in a same-origin <iframe>. The
+        // global X-Frame-Options: DENY / CSP frame-ancestors 'none' would block it,
+        // so allow same-origin framing for this response only (unsafe active types
+        // are already forced to an octet-stream attachment above).
+        res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+        res.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
         return res.status(200).send(Buffer.from(f.data_base64, 'base64'));
       }
 
