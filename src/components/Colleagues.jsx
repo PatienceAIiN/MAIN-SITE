@@ -64,8 +64,17 @@ export async function enablePushNotifications() {
   const reg = await navigator.serviceWorker.register('/sw.js');
   await navigator.serviceWorker.ready;
   const { key } = await fetchJson('/api/colleagues?vapid=1');
+  const appKey = b64ToUint8(key);
   let sub = await reg.pushManager.getSubscription();
-  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToUint8(key) });
+  // If a stale subscription exists with a DIFFERENT key (e.g. the VAPID key was
+  // rotated), drop it first — resubscribing with a new key over an old one
+  // fails with "Registration failed - push service error".
+  if (sub) {
+    const cur = sub.options?.applicationServerKey ? new Uint8Array(sub.options.applicationServerKey) : null;
+    const same = cur && cur.length === appKey.length && cur.every((b, i) => b === appKey[i]);
+    if (!same) { try { await sub.unsubscribe(); } catch { /* ignore */ } sub = null; }
+  }
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey });
   await fetchJson('/api/colleagues', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'push_subscribe', subscription: sub.toJSON() }) });
 }
