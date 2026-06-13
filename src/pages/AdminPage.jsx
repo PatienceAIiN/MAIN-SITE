@@ -5,6 +5,7 @@ import Button from '../components/ui/Button';
 import AdminTicketOps from '../components/AdminTicketOps';
 import AdminPeos from '../components/AdminPeos';
 import { ServiceDetail } from '../components/RenderServices';
+import { confirmDialog } from '../common/confirm';
 import { fetchJson } from '../common/fetchJson';
 
 const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support', 'executives', 'team', 'deploy', 'tickets', 'engineering', 'worklog', 'logs'];
@@ -230,7 +231,7 @@ function DeployTargets() {
     try { await fetchJson('/api/deploy/targets', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id, label: t.label, repo: t.repo, deployHook: t.deploy_hook, apiKey: t.api_key || '', allowedEmails: emailArr(t.allowed_emails) }) }); setMsg(`Saved “${t.label}” ✓`); setOpenSvc(t.id); load(); }
     catch (e) { setMsg(e.message); }
   };
-  const del = async (id) => { if (!window.confirm('Delete this deploy target?')) return; try { await fetchJson(`/api/deploy/targets?id=${id}`, { method: 'DELETE' }); load(); } catch (e) { setMsg(e.message); } };
+  const del = async (id) => { if (!(await confirmDialog({ title: 'Remove deploy target', message: 'Remove and delink this repo deployment? This does not delete the Render service.', confirmText: 'Remove' }))) return; try { await fetchJson(`/api/deploy/targets?id=${id}`, { method: 'DELETE' }); load(); } catch (e) { setMsg(e.message); } };
   const setField = (id, k, v) => setTargets((ts) => ts.map((t) => (t.id === id ? { ...t, [k]: v } : t)));
   const [openSvc, setOpenSvc] = useState(null);
   const svcId = (hook) => (String(hook || '').match(/deploy\/(srv-[a-z0-9]+)/i) || [])[1] || '';

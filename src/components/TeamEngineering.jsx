@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchJson } from '../common/fetchJson';
+import { confirmDialog } from '../common/confirm';
 
 // Engineering workspace inside the /team portal — pipeline board + PEOS
 // resources, role-gated (what you can create/edit depends on the team role
@@ -235,7 +236,7 @@ function Resource({ name, title, myRole, actions }) {
               {writable && actions?.(x, { patch: (id, b) => call('PATCH', { id, ...b }) })}
               {canDelete && (
                 <button className="text-[11px] px-2 py-1.5 rounded-lg border border-red-200 dark:border-red-900 text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
-                  onClick={(e) => { e.stopPropagation(); if (window.confirm('Delete this item?')) call('DELETE', { id: x.id }); }}>✕</button>
+                  onClick={async (e) => { e.stopPropagation(); if (await confirmDialog({ title: 'Delete item', message: 'Delete this item?', confirmText: 'Delete' })) call('DELETE', { id: x.id }); }}>✕</button>
               )}
             </div>
           </div>
@@ -281,7 +282,7 @@ function Resource({ name, title, myRole, actions }) {
               <button className={tb2} onClick={() => setPeek(null)}>Cancel</button>
               {canDelete && (
                 <button className="text-[11px] px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-900 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 ml-auto"
-                  onClick={() => { if (window.confirm('Delete this item?')) { call('DELETE', { id: peek.id }); setPeek(null); } }}>
+                  onClick={async () => { if (await confirmDialog({ title: 'Delete item', message: 'Delete this item?', confirmText: 'Delete' })) { call('DELETE', { id: peek.id }); setPeek(null); } }}>
                   Delete
                 </button>
               )}

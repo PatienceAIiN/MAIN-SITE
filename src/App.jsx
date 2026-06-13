@@ -18,6 +18,7 @@ import AdminPage from './pages/AdminPage';
 import GuestMeet from './pages/GuestMeet';
 import SupportExecutivePage from './pages/SupportExecutivePage';
 import TeamPortalPage from './pages/TeamPortalPage';
+import { ConfirmHost } from './common/confirm';
 import ClientTicketPage from './pages/ClientTicketPage';
 import LiveChatPage from './pages/LiveChatPage';
 import Product from './pages/Product';
@@ -230,6 +231,7 @@ function App() {
   if (isAdminRoute) {
     return (
       <div className="min-h-screen">
+        <ConfirmHost />
         <Routes>
           <Route path="/admin" element={
             <AdminPage onAction={handleAction} defaultContent={defaultSiteContent}
@@ -243,19 +245,25 @@ function App() {
 
   if (isExecRoute) {
     return (
-      <Routes>
-        <Route path="/support-executive" element={<SupportExecutivePage />} />
-        <Route path="*" element={<Navigate to="/support-executive" replace />} />
-      </Routes>
+      <>
+        <ConfirmHost />
+        <Routes>
+          <Route path="/support-executive" element={<SupportExecutivePage />} />
+          <Route path="*" element={<Navigate to="/support-executive" replace />} />
+        </Routes>
+      </>
     );
   }
 
   if (isTeamRoute) {
     return (
-      <Routes>
-        <Route path="/team" element={<TeamPortalPage />} />
-        <Route path="*" element={<Navigate to="/team" replace />} />
-      </Routes>
+      <>
+        <ConfirmHost />
+        <Routes>
+          <Route path="/team" element={<TeamPortalPage />} />
+          <Route path="*" element={<Navigate to="/team" replace />} />
+        </Routes>
+      </>
     );
   }
 

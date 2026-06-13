@@ -7,6 +7,7 @@ import {
 import { fetchJson } from '../common/fetchJson';
 import { useGroupCall, GroupCallOverlay } from './GroupCall';
 import { playRingtone, playPing } from '../common/sounds';
+import { confirmDialog } from '../common/confirm';
 
 // Colleague chat workspace: searchable roster with live presence, 1:1 and
 // group chats (create / rename / delete), typing indicators, web-push and
@@ -829,7 +830,7 @@ export default function Colleagues({ member, visible, onUnread, canManageRoster 
   };
 
   const deleteChat = async (chat) => {
-    if (!window.confirm(chat.kind === 'group' ? `Delete group "${chatTitle(chat)}" for everyone?` : 'Delete this conversation?')) return;
+    if (!(await confirmDialog({ title: chat.kind === 'group' ? 'Delete group' : 'Delete conversation', message: chat.kind === 'group' ? `Delete group "${chatTitle(chat)}" for everyone?` : 'Delete this conversation?', confirmText: 'Delete' }))) return;
     await fetchJson('/api/colleagues', { method: 'DELETE', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chatId: chat.id }) }).catch(() => {});
     if (activeChatId === chat.id) setActiveChatId(null);

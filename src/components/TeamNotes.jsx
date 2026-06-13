@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchJson } from '../common/fetchJson';
+import { confirmDialog } from '../common/confirm';
 
 const inp = 'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-400';
 const tb = 'text-xs px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium disabled:opacity-50';
@@ -20,7 +21,7 @@ export function NotesTab() {
     else await fetchJson('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, body, kind: 'note' }) });
     setEdit(null); load();
   };
-  const del = async (id) => { if (window.confirm('Delete this note?')) { await fetchJson(`/api/notes?id=${id}`, { method: 'DELETE' }); load(); } };
+  const del = async (id) => { if (await confirmDialog({ title: 'Delete note', message: 'Delete this note? This cannot be undone.', confirmText: 'Delete' })) { await fetchJson(`/api/notes?id=${id}`, { method: 'DELETE' }); load(); } };
   return (
     <div className="flex-1 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-950">
       <div className="max-w-3xl mx-auto space-y-3">
@@ -87,7 +88,7 @@ export function MeetingsTab() {
     await fetchJson('/api/meetings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...d, scheduledAt: new Date(d.scheduledAt).toISOString() }) });
     setOpen(false); setD({ title: '', description: '', scheduledAt: '', durationMins: 30, attendees: [] }); load();
   };
-  const del = async (id) => { if (window.confirm('Cancel this meeting?')) { await fetchJson(`/api/meetings?id=${id}`, { method: 'DELETE' }); load(); } };
+  const del = async (id) => { if (await confirmDialog({ title: 'Cancel meeting', message: 'Cancel and delete this meeting?', confirmText: 'Delete meeting' })) { await fetchJson(`/api/meetings?id=${id}`, { method: 'DELETE' }); load(); } };
   const toggleAtt = (email) => setD((x) => ({ ...x, attendees: x.attendees.includes(email) ? x.attendees.filter((e) => e !== email) : [...x.attendees, email] }));
   return (
     <div className="flex-1 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-950">

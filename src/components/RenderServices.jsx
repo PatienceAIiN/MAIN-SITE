@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchJson } from '../common/fetchJson';
+import { Spinner, confirmDialog } from '../common/confirm';
 
 // Render-style services dashboard: lists every service (grouped by project/owner),
 // opens a service to its settings, editable env vars, and deploy history.
@@ -93,6 +94,7 @@ function ServiceDetailInner({ id, t, dark }) {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
 
   const saveEnv = async () => {
+    if (!(await confirmDialog({ title: 'Save environment variables', message: 'This replaces the full env set on Render and triggers a restart/redeploy. Continue?', confirmText: 'Save & redeploy', danger: false }))) return;
     setBusy(true); setMsg('');
     try { const r = await fetchJson(`/api/deploy/services?id=${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ envVars: env.filter((v) => v.key.trim()) }) }); setMsg(`Saved ${r.count} env vars ✓`); }
     catch (e) { setMsg(e.message); } finally { setBusy(false); }
@@ -141,7 +143,7 @@ function ServiceDetailInner({ id, t, dark }) {
             </div>
             <div className={`flex items-center gap-2 px-5 py-3 border-t ${dark ? 'border-white/10' : 'border-slate-200'}`}>
               <button onClick={() => setEnv((e) => [...e, { key: '', value: '' }])} className={`text-xs px-3 py-1.5 rounded-lg ${t.btn2}`}>+ Add variable</button>
-              <button onClick={saveEnv} disabled={busy || env.some((v) => !v.key.trim())} className={`text-xs px-4 py-1.5 rounded-lg font-semibold ${t.btn} disabled:opacity-50`}>{busy ? 'Saving…' : 'Save to Render'}</button>
+              <button onClick={saveEnv} disabled={busy || env.some((v) => !v.key.trim())} className={`text-xs px-4 py-1.5 rounded-lg font-semibold inline-flex items-center gap-1.5 ${t.btn} disabled:opacity-50`}>{busy && <Spinner size={12} />}{busy ? 'Saving…' : 'Save to Render'}</button>
               <span className={`ml-auto text-[10px] ${t.sub}`}>Saving replaces the full set & triggers a redeploy. Keys must be non-empty.</span>
             </div>
           </div>
@@ -161,7 +163,7 @@ function ServiceDetailInner({ id, t, dark }) {
             <p>Region: {data.service?.region || '—'} · Plan: {data.service?.plan || '—'}</p>
             {data.service?.url && <p>URL: <a href={data.service.url} target="_blank" rel="noreferrer" className="underline">{data.service.url}</a></p>}
           </div>
-          <button onClick={saveSettings} disabled={busy} className={`text-xs px-4 py-1.5 rounded-lg font-semibold ${t.btn} disabled:opacity-50`}>Save settings</button>
+          <button onClick={saveSettings} disabled={busy} className={`text-xs px-4 py-1.5 rounded-lg font-semibold inline-flex items-center gap-1.5 ${t.btn} disabled:opacity-50`}>{busy && <Spinner size={12} />}{busy ? 'Saving…' : 'Save settings'}</button>
         </div>
       )}
 

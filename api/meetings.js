@@ -31,9 +31,20 @@ export default async function handler(req, res) {
         [String(title).slice(0, 200), String(description).slice(0, 4000), when.toISOString(), parseInt(durationMins, 10) || 30, me.email, me.name || me.email, list.join(','), room]
       );
       const when2 = when.toLocaleString();
-      const html = `<h2>📅 Meeting: ${String(title).slice(0, 200)}</h2><p style="color:#475569"><b>When:</b> ${when2} (${durationMins} min)<br><b>Organizer:</b> ${me.name || me.email}</p>${description ? `<p style="color:#475569;white-space:pre-wrap">${String(description).replace(/</g, '&lt;')}</p>` : ''}<p style="color:#94a3b8;font-size:12px">Join from the PATIENCE AI team portal at the scheduled time.</p>`;
+      const joinUrl = `https://patienceai.in/meet?room=${room}`;
+      const safeTitle = String(title).slice(0, 200).replace(/</g, '&lt;');
+      const html = `<h2>📅 You're invited: ${safeTitle}</h2>`
+        + `<p style="color:#475569"><b>When:</b> ${when2} (${durationMins} min)<br><b>Organizer:</b> ${me.name || me.email}</p>`
+        + (description ? `<p style="color:#475569;white-space:pre-wrap">${String(description).replace(/</g, '&lt;')}</p>` : '')
+        + `<p style="margin:18px 0"><a href="${joinUrl}" style="background:#4f46e5;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Join the meeting</a></p>`
+        + `<p style="color:#94a3b8;font-size:12px">Or open the link at the scheduled time: <a href="${joinUrl}">${joinUrl}</a><br>Team members can also join from the PATIENCE AI portal.</p>`;
+      const text = `You're invited: ${title}\nWhen: ${when2} (${durationMins} min)\nOrganizer: ${me.name || me.email}\nJoin: ${joinUrl}`;
       for (const to of list.slice(0, 30)) {
-        await sendEmail({ to, subject: `Meeting invite: ${String(title).slice(0, 120)} — ${when2}`, html, text: `${title} at ${when2}` }).catch(() => {});
+        await sendEmail({ to, subject: `Meeting invite: ${String(title).slice(0, 120)} — ${when2}`, html, text }).catch(() => {});
+      }
+      // Confirm to the organizer too.
+      if (me.email && !list.includes(me.email.toLowerCase())) {
+        await sendEmail({ to: me.email, subject: `Meeting scheduled: ${String(title).slice(0, 120)} — ${when2}`, html: `<p style="color:#475569">Your meeting <b>${safeTitle}</b> is scheduled for <b>${when2}</b>. ${list.length} attendee(s) were invited.</p><p><a href="${joinUrl}">${joinUrl}</a></p>`, text: `Meeting "${title}" scheduled for ${when2}. Join: ${joinUrl}` }).catch(() => {});
       }
       return res.status(200).json({ meeting: rows[0] });
     }

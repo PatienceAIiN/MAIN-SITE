@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { fetchJson } from '../common/fetchJson';
+import { confirmDialog } from '../common/confirm';
 
 // PEOS — engineering tab. Sub-tabbed workspace over /api/peos and /api/github.
 const card = 'rounded-[1.75rem] border border-white/10 bg-white/5 p-5';
@@ -37,7 +38,7 @@ function KpiModal({ kpi, dash, onClose, onChanged }) {
   };
   useEffect(load, [kpi]);  
   const patchTicket = (id, body) => fetchJson('/api/tickets', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, ...body }) }).then(() => { load(); onChanged(); }).catch((e) => setErr(e.message));
-  const delTicket = (id) => window.confirm(`Delete PA-${id}?`) && fetchJson('/api/tickets', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }).then(() => { load(); onChanged(); }).catch((e) => setErr(e.message));
+  const delTicket = async (id) => { if (!(await confirmDialog({ title: 'Delete ticket', message: `Delete PA-${id}? This cannot be undone.`, confirmText: 'Delete' }))) return; fetchJson('/api/tickets', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }).then(() => { load(); onChanged(); }).catch((e) => setErr(e.message)); };
   const peosCall = (resource, method, body) => fetchJson(`/api/peos?resource=${resource}`, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(() => { load(); onChanged(); }).catch((e) => setErr(e.message));
 
   const now = Date.now();
@@ -98,7 +99,7 @@ function KpiModal({ kpi, dash, onClose, onChanged }) {
                 <select value={i.status} onChange={(e) => peosCall('incidents', 'PATCH', { id: i.id, status: e.target.value })} className="text-[11px] rounded-lg border border-white/10 bg-slate-900 px-1.5 py-1 text-amber-200 capitalize">
                   {['investigating', 'resolved', 'postmortem', 'closed'].map((x) => <option key={x} value={x}>{x}</option>)}
                 </select>
-                <button onClick={() => window.confirm('Delete incident?') && peosCall('incidents', 'DELETE', { id: i.id })} className="text-[11px] px-2 py-1 rounded-lg border border-red-400/20 text-red-300/70 hover:bg-red-500/10">✕</button>
+                <button onClick={async () => { if (await confirmDialog({ title: 'Delete incident', message: 'Delete this incident?', confirmText: 'Delete' })) peosCall('incidents', 'DELETE', { id: i.id }); }} className="text-[11px] px-2 py-1 rounded-lg border border-red-400/20 text-red-300/70 hover:bg-red-500/10">✕</button>
               </div>
             ))
           )}
@@ -114,7 +115,7 @@ function KpiModal({ kpi, dash, onClose, onChanged }) {
                   <span className="text-[11px] text-white/40">{sp.capacity_points || 0} pts cap · {fmt(sp.starts_on)} → {fmt(sp.ends_on)}</span>
                   {sp.status === 'planned' && <button className={btn} onClick={() => peosCall('sprints', 'PATCH', { id: sp.id, status: 'active' })}>Start</button>}
                   {sp.status === 'active' && <button className={btn} onClick={() => peosCall('sprints', 'PATCH', { id: sp.id, status: 'done' })}>Finish</button>}
-                  <button onClick={() => window.confirm('Delete sprint?') && peosCall('sprints', 'DELETE', { id: sp.id })} className="text-[11px] px-2 py-1 rounded-lg border border-red-400/20 text-red-300/70 hover:bg-red-500/10">✕</button>
+                  <button onClick={async () => { if (await confirmDialog({ title: 'Delete sprint', message: 'Delete this sprint?', confirmText: 'Delete' })) peosCall('sprints', 'DELETE', { id: sp.id }); }} className="text-[11px] px-2 py-1 rounded-lg border border-red-400/20 text-red-300/70 hover:bg-red-500/10">✕</button>
                 </div>
               ))}
               {!sprints?.length && <Empty>No sprints yet — create one in the Delivery tab.</Empty>}

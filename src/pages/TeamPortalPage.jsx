@@ -13,6 +13,7 @@ import TeamEngineering, { Modal } from '../components/TeamEngineering';
 import DevTickets from '../components/DevTickets';
 import { NotesTab, MeetingsTab } from '../components/TeamNotes';
 import { ServiceDetail } from '../components/RenderServices';
+import { confirmDialog, Spinner } from '../common/confirm';
 import Colleagues, { enablePushNotifications, disablePushNotifications } from '../components/Colleagues';
 import { FiPaperclip, FiAlertTriangle } from 'react-icons/fi';
 
@@ -482,6 +483,7 @@ function BranchExplorer({ repo, branch, canWrite, cloneUrl, htmlUrl, onClose }) 
   };
   const save = async () => {
     if (!active) return;
+    if (!(await confirmDialog({ title: 'Commit changes', message: `Commit "${active.path}" to ${branch}? This pushes to GitHub.`, confirmText: 'Commit', danger: false }))) return;
     setBusy(true); setMsg('');
     try {
       await fetchJson(`/api/github?owner=${o}&repo=${n}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -654,7 +656,7 @@ function ProfileEditModal({ member, avatar, onClose, onSaved }) {
         </label>
         {err && <p className="text-xs text-red-500">{err}</p>}
         <div className="flex gap-2 w-full pt-1">
-          <button disabled={busy} onClick={save} className="flex-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 disabled:opacity-50">{busy ? 'Saving…' : 'Save'}</button>
+          <button disabled={busy} onClick={save} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 disabled:opacity-50">{busy && <Spinner size={14} />}{busy ? 'Saving…' : 'Save'}</button>
           <button onClick={onClose} className="rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm px-4">Cancel</button>
         </div>
       </div>
@@ -887,7 +889,7 @@ function GitHubWorkspace({ canWrite, canCollab }) {
                   <span className="flex gap-1.5 shrink-0">
                     <button className={tb2} onClick={() => setExplore(b.name)}>Open</button>
                     {canWrite && !b.protected && (
-                      <button className={tb2} onClick={() => window.confirm(`Delete branch ${b.name}?`) && act({ action: 'delete_branch', branch: b.name })}>Delete</button>
+                      <button className={tb2} onClick={async () => { if (await confirmDialog({ title: 'Delete branch', message: `Delete branch ${b.name}? This cannot be undone.`, confirmText: 'Delete' })) act({ action: 'delete_branch', branch: b.name }); }}>Delete</button>
                     )}
                   </span>
                 </div>
@@ -976,7 +978,7 @@ function CollaboratorsModal({ repo, onClose }) {
     } catch (e) { setMsg(e.message); } finally { setBusy(false); }
   };
   const remove = async (login) => {
-    if (!window.confirm(`Remove ${login} from ${repo}?`)) return;
+    if (!(await confirmDialog({ title: 'Remove collaborator', message: `Remove ${login} from ${repo}?`, confirmText: 'Remove' }))) return;
     setMsg('');
     try { await fetchJson(`/api/github?owner=${o}&repo=${n}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'remove_collaborator', username: login }) }); load(); }
     catch (e) { setMsg(e.message); }
@@ -992,7 +994,7 @@ function CollaboratorsModal({ repo, onClose }) {
           <option value="maintain">Maintain</option>
           <option value="admin">Admin</option>
         </select>
-        <button className={tb} disabled={busy || !username.trim()} onClick={add}><FiPlus size={12} className="inline mr-1" />Add</button>
+        <button className={`${tb} inline-flex items-center gap-1`} disabled={busy || !username.trim()} onClick={add}>{busy ? <Spinner size={12} /> : <FiPlus size={12} />}{busy ? 'Adding…' : 'Add'}</button>
       </div>
       {msg && <p className="text-[11px] text-amber-600 dark:text-amber-400 mb-2">{msg}</p>}
       <div className="space-y-1.5 max-h-[55vh] overflow-y-auto">
@@ -1117,6 +1119,8 @@ function DeployControl({ dark = false }) {
 
   const deployNow = async () => {
     if (needTarget() || needPw()) return;
+    const label = (data.targets || []).find((t) => String(t.id) === String(target))?.label;
+    if (!(await confirmDialog({ title: 'Trigger deployment', message: `Start a production deploy${label ? ` of ${label}` : ''} now?`, confirmText: 'Deploy now', danger: false }))) return;
     setBusy(true); setMsg(''); setLogs({ status: null, lines: [], note: '' });
     try { const r = await fetchJson('/api/deploy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pwBody()) }); setMsg(r.message || 'Deploy triggered.'); shownRef.current = r.id; setActive(r.id); setPwd(''); load(); }
     catch (e) { setMsg(e.message); }
@@ -1204,7 +1208,7 @@ function DeployControl({ dark = false }) {
             ) : (
               <button onClick={deployNow} disabled={busy}
                 className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-lg mb-4">
-                <FiUploadCloud size={15} /> Deploy now
+                {busy ? <Spinner size={15} /> : <FiUploadCloud size={15} />} {busy ? 'Deploying…' : 'Deploy now'}
               </button>
             )}
 
@@ -1226,7 +1230,7 @@ function DeployControl({ dark = false }) {
               <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)}
                 className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-xs text-slate-700 dark:text-slate-200" />
               <button onClick={schedule} disabled={busy}
-                className="bg-slate-900 dark:bg-white dark:text-slate-900 text-white text-xs font-medium px-4 rounded-lg disabled:opacity-50">Schedule</button>
+                className="bg-slate-900 dark:bg-white dark:text-slate-900 text-white text-xs font-medium px-4 rounded-lg disabled:opacity-50 inline-flex items-center gap-1.5">{busy && <Spinner size={12} />}Schedule</button>
             </div>
             {msg && <p className="text-[11px] mb-2 text-slate-500 dark:text-slate-400">{msg}</p>}
 
