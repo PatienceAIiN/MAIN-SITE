@@ -143,3 +143,12 @@ const res = await fetch(`https://${neonHost}/sql`, {
 });
 const { rows } = await res.json();
 ```
+
+---
+
+## June 2026 schema additions
+
+- **`team_members.avatar`** (text) — profile picture: a Cloudflare R2 object key (preferred) or a legacy base64 data URL.
+- **`deploy_targets`** — per-repo deploy config: `id, label, repo, deploy_hook, api_key, allowed_emails (csv), created_at, updated_at`. `api_key` lets a repo's Render service load even in another account; `allowed_emails` = which team users may deploy it (empty = all deploy-allowed users).
+- **`deploys.target_id` / `deploys.target_label`** — link each deploy/schedule row to its `deploy_targets` entry so history, cancel and logs are scoped per repo.
+- All added idempotently via `ALTER TABLE … ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` in `ensureSchema`.

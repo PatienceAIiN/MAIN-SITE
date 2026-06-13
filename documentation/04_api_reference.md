@@ -269,3 +269,23 @@ Reset site content to factory defaults. Requires admin session.
 ```json
 { "reset": true, "content": { ...defaultContent } }
 ```
+
+---
+
+## June 2026 additions
+
+### Team member self-service & avatars
+- `GET /api/team-members/me` — returns `{ teamRole, permissions, allowedRepos, avatar }` where `avatar` is a stable proxy URL. On a transient DB read error it returns `{ member: { degraded: true } }` so the client keeps last-known state (no flicker).
+- `POST /api/team-members/update-profile` — self-service `{ name, avatar }`. `avatar` must be a `data:image/(png|jpeg|webp|gif)` URL (validated; svg/html rejected); stored in Cloudflare R2 (only the key in Postgres) or inline as fallback. Re-issues the session cookie with the new name.
+- `GET /api/team-members/avatar?id=` — serves a member's picture (302 → signed R2 URL, or streams a legacy inline image). Any authenticated staff may view.
+
+### GitHub (`/api/github`)
+- `repos=1` also returns `clone_url`, `ssh_url`.
+- `collaborators=1&owner&repo` — list collaborators (requires `collaborator_manage`).
+- POST `action=add_collaborator { username, permission }` / `action=remove_collaborator { username }` — gated by `collaborator_manage`.
+
+### Deployments (`/api/deploy/*`) — per-repo targets
+- `GET/POST/PUT/DELETE /api/deploy/targets` (admin) — CRUD for per-repo deploy targets `{ label, repo, deployHook, apiKey, allowedEmails[] }`. The hook fires the deploy; the optional per-target `apiKey` lets the panel read/write that repo's Render service even in another account; `allowedEmails` lists which team users may deploy it.
+- `GET /api/deploy` — returns `targets` filtered to the caller's grants (`{ id, label, repo, serviceId }`, never the hook/key) and `canDeploy` (admin deployer allow-list only). Accepts `?targetId=` to scope history.
+- `POST /api/deploy { targetId, password? }` — fires only the selected repo's hook; rejects ungranted repos (403). `schedule` is target-aware; `cancel` and `/logs` use the deploy's own target service id + API key.
+- `GET/PUT/PATCH /api/deploy/services?id=<srv>` (admin) — Render service detail / env-vars (PUT replaces the full set) / settings (name, branch, autoDeploy); uses the matching target's API key when present, else `RENDER_API_KEY`.

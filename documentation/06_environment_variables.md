@@ -124,3 +124,13 @@ PUBLIC_SITE_URL=https://patienceai.in
 | `DB_QUERY_LOG` | No | `1` | Debug: log every Neon query (verify cache hit rates) |
 
 See `12_ticketing_system.md` for the full architecture.
+
+## June 2026 additions
+
+| Variable | Required | Example | Purpose |
+|---|---|---|---|
+| `RENDER_DEPLOY_HOOK` | For portal deploys | `https://api.render.com/deploy/srv-…?key=…` | **Env-only, fail-closed** (no longer hardcoded). The portal Deploy button errors if unset. Per-repo hooks set in Admin → Deploy override this for their repo. |
+| `RENDER_API_KEY` | Optional | `rnd_…` | Global Render API key for the Services & environment panel (env vars/settings/history), cancel and live logs. A per-repo API key set in Admin → Deploy overrides it for that repo. |
+| `RENDER_OWNER_ID` | Optional | `tea-…` | Enables live build-log streaming. |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Optional | — | Cloudflare R2 for profile avatars and ticket/chat attachments. Without it, avatars fall back to inline storage. |
+| `SEED_EXEC_PASSWORD` | Optional | — | Password for the seeded support-exec account on a fresh DB. **Unset = the account is created `invited` (no usable password).** Never hardcoded. |

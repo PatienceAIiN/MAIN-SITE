@@ -303,3 +303,12 @@ CSP without unsafe-inline              ❌  Requires nonce-based CSP (future wor
 | `api/analytics.js` | GET protected, POST rate-limited |
 | `api/contact.js` | Rate-limited, input validated, HTML-escaped, no debug leaks |
 | `server.js` | Security headers, CORS, rate limiter wiring |
+
+## June 2026 hardening
+
+- **No secrets in source.** The Render deploy hook (`api/deploy.js`) and the seeded support-exec password (`api/support-executives.js`) are no longer hardcoded — both come from the environment (`RENDER_DEPLOY_HOOK`, `SEED_EXEC_PASSWORD`) and **fail closed**: the deploy button errors if the hook is unset, and the seed account is created `invited` (no usable password) when `SEED_EXEC_PASSWORD` is absent. *Action: rotate the previously-committed hook key and seed password.*
+- **Stored-XSS guard on attachments.** Ticket/chat files with browser-executable types (`html|svg|xml|javascript|xhtml`, by content-type or extension) are served `Content-Disposition: attachment` as `application/octet-stream` with `X-Content-Type-Options: nosniff`, on both the DB-served and R2 (signed-URL) paths.
+- **Avatar validation.** `POST /api/team-members/update-profile` accepts only `data:image/(png|jpeg|webp|gif)` URLs (svg/html/script rejected) and caps size; stored in R2.
+- **Login throttling.** `authLimiter` now also covers `/api/support-executives/login` (all staff logins are rate-limited).
+- **Deploy authorization.** The Deploy button + API require membership of the admin deployer allow-list; per-repo grants additionally restrict which repos a deployer can trigger (server-enforced 403). Deploy hooks/API keys are never returned to team clients.
+- **Session resilience.** `/api/team-members/me` returns a `degraded` marker on transient DB errors instead of blank permissions, preventing accidental privilege/UI flicker.

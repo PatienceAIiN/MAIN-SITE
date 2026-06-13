@@ -1521,7 +1521,7 @@ export default function SupportExecutivePage() {
       {executive && (
         <Colleagues member={{ email: executive.email, name: executive.name }}
           visible={colleaguesOpen} fullscreen onClose={() => setColleaguesOpen(false)} onUnread={setColUnread}
-          canShareMeetingLink={false} />
+          canShareMeetingLink />
       )}
     </div>
   );

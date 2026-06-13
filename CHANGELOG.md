@@ -2,6 +2,43 @@
 
 All notable updates to the Patience AI website, in plain language.
 
+## June 13, 2026
+
+### Team portal — Overview home
+- New **Overview** tab (the default landing page after login): a personal home with your profile, the team role the admin set for you (Software Developer, Engineering Manager, etc.), the permissions granted to you, and **draggable summary cards** that jump to Dev Tickets, Tickets, Engineering, GitHub, Notes, Meetings and Colleagues.
+- Click your name or avatar to open a **profile editor** — change your display name and upload a profile picture. Pictures are compressed and stored on Cloudflare R2 (only a tiny reference lives in the database) and served through a cached link, so they no longer vanish.
+
+### Calls — notes, chat, add people, mic state, floating window
+- Group and meeting calls now have an in-call **Notes** sidebar (left) and a live **Chat** sidebar (right) shared by everyone in the call, plus a **Share** button that copies a public join link.
+- An **Add (+)** button lets you ring another online colleague (Team / Support tabs) straight into the call, or copy the invite link.
+- Each tile shows a **green mic when speaking** and a **red crossed-mic when muted**; mute state is shared live with everyone.
+- **Minimize** now opens a small **draggable picture-in-picture** window that follows the active speaker — movable anywhere, hover for expand/leave.
+- **Public guest meetings**: anyone can join a meeting from a shared `/meet?room=…` link with just their name — no account needed.
+
+### Notes & meetings
+- Clicking a note opens it in a dialog with full **Edit / Delete** actions.
+- A meeting's **Cancel** button now actually deletes the meeting.
+
+### GitHub workspace
+- Open a repo to see its **clone URL** (copy button) and an **"Open in…"** menu that deep-links into VS Code, Cursor, JetBrains or GitHub Desktop and auto-clones onto your machine.
+- New **Collaborators** tab (visible only with the new *collaborator-manage* permission): add/remove GitHub collaborators with a permission level, right from the portal.
+
+### Deployments — per-repo, admin-managed
+- Admins now configure deployment **per repository**: pick the repo from a dropdown, paste its **Render deploy hook**, optionally its **Render API key**, and tick **which team users may deploy it** — all from Admin → Deploy (no Render env editing needed).
+- Team users see only the repos they're granted, pick one before deploying, and only that repo's hook fires. The **Deploy button only appears for users on the admin deployer allow-list.**
+- Each repo has a **Service & environment** panel: environment variables open in a **Render-style popup** with full add/edit/remove and **Save to Render**; plus editable settings (name, branch, auto-deploy) and a deploy **history** where each entry opens a detail popup. Cancel and live logs now target the correct service.
+
+### Support portal
+- Support executives get the **same video & group-call experience** as the team (notes, chat, ring-in colleagues), cross-team and within support — only the external public share link is disabled for them.
+- When a chat or call is **transferred**, the target executive gets an urgent *"customer is waiting — join fast"* email + push (whatever their status), and **all other executives are alerted** so the customer is picked up quickly.
+
+### Security hardening
+- Removed a hardcoded Render deploy-hook and a seeded support-exec password from the source; both now come from the environment and fail closed.
+- Ticket/chat attachments in browser-executable formats (HTML/SVG/JS) are force-downloaded, profile images are strictly validated, and the support-exec login is rate-limited.
+
+### Mobile
+- The team portal header now wraps and the tab bar scrolls on small screens; modals and the Overview are responsive on phone and desktop.
+
 ## June 11, 2026
 
 ### New: Support tickets

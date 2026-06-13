@@ -265,3 +265,14 @@ Required for chat push: `VAPID_PUBLIC_KEY · VAPID_PRIVATE_KEY · VAPID_SUBJECT`
 Optional: `TICKET_REMINDER_HOURS · TICKET_SLA_WARNING_HOURS · AI_PROVIDER · DB_QUERY_LOG · TURN_URL/TURN_USERNAME/TURN_CREDENTIAL`
 
 GitHub repo webhook → `https://patienceai.in/api/github-webhook` (JSON, same secret, events: push + pull_request + release).
+
+---
+
+## What's new (June 2026)
+
+- **Overview tab** is your home screen: profile, your admin-set role + granted permissions, and draggable shortcut cards. Click your name/avatar to edit your name and upload a profile picture (stored on R2).
+- **Calls** (group & meetings): in-call **Notes** (left) and shared **Chat** (right); **Add (+)** to ring a colleague in; **Share** to copy a public join link; green-mic/red-muted indicators; **Minimize** → draggable floating window. Guests can join meetings at `/meet?room=…` with just a name. Support executives have all of this too (cross-team), Share included.
+- **Notes**: click a note to open it in a dialog with Edit/Delete. **Meetings**: Cancel deletes the meeting.
+- **GitHub**: open a repo for its **clone URL** and **"Open in…"** (VS Code / Cursor / JetBrains / GitHub Desktop, auto-clone); **Collaborators** tab for those with the *collaborator-manage* permission.
+- **Deployments**: admins configure each repo's deploy hook + (optional) Render API key + which users may deploy it (Admin → Deploy). Deployers pick a repo, see only their granted repos, and manage that service's env vars (popup), settings and history. The Deploy button shows only for users on the admin deployer allow-list.
+- **Chat transfers** now urgently email/push the target *and* all executives ("customer is waiting — join fast").

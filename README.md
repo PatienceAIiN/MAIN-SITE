@@ -21,12 +21,13 @@ npm start
 
 ## Internal Platform Highlights
 
-- **Team portal** (`/team`): tickets bucket, engineering OS, admin-granted GitHub workspace, **Colleagues** chat (1:1 + private groups, files ≤10 MB with popup preview, replies, edit/delete, voice & video calls with screen share, live presence + last seen, web-push).
-- **Support portal** (`/support-executive`): customer live chat/calls, ticketing, and the same Colleagues workspace — support ↔ team chat and calls are cross-enabled.
-- **Admin** (`/admin`): roster + per-user permission and **per-repo GitHub grants** (instantly propagated over WebSocket), engineering KPI drill-down modals with CRUD, and a **logs** tab (all security/audit events, PDF + XLSX export).
-- **Security**: HMAC sessions, scrypt hashing, instant revocation, login auditing (incl. failures), stored-XSS-safe file serving, prod refuses default secrets. See `documentation/TEAM_GUIDE.md` §8 for per-layer ratings.
+- **Team portal** (`/team`): **Overview** home (profile, admin-set role, granted permissions, draggable cards + profile editor with R2 avatar), tickets bucket, Dev Tickets (JIRA-style), engineering OS, admin-granted GitHub workspace (clone URL + "Open in IDE" deep-links + Collaborators CRUD), Notes (click-to-edit dialog) & Meetings, **Colleagues** chat (1:1 + private groups, files ≤10 MB with popup preview, replies, edit/delete) and **group video calls** (screen share, in-call Notes + shared Chat, Add-people, speaking/muted indicators, draggable minimized window, public Share link), live presence + last seen, web-push.
+- **Public meetings** (`/meet?room=…`): no-login guest join with just a name.
+- **Support portal** (`/support-executive`): customer live chat/calls, ticketing, and the same Colleagues + group-call workspace (including the public Share link) — support ↔ team calls cross-enabled. Chat transfers urgently email/push the target **and** all executives ("customer is waiting").
+- **Admin** (`/admin`): roster + per-user permissions and **per-repo GitHub grants** (instant over WebSocket), engineering KPI CRUD modals, a **logs** tab (PDF + XLSX export), and **per-repo deployments** — configure each repo's Render deploy hook + API key + allowed deployers; manage env vars (Render-style popup), settings and deploy history per service.
+- **Security**: HMAC sessions, scrypt hashing, instant revocation, login auditing + rate-limited logins, stored-XSS-safe file serving (HTML/SVG forced to download), image-only avatar validation, no secrets in source (deploy hook & seed password are env-only, fail-closed). See `documentation/TEAM_GUIDE.md` §8 and `documentation/10_security.md`.
 
-Env additions for the above: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (web-push), optional `TURN_*` (calls).
+Env additions for the above: `VAPID_*` (web-push), optional `TURN_*` (calls), `R2_*` (avatars + attachments), `RENDER_DEPLOY_HOOK` + optional `RENDER_API_KEY`/`RENDER_OWNER_ID` (deployments), optional `SEED_EXEC_PASSWORD`.
 
 ## Tech Stack
 

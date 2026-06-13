@@ -133,3 +133,13 @@ Key things to look for:
 - Service **spins down after 15 minutes of inactivity**
 - First request after spin-down takes ~30s (cold start)
 - Upgrade to **Starter plan** ($7/month) to eliminate cold starts
+
+## In-portal deployments (per repo)
+
+The team portal can trigger Render deploys **per repository** (Admin → Deploy → *Configure deployment*):
+
+1. Admin adds a target: pick the repo (GitHub dropdown), paste its **Render deploy hook**, optionally its **Render API key**, and tick **which team users may deploy it**.
+2. The **Deploy button** appears only for users on the admin **deployer allow-list**; they pick a granted repo, enter the deploy password (if set), and only that repo's hook fires. Deploys can also be scheduled.
+3. Each target exposes a **Service & environment** panel (when an API key is available): edit env vars (Render-style popup → `PUT` replaces the full set & redeploys), settings (name/branch/auto-deploy), and a deploy **history** with per-entry detail. **Cancel** and **live logs** use that target's own service id + API key.
+
+Notes: `RENDER_DEPLOY_HOOK` is the only default hook and is **env-only / fail-closed** (never in source). A per-repo API key is needed only if that repo's Render service lives in a different Render account than `RENDER_API_KEY`.
