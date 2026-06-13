@@ -244,7 +244,7 @@ function MiniCall({ stream, name, mine, speaking, micMuted, count, onExpand, onL
 
 // "Add people" — ring an online internal colleague (Team / Support tabs) into
 // the live call, or copy the shareable link for anyone (internal or external).
-function AddPeople({ roster, presence = {}, roomId, inCall, onRing, onClose }) {
+function AddPeople({ roster, presence = {}, roomId, inCall, onRing, onClose, canShare = true }) {
   const [tab, setTab] = useState('team');
   const [copied, setCopied] = useState(false);
   const [rung, setRung] = useState({}); // email -> true (transient "Ringing…")
@@ -261,14 +261,17 @@ function AddPeople({ roster, presence = {}, roomId, inCall, onRing, onClose }) {
           <p className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5"><FiUserPlus size={15} /> Add people</p>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><FiX size={16} /></button>
         </div>
-        {/* Share link — works for internal & external guests */}
-        <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
-          <p className="text-[11px] text-slate-400 mb-1.5 flex items-center gap-1"><FiLink size={11} /> Invite by link (anyone can join)</p>
-          <div className="flex gap-1.5">
-            <input readOnly value={link} className="flex-1 min-w-0 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 py-1.5 text-[11px] text-slate-600 dark:text-slate-300" />
-            <button onClick={copy} className={`text-[11px] px-2.5 py-1.5 rounded-lg font-medium ${copied ? 'bg-emerald-600 text-white' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'}`}>{copied ? 'Copied' : 'Copy'}</button>
+        {/* Share link — works for internal & external guests. Hidden for support
+            users (internal-only: they ring colleagues from the list below). */}
+        {canShare && (
+          <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+            <p className="text-[11px] text-slate-400 mb-1.5 flex items-center gap-1"><FiLink size={11} /> Invite by link (anyone can join)</p>
+            <div className="flex gap-1.5">
+              <input readOnly value={link} className="flex-1 min-w-0 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 py-1.5 text-[11px] text-slate-600 dark:text-slate-300" />
+              <button onClick={copy} className={`text-[11px] px-2.5 py-1.5 rounded-lg font-medium ${copied ? 'bg-emerald-600 text-white' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'}`}>{copied ? 'Copied' : 'Copy'}</button>
+            </div>
           </div>
-        </div>
+        )}
         {roster ? (
           <>
             <div className="flex gap-1 px-4 pt-3">
@@ -305,7 +308,7 @@ function AddPeople({ roster, presence = {}, roomId, inCall, onRing, onClose }) {
   );
 }
 
-export function GroupCallOverlay({ api, roster, presence }) {
+export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
   const { room, peers, peerMuted = {}, muted, camOff, sharing, chat, sendChat, localStream, accept, invite, leave, toggleMute, toggleCam, toggleShare, me } = api;
   const [min, setMin] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -400,13 +403,16 @@ export function GroupCallOverlay({ api, roster, presence }) {
           <button onClick={() => setAddOpen(true)} title="Add people to the call" className="flex items-center gap-1.5 text-xs rounded-full px-3 py-1.5 bg-white/10 hover:bg-white/15 text-white/85">
             <FiUserPlus size={13} /> Add
           </button>
-          {/* Share: copies the public join link (works for internal + external guests) */}
-          <button onClick={copyLink} title="Copy meeting link to share" className={`flex items-center gap-1.5 text-xs rounded-full px-3 py-1.5 ${copied ? 'bg-emerald-600 text-white' : 'bg-white/10 hover:bg-white/15 text-white/85'}`}>
-            {copied ? <FiCheck size={13} /> : <FiShare2 size={13} />} {copied ? 'Link copied' : 'Share'}
-          </button>
+          {/* Share: copies the public join link (works for internal + external
+              guests). Hidden for support-portal users — internal calls only. */}
+          {canShare && (
+            <button onClick={copyLink} title="Copy meeting link to share" className={`flex items-center gap-1.5 text-xs rounded-full px-3 py-1.5 ${copied ? 'bg-emerald-600 text-white' : 'bg-white/10 hover:bg-white/15 text-white/85'}`}>
+              {copied ? <FiCheck size={13} /> : <FiShare2 size={13} />} {copied ? 'Link copied' : 'Share'}
+            </button>
+          )}
         </div>
       </div>
-      {addOpen && <AddPeople roster={roster} presence={presence} roomId={room.id}
+      {addOpen && <AddPeople roster={roster} presence={presence} roomId={room.id} canShare={canShare}
         inCall={[me.email, ...Object.keys(peers)]} onRing={(email, name) => invite(email, name)} onClose={() => setAddOpen(false)} />}
 
       {/* Middle row: notes (left) · stage · chat (right) */}
