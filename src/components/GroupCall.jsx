@@ -39,12 +39,14 @@ export function useGroupCall(me, wsSend) {
     pcs.current.forEach((_, email) => send(email, { kind: 'g-chat', text: t, name: me.name || me.email }));
   };
 
-  const ensureMedia = async () => {
+  const ensureMedia = async (audioOnly = false) => {
     if (localStream.current) return localStream.current;
     const { iceServers } = await fetchJson('/api/voice-room/ice-servers').catch(() => ({ iceServers: iceRef.current }));
     iceRef.current = iceServers || iceRef.current;
-    const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    // Voice call → request mic only (no camera light, camera shown off).
+    const s = await navigator.mediaDevices.getUserMedia(audioOnly ? { video: false, audio: true } : { video: true, audio: true });
     localStream.current = s;
+    if (audioOnly) setCamOff(true);
     return s;
   };
 
@@ -88,9 +90,9 @@ export function useGroupCall(me, wsSend) {
 
   // Join an OPEN meeting room via its shared link — discovery via the hub
   // registry (anyone with the link can join, not just invitees).
-  const joinMeeting = async (roomId, name) => {
+  const joinMeeting = async (roomId, name, audioOnly = false) => {
     if (roomRef.current) return;
-    await ensureMedia();
+    await ensureMedia(audioOnly);
     const r = { id: roomId, name: name || 'Meeting', members: [], host: false, meeting: true };
     setRoom(r); roomRef.current = r;
     wsSend({ type: 'gcall', room: roomId, op: 'join' }); // hub returns roster + notifies occupants

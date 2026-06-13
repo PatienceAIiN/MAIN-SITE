@@ -543,7 +543,10 @@ const SCHEMA_QUERIES = [
   )`,
   `create index if not exists team_meetings_when_idx on public.team_meetings (scheduled_at)`,
   // Shareable room token — anyone with the link can join the meeting's video room.
-  `alter table public.team_meetings add column if not exists room text`];
+  `alter table public.team_meetings add column if not exists room text`,
+  // Meeting notes / call transcript captured during or after the call.
+  `alter table public.team_meetings add column if not exists notes text`,
+  `alter table public.team_meetings add column if not exists mode text not null default 'video'`];
 
 let schemaReady = false;
 let schemaPromise = null;

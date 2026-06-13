@@ -9,6 +9,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   FiUsers, FiHeadphones, FiUserPlus, FiSearch, FiSend, FiVideo, FiCalendar,
   FiLink, FiX, FiPhoneCall, FiPlus, FiCopy, FiTrash2, FiClock, FiCheck,
+  FiEdit2, FiFileText, FiMic,
 } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import { confirmDialog, Spinner } from '../common/confirm';
@@ -30,11 +31,20 @@ const PRESENCE = {
 };
 const Dot = ({ s }) => <span className={`inline-block w-2.5 h-2.5 rounded-full ${(PRESENCE[s] || PRESENCE.offline).dot}`} />;
 
-/* ── Schedule / instant meeting modal ─────────────────────────────────────── */
-function MeetingModal({ preset, onClose, onCreated }) {
+/* ── Schedule / instant / edit meeting modal ──────────────────────────────── */
+const toLocalInput = (iso) => { if (!iso) return ''; const d = new Date(iso); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+
+function MeetingModal({ preset, editing, defaultOrganizer, onClose, onSaved }) {
+  const isEdit = Boolean(editing?.id);
   const [f, setF] = useState({
-    title: preset?.title || '', when: preset?.instant ? '' : '', durationMins: 30,
-    instant: preset?.instant ?? true, attendees: preset?.attendees || [],
+    title: editing?.title || preset?.title || '',
+    description: editing?.description || '',
+    organizerName: editing?.created_by_name || defaultOrganizer || '',
+    when: isEdit ? toLocalInput(editing.scheduled_at) : (preset?.instant ? '' : ''),
+    durationMins: editing?.duration_mins || 30,
+    instant: isEdit ? false : (preset?.instant ?? true),
+    mode: editing?.mode || preset?.mode || 'video',
+    attendees: isEdit ? String(editing.attendees || '').split(',').filter(Boolean) : (preset?.attendees || []),
   });
   const [extra, setExtra] = useState('');
   const [saving, setSaving] = useState(false);
@@ -43,41 +53,68 @@ function MeetingModal({ preset, onClose, onCreated }) {
   const submit = async (e) => {
     e.preventDefault(); setErr('');
     if (!f.title.trim()) { setErr('Give the meeting a title.'); return; }
+    if (!f.organizerName.trim()) { setErr('Enter who is scheduling (organizer name).'); return; }
     const scheduledAt = f.instant ? new Date().toISOString() : new Date(f.when).toISOString();
     if (!f.instant && isNaN(new Date(f.when).getTime())) { setErr('Pick a valid date & time.'); return; }
     setSaving(true);
     try {
-      const r = await fetchJson('/api/meetings', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: f.title, scheduledAt, durationMins: Number(f.durationMins) || 30, attendees: f.attendees }) });
-      onCreated(r.meeting, f.instant);
+      const body = { title: f.title, description: f.description, organizerName: f.organizerName, scheduledAt, durationMins: Number(f.durationMins) || 30, attendees: f.attendees, mode: f.mode };
+      const r = isEdit
+        ? await fetchJson('/api/meetings', { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editing.id, ...body }) })
+        : await fetchJson('/api/meetings', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      onSaved(r.meeting, f.instant && !isEdit);
     } catch (ex) { setErr(ex.message); } finally { setSaving(false); }
   };
   return (
     <div className="fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4" onClick={onClose}>
-      <div className={`${card} w-full max-w-lg p-5`} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4"><h3 className="text-lg font-bold text-slate-900 dark:text-white">{f.instant ? 'Start an instant meeting' : 'Schedule a meeting'}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><FiX /></button></div>
+      <div className={`${card} w-full max-w-lg p-5 max-h-[90vh] overflow-y-auto`} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4"><h3 className="text-lg font-bold text-slate-900 dark:text-white">{isEdit ? 'Edit meeting' : f.instant ? 'Start an instant meeting' : 'Schedule a meeting'}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><FiX /></button></div>
         <form onSubmit={submit} className="space-y-3">
           <input className={input} placeholder="Meeting title" value={f.title} onChange={(e) => setF((s) => ({ ...s, title: e.target.value }))} required />
-          <div className="flex gap-2">
-            <button type="button" onClick={() => setF((s) => ({ ...s, instant: true }))} className={f.instant ? btnPrimary : btnGhost}><FiVideo size={14} /> Instant</button>
-            <button type="button" onClick={() => setF((s) => ({ ...s, instant: false }))} className={!f.instant ? btnPrimary : btnGhost}><FiCalendar size={14} /> Schedule</button>
-          </div>
-          {!f.instant && (
+          <textarea className={input} rows="2" placeholder="Reason / agenda for the meeting…" value={f.description} onChange={(e) => setF((s) => ({ ...s, description: e.target.value }))} />
+          <input className={input} placeholder="Scheduled by (your name)" value={f.organizerName} onChange={(e) => setF((s) => ({ ...s, organizerName: e.target.value }))} required />
+          {!isEdit && (
+            <div className="flex gap-2 flex-wrap">
+              <button type="button" onClick={() => setF((s) => ({ ...s, instant: true }))} className={f.instant ? btnPrimary : btnGhost}><FiVideo size={14} /> Instant</button>
+              <button type="button" onClick={() => setF((s) => ({ ...s, instant: false }))} className={!f.instant ? btnPrimary : btnGhost}><FiCalendar size={14} /> Schedule</button>
+              <span className="mx-1 self-center text-slate-300">|</span>
+              <button type="button" onClick={() => setF((s) => ({ ...s, mode: 'video' }))} className={f.mode === 'video' ? btnPrimary : btnGhost}><FiVideo size={14} /> Video</button>
+              <button type="button" onClick={() => setF((s) => ({ ...s, mode: 'voice' }))} className={f.mode === 'voice' ? btnPrimary : btnGhost}><FiPhoneCall size={14} /> Voice</button>
+            </div>
+          )}
+          {(!f.instant || isEdit) && (
             <div className="grid grid-cols-2 gap-3">
               <label className="text-xs text-slate-500">Date &amp; time<input type="datetime-local" className={input} value={f.when} onChange={(e) => setF((s) => ({ ...s, when: e.target.value }))} required /></label>
               <label className="text-xs text-slate-500">Duration (min)<input type="number" className={input} value={f.durationMins} onChange={(e) => setF((s) => ({ ...s, durationMins: e.target.value }))} /></label>
             </div>
           )}
           <div>
-            <p className="text-xs text-slate-500 mb-1">Attendees ({f.attendees.length}) — internal &amp; external get an email invite + join link</p>
+            <p className="text-xs text-slate-500 mb-1">Attendees ({f.attendees.length}) — everyone gets an email invite with the time, reason &amp; join link</p>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {f.attendees.map((a) => <span key={a} className="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 rounded-full px-2 py-0.5">{a}<button type="button" onClick={() => setF((s) => ({ ...s, attendees: s.attendees.filter((x) => x !== a) }))}><FiX size={11} /></button></span>)}
             </div>
             <div className="flex gap-2"><input className={input} placeholder="Add email (external client too)…" value={extra} onChange={(e) => setExtra(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addEmail(); } }} /><button type="button" className={btnGhost} onClick={addEmail}><FiPlus /></button></div>
           </div>
           {err && <p className="text-sm text-red-600">{err}</p>}
-          <div className="flex justify-end gap-2"><button type="button" className={btnGhost} onClick={onClose}>Cancel</button><button className={btnPrimary} disabled={saving}>{saving ? <Spinner /> : (f.instant ? 'Start now' : 'Schedule & invite')}</button></div>
+          <div className="flex justify-end gap-2"><button type="button" className={btnGhost} onClick={onClose}>Cancel</button><button className={btnPrimary} disabled={saving}>{saving ? <Spinner /> : (isEdit ? 'Save & notify' : f.instant ? 'Start now' : 'Schedule & invite')}</button></div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+/* ── Meeting notes / transcript modal ─────────────────────────────────────── */
+function NotesModal({ meeting, onClose, onSaved }) {
+  const [text, setText] = useState(meeting.notes || '');
+  const [saving, setSaving] = useState(false);
+  const save = async () => { setSaving(true); try { const r = await fetchJson('/api/meetings', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'notes', id: meeting.id, notes: text }) }); onSaved(r.meeting); } finally { setSaving(false); } };
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4" onClick={onClose}>
+      <div className={`${card} w-full max-w-lg p-5`} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-bold text-slate-900 dark:text-white truncate">Notes — {meeting.title}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><FiX /></button></div>
+        <p className="text-xs text-slate-400 mb-2">Capture the call transcript, decisions and action items here.</p>
+        <textarea className={`${input} font-mono text-xs`} rows="12" placeholder="Meeting notes / call transcript…" value={text} onChange={(e) => setText(e.target.value)} />
+        <div className="flex justify-end gap-2 mt-3"><button className={btnGhost} onClick={onClose}>Close</button><button className={btnPrimary} disabled={saving} onClick={save}>{saving ? <Spinner /> : 'Save notes'}</button></div>
       </div>
     </div>
   );
@@ -143,7 +180,8 @@ export default function GrowthConnect() {
   const [active, setActive] = useState(null);        // selected internal peer for chat
   const [liveChatId, setLiveChatId] = useState(0);   // bumped on incoming chat WS event
   const [meetings, setMeetings] = useState([]);
-  const [meetingModal, setMeetingModal] = useState(null); // {preset}
+  const [meetingModal, setMeetingModal] = useState(null); // { preset } | { editing }
+  const [notesFor, setNotesFor] = useState(null);
   const [view, setView] = useState('people');        // 'people' | 'meetings'
   const [copied, setCopied] = useState('');
 
@@ -165,22 +203,25 @@ export default function GrowthConnect() {
   const list = (tab === 'team' ? team : tab === 'support' ? support : clients)
     .filter((r) => `${r.name} ${r.email} ${r.company || ''}`.toLowerCase().includes(ql));
 
-  // Instant 1:1 video call to an internal peer: spin up a meeting room, open it,
-  // ping the peer live (they see a Join toast) and email them the link too.
-  const callPeer = async (peer) => {
+  // Instant 1:1 voice/video call to an online internal peer: spin up a room,
+  // open it, ping the peer live (they get a Join toast) and email the link too.
+  const callPeer = async (peer, mode = 'video') => {
+    if ((peer.presence || 'offline') === 'offline') return; // calls only to online users
     try {
+      const title = `${mode === 'voice' ? 'Voice' : 'Video'} call with ${me?.name || 'Growth'}`;
       const r = await fetchJson('/api/meetings', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: `Call with ${me?.name || 'Growth'}`, scheduledAt: new Date().toISOString(), durationMins: 30, attendees: [peer.email] }) });
+        body: JSON.stringify({ title, scheduledAt: new Date().toISOString(), durationMins: 30, attendees: [peer.email], mode, organizerName: me?.name }) });
       const room = r.meeting.room;
-      send({ type: 'rtc', to: peer.email, data: { kind: 'meet-invite', room, title: `Call with ${me?.name || 'Growth'}` } });
-      window.open(meetUrl(room), '_blank', 'noopener');
+      const url = meetUrl(room) + (mode === 'voice' ? '&audio=1' : '');
+      send({ type: 'rtc', to: peer.email, data: { kind: 'meet-invite', room: room + (mode === 'voice' ? '&audio=1' : ''), title } });
+      window.open(url, '_blank', 'noopener');
       loadMeetings();
     } catch (e) { window.alert(e.message); }
   };
 
   const copy = (room) => { navigator.clipboard?.writeText(meetUrl(room)).then(() => { setCopied(room); setTimeout(() => setCopied(''), 1500); }); };
   const cancelMeeting = async (id) => { if (!(await confirmDialog({ title: 'Cancel meeting', message: 'Cancel and remove this meeting?', confirmText: 'Cancel meeting' }))) return; await fetchJson(`/api/meetings?id=${id}`, { method: 'DELETE', credentials: 'include' }).catch(() => {}); loadMeetings(); };
-  const onMeetingCreated = (mtg, instant) => { setMeetingModal(null); loadMeetings(); if (instant) window.open(meetUrl(mtg.room), '_blank', 'noopener'); else setView('meetings'); };
+  const onMeetingSaved = (mtg, openNow) => { setMeetingModal(null); loadMeetings(); if (openNow) window.open(meetUrl(mtg.room) + (mtg.mode === 'voice' ? '&audio=1' : ''), '_blank', 'noopener'); else setView('meetings'); };
 
   return (
     <div className="space-y-4">
@@ -204,8 +245,11 @@ export default function GrowthConnect() {
                 <div className="text-xs text-slate-400 flex items-center gap-2 flex-wrap"><FiClock size={11} /> {fmtT(mtg.scheduled_at)} · {mtg.duration_mins}min · by {mtg.created_by_name}{mtg.attendees ? ` · ${mtg.attendees.split(',').filter(Boolean).length} invited` : ''}</div>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
-                <button title="Copy join link" onClick={() => copy(mtg.room)} className={btnGhost}>{copied === mtg.room ? <FiCheck className="text-emerald-500" /> : <FiCopy />}</button>
-                <button className={btnPrimary} onClick={() => window.open(meetUrl(mtg.room), '_blank', 'noopener')}><FiVideo /> Join</button>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 capitalize">{mtg.mode === 'voice' ? 'voice' : 'video'}</span>
+                <button title="Notes / transcript" onClick={() => setNotesFor(mtg)} className="text-slate-400 hover:text-indigo-500 p-2"><FiFileText /></button>
+                <button title="Edit & re-notify" onClick={() => setMeetingModal({ editing: mtg })} className="text-slate-400 hover:text-indigo-500 p-2"><FiEdit2 /></button>
+                <button title="Copy join link" onClick={() => copy(mtg.room)} className="text-slate-400 hover:text-indigo-500 p-2">{copied === mtg.room ? <FiCheck className="text-emerald-500" /> : <FiCopy />}</button>
+                <button className={btnPrimary} onClick={() => window.open(meetUrl(mtg.room) + (mtg.mode === 'voice' ? '&audio=1' : ''), '_blank', 'noopener')}>{mtg.mode === 'voice' ? <FiPhoneCall /> : <FiVideo />} Join</button>
                 <button title="Cancel" onClick={() => cancelMeeting(mtg.id)} className="text-slate-400 hover:text-red-500 p-2"><FiTrash2 /></button>
               </div>
             </div>
@@ -241,8 +285,15 @@ export default function GrowthConnect() {
                     </span>
                   </button>
                   <div className="flex items-center gap-1 shrink-0">
-                    {tab !== 'clients' && <button title="Instant video call" onClick={() => callPeer(r)} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950"><FiVideo size={15} /></button>}
-                    <button title="Meeting / invite" onClick={() => setMeetingModal({ preset: { instant: false, title: `Meeting with ${r.name}`, attendees: [r.email] } })} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950"><FiCalendar size={15} /></button>
+                    {tab !== 'clients' && (() => {
+                      const off = (r.presence || 'offline') === 'offline';
+                      const ttl = off ? `${r.name} is offline` : '';
+                      return (<>
+                        <button disabled={off} title={off ? `Voice call — ${ttl}` : 'Voice call'} onClick={() => callPeer(r, 'voice')} className={`p-1.5 rounded-lg ${off ? 'text-slate-300 dark:text-slate-700 cursor-not-allowed' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950'}`}><FiPhoneCall size={15} /></button>
+                        <button disabled={off} title={off ? `Video call — ${ttl}` : 'Video call'} onClick={() => callPeer(r, 'video')} className={`p-1.5 rounded-lg ${off ? 'text-slate-300 dark:text-slate-700 cursor-not-allowed' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950'}`}><FiVideo size={15} /></button>
+                      </>);
+                    })()}
+                    <button title="Schedule meeting / invite" onClick={() => setMeetingModal({ preset: { instant: false, title: `Meeting with ${r.name}`, attendees: [r.email] } })} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950"><FiCalendar size={15} /></button>
                     {tab === 'clients' && <button title="Instant meeting + share link" onClick={() => setMeetingModal({ preset: { instant: true, title: `Meeting with ${r.name}`, attendees: [r.email] } })} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950"><FiLink size={15} /></button>}
                   </div>
                 </div>
@@ -257,7 +308,8 @@ export default function GrowthConnect() {
                 <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800">
                   <div className="flex items-center gap-2 min-w-0"><Dot s={active.presence} /><div className="min-w-0"><div className="font-semibold text-slate-800 dark:text-slate-100 truncate">{active.name}</div><div className="text-[11px] text-slate-400">{(active.team_role || '').replace(/_/g, ' ')} · {(PRESENCE[active.presence] || PRESENCE.offline).label}</div></div></div>
                   <div className="flex items-center gap-1.5">
-                    <button className={btnGhost} onClick={() => callPeer(active)}><FiPhoneCall size={14} /> Call</button>
+                    <button className={btnGhost} disabled={(active.presence || 'offline') === 'offline'} title={(active.presence || 'offline') === 'offline' ? `${active.name} is offline` : 'Voice call'} onClick={() => callPeer(active, 'voice')}><FiMic size={14} /></button>
+                    <button className={btnGhost} disabled={(active.presence || 'offline') === 'offline'} title={(active.presence || 'offline') === 'offline' ? `${active.name} is offline` : 'Video call'} onClick={() => callPeer(active, 'video')}><FiVideo size={14} /> Call</button>
                     <button className={btnGhost} onClick={() => setMeetingModal({ preset: { instant: false, title: `Meeting with ${active.name}`, attendees: [active.email] } })}><FiCalendar size={14} /></button>
                   </div>
                 </div>
@@ -275,7 +327,8 @@ export default function GrowthConnect() {
         </div>
       )}
 
-      {meetingModal && <MeetingModal preset={meetingModal.preset} onClose={() => setMeetingModal(null)} onCreated={onMeetingCreated} />}
+      {meetingModal && <MeetingModal preset={meetingModal.preset} editing={meetingModal.editing} defaultOrganizer={me?.name} onClose={() => setMeetingModal(null)} onSaved={onMeetingSaved} />}
+      {notesFor && <NotesModal meeting={notesFor} onClose={() => setNotesFor(null)} onSaved={(mtg) => { setNotesFor(null); setMeetings((ms) => ms.map((x) => x.id === mtg.id ? mtg : x)); }} />}
     </div>
   );
 }

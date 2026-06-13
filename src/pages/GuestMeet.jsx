@@ -5,7 +5,9 @@ import { useGroupCall, GroupCallOverlay } from '../components/GroupCall';
 // token (from the shared link) is the only credential. Reuses the same WebRTC
 // mesh as the portal, over a guest WebSocket scoped to that one room.
 export default function GuestMeet() {
-  const room = new URLSearchParams(window.location.search).get('room');
+  const params = new URLSearchParams(window.location.search);
+  const room = params.get('room');
+  const audioOnly = params.get('audio') === '1'; // voice call → camera off
   const [name, setName] = useState('');
   const [phase, setPhase] = useState('name'); // name → connecting → incall → left
   const [err, setErr] = useState('');
@@ -38,7 +40,7 @@ export default function GuestMeet() {
   useEffect(() => {
     if (phase === 'incall' && !groupApi.room && !joinedRoomRef.current) {
       joinedRoomRef.current = true;
-      groupApi.joinMeeting(room, 'Meeting').catch((e) => { setErr(e?.message || 'Could not start your camera/mic.'); });
+      groupApi.joinMeeting(room, 'Meeting', audioOnly).catch((e) => { setErr(e?.message || 'Could not start your camera/mic.'); });
     }
   }, [phase, groupApi.room, room]); // eslint-disable-line
   // Call ended (host ended / we left) → show closed screen.
