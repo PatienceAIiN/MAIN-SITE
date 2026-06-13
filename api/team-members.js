@@ -26,12 +26,12 @@ const ALLOWED_DOMAIN = '@patienceai.in';
 
 const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
 const TEAM_ROLES = ['member', 'software_dev', 'team_lead', 'engineering_manager', 'product_manager', 'qa'];
-export const ALL_PERMS = ['github_read', 'github_write', 'roster_manage'];
+export const ALL_PERMS = ['github_read', 'github_write', 'roster_manage', 'collaborator_manage'];
 // Defaults by role when admin hasn't set explicit per-user permissions.
 export const ROLE_DEFAULT_PERMS = {
   software_dev: ['github_read', 'github_write'],
-  team_lead: ['github_read', 'github_write'],
-  engineering_manager: ['github_read', 'github_write', 'roster_manage'],
+  team_lead: ['github_read', 'github_write', 'collaborator_manage'],
+  engineering_manager: ['github_read', 'github_write', 'roster_manage', 'collaborator_manage'],
   product_manager: ['github_read', 'roster_manage'],
   qa: ['github_read'],
   member: []

@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   FiEye, FiEyeOff, FiLogOut, FiMoon, FiSun, FiSend, FiRefreshCw, FiSearch,
   FiLock, FiX, FiTag, FiUser, FiMail, FiClock, FiMessageSquare, FiSettings,
-  FiBell, FiBellOff, FiUploadCloud, FiFileText, FiMaximize2
+  FiBell, FiBellOff, FiUploadCloud, FiFileText, FiMaximize2,
+  FiHome, FiCopy, FiUsers, FiGithub, FiExternalLink, FiTrash2, FiPlus, FiCode, FiCheck, FiShield, FiVideo, FiBookOpen
 } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import NetworkDot from '../common/NetworkDot';
@@ -452,7 +453,7 @@ function DiffView({ patch }) {
   );
 }
 
-function BranchExplorer({ repo, branch, canWrite, onClose }) {
+function BranchExplorer({ repo, branch, canWrite, cloneUrl, htmlUrl, onClose }) {
   const [o, n] = repo.split('/');
   const [tab, setTab] = useState('files');
   const [files, setFiles] = useState([]);
@@ -502,7 +503,11 @@ function BranchExplorer({ repo, branch, canWrite, onClose }) {
       <div className="flex gap-2 mb-3">
         <button className={`${tb2} ${tab === 'files' ? '!bg-slate-900 !text-white dark:!bg-white dark:!text-slate-900' : ''}`} onClick={() => { setTab('files'); setCommit(null); }}>Files ({files.length})</button>
         <button className={`${tb2} ${tab === 'commits' ? '!bg-slate-900 !text-white dark:!bg-white dark:!text-slate-900' : ''}`} onClick={() => { setTab('commits'); setActive(null); }}>Commits</button>
-        <span className="ml-auto text-[11px] text-slate-400 self-center">{canWrite ? 'read & write' : 'read only'}</span>
+        <span className="ml-auto flex items-center gap-2 self-center">
+          <span className="text-[11px] text-slate-400">{canWrite ? 'read & write' : 'read only'}</span>
+          <CopyBtn text={cloneUrl} label="Clone URL" />
+          <OpenInMenu cloneUrl={cloneUrl} htmlUrl={htmlUrl} repo={repo} />
+        </span>
       </div>
       {msg && <p className="text-[11px] text-amber-600 dark:text-amber-400 mb-2">{msg}</p>}
 
@@ -584,13 +589,100 @@ function BranchExplorer({ repo, branch, canWrite, onClose }) {
   );
 }
 
-function GitHubWorkspace({ canWrite }) {
+/* ── Overview (home) — profile, permissions and summary cards that open each
+   feature's CRUD workspace. ──────────────────────────────────────────────── */
+const PERM_LABELS = {
+  github_read: 'GitHub · read',
+  github_write: 'GitHub · write',
+  roster_manage: 'Manage roster & groups',
+  collaborator_manage: 'Add GitHub collaborators',
+};
+const ALL_PERM_KEYS = ['github_read', 'github_write', 'roster_manage', 'collaborator_manage'];
+
+function OverviewTab({ member, myPerms, myRepos, myRole, myStatus, counts, setView }) {
+  const [sum, setSum] = useState({ meetings: null, notes: null, repos: null });
+  const hasGithub = myPerms.includes('github_read') || myPerms.includes('github_write') || (myRepos?.length > 0);
+  useEffect(() => {
+    fetchJson('/api/meetings').then((d) => setSum((s) => ({ ...s, meetings: (d.meetings || []).length }))).catch(() => {});
+    fetchJson('/api/notes').then((d) => setSum((s) => ({ ...s, notes: (d.notes || []).length }))).catch(() => {});
+    if (hasGithub) fetchJson('/api/github?repos=1').then((d) => setSum((s) => ({ ...s, repos: (d.repos || []).length }))).catch(() => {});
+  }, []); // eslint-disable-line
+
+  const cards = [
+    { key: 'dev-tickets', icon: FiCode, title: 'Dev Tickets', desc: 'JIRA-style board — create, edit, comment & attach.', tint: 'bg-indigo-500' },
+    { key: 'tickets', icon: FiTag, title: 'My Tickets', value: counts.all, desc: 'Support tickets assigned to you.', tint: 'bg-sky-500' },
+    { key: 'engineering', icon: FiBookOpen, title: 'Engineering', desc: 'Pipeline, sprints, epics, QA & OKRs.', tint: 'bg-violet-500' },
+    ...(hasGithub ? [{ key: 'github', icon: FiGithub, title: 'GitHub', value: sum.repos, desc: 'Repos, branches, PRs · clone & open in IDE.', tint: 'bg-slate-700' }] : []),
+    { key: 'notes', icon: FiFileText, title: 'Notes', value: sum.notes, desc: 'Personal & meeting notes (MoM).', tint: 'bg-amber-500' },
+    { key: 'meetings', icon: FiVideo, title: 'Meetings', value: sum.meetings, desc: 'Schedule & join video meetings.', tint: 'bg-emerald-500' },
+    { key: 'colleagues', icon: FiUsers, title: 'Colleagues', desc: 'Chat, voice & video with team + support.', tint: 'bg-rose-500' },
+  ];
+  const card = 'rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4';
+  const statusColor = myStatus === 'online' ? 'bg-emerald-500' : myStatus === 'away' ? 'bg-amber-500' : 'bg-slate-400';
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50 dark:bg-slate-950">
+      <div className="max-w-5xl mx-auto space-y-5">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Welcome back, {member.name?.split(' ')[0] || 'there'} 👋</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Your workspace at a glance — click any card to jump in.</p>
+        </div>
+
+        {/* Profile + permissions */}
+        <div className={card}>
+          <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
+            <div className="flex items-center gap-3 min-w-[200px]">
+              <div className="h-12 w-12 rounded-full bg-indigo-600 text-white flex items-center justify-center text-lg font-bold">{(member.name || '?').slice(0, 1).toUpperCase()}</div>
+              <div>
+                <p className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">{member.name}
+                  <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400"><span className={`w-2 h-2 rounded-full ${statusColor}`} />{myStatus || 'online'}</span>
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1"><FiMail size={11} /> {member.email}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5 capitalize"><FiUser size={11} /> {(myRole || 'member').replace(/_/g, ' ')}</p>
+              </div>
+            </div>
+            <div className="flex-1 min-w-[240px]">
+              <p className="text-[11px] uppercase tracking-wide text-slate-400 font-semibold mb-2 flex items-center gap-1"><FiShield size={12} /> Permissions granted to you</p>
+              <div className="flex flex-wrap gap-1.5">
+                {ALL_PERM_KEYS.map((p) => {
+                  const on = myPerms.includes(p);
+                  return <span key={p} className={`text-[11px] px-2 py-0.5 rounded-full border flex items-center gap-1 ${on ? 'border-emerald-400/40 bg-emerald-400/15 text-emerald-700 dark:text-emerald-300' : 'border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-600'}`}>{on ? <FiCheck size={10} /> : <FiX size={10} />}{PERM_LABELS[p]}</span>;
+                })}
+              </div>
+              {hasGithub && <p className="text-[11px] text-slate-400 mt-2">Repos granted: <span className="text-slate-600 dark:text-slate-300 font-medium">{myRepos?.length || 0}</span>{myRepos?.length ? ` · ${myRepos.slice(0, 3).join(', ')}${myRepos.length > 3 ? '…' : ''}` : ''}</p>}
+            </div>
+          </div>
+        </div>
+
+        {/* Summary cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {cards.map((c) => (
+            <button key={c.key} onClick={() => setView(c.key)}
+              className={`${card} text-left hover:border-indigo-400 dark:hover:border-indigo-600 hover:shadow-md transition-all group`}>
+              <div className="flex items-center justify-between">
+                <span className={`h-9 w-9 rounded-xl ${c.tint} text-white flex items-center justify-center`}><c.icon size={17} /></span>
+                {c.value !== undefined && c.value !== null && <span className="text-2xl font-bold text-slate-900 dark:text-white">{c.value}</span>}
+              </div>
+              <p className="font-semibold text-slate-900 dark:text-white mt-3 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">{c.title}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{c.desc}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GitHubWorkspace({ canWrite, canCollab }) {
   const [repos, setRepos] = useState([]);
   const [repo, setRepo] = useState('');
   const [data, setData] = useState({ branches: [], prs: [] });
   const [forms, setForms] = useState({ branch: '', prTitle: '', prHead: '' });
   const [explore, setExplore] = useState(null); // branch name being explored
+  const [collabOpen, setCollabOpen] = useState(false);
   const [msg, setMsg] = useState('');
+  const repoObj = repos.find((r) => r.full_name === repo) || null;
+  const cloneUrl = repoObj?.clone_url || (repo ? `https://github.com/${repo}.git` : '');
   const box = 'rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4';
   const tin = 'rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400';
   const tb = 'text-[11px] px-2.5 py-1.5 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-medium hover:opacity-90';
@@ -636,15 +728,26 @@ function GitHubWorkspace({ canWrite }) {
     <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-slate-950">
       <div className={box}>
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-bold text-slate-900 dark:text-white">GitHub</p>
+          <p className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5"><FiGithub size={15} /> GitHub</p>
           <select value={repo} onChange={(e) => open(e.target.value)} className={`${tin} flex-1 min-w-[180px]`}>
             <option value="">Select repository…</option>
             {repos.map((r) => <option key={r.full_name} value={r.full_name}>{r.full_name}</option>)}
           </select>
+          {repo && canCollab && (
+            <button className={tb2} onClick={() => setCollabOpen(true)} title="Manage repository collaborators"><FiUsers size={12} className="inline mr-1" />Collaborators</button>
+          )}
           {msg && <p className="text-[11px] text-amber-600 dark:text-amber-400 w-full truncate">{msg}</p>}
         </div>
         {!repos.length && !msg && (
           <p className="text-xs text-slate-400 mt-2">No repositories granted to you yet — an admin can grant specific repos from the admin panel (Team → repos).</p>
+        )}
+        {repo && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 dark:border-slate-800 pt-3">
+            <span className="text-[11px] text-slate-400 font-medium">Clone</span>
+            <code className="flex-1 min-w-[200px] text-[11px] font-mono bg-slate-100 dark:bg-slate-800 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-200 truncate">{cloneUrl}</code>
+            <CopyBtn text={cloneUrl} label="Copy URL" />
+            <OpenInMenu cloneUrl={cloneUrl} htmlUrl={repoObj?.url} repo={repo} />
+          </div>
         )}
       </div>
       {repo && (
@@ -701,8 +804,120 @@ function GitHubWorkspace({ canWrite }) {
           </div>
         </>
       )}
-      {explore && <BranchExplorer repo={repo} branch={explore} canWrite={canWrite} onClose={() => setExplore(null)} />}
+      {explore && <BranchExplorer repo={repo} branch={explore} canWrite={canWrite} cloneUrl={cloneUrl} htmlUrl={repoObj?.url} onClose={() => setExplore(null)} />}
+      {collabOpen && <CollaboratorsModal repo={repo} onClose={() => setCollabOpen(false)} />}
     </div>
+  );
+}
+
+/* ── Copy-to-clipboard button with momentary confirmation ─────────────────── */
+function CopyBtn({ text, label = 'Copy' }) {
+  const [done, setDone] = useState(false);
+  const tb2 = 'text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800';
+  return (
+    <button className={tb2} onClick={() => { try { navigator.clipboard.writeText(text); setDone(true); setTimeout(() => setDone(false), 1500); } catch { /* blocked */ } }}>
+      {done ? <><FiCheck size={11} className="inline mr-1 text-emerald-500" />Copied</> : <><FiCopy size={11} className="inline mr-1" />{label}</>}
+    </button>
+  );
+}
+
+/* ── "Open in" — deep-links that auto-clone the repo into the user's local IDE
+   (VS Code, JetBrains, GitHub Desktop) or copy a ready git-clone command. ─── */
+function OpenInMenu({ cloneUrl, htmlUrl, repo }) {
+  const [open, setOpen] = useState(false);
+  const tb2 = 'text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800';
+  const go = (url) => { try { window.location.href = url; } catch { /* no handler */ } };
+  const items = [
+    { label: 'VS Code', sub: 'clone & open', onClick: () => go(`vscode://vscode.git/clone?url=${encodeURIComponent(cloneUrl)}`) },
+    { label: 'Cursor', sub: 'clone & open', onClick: () => go(`cursor://vscode.git/clone?url=${encodeURIComponent(cloneUrl)}`) },
+    { label: 'JetBrains (IDEA/WebStorm)', sub: 'check out', onClick: () => go(`jetbrains://idea/checkout/git?idea.required.plugins.id=Git4Idea&checkout.repo=${encodeURIComponent(cloneUrl)}`) },
+    { label: 'GitHub Desktop', sub: 'open repo', onClick: () => go(`x-github-client://openRepo/${htmlUrl || ''}`) },
+  ];
+  return (
+    <div className="relative">
+      <button className={tb2} onClick={() => setOpen((o) => !o)} title="Open this repo in your local editor"><FiExternalLink size={11} className="inline mr-1" />Open in…</button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-[90]" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 mt-1 z-[91] w-60 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-1.5">
+            {items.map((it) => (
+              <button key={it.label} onClick={() => { it.onClick(); setOpen(false); }}
+                className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between">
+                <span className="text-xs text-slate-700 dark:text-slate-200">{it.label}</span>
+                <span className="text-[10px] text-slate-400">{it.sub}</span>
+              </button>
+            ))}
+            <div className="border-t border-slate-100 dark:border-slate-800 mt-1 pt-1.5 px-1.5 pb-0.5">
+              <p className="text-[10px] text-slate-400 mb-1">Or run in a terminal:</p>
+              <div className="flex items-center gap-1.5">
+                <code className="flex-1 text-[10px] font-mono bg-slate-100 dark:bg-slate-800 rounded px-2 py-1 truncate text-slate-600 dark:text-slate-300">git clone {cloneUrl}</code>
+                <CopyBtn text={`git clone ${cloneUrl}`} label="Copy" />
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1.5">Tip: editors prompt to allow the clone on first use.</p>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ── Collaborators CRUD (visible only to collaborator_manage holders) ─────── */
+function CollaboratorsModal({ repo, onClose }) {
+  const [o, n] = repo.split('/');
+  const [list, setList] = useState(null);
+  const [username, setUsername] = useState('');
+  const [perm, setPerm] = useState('push');
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const tb = 'text-[11px] px-2.5 py-1.5 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-medium hover:opacity-90 disabled:opacity-50';
+  const tb2 = 'text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800';
+  const tin = 'rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400';
+  const load = () => fetchJson(`/api/github?collaborators=1&owner=${o}&repo=${n}`).then((d) => setList(d.collaborators || [])).catch((e) => { setList([]); setMsg(e.message); });
+  useEffect(() => { load(); }, [repo]); // eslint-disable-line
+  const add = async () => {
+    if (!username.trim()) return;
+    setBusy(true); setMsg('');
+    try {
+      const r = await fetchJson(`/api/github?owner=${o}&repo=${n}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add_collaborator', username: username.trim(), permission: perm }) });
+      setMsg(r.invited ? `Invitation sent to ${username.trim()} ✓` : `${username.trim()} added ✓`); setUsername(''); load();
+    } catch (e) { setMsg(e.message); } finally { setBusy(false); }
+  };
+  const remove = async (login) => {
+    if (!window.confirm(`Remove ${login} from ${repo}?`)) return;
+    setMsg('');
+    try { await fetchJson(`/api/github?owner=${o}&repo=${n}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'remove_collaborator', username: login }) }); load(); }
+    catch (e) { setMsg(e.message); }
+  };
+  return (
+    <Modal title={`Collaborators · ${repo}`} onClose={onClose}>
+      <div className="flex flex-wrap gap-2 mb-3">
+        <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="GitHub username" className={`${tin} flex-1 min-w-[150px]`} onKeyDown={(e) => { if (e.key === 'Enter') add(); }} />
+        <select value={perm} onChange={(e) => setPerm(e.target.value)} className={tin}>
+          <option value="pull">Read</option>
+          <option value="triage">Triage</option>
+          <option value="push">Write</option>
+          <option value="maintain">Maintain</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button className={tb} disabled={busy || !username.trim()} onClick={add}><FiPlus size={12} className="inline mr-1" />Add</button>
+      </div>
+      {msg && <p className="text-[11px] text-amber-600 dark:text-amber-400 mb-2">{msg}</p>}
+      <div className="space-y-1.5 max-h-[55vh] overflow-y-auto">
+        {list === null && <p className="text-xs text-slate-400 text-center py-4">Loading…</p>}
+        {list?.map((c) => (
+          <div key={c.login} className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 dark:border-slate-800 px-3 py-2">
+            <span className="flex items-center gap-2 min-w-0">
+              {c.avatar && <img src={c.avatar} alt="" className="h-6 w-6 rounded-full" />}
+              <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-sm text-slate-800 dark:text-slate-100 hover:text-indigo-600 truncate">{c.login}</a>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 capitalize">{c.role}</span>
+            </span>
+            <button className={tb2} onClick={() => remove(c.login)} title="Remove collaborator"><FiTrash2 size={12} /></button>
+          </div>
+        ))}
+        {list?.length === 0 && <p className="text-xs text-slate-400 text-center py-4">No collaborators yet.</p>}
+      </div>
+    </Modal>
   );
 }
 
@@ -972,7 +1187,7 @@ export default function TeamPortalPage() {
     window.addEventListener('pa-perms-updated', refresh);
     return () => window.removeEventListener('pa-perms-updated', refresh);
   }, [member]);
-  const [view, setView] = useState('tickets');
+  const [view, setView] = useState('overview');
   const [colUnread, setColUnread] = useState(0);
   const [myStatus, setMyStatus] = useState('online'); // manual presence override
   const setStatus = (s) => { setMyStatus(s); window.dispatchEvent(new CustomEvent('pa-set-status', { detail: s })); };
@@ -1062,10 +1277,10 @@ export default function TeamPortalPage() {
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-              {['dev-tickets', 'tickets', 'engineering', ...((myPerms.includes('github_read') || myPerms.includes('github_write') || myRepos.length > 0) ? ['github'] : []), 'notes', 'meetings', 'colleagues'].map((v) => (
+              {['overview', 'dev-tickets', 'tickets', 'engineering', ...((myPerms.includes('github_read') || myPerms.includes('github_write') || myRepos.length > 0) ? ['github'] : []), 'notes', 'meetings', 'colleagues'].map((v) => (
                 <button key={v} onClick={() => setView(v)}
-                  className={`relative px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors ${view === v ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-300'}`}>
-                  {v === 'dev-tickets' ? 'Dev Tickets' : v}
+                  className={`relative px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors flex items-center gap-1 ${view === v ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-300'}`}>
+                  {v === 'overview' ? <><FiHome size={12} /> Overview</> : v === 'dev-tickets' ? 'Dev Tickets' : v}
                   {v === 'colleagues' && colUnread > 0 && view !== 'colleagues' && (
                     <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold animate-pulse">{colUnread > 9 ? '9+' : colUnread}</span>
                   )}
@@ -1105,7 +1320,8 @@ export default function TeamPortalPage() {
         </div>
       </header>
 
-      {view === 'github' && <GitHubWorkspace canWrite={myPerms.includes('github_write')} />}
+      {view === 'overview' && <OverviewTab member={member} myPerms={myPerms} myRepos={myRepos} myRole={myRole} myStatus={myStatus} counts={counts} setView={setView} />}
+      {view === 'github' && <GitHubWorkspace canWrite={myPerms.includes('github_write')} canCollab={myPerms.includes('collaborator_manage')} />}
       {view === 'dev-tickets' && <DevTickets member={member} />}
       {view === 'notes' && <NotesTab />}
       {view === 'meetings' && <MeetingsTab />}

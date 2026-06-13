@@ -14,7 +14,7 @@ import { resolvePerms } from './team-members.js';
 // csv of owner/name). A member with github access but no granted repos sees
 // nothing: repos are never shown to the whole team by default.
 const getGhActor = async (req) => {
-  if (verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME))) return { email: 'admin', read: true, write: true, allRepos: true };
+  if (verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME))) return { email: 'admin', read: true, write: true, collab: true, allRepos: true };
   // Member session is checked BEFORE the executive session: if both cookies
   // exist in one browser, the restrictive repo allowlist must win — a team
   // member must never see repos beyond what an admin granted them.
@@ -29,12 +29,13 @@ const getGhActor = async (req) => {
       // member's permission flags were customised without github_read
       read: perms.includes('github_read') || perms.includes('github_write') || allowed.length > 0,
       write: perms.includes('github_write'),
+      collab: perms.includes('collaborator_manage'),
       allRepos: false,
       allowed
     };
   }
   const e = getExecSession(req);
-  if (e) return { email: e.email, read: true, write: true, allRepos: true };
+  if (e) return { email: e.email, read: true, write: true, collab: true, allRepos: true };
   return null;
 };
 
@@ -80,13 +81,19 @@ export default async function handler(req, res) {
         const list = owner
           ? await gh(`/users/${owner}/repos?sort=pushed&per_page=30`).catch(() => gh(`/orgs/${owner}/repos?sort=pushed&per_page=30`))
           : await gh('/user/repos?sort=pushed&per_page=30');
-        const mapped = list.map((r) => ({ name: r.name, full_name: r.full_name, private: r.private, stars: r.stargazers_count, open_issues: r.open_issues_count, pushed_at: r.pushed_at, default_branch: r.default_branch, url: r.html_url }));
+        const mapped = list.map((r) => ({ name: r.name, full_name: r.full_name, private: r.private, stars: r.stargazers_count, open_issues: r.open_issues_count, pushed_at: r.pushed_at, default_branch: r.default_branch, url: r.html_url, clone_url: r.clone_url, ssh_url: r.ssh_url }));
         return res.status(200).json({
           repos: actor.allRepos ? mapped : mapped.filter((r) => actor.allowed.includes(r.full_name.toLowerCase()))
         });
       }
       if (!owner || !repo) return res.status(400).json({ error: 'owner and repo required' });
       if (!repoAllowed(actor, owner, repo)) return res.status(403).json({ error: 'This repository has not been granted to you by an admin' });
+      // collaborators (only for members granted collaborator_manage)
+      if (req.query.collaborators === '1') {
+        if (!actor.collab) return res.status(403).json({ error: 'No collaborator-management access — ask an admin to grant the collaborator_manage permission' });
+        const list = await gh(`/repos/${owner}/${repo}/collaborators?per_page=100`);
+        return res.status(200).json({ collaborators: list.map((c) => ({ login: c.login, avatar: c.avatar_url, url: c.html_url, role: c.role_name || (c.permissions?.admin ? 'admin' : c.permissions?.push ? 'write' : 'read') })) });
+      }
       // branches
       if (req.query.branches === '1') {
         const list = await gh(`/repos/${owner}/${repo}/branches?per_page=50`);
@@ -185,6 +192,23 @@ export default async function handler(req, res) {
         });
         await logAudit('staff', actorEmail, 'github_file_committed', `${repo}:${fp}`);
         return res.status(200).json({ ok: true, commit: out.commit?.sha?.slice(0, 7) });
+      }
+      if (action === 'add_collaborator') {
+        if (!actor.collab) return res.status(403).json({ error: 'No collaborator-management access' });
+        const { username, permission } = req.body;
+        if (!username) return res.status(400).json({ error: 'username required' });
+        const perm = ['pull', 'triage', 'push', 'maintain', 'admin'].includes(permission) ? permission : 'push';
+        const out = await gh(`/repos/${owner}/${repo}/collaborators/${encodeURIComponent(username)}`, { method: 'PUT', body: { permission: perm } });
+        await logAudit('staff', actorEmail, 'github_collaborator_added', `${repo}:${username} (${perm})`);
+        return res.status(200).json({ ok: true, invited: Boolean(out?.id) });
+      }
+      if (action === 'remove_collaborator') {
+        if (!actor.collab) return res.status(403).json({ error: 'No collaborator-management access' });
+        const { username } = req.body;
+        if (!username) return res.status(400).json({ error: 'username required' });
+        await gh(`/repos/${owner}/${repo}/collaborators/${encodeURIComponent(username)}`, { method: 'DELETE' });
+        await logAudit('staff', actorEmail, 'github_collaborator_removed', `${repo}:${username}`);
+        return res.status(200).json({ ok: true });
       }
       if (action === 'request_review') {
         const { number, reviewers } = req.body;

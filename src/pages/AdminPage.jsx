@@ -2091,9 +2091,9 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
                               <p className="text-xs text-white/30 mt-0.5">Last seen {formatDate(m.last_seen_at)}</p>
                             )}
                             <div className="flex flex-wrap gap-1 mt-1.5">
-                              {['github_read', 'github_write', 'roster_manage'].map((perm) => {
+                              {['github_read', 'github_write', 'roster_manage', 'collaborator_manage'].map((perm) => {
                                 const current = m.permissions ? m.permissions.split(',').filter(Boolean) : null;
-                                const roleDefaults = { software_dev: ['github_read','github_write'], team_lead: ['github_read','github_write'], engineering_manager: ['github_read','github_write','roster_manage'], product_manager: ['github_read','roster_manage'], qa: ['github_read'], member: [] };
+                                const roleDefaults = { software_dev: ['github_read','github_write'], team_lead: ['github_read','github_write','collaborator_manage'], engineering_manager: ['github_read','github_write','roster_manage','collaborator_manage'], product_manager: ['github_read','roster_manage'], qa: ['github_read'], member: [] };
                                 const effective = current || roleDefaults[m.team_role || 'member'] || [];
                                 const on = effective.includes(perm);
                                 return (
