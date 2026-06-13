@@ -125,8 +125,13 @@ export default async function handler(req, res) {
       }
 
       const buffer = Buffer.from(file.data_base64 || '', 'base64');
-      res.setHeader('Content-Type', file.content_type);
-      res.setHeader('Content-Disposition', `inline; filename="${file.file_name.replace(/"/g, '')}"`);
+      // Stored-XSS guard: browser-executable formats are forced to download as a
+      // neutral type so they can never run as script on our own origin.
+      const ct = file.content_type || 'application/octet-stream';
+      const unsafe = /html|svg|xml|javascript|xhtml/i.test(ct) || /\.(html?|svg|xml|xhtml|js|mjs)$/i.test(file.file_name || '');
+      res.setHeader('Content-Type', unsafe ? 'application/octet-stream' : ct);
+      res.setHeader('Content-Disposition', `${unsafe ? 'attachment' : 'inline'}; filename="${file.file_name.replace(/"/g, '')}"`);
+      res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('Cache-Control', 'private, max-age=3600');
       return res.status(200).send(buffer);
     } catch (err) {

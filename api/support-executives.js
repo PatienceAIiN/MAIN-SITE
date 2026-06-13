@@ -67,12 +67,24 @@ export const seedExecutive = async () => {
   try {
     const existing = await queryDb(`SELECT id FROM ${TABLE} WHERE email = $1 LIMIT 1`, ['harsh@patienceai.in']);
     if (existing.length > 0) return;
-    const { salt, hash } = hashPassword('Admin@110426');
-    await queryDb(
-      `INSERT INTO ${TABLE} (email, name, password_salt, password_hash, status, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,'active',NOW(),NOW())`,
-      ['harsh@patienceai.in', 'Harsh', salt, hash]
-    );
+    // Never seed a known/committed password. Use SEED_EXEC_PASSWORD if provided;
+    // otherwise create the account as 'invited' (activated via email link), so
+    // the repo never ships a working credential.
+    const seedPw = process.env.SEED_EXEC_PASSWORD;
+    if (seedPw) {
+      const { salt, hash } = hashPassword(seedPw);
+      await queryDb(
+        `INSERT INTO ${TABLE} (email, name, password_salt, password_hash, status, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,'active',NOW(),NOW())`,
+        ['harsh@patienceai.in', 'Harsh', salt, hash]
+      );
+    } else {
+      await queryDb(
+        `INSERT INTO ${TABLE} (email, name, status, created_at, updated_at)
+         VALUES ($1,$2,'invited',NOW(),NOW())`,
+        ['harsh@patienceai.in', 'Harsh']
+      );
+    }
     console.log('[seed] support executive harsh@patienceai.in created');
   } catch (err) {
     if (!isMissingTableError(err.message)) console.error('[seed] executive seed error:', err.message);

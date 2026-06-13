@@ -52,10 +52,15 @@ export const r2PutObject = async (key, body, contentType) => {
 // 15-minute presigned GET. Content-Disposition is pinned so the browser shows
 // the original file name regardless of the salted object key.
 export const r2SignedGetUrl = async (key, fileName, expiresInSeconds = 900) => {
+  // Force a download (never inline render) + neutral type for browser-executable
+  // formats, so a stored .html/.svg/.js can't run as script on our origin.
+  const name = String(fileName || 'file');
+  const unsafe = /\.(html?|svg|xml|xhtml|js|mjs)$/i.test(name);
   const command = new GetObjectCommand({
     Bucket: bucket(),
     Key: key,
-    ResponseContentDisposition: `inline; filename="${String(fileName).replace(/"/g, '')}"`
+    ResponseContentDisposition: `${unsafe ? 'attachment' : 'inline'}; filename="${name.replace(/"/g, '')}"`,
+    ...(unsafe ? { ResponseContentType: 'application/octet-stream' } : {})
   });
   return getSignedUrl(getClient(), command, { expiresIn: expiresInSeconds });
 };

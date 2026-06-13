@@ -381,7 +381,7 @@ app.all('/api/blog-podcast', podcastLimiter, wrap(blogPodcastHandler));
 app.all('/api/newsletter', newsletterLimiter, wrap(newsletterHandler));
 app.all('/api/support-auth', authLimiter, wrap(supportAuthHandler));
 app.all('/api/support-chat', writeLimit, wrap(supportChatHandler));
-app.all('/api/support-executives/login',    wrap(supportExecutivesHandler));
+app.all('/api/support-executives/login',    authLimiter, wrap(supportExecutivesHandler));
 app.all('/api/support-executives/activate', wrap(supportExecutivesHandler));
 app.all('/api/support-executives/me',       wrap(supportExecutivesHandler));
 app.all('/api/support-executives/logout',   wrap(supportExecutivesHandler));

@@ -7,10 +7,10 @@ import { queryDb, isMissingTableError } from './_db.js';
 import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, getMemberSession, hashPassword, verifyPassword } from './_security.js';
 import { logAudit } from './_ticketing.js';
 
-// The Render deploy hook. Prefer the env var; fall back to the configured hook
-// so deploys work even before the env is set on the host.
-const DEPLOY_HOOK = process.env.RENDER_DEPLOY_HOOK
-  || 'https://api.render.com/deploy/srv-d7fpe03bc2fs739oqie0?key=PMMpeoiKHOE';
+// The Render deploy hook MUST come from the environment — never hardcode a live
+// deploy credential in source (anyone who can read the repo could force a prod
+// deploy, bypassing the allow-list + password gate). Fails closed if unset.
+const DEPLOY_HOOK = process.env.RENDER_DEPLOY_HOOK || '';
 
 // Render REST API (cancel a running deploy + read its live logs). Needs a
 // RENDER_API_KEY; the deploy-hook key alone cannot do either.
@@ -70,6 +70,7 @@ const latestCommit = async () => {
 };
 
 const fireDeploy = async () => {
+  if (!DEPLOY_HOOK) throw new Error('Deploys are not configured — set RENDER_DEPLOY_HOOK in the server environment.');
   const r = await fetch(DEPLOY_HOOK, { method: 'POST' });
   if (!r.ok) throw new Error(`Render hook responded ${r.status}`);
   const j = await r.json().catch(() => ({}));
