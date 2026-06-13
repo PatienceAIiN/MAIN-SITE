@@ -4,11 +4,12 @@ import { motion } from 'framer-motion';
 import Button from '../components/ui/Button';
 import AdminTicketOps from '../components/AdminTicketOps';
 import AdminPeos from '../components/AdminPeos';
+import AdminGrowth from '../components/AdminGrowth';
 import { ServiceDetail } from '../components/RenderServices';
 import { confirmDialog } from '../common/confirm';
 import { fetchJson } from '../common/fetchJson';
 
-const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support', 'executives', 'team', 'deploy', 'tickets', 'engineering', 'worklog', 'logs'];
+const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support', 'executives', 'team', 'growth', 'deploy', 'tickets', 'engineering', 'worklog', 'logs'];
 
 /* ── Security & audit log viewer: every recorded event, exportable ───────── */
 function AdminLogs() {
@@ -2311,6 +2312,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
             {activeTab === 'tickets' && <AdminTicketOps />}
 
             {activeTab === 'engineering' && <AdminPeos />}
+            {activeTab === 'growth' && <AdminGrowth />}
             {activeTab === 'deploy' && <AdminDeploy />}
             {activeTab === 'worklog' && <AdminWorkLog />}
             {activeTab === 'logs' && <AdminLogs />}

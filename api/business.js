@@ -11,6 +11,36 @@
 import { queryDb, isMissingTableError } from './_db.js';
 import { getMemberSession, getExecSession } from './_security.js';
 import { aiComplete } from './_ai.js';
+import { sendEmail } from './_email.js';
+
+// Department-specific welcome blurb for the onboarding email HR triggers on hire.
+const DEPT_WELCOME = {
+  Engineering: 'Your manager will set you up with repo access, the dev environment and your first onboarding tickets.',
+  Sales: 'You\'ll get CRM access, your territory/accounts and a ramp plan with quota expectations.',
+  Marketing: 'You\'ll join the campaigns calendar, brand assets and analytics dashboards.',
+  'Customer Success': 'You\'ll be assigned your first accounts and the health-monitoring playbooks.',
+  Finance: 'You\'ll receive access to invoicing, expenses and the reporting suite.',
+  HR: 'You\'ll get the HRIS, policies and the people-ops handbook.',
+  Operations: 'You\'ll be added to the ops runbooks and tooling.',
+  Product: 'You\'ll get the roadmap, design files and the discovery backlog.',
+};
+
+const sendOnboardingEmail = async (emp) => {
+  if (!emp?.email) return;
+  const blurb = DEPT_WELCOME[emp.department] || 'Your manager will share your onboarding plan shortly.';
+  await sendEmail({
+    to: { email: emp.email, name: emp.name },
+    subject: `Welcome to Patience AI, ${emp.name}! 🎉`,
+    html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px">
+      <h2 style="color:#0f172a">Welcome aboard, ${emp.name}!</h2>
+      <p style="color:#475569">We're thrilled to have you join the <strong>${emp.department}</strong> team${emp.title ? ` as <strong>${emp.title}</strong>` : ''}.</p>
+      <p style="color:#475569">${blurb}</p>
+      <p style="color:#475569">${emp.start_date ? `Your start date is <strong>${emp.start_date}</strong>. ` : ''}${emp.manager_email ? `Your manager (${emp.manager_email}) will be in touch with next steps.` : ''}</p>
+      <p style="color:#94a3b8;font-size:12px">Sent automatically by the Patience AI People team.</p>
+    </div>`,
+    text: `Welcome aboard, ${emp.name}!\n\nWe're thrilled to have you join the ${emp.department} team${emp.title ? ` as ${emp.title}` : ''}.\n\n${blurb}\n\n${emp.start_date ? `Start date: ${emp.start_date}. ` : ''}${emp.manager_email ? `Your manager (${emp.manager_email}) will be in touch.` : ''}`,
+  }).catch((e) => console.error('[onboarding email] failed:', e.message));
+};
 
 const actorOf = (req) => getMemberSession(req) || getExecSession(req);
 
@@ -441,7 +471,9 @@ async function employees(method, req) {
        oneOf(b.employment_type, EMP_TYPES, 'full_time'), num(b.salary), clip(b.location, 120),
        clip(b.manager_email, 200), b.start_date || null, clip(b.notes, 2000)]
     );
-    return { employee: rows[0] };
+    // Trigger the onboarding welcome email (fire-and-forget) when HR adds a hire.
+    if (b.sendOnboarding !== false) sendOnboardingEmail(rows[0]);
+    return { employee: rows[0], onboardingEmailSent: Boolean(rows[0]?.email) };
   }
   if (method === 'PATCH') {
     if (!b.id) throw httpErr(400, 'id required');

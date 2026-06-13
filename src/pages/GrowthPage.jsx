@@ -13,18 +13,39 @@ import {
   FiLogOut, FiMoon, FiSun, FiPlus, FiX, FiSearch, FiRefreshCw, FiSend, FiTrash2,
   FiDollarSign, FiActivity, FiAlertTriangle, FiArrowRight, FiDownload, FiZap,
   FiEye, FiEyeOff, FiHeart, FiPieChart, FiDatabase, FiChevronRight,
-  FiCreditCard, FiBriefcase, FiUserCheck,
+  FiCreditCard, FiBriefcase, FiUserCheck, FiEdit2, FiSettings, FiLock,
 } from 'react-icons/fi';
+import { TbCurrencyRupee, TbCurrencyDollar, TbCurrencyEuro, TbCurrencyPound } from 'react-icons/tb';
 import { fetchJson } from '../common/fetchJson';
 import { confirmDialog, Spinner } from '../common/confirm';
+
+/* ── currency (selectable; symbol-aware formatter) ───────────────────────── */
+const CURRENCIES = {
+  INR: { symbol: '₹', icon: TbCurrencyRupee, locale: 'en-IN' },
+  USD: { symbol: '$', icon: TbCurrencyDollar, locale: 'en-US' },
+  EUR: { symbol: '€', icon: TbCurrencyEuro, locale: 'en-IE' },
+  GBP: { symbol: '£', icon: TbCurrencyPound, locale: 'en-GB' },
+};
+// Module-level so the formatter is callable without prop-drilling; the shell
+// mirrors it into state + remounts content on change so all values reformat.
+let CUR = (() => { try { return CURRENCIES[localStorage.getItem('growth-cur')] ? localStorage.getItem('growth-cur') : 'INR'; } catch { return 'INR'; } })();
 
 /* ── helpers ──────────────────────────────────────────────────────────────── */
 const inr = (n) => {
   const v = Number(n) || 0;
-  if (Math.abs(v) >= 1e7) return `₹${(v / 1e7).toFixed(2)}Cr`;
-  if (Math.abs(v) >= 1e5) return `₹${(v / 1e5).toFixed(2)}L`;
-  if (Math.abs(v) >= 1e3) return `₹${(v / 1e3).toFixed(1)}k`;
-  return `₹${v.toLocaleString('en-IN')}`;
+  const c = CURRENCIES[CUR] || CURRENCIES.INR;
+  const s = c.symbol;
+  const a = Math.abs(v);
+  if (CUR === 'INR') {
+    if (a >= 1e7) return `${s}${(v / 1e7).toFixed(2)}Cr`;
+    if (a >= 1e5) return `${s}${(v / 1e5).toFixed(2)}L`;
+    if (a >= 1e3) return `${s}${(v / 1e3).toFixed(1)}k`;
+    return `${s}${v.toLocaleString('en-IN')}`;
+  }
+  if (a >= 1e9) return `${s}${(v / 1e9).toFixed(2)}B`;
+  if (a >= 1e6) return `${s}${(v / 1e6).toFixed(2)}M`;
+  if (a >= 1e3) return `${s}${(v / 1e3).toFixed(1)}K`;
+  return `${s}${v.toLocaleString(c.locale)}`;
 };
 const pct = (n) => `${Math.round(Number(n) || 0)}%`;
 const api = (path, opts = {}) => fetchJson(`/api/business${path}`, {
@@ -103,8 +124,8 @@ function Login({ onAuthed }) {
         <div className="flex items-center gap-3 mb-1">
           <div className="grid place-items-center h-11 w-11 rounded-2xl bg-indigo-600 text-white"><FiTrendingUp size={22} /></div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Business Growth OS</h1>
-            <p className="text-xs text-slate-500">AI-powered growth command center</p>
+            <h1 className="text-xl font-bold text-slate-900">Growth</h1>
+            <p className="text-xs text-slate-500">Patience AI · growth command center</p>
           </div>
         </div>
         <p className="text-sm text-slate-500 mt-4 mb-5">Sign in with your Patience AI team account.</p>
@@ -123,6 +144,103 @@ function Login({ onAuthed }) {
         </button>
       </motion.form>
     </div>
+  );
+}
+
+/* ── Activate (set password from invite link) ────────────────────────────── */
+function Activate({ token, onActivated }) {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [show, setShow] = useState(false);
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+  const submit = async (e) => {
+    e.preventDefault();
+    if (password !== confirm) { setErr('Passwords do not match'); return; }
+    setLoading(true); setErr('');
+    try {
+      await fetchJson('/api/team-members/activate', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, password }),
+      });
+      onActivated();
+    } catch (ex) { setErr(ex.message); } finally { setLoading(false); }
+  };
+  return (
+    <div className="min-h-screen grid place-items-center bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 px-4">
+      <motion.form initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} onSubmit={submit} className="w-full max-w-md rounded-3xl bg-white/95 backdrop-blur p-8 shadow-2xl">
+        <div className="flex items-center gap-3 mb-1">
+          <div className="grid place-items-center h-11 w-11 rounded-2xl bg-indigo-600 text-white"><FiTrendingUp size={22} /></div>
+          <div><h1 className="text-xl font-bold text-slate-900">Activate your account</h1><p className="text-xs text-slate-500">Set a password to access Growth</p></div>
+        </div>
+        <p className="text-sm text-slate-500 mt-4 mb-5">Welcome to the Patience AI Business Growth OS. Choose a strong password (min 8 chars, with a letter and a number).</p>
+        <label className="block text-xs font-semibold text-slate-600 mb-1">New password</label>
+        <div className="relative mb-3">
+          <input className={input} type={show ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} placeholder="••••••••" />
+          <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">{show ? <FiEyeOff /> : <FiEye />}</button>
+        </div>
+        <label className="block text-xs font-semibold text-slate-600 mb-1">Confirm password</label>
+        <input className={`${input} mb-4`} type={show ? 'text' : 'password'} value={confirm} onChange={(e) => setConfirm(e.target.value)} required placeholder="••••••••" />
+        {err && <p className="text-sm text-red-600 mb-3">{err}</p>}
+        <button className={`${btnPrimary} w-full justify-center py-2.5`} disabled={loading}>{loading ? <Spinner /> : 'Activate & sign in'}</button>
+      </motion.form>
+    </div>
+  );
+}
+
+/* ── Settings (change password) ───────────────────────────────────────────── */
+function SettingsModal({ onClose, currency, setCurrency }) {
+  const [f, setF] = useState({ currentPassword: '', newPassword: '', confirm: '' });
+  const [show, setShow] = useState(false);
+  const [err, setErr] = useState('');
+  const [done, setDone] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const submit = async (e) => {
+    e.preventDefault(); setErr('');
+    if (f.newPassword !== f.confirm) { setErr('New passwords do not match'); return; }
+    setSaving(true);
+    try {
+      await fetchJson('/api/team-members/change-password', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: f.currentPassword, newPassword: f.newPassword }),
+      });
+      setDone(true); setF({ currentPassword: '', newPassword: '', confirm: '' });
+    } catch (ex) { setErr(ex.message); } finally { setSaving(false); }
+  };
+  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+  return (
+    <Modal title="Settings" onClose={onClose}>
+      <div className="space-y-5">
+        <div>
+          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2 flex items-center gap-2"><FiCreditCard size={15} /> Display currency</h4>
+          <div className="flex gap-2 flex-wrap">
+            {Object.entries(CURRENCIES).map(([code, c]) => (
+              <button key={code} onClick={() => setCurrency(code)}
+                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border ${currency === code ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                <c.icon size={16} /> {code}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
+          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2 flex items-center gap-2"><FiLock size={15} /> Change password</h4>
+          {done ? (
+            <p className="text-sm text-emerald-600">Password updated successfully.</p>
+          ) : (
+            <form onSubmit={submit} className="space-y-3">
+              <div className="relative">
+                <input className={input} type={show ? 'text' : 'password'} placeholder="Current password" value={f.currentPassword} onChange={set('currentPassword')} required />
+                <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">{show ? <FiEyeOff /> : <FiEye />}</button>
+              </div>
+              <input className={input} type={show ? 'text' : 'password'} placeholder="New password (min 8 chars)" value={f.newPassword} onChange={set('newPassword')} required minLength={8} />
+              <input className={input} type={show ? 'text' : 'password'} placeholder="Confirm new password" value={f.confirm} onChange={set('confirm')} required />
+              {err && <p className="text-sm text-red-600">{err}</p>}
+              <div className="flex justify-end"><button className={btnPrimary} disabled={saving}>{saving ? <Spinner /> : 'Update password'}</button></div>
+            </form>
+          )}
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -155,6 +273,27 @@ function Modal({ title, onClose, children, wide }) {
         </motion.div>
       </motion.div>
     </AnimatePresence>
+  );
+}
+
+// Read-only detail modal with explicit CRUD icon buttons (read shown, update +
+// delete actions). Reused by cards & chips across the portal.
+function DetailModal({ title, subtitle, fields, onClose, onEdit, onDelete, wide }) {
+  return (
+    <Modal title={title} onClose={onClose} wide={wide}>
+      <div className="flex items-center gap-2 mb-4 -mt-2">
+        {subtitle && <span className="text-sm text-slate-400">{subtitle}</span>}
+        <div className="ml-auto flex items-center gap-1.5">
+          {onEdit && <button title="Edit" onClick={onEdit} className="grid place-items-center h-9 w-9 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-950 dark:text-indigo-300"><FiEdit2 size={16} /></button>}
+          {onDelete && <button title="Delete" onClick={onDelete} className="grid place-items-center h-9 w-9 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950 dark:text-red-300"><FiTrash2 size={16} /></button>}
+        </div>
+      </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
+        {fields.filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => (
+          <div key={k} className="min-w-0"><dt className="text-xs text-slate-400">{k}</dt><dd className="text-slate-800 dark:text-slate-100 font-medium break-words">{v}</dd></div>
+        ))}
+      </dl>
+    </Modal>
   );
 }
 
@@ -439,6 +578,7 @@ function Pipeline({ reload }) {
   const [deals, setDeals] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [editing, setEditing] = useState(null);
+  const [viewing, setViewing] = useState(null);
   const load = useCallback(() => {
     api('/deals').then((r) => setDeals(r.deals || [])).catch(() => {});
     api('/contacts').then((r) => setContacts(r.contacts || [])).catch(() => {});
@@ -473,11 +613,11 @@ function Pipeline({ reload }) {
               {open.filter((d) => d.stage === st).map((d) => (
                 <div key={d.id} className={`${card} p-3`}>
                   <div className="flex justify-between items-start gap-2">
-                    <div className="font-semibold text-sm text-slate-800 dark:text-slate-100">{d.title}</div>
+                    <div className="font-semibold text-sm text-slate-800 dark:text-slate-100 cursor-pointer hover:text-indigo-600" onClick={() => setViewing(d)}>{d.title}</div>
                     <button className="text-slate-300 hover:text-red-500" onClick={() => remove(d.id)}><FiTrash2 size={13} /></button>
                   </div>
-                  <div className="text-xs text-slate-400">{d.contact_company || d.contact_name || '—'}</div>
-                  <div className="flex items-center justify-between mt-2">
+                  <div className="text-xs text-slate-400 cursor-pointer" onClick={() => setViewing(d)}>{d.contact_company || d.contact_name || '—'}</div>
+                  <div className="flex items-center justify-between mt-2 cursor-pointer" onClick={() => setViewing(d)}>
                     <span className="font-bold text-sm text-emerald-600">{inr(d.value)}</span>
                     <span className="text-xs text-slate-400">{d.probability}%</span>
                   </div>
@@ -493,6 +633,14 @@ function Pipeline({ reload }) {
           </div>
         ))}
       </div>
+      {viewing && (
+        <DetailModal title={viewing.title} subtitle={(viewing.stage || '').replace('_', ' ')} onClose={() => setViewing(null)}
+          onEdit={() => { setEditing(viewing); setViewing(null); }}
+          onDelete={async () => { await remove(viewing.id); setViewing(null); }}
+          fields={[['Contact', viewing.contact_name || '—'], ['Company', viewing.contact_company || '—'], ['Stage', viewing.stage],
+            ['Status', viewing.status], ['Value', inr(viewing.value)], ['Probability', `${viewing.probability}%`],
+            ['Close date', viewing.close_date ? new Date(viewing.close_date).toLocaleDateString('en-IN') : ''], ['Owner', viewing.owner_email]]} />
+      )}
       {editing && <DealForm initial={editing} contacts={contacts} onClose={() => setEditing(null)} onSave={save} />}
     </div>
   );
@@ -526,6 +674,7 @@ function DealForm({ initial, contacts, onClose, onSave }) {
 function Campaigns() {
   const [rows, setRows] = useState([]);
   const [editing, setEditing] = useState(null);
+  const [viewing, setViewing] = useState(null);
   const load = useCallback(() => api('/campaigns').then((r) => setRows(r.campaigns || [])).catch(() => {}), []);
   useEffect(() => { load(); }, [load]);
   const save = async (data) => {
@@ -543,10 +692,10 @@ function Campaigns() {
       <div className="flex justify-end"><button className={btnPrimary} onClick={() => setEditing({})}><FiPlus /> New campaign</button></div>
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
         {rows.map((c) => (
-          <div key={c.id} className={`${card} p-4`}>
+          <div key={c.id} className={`${card} p-4 cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-700 transition`} onClick={() => setViewing(c)}>
             <div className="flex justify-between items-start">
               <div><div className="font-semibold text-slate-800 dark:text-slate-100">{c.name}</div><div className="text-xs text-slate-400">{c.channel} · {c.status}</div></div>
-              <button className="text-slate-300 hover:text-red-500" onClick={() => remove(c.id)}><FiTrash2 size={14} /></button>
+              <button className="text-slate-300 hover:text-red-500" onClick={(e) => { e.stopPropagation(); remove(c.id); }}><FiTrash2 size={14} /></button>
             </div>
             <div className="grid grid-cols-2 gap-2 mt-3 text-sm">
               <div><div className="text-xs text-slate-400">Spend</div><div className="font-medium">{inr(c.spend)}</div></div>
@@ -554,11 +703,19 @@ function Campaigns() {
               <div><div className="text-xs text-slate-400">Leads</div><div className="font-medium">{c.leads}</div></div>
               <div><div className="text-xs text-slate-400">ROAS</div><div className="font-bold text-indigo-600">{roas(c)}x</div></div>
             </div>
-            <button className="text-xs text-slate-400 hover:text-indigo-500 mt-3" onClick={() => setEditing(c)}>Edit →</button>
+            <p className="text-xs text-slate-400 mt-3">Click for details &amp; actions →</p>
           </div>
         ))}
         {!rows.length && <p className="text-slate-400 text-sm col-span-full text-center py-12">No campaigns yet.</p>}
       </div>
+      {viewing && (
+        <DetailModal title={viewing.name} subtitle={`${viewing.channel} · ${viewing.status}`} onClose={() => setViewing(null)}
+          onEdit={() => { setEditing(viewing); setViewing(null); }}
+          onDelete={async () => { await remove(viewing.id); setViewing(null); }}
+          fields={[['Channel', viewing.channel], ['Status', viewing.status], ['Budget', inr(viewing.budget)], ['Spend', inr(viewing.spend)],
+            ['Revenue', inr(viewing.revenue)], ['Leads', viewing.leads], ['Conversions', viewing.conversions], ['ROAS', `${roas(viewing)}x`],
+            ['Start', viewing.start_date ? new Date(viewing.start_date).toLocaleDateString('en-IN') : ''], ['End', viewing.end_date ? new Date(viewing.end_date).toLocaleDateString('en-IN') : '']]} />
+      )}
       {editing && <CampaignForm initial={editing} onClose={() => setEditing(null)} onSave={save} />}
     </div>
   );
@@ -641,7 +798,7 @@ function Tasks() {
   useEffect(() => { load(); }, [load]);
   const add = async () => { if (!title.trim()) return; await api('/tasks', { method: 'POST', body: JSON.stringify({ title }) }); setTitle(''); load(); };
   const toggle = async (t) => { await api('/tasks', { method: 'PATCH', body: JSON.stringify({ id: t.id, status: t.status === 'done' ? 'open' : 'done' }) }); load(); };
-  const remove = async (id) => { await api(`/tasks?id=${id}`, { method: 'DELETE' }); load(); };
+  const remove = async (id) => { if (!(await confirmDialog({ title: 'Delete task', message: 'Delete this task?', confirmText: 'Delete' }))) return; await api(`/tasks?id=${id}`, { method: 'DELETE' }); load(); };
   return (
     <div className={`${card} p-5 max-w-2xl`}>
       <div className="flex gap-2 mb-4">
@@ -869,6 +1026,7 @@ function Hr({ reload }) {
   const [q, setQ] = useState('');
   const [dept, setDept] = useState('all');
   const [editing, setEditing] = useState(null);
+  const [chipDept, setChipDept] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(() => {
@@ -903,9 +1061,28 @@ function Hr({ reload }) {
       {hr?.headcountByDept?.length > 0 && (
         <div className={`${card} p-4 flex flex-wrap gap-2`}>
           {hr.headcountByDept.map((d) => (
-            <span key={d.department} className="text-xs px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{d.department}: <b>{d.count}</b></span>
+            <button key={d.department} onClick={() => setChipDept(d.department)}
+              className="text-xs px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-indigo-100 hover:text-indigo-700 dark:hover:bg-indigo-950 dark:hover:text-indigo-300 transition">{d.department}: <b>{d.count}</b></button>
           ))}
         </div>
+      )}
+      {chipDept && (
+        <Modal title={`${chipDept} team`} onClose={() => setChipDept(null)} wide>
+          <div className="flex justify-end mb-3"><button className={btnPrimary} onClick={() => { setEditing({ department: chipDept }); setChipDept(null); }}><FiPlus /> Add to {chipDept}</button></div>
+          <ul className="space-y-2">
+            {rows.filter((r) => r.department === chipDept).map((r) => (
+              <li key={r.id} className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-slate-800 px-3 py-2.5">
+                <div className="min-w-0"><div className="font-medium text-slate-800 dark:text-slate-100 truncate">{r.name}</div><div className="text-xs text-slate-400">{r.title || r.email} · {(r.status || '').replace('_', ' ')}</div></div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-sm font-medium text-slate-600 dark:text-slate-300">{inr(r.salary)}</span>
+                  <button title="Edit" onClick={() => { setEditing(r); setChipDept(null); }} className="grid place-items-center h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-950 dark:text-indigo-300"><FiEdit2 size={14} /></button>
+                  <button title="Remove" onClick={() => remove(r.id)} className="grid place-items-center h-8 w-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950 dark:text-red-300"><FiTrash2 size={14} /></button>
+                </div>
+              </li>
+            ))}
+            {!rows.filter((r) => r.department === chipDept).length && <li className="text-sm text-slate-400 text-center py-6">No one in {chipDept} yet.</li>}
+          </ul>
+        </Modal>
       )}
 
       <div className="flex items-center gap-3 flex-wrap">
@@ -987,18 +1164,34 @@ const NAV = [
 ];
 
 export default function GrowthPage() {
+  const inviteToken = (() => { try { return new URLSearchParams(window.location.search).get('invite'); } catch { return null; } })();
   const [authed, setAuthed] = useState(null); // null=checking
+  const [activated, setActivated] = useState(false);
   const [tab, setTab] = useState('command');
   const [dark, setDark] = useState(() => { try { return localStorage.getItem('growth-dark') === '1'; } catch { return false; } });
+  const [cur, setCur] = useState(CUR);
+  const [showSettings, setShowSettings] = useState(false);
   const [nonce, setNonce] = useState(0); // forces metric reloads after mutations
   const reload = useCallback(() => setNonce((n) => n + 1), []);
 
-  useEffect(() => { fetchJson('/api/team-members/me', { credentials: 'include' }).then(() => setAuthed(true)).catch(() => setAuthed(false)); }, []);
+  useEffect(() => {
+    if (inviteToken && !activated) { setAuthed(false); return; }
+    fetchJson('/api/team-members/me', { credentials: 'include' }).then(() => setAuthed(true)).catch(() => setAuthed(false));
+  }, [inviteToken, activated]);
   useEffect(() => { document.documentElement.classList.toggle('dark', dark); try { localStorage.setItem('growth-dark', dark ? '1' : '0'); } catch { /* ignore */ } }, [dark]);
+  useEffect(() => { document.title = 'Growth · Patience AI'; }, []);
 
+  const changeCurrency = (code) => { CUR = code; setCur(code); try { localStorage.setItem('growth-cur', code); } catch { /* ignore */ } reload(); };
   const seed = async () => { await api('/seed', { method: 'POST' }); reload(); };
-  const logout = async () => { await fetchJson('/api/team-members/logout', { method: 'POST', credentials: 'include' }).catch(() => {}); setAuthed(false); };
+  const logout = async () => {
+    if (!(await confirmDialog({ title: 'Sign out', message: 'Sign out of the Growth OS?', confirmText: 'Sign out' }))) return;
+    await fetchJson('/api/team-members/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
+    setAuthed(false);
+  };
 
+  if (inviteToken && !activated && !authed) {
+    return <Activate token={inviteToken} onActivated={() => { setActivated(true); setAuthed(true); }} />;
+  }
   if (authed === null) return <div className="min-h-screen grid place-items-center bg-slate-50 dark:bg-slate-950"><Spinner size={28} /></div>;
   if (!authed) return <Login onAuthed={() => setAuthed(true)} />;
 
@@ -1009,7 +1202,7 @@ export default function GrowthPage() {
         <aside className="w-60 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hidden md:flex flex-col">
           <div className="p-5 flex items-center gap-2.5">
             <div className="grid place-items-center h-9 w-9 rounded-xl bg-indigo-600 text-white"><FiTrendingUp size={18} /></div>
-            <div><div className="font-bold leading-tight">Growth OS</div><div className="text-[10px] text-slate-400">Patience AI</div></div>
+            <div><div className="font-bold leading-tight text-base">Growth</div><div className="text-[10px] text-slate-400">Patience AI</div></div>
           </div>
           <nav className="px-3 space-y-1 flex-1">
             {NAV.map((n) => (
@@ -1030,16 +1223,26 @@ export default function GrowthPage() {
         <main className="flex-1 min-w-0">
           <header className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
             <div>
-              <h1 className="text-lg font-bold">{NAV.find((n) => n.key === tab)?.label}</h1>
-              <p className="text-xs text-slate-400">AI-powered Business Growth Operating System</p>
+              <h1 className="text-lg font-bold">Growth</h1>
+              <p className="text-xs text-slate-400">{NAV.find((n) => n.key === tab)?.label} · Patience AI</p>
             </div>
             <div className="flex items-center gap-2">
               {/* mobile nav */}
               <select className={`${input} w-auto md:hidden`} value={tab} onChange={(e) => setTab(e.target.value)}>{NAV.map((n) => <option key={n.key} value={n.key}>{n.label}</option>)}</select>
+              {/* currency selector */}
+              <div className="flex items-center rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                {Object.entries(CURRENCIES).map(([code, c]) => (
+                  <button key={code} onClick={() => changeCurrency(code)} title={code}
+                    className={`grid place-items-center h-9 w-9 ${cur === code ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                    <c.icon size={17} />
+                  </button>
+                ))}
+              </div>
+              <button className={btnGhost} onClick={() => setShowSettings(true)} title="Settings"><FiSettings /></button>
               <button className={btnGhost} onClick={seed} title="Load demo data"><FiDatabase /></button>
             </div>
           </header>
-          <div className="p-5">
+          <div className="p-5" key={`${cur}-${tab === 'command' ? nonce : ''}`}>
             {tab === 'command' && <CommandCenter key={nonce} dark={dark} onSeed={seed} />}
             {tab === 'crm' && <Crm reload={reload} />}
             {tab === 'pipeline' && <Pipeline reload={reload} />}
@@ -1050,6 +1253,7 @@ export default function GrowthPage() {
             {tab === 'tasks' && <Tasks />}
             {tab === 'reports' && <Reports />}
           </div>
+          {showSettings && <SettingsModal currency={cur} setCurrency={changeCurrency} onClose={() => setShowSettings(false)} />}
         </main>
       </div>
     </div>

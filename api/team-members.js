@@ -68,21 +68,28 @@ const ROLE_INVITE = {
   member: { title: 'Team Member', blurb: 'Support tickets will be assigned to you here — track them, chat with the support team and attach files.' }
 };
 
-const sendInviteEmail = async (email, name, token, teamRole = 'member') => {
-  const link = `${getSiteBase()}/team?invite=${token}`;
+// portal: 'team' (engineering ticket portal) or 'growth' (Business Growth OS).
+// The activation link points at the portal the person was invited into.
+const sendInviteEmail = async (email, name, token, teamRole = 'member', portal = 'team') => {
+  const isGrowth = portal === 'growth';
+  const link = `${getSiteBase()}/${isGrowth ? 'growth' : 'team'}?invite=${token}`;
   const role = ROLE_INVITE[teamRole] || ROLE_INVITE.member;
+  const product = isGrowth ? 'Business Growth OS' : 'engineering platform';
+  const blurb = isGrowth
+    ? 'You now have access to the Patience AI Growth command center — CRM, sales pipeline, marketing, accounts and HR, with an AI business copilot.'
+    : role.blurb;
   await sendEmail({
     to: { email, name },
-    subject: `${name}, you're invited as ${role.title} — Patience AI`,
+    subject: `${name}, you're invited to Patience AI ${isGrowth ? 'Growth' : role.title}`,
     html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px">
       <h2 style="color:#0f172a">Welcome aboard, ${name}!</h2>
-      <p style="color:#475569">You've been added to the Patience AI engineering platform as a <strong>${role.title}</strong>.</p>
-      <p style="color:#475569">${role.blurb}</p>
+      <p style="color:#475569">You've been added to the Patience AI ${product}${isGrowth ? '' : ` as a <strong>${role.title}</strong>`}.</p>
+      <p style="color:#475569">${blurb}</p>
       <p style="color:#475569">Set your password to activate your account — this link expires in ${TTL_HOURS} hours.</p>
       <a href="${link}" style="display:inline-block;margin:24px 0;padding:12px 28px;background:#0f172a;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Set Password &amp; Activate</a>
-      <p style="color:#94a3b8;font-size:12px">A quick guided tour will greet you on first login. If you didn't expect this, ignore this email.</p>
+      <p style="color:#94a3b8;font-size:12px">If you didn't expect this, ignore this email.</p>
     </div>`,
-    text: `Welcome aboard, ${name}!\n\nYou've been added to the Patience AI engineering platform as a ${role.title}.\n\n${role.blurb}\n\nSet your password here (expires in ${TTL_HOURS} hours):\n${link}`
+    text: `Welcome aboard, ${name}!\n\nYou've been added to the Patience AI ${product}.\n\n${blurb}\n\nSet your password here (expires in ${TTL_HOURS} hours):\n${link}`
   });
 };
 
@@ -293,7 +300,7 @@ export default async function handler(req, res) {
 
   // POST — invite a new team member (or re-invite)
   if (req.method === 'POST') {
-    const { email, name, teamRole = 'member' } = req.body || {};
+    const { email, name, teamRole = 'member', portal = 'team' } = req.body || {};
     if (!email || !name) return res.status(400).json({ error: 'email and name required' });
     if (!TEAM_ROLES.includes(teamRole)) return res.status(400).json({ error: 'Invalid team role' });
     if (!email.toLowerCase().endsWith(ALLOWED_DOMAIN)) {
@@ -323,7 +330,7 @@ export default async function handler(req, res) {
 
       let emailError = null;
       try {
-        await sendInviteEmail(email, name, inviteToken, teamRole);
+        await sendInviteEmail(email, name, inviteToken, teamRole, portal === 'growth' ? 'growth' : 'team');
       } catch (e) {
         emailError = e.message;
         console.error('[team invite] email send failed:', e.message);
@@ -337,7 +344,7 @@ export default async function handler(req, res) {
         emailError: emailError || undefined,
         // Fallback so the admin can hand over the activation link manually
         // when the invite email could not be delivered.
-        inviteLink: emailError ? `${getSiteBase()}/team?invite=${inviteToken}` : undefined
+        inviteLink: emailError ? `${getSiteBase()}/${portal === 'growth' ? 'growth' : 'team'}?invite=${inviteToken}` : undefined
       });
     } catch (err) {
       return res.status(500).json({ error: err.message });
