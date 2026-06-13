@@ -4,7 +4,7 @@ import {
   FiEye, FiEyeOff, FiLogOut, FiMoon, FiSun, FiSend, FiRefreshCw, FiSearch,
   FiLock, FiX, FiTag, FiUser, FiMail, FiClock, FiMessageSquare, FiSettings,
   FiBell, FiBellOff, FiUploadCloud, FiFileText, FiMaximize2,
-  FiHome, FiCopy, FiUsers, FiGithub, FiExternalLink, FiTrash2, FiPlus, FiCode, FiCheck, FiShield, FiVideo, FiBookOpen
+  FiCopy, FiUsers, FiGithub, FiExternalLink, FiTrash2, FiPlus, FiCode, FiCheck, FiShield, FiVideo, FiBookOpen, FiMove
 } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import NetworkDot from '../common/NetworkDot';
@@ -598,9 +598,66 @@ const PERM_LABELS = {
   collaborator_manage: 'Add GitHub collaborators',
 };
 const ALL_PERM_KEYS = ['github_read', 'github_write', 'roster_manage', 'collaborator_manage'];
+const ROLE_LABEL = {
+  software_dev: 'Software Developer', team_lead: 'Team Lead', engineering_manager: 'Engineering Manager',
+  product_manager: 'Product Manager', qa: 'QA Engineer', member: 'Team Member',
+};
 
-function OverviewTab({ member, myPerms, myRepos, myRole, myStatus, counts, setView }) {
+// Self-service profile editor — name + picture only.
+function ProfileEditModal({ member, avatar, onClose, onSaved }) {
+  const [name, setName] = useState(member.name || '');
+  const [pic, setPic] = useState(avatar || '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const onFile = (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => { const img = new Image(); img.onload = () => {
+      const max = 160, scale = Math.min(1, max / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      setPic(cv.toDataURL('image/jpeg', 0.82));
+    }; img.src = rd.result; };
+    rd.readAsDataURL(f);
+  };
+  const save = async () => {
+    if (!name.trim()) { setErr('Name is required.'); return; }
+    setBusy(true); setErr('');
+    try {
+      const r = await fetchJson('/api/team-members/update-profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim(), avatar: pic || '' }) });
+      onSaved(r.member); onClose();
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const ib = 'rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 w-full';
+  return (
+    <Modal title="Edit profile" onClose={onClose}>
+      <div className="flex flex-col items-center gap-3">
+        {pic
+          ? <img src={pic} alt="" className="h-24 w-24 rounded-full object-cover ring-2 ring-indigo-500" />
+          : <div className="h-24 w-24 rounded-full bg-indigo-600 text-white flex items-center justify-center text-3xl font-bold">{(name || '?').slice(0, 1).toUpperCase()}</div>}
+        <div className="flex gap-2">
+          <label className="text-[11px] px-2.5 py-1.5 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-medium cursor-pointer">Change picture
+            <input type="file" accept="image/*" onChange={onFile} className="hidden" />
+          </label>
+          {pic && <button className="text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300" onClick={() => setPic('')}>Remove</button>}
+        </div>
+        <label className="w-full text-[11px] text-slate-400">Name
+          <input className={ib} value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
+        </label>
+        {err && <p className="text-xs text-red-500">{err}</p>}
+        <div className="flex gap-2 w-full pt-1">
+          <button disabled={busy} onClick={save} className="flex-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 disabled:opacity-50">{busy ? 'Saving…' : 'Save'}</button>
+          <button onClick={onClose} className="rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm px-4">Cancel</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function OverviewTab({ member, teamRole, avatar, myPerms, myRepos, myStatus, counts, setView, onProfileSaved }) {
   const [sum, setSum] = useState({ meetings: null, notes: null, repos: null });
+  const [editOpen, setEditOpen] = useState(false);
   const hasGithub = myPerms.includes('github_read') || myPerms.includes('github_write') || (myRepos?.length > 0);
   useEffect(() => {
     fetchJson('/api/meetings').then((d) => setSum((s) => ({ ...s, meetings: (d.meetings || []).length }))).catch(() => {});
@@ -608,9 +665,9 @@ function OverviewTab({ member, myPerms, myRepos, myRole, myStatus, counts, setVi
     if (hasGithub) fetchJson('/api/github?repos=1').then((d) => setSum((s) => ({ ...s, repos: (d.repos || []).length }))).catch(() => {});
   }, []); // eslint-disable-line
 
-  const cards = [
-    { key: 'dev-tickets', icon: FiCode, title: 'Dev Tickets', desc: 'JIRA-style board — create, edit, comment & attach.', tint: 'bg-indigo-500' },
-    { key: 'tickets', icon: FiTag, title: 'My Tickets', value: counts.all, desc: 'Support tickets assigned to you.', tint: 'bg-sky-500' },
+  const allCards = [
+    { key: 'dev-tickets', icon: FiCode, title: 'Dev Tickets', tint: 'bg-indigo-500' },
+    { key: 'tickets', icon: FiTag, title: 'My Tickets', value: counts.all, tint: 'bg-sky-500' },
     { key: 'engineering', icon: FiBookOpen, title: 'Engineering', desc: 'Pipeline, sprints, epics, QA & OKRs.', tint: 'bg-violet-500' },
     ...(hasGithub ? [{ key: 'github', icon: FiGithub, title: 'GitHub', value: sum.repos, desc: 'Repos, branches, PRs · clone & open in IDE.', tint: 'bg-slate-700' }] : []),
     { key: 'notes', icon: FiFileText, title: 'Notes', value: sum.notes, desc: 'Personal & meeting notes (MoM).', tint: 'bg-amber-500' },
@@ -620,25 +677,44 @@ function OverviewTab({ member, myPerms, myRepos, myRole, myStatus, counts, setVi
   const card = 'rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4';
   const statusColor = myStatus === 'online' ? 'bg-emerald-500' : myStatus === 'away' ? 'bg-amber-500' : 'bg-slate-400';
 
+  // Draggable card order (persisted per user in localStorage).
+  const orderKey = `pa_overview_order_${member.email}`;
+  const [order, setOrder] = useState(() => { try { return JSON.parse(window.localStorage.getItem(orderKey) || '[]'); } catch { return []; } });
+  const cardMap = Object.fromEntries(allCards.map((c) => [c.key, c]));
+  const orderedKeys = [...order.filter((k) => cardMap[k]), ...allCards.map((c) => c.key).filter((k) => !order.includes(k))];
+  const cards = orderedKeys.map((k) => cardMap[k]).filter(Boolean);
+  const dragKey = useRef(null);
+  const [dragOver, setDragOver] = useState(null);
+  const persist = (keys) => { setOrder(keys); try { window.localStorage.setItem(orderKey, JSON.stringify(keys)); } catch { /* ignore */ } };
+  const drop = (targetKey) => {
+    const src = dragKey.current; dragKey.current = null; setDragOver(null);
+    if (!src || src === targetKey) return;
+    const keys = orderedKeys.slice();
+    keys.splice(keys.indexOf(src), 1); keys.splice(keys.indexOf(targetKey), 0, src);
+    persist(keys);
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50 dark:bg-slate-950">
       <div className="max-w-5xl mx-auto space-y-5">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Welcome back, {member.name?.split(' ')[0] || 'there'} 👋</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Your workspace at a glance — click any card to jump in.</p>
-        </div>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Welcome back, {member.name?.split(' ')[0] || 'there'} 👋</h2>
 
         {/* Profile + permissions */}
         <div className={card}>
           <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
             <div className="flex items-center gap-3 min-w-[200px]">
-              <div className="h-12 w-12 rounded-full bg-indigo-600 text-white flex items-center justify-center text-lg font-bold">{(member.name || '?').slice(0, 1).toUpperCase()}</div>
+              <button onClick={() => setEditOpen(true)} title="Edit profile" className="shrink-0">
+                {avatar
+                  ? <img src={avatar} alt="" className="h-12 w-12 rounded-full object-cover ring-2 ring-transparent hover:ring-indigo-400" />
+                  : <div className="h-12 w-12 rounded-full bg-indigo-600 text-white flex items-center justify-center text-lg font-bold hover:ring-2 hover:ring-indigo-300">{(member.name || '?').slice(0, 1).toUpperCase()}</div>}
+              </button>
               <div>
-                <p className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">{member.name}
+                <p className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <button onClick={() => setEditOpen(true)} title="Edit profile" className="hover:underline underline-offset-2">{member.name}</button>
                   <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400"><span className={`w-2 h-2 rounded-full ${statusColor}`} />{myStatus || 'online'}</span>
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1"><FiMail size={11} /> {member.email}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5 capitalize"><FiUser size={11} /> {(myRole || 'member').replace(/_/g, ' ')}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5"><FiUser size={11} /> {ROLE_LABEL[teamRole] || ROLE_LABEL.member}</p>
               </div>
             </div>
             <div className="flex-1 min-w-[240px]">
@@ -654,21 +730,30 @@ function OverviewTab({ member, myPerms, myRepos, myRole, myStatus, counts, setVi
           </div>
         </div>
 
-        {/* Summary cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {cards.map((c) => (
-            <button key={c.key} onClick={() => setView(c.key)}
-              className={`${card} text-left hover:border-indigo-400 dark:hover:border-indigo-600 hover:shadow-md transition-all group`}>
-              <div className="flex items-center justify-between">
-                <span className={`h-9 w-9 rounded-xl ${c.tint} text-white flex items-center justify-center`}><c.icon size={17} /></span>
-                {c.value !== undefined && c.value !== null && <span className="text-2xl font-bold text-slate-900 dark:text-white">{c.value}</span>}
+        {/* Summary cards — draggable to rearrange */}
+        <div>
+          <p className="text-[11px] text-slate-400 mb-2 flex items-center gap-1"><FiMove size={11} /> Drag cards to rearrange</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {cards.map((c) => (
+              <div key={c.key} draggable
+                onDragStart={() => { dragKey.current = c.key; }}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(c.key); }}
+                onDragLeave={() => setDragOver((k) => (k === c.key ? null : k))}
+                onDrop={() => drop(c.key)}
+                className={`${card} cursor-move hover:border-indigo-400 dark:hover:border-indigo-600 hover:shadow-md transition-all group ${dragOver === c.key ? 'ring-2 ring-indigo-400' : ''}`}
+                onClick={() => setView(c.key)}>
+                <div className="flex items-center justify-between">
+                  <span className={`h-9 w-9 rounded-xl ${c.tint} text-white flex items-center justify-center`}><c.icon size={17} /></span>
+                  {c.value !== undefined && c.value !== null && <span className="text-2xl font-bold text-slate-900 dark:text-white">{c.value}</span>}
+                </div>
+                <p className="font-semibold text-slate-900 dark:text-white mt-3 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">{c.title}</p>
+                {c.desc && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{c.desc}</p>}
               </div>
-              <p className="font-semibold text-slate-900 dark:text-white mt-3 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">{c.title}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{c.desc}</p>
-            </button>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
+      {editOpen && <ProfileEditModal member={member} avatar={avatar} onClose={() => setEditOpen(false)} onSaved={onProfileSaved} />}
     </div>
   );
 }
@@ -1172,6 +1257,8 @@ export default function TeamPortalPage() {
   const [myRole, setMyRole] = useState('member');
   const [myPerms, setMyPerms] = useState([]);
   const [myRepos, setMyRepos] = useState([]);
+  const [myTeamRole, setMyTeamRole] = useState('member');
+  const [myAvatar, setMyAvatar] = useState('');
 
   // Instant permission propagation: admin grants/revokes → server pushes
   // perms_updated over the WS → refetch role + perms + repo grants live.
@@ -1181,6 +1268,8 @@ export default function TeamPortalPage() {
       fetchJson('/api/team-members/me').then((d) => {
         setMyPerms(d.member?.permissions || []);
         setMyRepos(d.member?.allowedRepos || []);
+        setMyTeamRole(d.member?.teamRole || 'member');
+        setMyAvatar(d.member?.avatar || '');
       }).catch(() => {});
       fetchJson('/api/dev-workflow?bucket=1').then((d) => setMyRole(d.myRole || 'member')).catch(() => {});
     };
@@ -1228,14 +1317,14 @@ export default function TeamPortalPage() {
   useEffect(() => {
     if (!member) return;
     fetchJson('/api/dev-workflow?bucket=1').then((d) => setMyRole(d.myRole || 'member')).catch(() => {});
-    fetchJson('/api/team-members/me').then((d) => { setMyPerms(d.member?.permissions || []); setMyRepos(d.member?.allowedRepos || []); }).catch(() => {});
+    fetchJson('/api/team-members/me').then((d) => { setMyPerms(d.member?.permissions || []); setMyRepos(d.member?.allowedRepos || []); setMyTeamRole(d.member?.teamRole || 'member'); setMyAvatar(d.member?.avatar || ''); }).catch(() => {});
     try { if (!window.localStorage.getItem(`pa_tour_done_${member.email}`)) setShowTour(true); } catch { /* ignore */ }
     loadTickets();
     // perms/repo grants also refresh on this poll — belt-and-suspenders next
     // to the instant WS push, so tab visibility can never go stale
     const id = setInterval(() => {
       loadTickets();
-      fetchJson('/api/team-members/me').then((d) => { setMyPerms(d.member?.permissions || []); setMyRepos(d.member?.allowedRepos || []); }).catch(() => {});
+      fetchJson('/api/team-members/me').then((d) => { setMyPerms(d.member?.permissions || []); setMyRepos(d.member?.allowedRepos || []); setMyTeamRole(d.member?.teamRole || 'member'); setMyAvatar(d.member?.avatar || ''); }).catch(() => {});
     }, 8000);
     return () => clearInterval(id);
 
@@ -1279,8 +1368,8 @@ export default function TeamPortalPage() {
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
               {['overview', 'dev-tickets', 'tickets', 'engineering', ...((myPerms.includes('github_read') || myPerms.includes('github_write') || myRepos.length > 0) ? ['github'] : []), 'notes', 'meetings', 'colleagues'].map((v) => (
                 <button key={v} onClick={() => setView(v)}
-                  className={`relative px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors flex items-center gap-1 ${view === v ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-300'}`}>
-                  {v === 'overview' ? <><FiHome size={12} /> Overview</> : v === 'dev-tickets' ? 'Dev Tickets' : v}
+                  className={`relative px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors ${view === v ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-300'}`}>
+                  {v === 'overview' ? 'Overview' : v === 'dev-tickets' ? 'Dev Tickets' : v}
                   {v === 'colleagues' && colUnread > 0 && view !== 'colleagues' && (
                     <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold animate-pulse">{colUnread > 9 ? '9+' : colUnread}</span>
                   )}
@@ -1320,7 +1409,7 @@ export default function TeamPortalPage() {
         </div>
       </header>
 
-      {view === 'overview' && <OverviewTab member={member} myPerms={myPerms} myRepos={myRepos} myRole={myRole} myStatus={myStatus} counts={counts} setView={setView} />}
+      {view === 'overview' && <OverviewTab member={member} teamRole={myTeamRole} avatar={myAvatar} myPerms={myPerms} myRepos={myRepos} myStatus={myStatus} counts={counts} setView={setView} onProfileSaved={(m) => { setMember((cur) => ({ ...cur, name: m.name })); setMyAvatar(m.avatar || ''); }} />}
       {view === 'github' && <GitHubWorkspace canWrite={myPerms.includes('github_write')} canCollab={myPerms.includes('collaborator_manage')} />}
       {view === 'dev-tickets' && <DevTickets member={member} />}
       {view === 'notes' && <NotesTab />}

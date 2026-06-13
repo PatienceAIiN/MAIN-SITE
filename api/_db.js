@@ -455,6 +455,8 @@ const SCHEMA_QUERIES = [
   `alter table public.team_members add column if not exists notifications_enabled boolean not null default true`,
   // GitHub repo grants: NULL/empty = no repos visible. Admin/execs see all.
   `alter table public.team_members add column if not exists allowed_repos text`,
+  // Self-service profile picture (small base64 data URL set by the member).
+  `alter table public.team_members add column if not exists avatar text`,
   // Render deploys triggered from the team portal: an immediate trigger writes a
   // 'triggered' row; a scheduled deploy writes 'scheduled' with run_at and is
   // fired by the background sweep once due.

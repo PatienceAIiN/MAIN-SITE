@@ -148,15 +148,41 @@ export default async function handler(req, res) {
     let teamRole = 'member';
     let notificationsEnabled = true;
     let allowedRepos = [];
+    let avatar = '';
     try {
       await queryDb(`UPDATE ${TABLE} SET last_seen_at=NOW() WHERE id=$1`, [member.id]);
-      const rows = await queryDb(`SELECT team_role, permissions, notifications_enabled, allowed_repos FROM ${TABLE} WHERE id=$1`, [member.id]);
+      const rows = await queryDb(`SELECT team_role, permissions, notifications_enabled, allowed_repos, avatar, name FROM ${TABLE} WHERE id=$1`, [member.id]);
       teamRole = rows[0]?.team_role || 'member';
       notificationsEnabled = rows[0]?.notifications_enabled !== false;
       allowedRepos = String(rows[0]?.allowed_repos || '').split(',').map((x) => x.trim()).filter(Boolean);
+      avatar = rows[0]?.avatar || '';
+      member.name = rows[0]?.name || member.name; // reflect latest self-edited name
       var perms = resolvePerms(rows[0]);
     } catch { perms = []; }
-    return res.status(200).json({ member: { ...member, teamRole, permissions: perms, notificationsEnabled, allowedRepos } });
+    return res.status(200).json({ member: { ...member, teamRole, permissions: perms, notificationsEnabled, allowedRepos, avatar } });
+  }
+
+  // ── POST /api/team-members/update-profile (self-service: name + picture) ───
+  if (req.method === 'POST' && req.url?.includes('/update-profile')) {
+    const member = getMemberSession(req);
+    if (!member) return res.status(401).json({ error: 'Not authenticated' });
+    const { name, avatar } = req.body || {};
+    const cleanName = typeof name === 'string' && name.trim() ? name.trim().slice(0, 80) : null;
+    let av; // undefined = leave unchanged; '' = clear; string = set
+    if (typeof avatar === 'string') {
+      if (avatar.length > 700000) return res.status(400).json({ error: 'Image too large — please choose a smaller picture.' });
+      av = avatar;
+    }
+    if (!cleanName && av === undefined) return res.status(400).json({ error: 'Nothing to update' });
+    try {
+      await queryDb(`UPDATE ${TABLE} SET name=COALESCE($1,name), avatar=COALESCE($2,avatar), updated_at=NOW() WHERE id=$3`,
+        [cleanName, av === undefined ? null : av, member.id]);
+      const rows = await queryDb(`SELECT name, avatar FROM ${TABLE} WHERE id=$1`, [member.id]);
+      const newName = rows[0]?.name || member.name;
+      setMemberCookie(res, createMemberSessionToken({ id: member.id, email: member.email, name: newName }));
+      await logAudit('member', member.email, 'profile_updated', member.email).catch(() => {});
+      return res.status(200).json({ ok: true, member: { id: member.id, email: member.email, name: newName, avatar: rows[0]?.avatar || '' } });
+    } catch (err) { return res.status(500).json({ error: err.message }); }
   }
 
   // ── DELETE /api/team-members/logout ───────────────────────────────────────
