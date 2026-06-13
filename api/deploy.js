@@ -298,8 +298,9 @@ export default async function handler(req, res) {
       const recent = targetId
         ? await queryDb(`SELECT id, triggered_by, status, run_at, note, deploy_id, commit_sha, commit_msg, pr, target_label, created_at FROM deploys WHERE status<>'scheduled' AND target_id=$1 ORDER BY created_at DESC LIMIT 15`, [targetId])
         : await queryDb(`SELECT id, triggered_by, status, run_at, note, deploy_id, commit_sha, commit_msg, pr, target_label, created_at FROM deploys WHERE status<>'scheduled' ORDER BY created_at DESC LIMIT 15`);
-      // A per-target grant implies deploy access even without the global allow-list.
-      const canDeploy = actor.admin || actor.allowed || visible.length > 0;
+      // The Deploy button shows ONLY for users on the admin deployer allow-list
+      // (or admin). Per-target grants only narrow WHICH repos a deployer sees.
+      const canDeploy = actor.admin || actor.allowed;
       return res.status(200).json({ scheduled, recent, targets, canDeploy, passwordSet: Boolean(actor.cfg.passwordHash), hasRenderApi: Boolean(RENDER_API_KEY) });
     } catch (e) {
       if (isMissingTableError(e.message)) return res.status(200).json({ scheduled: [], recent: [], targets: [], canDeploy: actor.allowed, passwordSet: false });
@@ -307,11 +308,8 @@ export default async function handler(req, res) {
     }
   }
 
-  // Allowed if on the global deploy allow-list OR granted at least one target.
-  if (!actor.admin && !actor.allowed) {
-    const anyTarget = (await loadTargets()).some((t) => canSeeTarget(actor, t));
-    if (!anyTarget) return res.status(403).json({ error: 'You are not allowed to deploy. Ask an admin to grant access.' });
-  }
+  // Deploying requires being on the admin deployer allow-list (or admin).
+  if (!actor.admin && !actor.allowed) return res.status(403).json({ error: 'You are not allowed to deploy. Ask an admin to add you to the deployer list.' });
 
   // Password gate: whenever a deploy password is configured it must match —
   // for everyone, admin included. No password set ⇒ allow-list alone governs.
