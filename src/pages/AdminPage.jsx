@@ -241,6 +241,18 @@ function DeployTargets() {
   const [openSvc, setOpenSvc] = useState(null);
   const svcId = (hook) => (String(hook || '').match(/deploy\/(srv-[a-z0-9]+)/i) || [])[1] || '';
   const inp = 'rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white placeholder:text-white/35 focus:outline-none';
+  // Selects need a SOLID dark background or the native option list is white-on-white in dark mode.
+  const sel = 'rounded-lg border border-white/10 bg-slate-800 text-white px-2.5 py-1.5 text-xs focus:outline-none [&>option]:bg-slate-800 [&>option]:text-white';
+  const toggleEmail = (arr, e) => (arr.includes(e) ? arr.filter((x) => x !== e) : [...arr, e]);
+  const memberChecks = (selected, onToggle) => (
+    <div className="rounded-lg border border-white/10 bg-white/5 p-2 max-h-28 overflow-y-auto space-y-1">
+      {members.map((m) => { const e = m.email.toLowerCase(); return (
+        <label key={e} className="flex items-center gap-2 text-[11px] text-white/80 cursor-pointer">
+          <input type="checkbox" checked={selected.includes(e)} onChange={() => onToggle(e)} className="accent-cyan-400" />{m.name} · <span className="text-white/45">{m.email}</span>
+        </label>); })}
+      {!members.length && <p className="text-[10px] text-white/35">No team members.</p>}
+    </div>
+  );
   return (
     <div>
       <h3 className="text-lg font-semibold mb-1">Configure deployment (per repo)</h3>
@@ -250,7 +262,7 @@ function DeployTargets() {
           <div key={t.id} className="rounded-2xl border border-white/10 bg-white/5 p-3 space-y-2">
             <div className="grid md:grid-cols-[1fr_1fr_2fr_auto] gap-2 items-center">
               <input className={inp} value={t.label} onChange={(e) => setField(t.id, 'label', e.target.value)} placeholder="Label (e.g. Main site)" />
-              <select className={inp} value={t.repo || ''} onChange={(e) => setField(t.id, 'repo', e.target.value)}>{repoOpts(t.repo)}</select>
+              <select className={sel} value={t.repo || ''} onChange={(e) => setField(t.id, 'repo', e.target.value)}>{repoOpts(t.repo)}</select>
               <input className={`${inp} font-mono`} value={t.deploy_hook} onChange={(e) => setField(t.id, 'deploy_hook', e.target.value)} placeholder="https://api.render.com/deploy/srv-…?key=…" />
               <span className="flex gap-1.5">
                 <button onClick={() => saveRow(t)} className="text-xs px-3 py-1.5 rounded-lg bg-white text-slate-950 font-semibold">Save</button>
@@ -259,12 +271,10 @@ function DeployTargets() {
             </div>
             <input className={`${inp} font-mono w-full`} value={t.api_key || ''} onChange={(e) => setField(t.id, 'api_key', e.target.value)} placeholder="Render API key for this repo (rnd_… — needed only if its service is in another Render account)" />
             <div className="grid md:grid-cols-2 gap-2 items-start">
-              <label className="text-[10px] text-white/45">Team users allowed to deploy this repo (none = all deploy-allowed users)
-                <select multiple value={emailArr(t.allowed_emails)} onChange={(e) => setField(t.id, 'allowed_emails', [...e.target.selectedOptions].map((o) => o.value).join(','))} className={`${inp} w-full h-24 mt-0.5`}>
-                  {members.map((m) => <option key={m.email} value={m.email.toLowerCase()}>{m.name} · {m.email}</option>)}
-                </select>
-              </label>
-              <p className="text-[10px] text-white/35 md:pt-4">The deploy hook fires the deploy; the API key lets this panel show & edit env/settings/history. Pick which team users may deploy this repo (independent of GitHub access). Ctrl/Cmd-click to select multiple.</p>
+              <div className="text-[10px] text-white/45">Team users allowed to deploy this repo (none = all deploy-allowed users)
+                {memberChecks(emailArr(t.allowed_emails), (e) => setField(t.id, 'allowed_emails', toggleEmail(emailArr(t.allowed_emails), e).join(',')))}
+              </div>
+              <p className="text-[10px] text-white/35 md:pt-4">The deploy hook fires the deploy; the API key lets this panel show & edit env/settings/history. Tick which team users may deploy this repo (independent of GitHub access).</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               {svcId(t.deploy_hook)
@@ -278,15 +288,13 @@ function DeployTargets() {
         {/* New target */}
         <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-3 grid md:grid-cols-[1fr_1fr_2fr_auto] gap-2 items-center">
           <input className={inp} value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} placeholder="New label" />
-          <select className={inp} value={draft.repo} onChange={(e) => setDraft({ ...draft, repo: e.target.value })}>{repoOpts(draft.repo)}</select>
+          <select className={sel} value={draft.repo} onChange={(e) => setDraft({ ...draft, repo: e.target.value })}>{repoOpts(draft.repo)}</select>
           <input className={`${inp} font-mono`} value={draft.deployHook} onChange={(e) => setDraft({ ...draft, deployHook: e.target.value })} placeholder="Render deploy-hook URL" />
           <button onClick={add} className="text-xs px-4 py-1.5 rounded-lg bg-emerald-500/90 hover:bg-emerald-500 text-white font-semibold">+ Add</button>
           <input className={`${inp} font-mono md:col-span-4`} value={draft.apiKey} onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })} placeholder="Render API key (rnd_… — optional)" />
-          <label className="md:col-span-4 text-[10px] text-white/45">Team users allowed to deploy this repo (optional — none = all deploy-allowed users)
-            <select multiple value={draft.allowedEmails} onChange={(e) => setDraft({ ...draft, allowedEmails: [...e.target.selectedOptions].map((o) => o.value) })} className={`${inp} w-full h-20 mt-0.5`}>
-              {members.map((m) => <option key={m.email} value={m.email.toLowerCase()}>{m.name} · {m.email}</option>)}
-            </select>
-          </label>
+          <div className="md:col-span-4 text-[10px] text-white/45">Team users allowed to deploy this repo (optional — none = all deploy-allowed users)
+            {memberChecks(draft.allowedEmails, (e) => setDraft({ ...draft, allowedEmails: toggleEmail(draft.allowedEmails, e) }))}
+          </div>
         </div>
       </div>
       {msg && <p className="text-xs text-white/60 mt-2">{msg}</p>}
