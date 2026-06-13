@@ -489,6 +489,9 @@ const SCHEMA_QUERIES = [
   // Optional per-repo Render API key (for services whose account differs from
   // the server's global RENDER_API_KEY) so each repo's env/settings load.
   `alter table public.deploy_targets add column if not exists api_key text`,
+  // Per-target deploy grant: csv of team emails allowed to deploy THIS repo,
+  // independent of GitHub repo grants. Empty = all deploy-allowed users.
+  `alter table public.deploy_targets add column if not exists allowed_emails text`,
   // Admin-managed deploy access: optional password gate + the list of team
   // member emails allowed to deploy from the team portal.
   `create table if not exists public.deploy_config (

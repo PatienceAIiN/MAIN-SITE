@@ -83,10 +83,14 @@ const fireDeploy = async (hook) => {
 
 // Per-repo deploy targets (admin-managed). Each has its own Render deploy hook.
 const loadTargets = async () => {
-  try { return await queryDb(`SELECT id, label, repo, deploy_hook, api_key FROM deploy_targets ORDER BY label ASC`); }
+  try { return await queryDb(`SELECT id, label, repo, deploy_hook, api_key, allowed_emails FROM deploy_targets ORDER BY label ASC`); }
   catch { return []; }
 };
 const svcIdOf = (hook) => (String(hook || '').match(/deploy\/(srv-[a-z0-9]+)/i) || [])[1] || '';
+// Who may deploy a given target: empty grant = any deploy-allowed user (legacy);
+// otherwise only the listed emails. Admins always.
+const targetGrants = (t) => String(t.allowed_emails || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+const canSeeTarget = (actor, t) => actor.admin || (targetGrants(t).length ? targetGrants(t).includes(actor.email) : actor.allowed);
 
 // Fire any scheduled deploys whose time has arrived. Called from server.js.
 export const sweepDeploys = async () => {
@@ -154,11 +158,12 @@ export default async function handler(req, res) {
         return res.status(200).json({ targets: rows }); // admin sees full hooks for editing
       }
       if (req.method === 'POST') {
-        const { label, repo, deployHook, apiKey } = req.body || {};
+        const { label, repo, deployHook, apiKey, allowedEmails } = req.body || {};
         if (!label?.trim() || !deployHook?.trim()) return res.status(400).json({ error: 'label and deployHook are required' });
         if (!/^https:\/\/api\.render\.com\/deploy\//.test(deployHook.trim())) return res.status(400).json({ error: 'deployHook must be a Render deploy-hook URL' });
-        const rows = await queryDb(`INSERT INTO deploy_targets (label, repo, deploy_hook, api_key) VALUES ($1,$2,$3,$4) RETURNING id`,
-          [label.trim().slice(0, 120), (repo || '').trim().slice(0, 200) || null, deployHook.trim(), (apiKey || '').trim() || null]);
+        const emails = Array.isArray(allowedEmails) ? allowedEmails.map((e) => String(e).trim().toLowerCase()).filter(Boolean).join(',') : null;
+        const rows = await queryDb(`INSERT INTO deploy_targets (label, repo, deploy_hook, api_key, allowed_emails) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+          [label.trim().slice(0, 120), (repo || '').trim().slice(0, 200) || null, deployHook.trim(), (apiKey || '').trim() || null, emails]);
         await logAudit('admin', 'admin', 'deploy_target_created', `${label} (${rows[0].id})`).catch(() => {});
         return res.status(200).json({ ok: true, id: rows[0].id });
       }
@@ -168,8 +173,9 @@ export default async function handler(req, res) {
         if (deployHook && !/^https:\/\/api\.render\.com\/deploy\//.test(String(deployHook).trim())) return res.status(400).json({ error: 'deployHook must be a Render deploy-hook URL' });
         // apiKey: undefined = leave; '' = clear; string = set
         const apiKeyArg = apiKey === undefined ? null : (String(apiKey).trim() || '');
-        await queryDb(`UPDATE deploy_targets SET label=COALESCE($2,label), repo=$3, deploy_hook=COALESCE($4,deploy_hook), api_key=CASE WHEN $5::text IS NULL THEN api_key ELSE NULLIF($5,'') END, updated_at=NOW() WHERE id=$1`,
-          [id, label ? String(label).trim().slice(0, 120) : null, (repo || '').trim().slice(0, 200) || null, deployHook ? String(deployHook).trim() : null, apiKey === undefined ? null : apiKeyArg]);
+        const emails = Array.isArray(req.body?.allowedEmails) ? req.body.allowedEmails.map((e) => String(e).trim().toLowerCase()).filter(Boolean).join(',') : null;
+        await queryDb(`UPDATE deploy_targets SET label=COALESCE($2,label), repo=$3, deploy_hook=COALESCE($4,deploy_hook), api_key=CASE WHEN $5::text IS NULL THEN api_key ELSE NULLIF($5,'') END, allowed_emails=COALESCE($6,allowed_emails), updated_at=NOW() WHERE id=$1`,
+          [id, label ? String(label).trim().slice(0, 120) : null, (repo || '').trim().slice(0, 200) || null, deployHook ? String(deployHook).trim() : null, apiKey === undefined ? null : apiKeyArg, emails]);
         await logAudit('admin', 'admin', 'deploy_target_updated', String(id)).catch(() => {});
         return res.status(200).json({ ok: true });
       }
@@ -255,18 +261,21 @@ export default async function handler(req, res) {
   // GET /api/deploy/logs?id= — live deployment status + build log lines.
   if (req.method === 'GET' && req.url?.includes('/logs')) {
     const id = parseInt(req.query.id, 10);
-    if (!RENDER_API_KEY) return res.status(200).json({ status: null, lines: [], note: 'Set RENDER_API_KEY (and optionally RENDER_OWNER_ID) on the server to stream live Render logs.' });
     try {
-      const [row] = id ? await queryDb(`SELECT deploy_id FROM deploys WHERE id=$1`, [id]) : [];
+      const [row] = id ? await queryDb(`SELECT deploy_id, target_id FROM deploys WHERE id=$1`, [id]) : [];
       const deployId = row?.deploy_id;
+      // Use the deploy's own target service + key, else the global ones.
+      let svc = SERVICE_ID, key = RENDER_API_KEY;
+      if (row?.target_id) { const tgt = (await loadTargets()).find((t) => Number(t.id) === Number(row.target_id)); if (tgt) { svc = svcIdOf(tgt.deploy_hook) || svc; if (tgt.api_key) key = tgt.api_key; } }
+      if (!key) return res.status(200).json({ status: null, lines: [], note: 'No Render API key for this deploy — set one on the repo target (or RENDER_API_KEY) to stream live logs.' });
       if (!deployId) return res.status(200).json({ status: null, lines: [], note: 'No Render deploy id recorded for this entry yet.' });
-      const dRes = await renderApi(`/services/${SERVICE_ID}/deploys/${deployId}`);
+      const dRes = await renderApi(`/services/${svc}/deploys/${deployId}`, {}, key);
       const dep = dRes.ok ? await dRes.json() : null;
       const status = dep?.status || dep?.deploy?.status || null;
       let lines = [];
       if (RENDER_OWNER_ID) {
-        const q = new URLSearchParams({ ownerId: RENDER_OWNER_ID, resource: SERVICE_ID, limit: '100' });
-        const lRes = await renderApi(`/logs?${q}`);
+        const q = new URLSearchParams({ ownerId: RENDER_OWNER_ID, resource: svc, limit: '100' });
+        const lRes = await renderApi(`/logs?${q}`, {}, key);
         if (lRes.ok) { const lj = await lRes.json(); lines = (lj?.logs || lj || []).map((l) => `${l.timestamp || ''} ${l.message || l.text || ''}`.trim()); }
       }
       return res.status(200).json({ status, lines, deployId });
@@ -279,8 +288,9 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       let targetId = parseInt(req.query.targetId, 10) || null;
-      // Team users only see deploy targets for repos an admin granted them; admins see all.
-      const visible = (await loadTargets()).filter((t) => actor.admin || (t.repo && actor.allowedRepos.includes(String(t.repo).toLowerCase())));
+      // Team users see only the deploy targets an admin granted them (per-target),
+      // independent of GitHub repo access; admins see all.
+      const visible = (await loadTargets()).filter((t) => canSeeTarget(actor, t));
       const targets = visible.map((t) => ({ id: t.id, label: t.label, repo: t.repo, serviceId: svcIdOf(t.deploy_hook) })); // hook/key never exposed here
       // A team user may only read history for a target they can see.
       if (targetId && !visible.some((t) => Number(t.id) === targetId)) targetId = -1;
@@ -288,14 +298,20 @@ export default async function handler(req, res) {
       const recent = targetId
         ? await queryDb(`SELECT id, triggered_by, status, run_at, note, deploy_id, commit_sha, commit_msg, pr, target_label, created_at FROM deploys WHERE status<>'scheduled' AND target_id=$1 ORDER BY created_at DESC LIMIT 15`, [targetId])
         : await queryDb(`SELECT id, triggered_by, status, run_at, note, deploy_id, commit_sha, commit_msg, pr, target_label, created_at FROM deploys WHERE status<>'scheduled' ORDER BY created_at DESC LIMIT 15`);
-      return res.status(200).json({ scheduled, recent, targets, canDeploy: actor.allowed, passwordSet: Boolean(actor.cfg.passwordHash), hasRenderApi: Boolean(RENDER_API_KEY) });
+      // A per-target grant implies deploy access even without the global allow-list.
+      const canDeploy = actor.admin || actor.allowed || visible.length > 0;
+      return res.status(200).json({ scheduled, recent, targets, canDeploy, passwordSet: Boolean(actor.cfg.passwordHash), hasRenderApi: Boolean(RENDER_API_KEY) });
     } catch (e) {
       if (isMissingTableError(e.message)) return res.status(200).json({ scheduled: [], recent: [], targets: [], canDeploy: actor.allowed, passwordSet: false });
       return res.status(500).json({ error: e.message });
     }
   }
 
-  if (!actor.allowed) return res.status(403).json({ error: 'You are not allowed to deploy. Ask an admin to grant access.' });
+  // Allowed if on the global deploy allow-list OR granted at least one target.
+  if (!actor.admin && !actor.allowed) {
+    const anyTarget = (await loadTargets()).some((t) => canSeeTarget(actor, t));
+    if (!anyTarget) return res.status(403).json({ error: 'You are not allowed to deploy. Ask an admin to grant access.' });
+  }
 
   // Password gate: whenever a deploy password is configured it must match —
   // for everyone, admin included. No password set ⇒ allow-list alone governs.
@@ -310,7 +326,7 @@ export default async function handler(req, res) {
     const { id } = req.body || {};
     if (!id) return res.status(400).json({ error: 'id required' });
     try {
-      const [row] = await queryDb(`SELECT status, deploy_id FROM deploys WHERE id=$1`, [id]);
+      const [row] = await queryDb(`SELECT status, deploy_id, target_id FROM deploys WHERE id=$1`, [id]);
       if (!row) return res.status(404).json({ error: 'Deploy not found' });
       if (row.status === 'scheduled') {
         await queryDb(`UPDATE deploys SET status='cancelled', updated_at=NOW() WHERE id=$1`, [id]);
@@ -318,9 +334,13 @@ export default async function handler(req, res) {
       }
       // Mark cancelled locally regardless, so the UI reverts immediately.
       await queryDb(`UPDATE deploys SET status='cancelled', updated_at=NOW() WHERE id=$1 AND status='triggered'`, [id]);
-      if (!RENDER_API_KEY) return res.status(200).json({ ok: true, message: 'Marked cancelled. Set RENDER_API_KEY to also abort the running Render build.' });
+      // Abort the RIGHT Render service: the deploy's own target (its service id +
+      // its API key), falling back to the global service/key for hookless deploys.
+      let svc = SERVICE_ID, key = RENDER_API_KEY;
+      if (row.target_id) { const tgt = (await loadTargets()).find((t) => Number(t.id) === Number(row.target_id)); if (tgt) { svc = svcIdOf(tgt.deploy_hook) || svc; if (tgt.api_key) key = tgt.api_key; } }
+      if (!key || !svc) return res.status(200).json({ ok: true, message: 'Marked cancelled. No Render API key/service to abort the live build.' });
       if (!row.deploy_id) return res.status(200).json({ ok: true, message: 'Marked cancelled (no Render deploy id recorded).' });
-      const r = await renderApi(`/services/${SERVICE_ID}/deploys/${row.deploy_id}/cancel`, { method: 'POST' });
+      const r = await renderApi(`/services/${svc}/deploys/${row.deploy_id}/cancel`, { method: 'POST' }, key);
       await logAudit('team', actor.who, 'deploy_cancelled', `deploy:${id}`).catch(() => {});
       return res.status(200).json({ ok: true, message: r.ok ? 'Deploy cancelled on Render.' : `Marked cancelled (Render returned ${r.status}).` });
     } catch (e) {
@@ -340,7 +360,7 @@ export default async function handler(req, res) {
       const tid = parseInt(targetId, 10) || null;
       const target = tid ? targets.find((t) => Number(t.id) === tid) : null;
       if (targets.length && !target) return res.status(400).json({ error: 'Select a repository to deploy.', needTarget: true });
-      if (target && !actor.admin && !(target.repo && actor.allowedRepos.includes(String(target.repo).toLowerCase())))
+      if (target && !canSeeTarget(actor, target))
         return res.status(403).json({ error: 'You are not granted access to deploy this repository.' });
       const rows = await queryDb(`INSERT INTO deploys (triggered_by, status, run_at, note, target_id, target_label) VALUES ($1,'scheduled',$2,$3,$4,$5) RETURNING id, run_at, note`,
         [actor.who, when.toISOString(), (note || '').slice(0, 300), target?.id || null, target?.label || null]);
@@ -373,7 +393,7 @@ export default async function handler(req, res) {
       if (targetId) {
         target = targets.find((t) => Number(t.id) === targetId);
         if (!target) return res.status(400).json({ error: 'Selected repo target not found.' });
-        if (!actor.admin && !(target.repo && actor.allowedRepos.includes(String(target.repo).toLowerCase())))
+        if (!canSeeTarget(actor, target))
           return res.status(403).json({ error: 'You are not granted access to deploy this repository.' });
       } else if (targets.length) {
         // Targets are configured → a repo MUST be chosen (no blanket all-repos deploy).

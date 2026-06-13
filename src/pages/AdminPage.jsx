@@ -216,18 +216,24 @@ function AdminDeploy() {
 function DeployTargets() {
   const [targets, setTargets] = useState([]);
   const [repos, setRepos] = useState([]);
-  const [draft, setDraft] = useState({ label: '', repo: '', deployHook: '', apiKey: '' });
+  const [members, setMembers] = useState([]);
+  const [draft, setDraft] = useState({ label: '', repo: '', deployHook: '', apiKey: '', allowedEmails: [] });
   const [msg, setMsg] = useState('');
   const load = () => fetchJson('/api/deploy/targets').then((d) => setTargets(d.targets || [])).catch((e) => setMsg(e.message));
-  useEffect(() => { load(); fetchJson('/api/github?repos=1').then((d) => setRepos((d.repos || []).map((r) => r.full_name))).catch(() => {}); }, []);
+  useEffect(() => {
+    load();
+    fetchJson('/api/github?repos=1').then((d) => setRepos((d.repos || []).map((r) => r.full_name))).catch(() => {});
+    fetchJson('/api/team-members').then((d) => setMembers(d.members || [])).catch(() => {});
+  }, []);
+  const emailArr = (csv) => String(csv || '').split(',').map((x) => x.trim()).filter(Boolean);
   const repoOpts = (cur) => [<option key="" value="">Select repo…</option>, ...Array.from(new Set([...(cur ? [cur] : []), ...repos])).map((r) => <option key={r} value={r}>{r}</option>)];
   const add = async () => {
     if (!draft.label.trim() || !draft.deployHook.trim()) { setMsg('Label and deploy hook are required.'); return; }
-    try { await fetchJson('/api/deploy/targets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) }); setDraft({ label: '', repo: '', deployHook: '', apiKey: '' }); setMsg('Added ✓'); load(); }
+    try { await fetchJson('/api/deploy/targets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) }); setDraft({ label: '', repo: '', deployHook: '', apiKey: '', allowedEmails: [] }); setMsg('Added ✓'); load(); }
     catch (e) { setMsg(e.message); }
   };
   const saveRow = async (t) => {
-    try { await fetchJson('/api/deploy/targets', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id, label: t.label, repo: t.repo, deployHook: t.deploy_hook, apiKey: t.api_key || '' }) }); setMsg(`Saved “${t.label}” ✓`); setOpenSvc(t.id); load(); }
+    try { await fetchJson('/api/deploy/targets', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id, label: t.label, repo: t.repo, deployHook: t.deploy_hook, apiKey: t.api_key || '', allowedEmails: emailArr(t.allowed_emails) }) }); setMsg(`Saved “${t.label}” ✓`); setOpenSvc(t.id); load(); }
     catch (e) { setMsg(e.message); }
   };
   const del = async (id) => { if (!window.confirm('Delete this deploy target?')) return; try { await fetchJson(`/api/deploy/targets?id=${id}`, { method: 'DELETE' }); load(); } catch (e) { setMsg(e.message); } };
@@ -252,10 +258,20 @@ function DeployTargets() {
               </span>
             </div>
             <input className={`${inp} font-mono w-full`} value={t.api_key || ''} onChange={(e) => setField(t.id, 'api_key', e.target.value)} placeholder="Render API key for this repo (rnd_… — needed only if its service is in another Render account)" />
-            <p className="text-[10px] text-white/35">The deploy hook fires the deploy; the API key lets this panel show & edit that repo's env/settings/history.</p>
-            {svcId(t.deploy_hook)
-              ? <button onClick={() => setOpenSvc(openSvc === t.id ? null : t.id)} className="text-[11px] px-3 py-1 rounded-lg border border-white/15 text-white/80 hover:bg-white/5">{openSvc === t.id ? 'Hide' : 'Service & environment'} · <span className="font-mono">{svcId(t.deploy_hook)}</span></button>
-              : <p className="text-[11px] text-white/35">Save a Render deploy hook to manage this repo's service & environment.</p>}
+            <div className="grid md:grid-cols-2 gap-2 items-start">
+              <label className="text-[10px] text-white/45">Team users allowed to deploy this repo (none = all deploy-allowed users)
+                <select multiple value={emailArr(t.allowed_emails)} onChange={(e) => setField(t.id, 'allowed_emails', [...e.target.selectedOptions].map((o) => o.value).join(','))} className={`${inp} w-full h-24 mt-0.5`}>
+                  {members.map((m) => <option key={m.email} value={m.email.toLowerCase()}>{m.name} · {m.email}</option>)}
+                </select>
+              </label>
+              <p className="text-[10px] text-white/35 md:pt-4">The deploy hook fires the deploy; the API key lets this panel show & edit env/settings/history. Pick which team users may deploy this repo (independent of GitHub access). Ctrl/Cmd-click to select multiple.</p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {svcId(t.deploy_hook)
+                ? <button onClick={() => setOpenSvc(openSvc === t.id ? null : t.id)} className="text-[11px] px-3 py-1 rounded-lg border border-white/15 text-white/80 hover:bg-white/5">{openSvc === t.id ? 'Hide' : 'Service & environment'} · <span className="font-mono">{svcId(t.deploy_hook)}</span></button>
+                : <span className="text-[11px] text-white/35">Save a Render deploy hook to manage this repo's service & environment.</span>}
+              <button onClick={() => del(t.id)} className="text-[11px] px-3 py-1 rounded-lg border border-red-400/30 text-red-300 hover:bg-red-500/10">Remove &amp; delink</button>
+            </div>
             {openSvc === t.id && svcId(t.deploy_hook) && <ServiceDetail id={svcId(t.deploy_hook)} dark />}
           </div>
         ))}
@@ -266,6 +282,11 @@ function DeployTargets() {
           <input className={`${inp} font-mono`} value={draft.deployHook} onChange={(e) => setDraft({ ...draft, deployHook: e.target.value })} placeholder="Render deploy-hook URL" />
           <button onClick={add} className="text-xs px-4 py-1.5 rounded-lg bg-emerald-500/90 hover:bg-emerald-500 text-white font-semibold">+ Add</button>
           <input className={`${inp} font-mono md:col-span-4`} value={draft.apiKey} onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })} placeholder="Render API key (rnd_… — optional)" />
+          <label className="md:col-span-4 text-[10px] text-white/45">Team users allowed to deploy this repo (optional — none = all deploy-allowed users)
+            <select multiple value={draft.allowedEmails} onChange={(e) => setDraft({ ...draft, allowedEmails: [...e.target.selectedOptions].map((o) => o.value) })} className={`${inp} w-full h-20 mt-0.5`}>
+              {members.map((m) => <option key={m.email} value={m.email.toLowerCase()}>{m.name} · {m.email}</option>)}
+            </select>
+          </label>
         </div>
       </div>
       {msg && <p className="text-xs text-white/60 mt-2">{msg}</p>}
