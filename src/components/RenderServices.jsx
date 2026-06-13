@@ -89,6 +89,7 @@ function ServiceDetailInner({ id, t, dark }) {
   const setRow = (i, k, v) => setEnv((e) => e.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
 
   if (!data) return <p className={`px-4 py-3 text-xs ${t.sub}`}>Loading…</p>;
+  if (data.note && !data.service) return <p className={`px-4 py-3 text-xs ${t.sub}`}>{data.note}</p>;
   const tabBtn = (k, label) => <button onClick={() => setTab(k)} className={`text-xs px-3 py-1.5 rounded-lg ${tab === k ? t.btn : t.btn2}`}>{label}</button>;
   const inp = `w-full rounded-lg border ${t.input} px-2.5 py-1.5 text-xs focus:outline-none`;
 

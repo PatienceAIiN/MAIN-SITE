@@ -192,7 +192,8 @@ export default async function handler(req, res) {
         if (!sid) {
           // List every service on the account (grouped client-side by owner/project).
           const r = await renderApi('/services?limit=100');
-          const list = (await r.json().catch(() => [])) || [];
+          const raw = (await r.json().catch(() => [])) || [];
+          const list = Array.isArray(raw) ? raw : [];
           const services = list.map((x) => x.service || x).map((s) => ({
             id: s.id, name: s.name, type: s.type, env: s.env, branch: s.branch,
             repo: s.repo, autoDeploy: s.autoDeploy, ownerId: s.ownerId, url: s.serviceDetails?.url || s.dashboardUrl,
@@ -207,10 +208,15 @@ export default async function handler(req, res) {
           renderApi(`/services/${sid}/deploys?limit=20`),
         ]);
         const s = await sRes.json().catch(() => ({}));
+        if (!sRes.ok || !s?.id) {
+          return res.status(200).json({ service: null, envVars: [], deploys: [], note: `This service isn't accessible with the current RENDER_API_KEY — it likely belongs to a different Render account/owner. (Render returned ${sRes.status}.) Deploys via its hook still work; to view its env/settings here, use an API key that owns this service.` });
+        }
         const envRaw = (await eRes.json().catch(() => [])) || [];
         const depRaw = (await dRes.json().catch(() => [])) || [];
-        const envVars = envRaw.map((x) => x.envVar || x).map((e) => ({ key: e.key, value: e.value }));
-        const deploys = depRaw.map((x) => x.deploy || x).map((d) => ({ id: d.id, status: d.status, createdAt: d.createdAt, finishedAt: d.finishedAt, commitId: d.commit?.id?.slice(0, 7), commitMsg: d.commit?.message?.split('\n')[0]?.slice(0, 120), trigger: d.trigger }));
+        const envArr = Array.isArray(envRaw) ? envRaw : [];
+        const depArr = Array.isArray(depRaw) ? depRaw : [];
+        const envVars = envArr.map((x) => x.envVar || x).map((e) => ({ key: e.key, value: e.value }));
+        const deploys = depArr.map((x) => x.deploy || x).map((d) => ({ id: d.id, status: d.status, createdAt: d.createdAt, finishedAt: d.finishedAt, commitId: d.commit?.id?.slice(0, 7), commitMsg: d.commit?.message?.split('\n')[0]?.slice(0, 120), trigger: d.trigger }));
         return res.status(200).json({ service: { id: s.id, name: s.name, type: s.type, env: s.env, branch: s.branch, repo: s.repo, autoDeploy: s.autoDeploy, rootDir: s.rootDir, buildCommand: s.serviceDetails?.envSpecificDetails?.buildCommand, startCommand: s.serviceDetails?.envSpecificDetails?.startCommand, region: s.serviceDetails?.region, plan: s.serviceDetails?.plan, url: s.serviceDetails?.url, dashboardUrl: s.dashboardUrl }, envVars, deploys });
       }
       if (req.method === 'PUT' && sid) {
