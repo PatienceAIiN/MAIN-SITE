@@ -18,6 +18,7 @@ import AdminPage from './pages/AdminPage';
 import GuestMeet from './pages/GuestMeet';
 import SupportExecutivePage from './pages/SupportExecutivePage';
 import TeamPortalPage from './pages/TeamPortalPage';
+import GrowthPage from './pages/GrowthPage';
 import { ConfirmHost } from './common/confirm';
 import ClientTicketPage from './pages/ClientTicketPage';
 import LiveChatPage from './pages/LiveChatPage';
@@ -136,6 +137,7 @@ function App() {
   const isAdminRoute        = location.pathname === '/admin';
   const isExecRoute         = location.pathname === '/support-executive';
   const isTeamRoute         = location.pathname === '/team';
+  const isGrowthRoute       = location.pathname === '/growth';
   const isMeetRoute         = location.pathname === '/meet';
   const isMyTicketRoute     = location.pathname === '/my-ticket';
   const isLiveChatRoute     = location.pathname === '/live-chat' || location.pathname === '/support-chat';
@@ -262,6 +264,18 @@ function App() {
         <Routes>
           <Route path="/team" element={<TeamPortalPage />} />
           <Route path="*" element={<Navigate to="/team" replace />} />
+        </Routes>
+      </>
+    );
+  }
+
+  if (isGrowthRoute) {
+    return (
+      <>
+        <ConfirmHost />
+        <Routes>
+          <Route path="/growth" element={<GrowthPage />} />
+          <Route path="*" element={<Navigate to="/growth" replace />} />
         </Routes>
       </>
     );

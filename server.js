@@ -79,6 +79,7 @@ import devWorkflowHandler from './api/dev-workflow.js';
 import { openapiSpec } from './api/_openapi.js';
 import voiceRoomHandler from './api/voice-room.js';
 import colleaguesHandler from './api/colleagues.js';
+import businessHandler from './api/business.js';
 import { attachTeamHub } from './api/_teamhub.js';
 import {
   createSessionToken, verifySessionToken,
@@ -428,102 +429,20 @@ app.all('/api/peos',                         wrap(peosHandler));
 app.post('/api/github-webhook',              wrap(githubWebhookHandler));
 app.all('/api/github',                       wrap(githubHandler));
 app.all('/api/dev-workflow',                 wrap(devWorkflowHandler));
+// Business Growth OS — CRM, pipeline, campaigns, exec metrics & AI copilot.
+app.all('/api/business',                     wrap(businessHandler));
+app.all('/api/business/*',                   wrap(businessHandler));
 // Machine-readable API contract for the ticketing + PEOS surface
 app.get('/api/openapi.json', (req, res) => res.json(openapiSpec));
 
-// ── Marketing Automation OS ───────────────────────────────────────────────────
-const MKT_COOKIE = 'pa_mkt_session';
-const mktSecret = () => {
-  const sec = process.env.MARKETING_SESSION_SECRET;
-  if (!sec && process.env.NODE_ENV === 'production') throw new Error('[SECURITY] MARKETING_SESSION_SECRET is not set.');
-  return sec || 'mkt-dev-secret';
-};
-
-const signMkt = (body) => crypto.createHmac('sha256', mktSecret()).update(body).digest('hex');
-
-const makeMktToken = (username) => {
-  const body = Buffer.from(JSON.stringify({ username, exp: Date.now() + 7 * 24 * 3600 * 1000 })).toString('base64url');
-  return `${body}.${signMkt(body)}`;
-};
-
-const verifyMktToken = (token) => {
-  if (!token) return null;
-  const [body, sig] = String(token).split('.');
-  if (!body || !sig) return null;
-  try {
-    const expected = signMkt(body);
-    if (Buffer.from(expected, 'hex').length !== Buffer.from(sig, 'hex').length) return null;
-    if (!crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(sig, 'hex'))) return null;
-    const p = JSON.parse(Buffer.from(body, 'base64url').toString());
-    return Date.now() < p.exp ? p : null;
-  } catch { return null; }
-};
-
-// Marketing auth endpoint (handled here, NOT proxied to Python)
-app.all('/marketing-auto/api/auth', (req, res) => {
-  if (req.method === 'GET') {
-    const p = verifyMktToken(getCookieValue(req, MKT_COOKIE));
-    return res.json(p ? { authenticated: true, user: { username: p.username } } : { authenticated: false });
-  }
-
-  if (req.method === 'POST') {
-    const { username, password } = req.body || {};
-    const validUser = process.env.MARKETING_USERNAME;
-    const validPass = process.env.MARKETING_PASSWORD;
-    if (!validUser || !validPass) return res.status(503).json({ error: 'Marketing login is not configured (set MARKETING_USERNAME / MARKETING_PASSWORD).' });
-    if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
-    const uBuf = Buffer.from(String(username)), vBuf = Buffer.from(validUser);
-    const pBuf = Buffer.from(String(password)), qBuf = Buffer.from(validPass);
-    const ok = uBuf.length === vBuf.length && pBuf.length === qBuf.length &&
-      crypto.timingSafeEqual(uBuf, vBuf) && crypto.timingSafeEqual(pBuf, qBuf);
-    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
-    res.setHeader('Set-Cookie', serializeCookie(MKT_COOKIE, makeMktToken(validUser), { maxAge: 7 * 24 * 3600, secure: process.env.NODE_ENV === 'production' }));
-    return res.json({ authenticated: true, user: { username: validUser } });
-  }
-
-  if (req.method === 'DELETE') {
-    res.setHeader('Set-Cookie', serializeCookie(MKT_COOKIE, '', { maxAge: 0 }));
-    return res.json({ authenticated: false });
-  }
-
-  return res.status(405).json({ error: 'Method not allowed' });
-});
-
-// Proxy all other /marketing-auto/api/* → Python backend port 8000
-app.all('/marketing-auto/api/*', (req, res) => {
-  const pythonPath = req.url.replace('/marketing-auto', '');
-  const body = req.body && Object.keys(req.body).length ? JSON.stringify(req.body) : '';
-  const options = {
-    hostname: 'localhost',
-    port: 8000,
-    path: pythonPath,
-    method: req.method,
-    headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
-  };
-  const proxyReq = http.request(options, (proxyRes) => {
-    res.status(proxyRes.statusCode);
-    const skip = new Set(['transfer-encoding', 'connection']);
-    Object.entries(proxyRes.headers).forEach(([k, v]) => { if (!skip.has(k)) res.setHeader(k, v); });
-    proxyRes.pipe(res, { end: true });
-  });
-  proxyReq.on('error', () => { if (!res.headersSent) res.status(502).json({ error: 'Marketing backend unavailable. Start Python server on port 8000.' }); });
-  if (body) proxyReq.write(body);
-  proxyReq.end();
-});
-
-// Serve marketing-auto SPA
-const mktDistDir = path.join(__dirname, 'dist', 'marketing-auto');
-const mktIndex = path.join(mktDistDir, 'index.html');
-app.use('/marketing-auto', (req, res, next) => {
-  // Static assets pass through to express.static
-  const filePath = path.join(mktDistDir, req.path);
-  if (req.path !== '/' && req.path !== '' && fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-    return res.sendFile(filePath);
-  }
-  // All other routes serve the SPA index
-  if (fs.existsSync(mktIndex)) return res.sendFile(mktIndex);
-  res.status(404).send('Marketing Automation build not found.');
-});
+// ── Legacy Marketing Automation OS → retired ─────────────────────────────────
+// The standalone Python marketing-automation backend + SPA have been replaced
+// by the Node-native Business Growth OS (/growth, /api/business). Every old
+// /marketing-auto* path now permanently redirects to the new module so existing
+// links keep working. (The Python sources remain in backend/ but are dormant.)
+app.all('/marketing-auto/api/*', (req, res) =>
+  res.status(410).json({ error: 'The Marketing Automation API has been replaced by the Business Growth OS. Use /api/business.' }));
+app.use('/marketing-auto', (req, res) => res.redirect(301, '/growth'));
 
 // Dynamic sitemap.xml
 app.get('/sitemap.xml', (req, res) => {
