@@ -486,6 +486,9 @@ const SCHEMA_QUERIES = [
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
   )`,
+  // Optional per-repo Render API key (for services whose account differs from
+  // the server's global RENDER_API_KEY) so each repo's env/settings load.
+  `alter table public.deploy_targets add column if not exists api_key text`,
   // Admin-managed deploy access: optional password gate + the list of team
   // member emails allowed to deploy from the team portal.
   `create table if not exists public.deploy_config (

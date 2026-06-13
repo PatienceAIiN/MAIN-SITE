@@ -216,18 +216,18 @@ function AdminDeploy() {
 function DeployTargets() {
   const [targets, setTargets] = useState([]);
   const [repos, setRepos] = useState([]);
-  const [draft, setDraft] = useState({ label: '', repo: '', deployHook: '' });
+  const [draft, setDraft] = useState({ label: '', repo: '', deployHook: '', apiKey: '' });
   const [msg, setMsg] = useState('');
   const load = () => fetchJson('/api/deploy/targets').then((d) => setTargets(d.targets || [])).catch((e) => setMsg(e.message));
   useEffect(() => { load(); fetchJson('/api/github?repos=1').then((d) => setRepos((d.repos || []).map((r) => r.full_name))).catch(() => {}); }, []);
   const repoOpts = (cur) => [<option key="" value="">Select repo…</option>, ...Array.from(new Set([...(cur ? [cur] : []), ...repos])).map((r) => <option key={r} value={r}>{r}</option>)];
   const add = async () => {
     if (!draft.label.trim() || !draft.deployHook.trim()) { setMsg('Label and deploy hook are required.'); return; }
-    try { await fetchJson('/api/deploy/targets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) }); setDraft({ label: '', repo: '', deployHook: '' }); setMsg('Added ✓'); load(); }
+    try { await fetchJson('/api/deploy/targets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) }); setDraft({ label: '', repo: '', deployHook: '', apiKey: '' }); setMsg('Added ✓'); load(); }
     catch (e) { setMsg(e.message); }
   };
   const saveRow = async (t) => {
-    try { await fetchJson('/api/deploy/targets', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id, label: t.label, repo: t.repo, deployHook: t.deploy_hook }) }); setMsg(`Saved “${t.label}” ✓`); setOpenSvc(t.id); load(); }
+    try { await fetchJson('/api/deploy/targets', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id, label: t.label, repo: t.repo, deployHook: t.deploy_hook, apiKey: t.api_key || '' }) }); setMsg(`Saved “${t.label}” ✓`); setOpenSvc(t.id); load(); }
     catch (e) { setMsg(e.message); }
   };
   const del = async (id) => { if (!window.confirm('Delete this deploy target?')) return; try { await fetchJson(`/api/deploy/targets?id=${id}`, { method: 'DELETE' }); load(); } catch (e) { setMsg(e.message); } };
@@ -251,6 +251,8 @@ function DeployTargets() {
                 <button onClick={() => del(t.id)} className="text-xs px-2.5 py-1.5 rounded-lg border border-red-400/30 text-red-300 hover:bg-red-500/10">✕</button>
               </span>
             </div>
+            <input className={`${inp} font-mono w-full`} value={t.api_key || ''} onChange={(e) => setField(t.id, 'api_key', e.target.value)} placeholder="Render API key for this repo (rnd_… — needed only if its service is in another Render account)" />
+            <p className="text-[10px] text-white/35">The deploy hook fires the deploy; the API key lets this panel show & edit that repo's env/settings/history.</p>
             {svcId(t.deploy_hook)
               ? <button onClick={() => setOpenSvc(openSvc === t.id ? null : t.id)} className="text-[11px] px-3 py-1 rounded-lg border border-white/15 text-white/80 hover:bg-white/5">{openSvc === t.id ? 'Hide' : 'Service & environment'} · <span className="font-mono">{svcId(t.deploy_hook)}</span></button>
               : <p className="text-[11px] text-white/35">Save a Render deploy hook to manage this repo's service & environment.</p>}
@@ -263,6 +265,7 @@ function DeployTargets() {
           <select className={inp} value={draft.repo} onChange={(e) => setDraft({ ...draft, repo: e.target.value })}>{repoOpts(draft.repo)}</select>
           <input className={`${inp} font-mono`} value={draft.deployHook} onChange={(e) => setDraft({ ...draft, deployHook: e.target.value })} placeholder="Render deploy-hook URL" />
           <button onClick={add} className="text-xs px-4 py-1.5 rounded-lg bg-emerald-500/90 hover:bg-emerald-500 text-white font-semibold">+ Add</button>
+          <input className={`${inp} font-mono md:col-span-4`} value={draft.apiKey} onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })} placeholder="Render API key (rnd_… — optional)" />
         </div>
       </div>
       {msg && <p className="text-xs text-white/60 mt-2">{msg}</p>}

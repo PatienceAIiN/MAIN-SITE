@@ -12,7 +12,7 @@ import { NotificationBell, SlaBadge, AttachmentList, uploadFiles } from '../comp
 import TeamEngineering, { Modal } from '../components/TeamEngineering';
 import DevTickets from '../components/DevTickets';
 import { NotesTab, MeetingsTab } from '../components/TeamNotes';
-import RenderServices from '../components/RenderServices';
+import RenderServices, { ServiceDetail } from '../components/RenderServices';
 import Colleagues, { enablePushNotifications, disablePushNotifications } from '../components/Colleagues';
 import { FiPaperclip, FiAlertTriangle } from 'react-icons/fi';
 
@@ -1258,7 +1258,16 @@ function DeployControl({ dark = false }) {
               <button onClick={() => setShowServices((s) => !s)} className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1">
                 <FiServer size={12} /> Services & environment {showServices ? '▾' : '▸'}
               </button>
-              {showServices && <div className="mt-2"><RenderServices dark={dark} /></div>}
+              {showServices && (
+                <div className="mt-2">
+                  {target
+                    ? (() => {
+                      const sid = (data.targets || []).find((t) => String(t.id) === String(target))?.serviceId;
+                      return sid ? <ServiceDetail id={sid} dark={dark} /> : <p className="text-xs text-slate-400">No Render service id on this repo's deploy hook.</p>;
+                    })()
+                    : <p className="text-xs text-slate-400">Select a repository above to view only its service & environment.</p>}
+                </div>
+              )}
             </div>
           </div>
         </div>

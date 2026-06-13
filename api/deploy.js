@@ -17,8 +17,8 @@ const DEPLOY_HOOK = process.env.RENDER_DEPLOY_HOOK || '';
 const SERVICE_ID = (DEPLOY_HOOK.match(/deploy\/(srv-[a-z0-9]+)/i) || [])[1];
 const RENDER_API_KEY = process.env.RENDER_API_KEY;
 const RENDER_OWNER_ID = process.env.RENDER_OWNER_ID;
-const renderApi = (path, init = {}) => fetch(`https://api.render.com/v1${path}`, {
-  ...init, headers: { Authorization: `Bearer ${RENDER_API_KEY}`, Accept: 'application/json', ...(init.headers || {}) }
+const renderApi = (path, init = {}, key) => fetch(`https://api.render.com/v1${path}`, {
+  ...init, headers: { Authorization: `Bearer ${key || RENDER_API_KEY}`, Accept: 'application/json', ...(init.headers || {}) }
 });
 
 const isAdmin = (req) => Boolean(verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)));
@@ -83,9 +83,10 @@ const fireDeploy = async (hook) => {
 
 // Per-repo deploy targets (admin-managed). Each has its own Render deploy hook.
 const loadTargets = async () => {
-  try { return await queryDb(`SELECT id, label, repo, deploy_hook FROM deploy_targets ORDER BY label ASC`); }
+  try { return await queryDb(`SELECT id, label, repo, deploy_hook, api_key FROM deploy_targets ORDER BY label ASC`); }
   catch { return []; }
 };
+const svcIdOf = (hook) => (String(hook || '').match(/deploy\/(srv-[a-z0-9]+)/i) || [])[1] || '';
 
 // Fire any scheduled deploys whose time has arrived. Called from server.js.
 export const sweepDeploys = async () => {
@@ -153,20 +154,22 @@ export default async function handler(req, res) {
         return res.status(200).json({ targets: rows }); // admin sees full hooks for editing
       }
       if (req.method === 'POST') {
-        const { label, repo, deployHook } = req.body || {};
+        const { label, repo, deployHook, apiKey } = req.body || {};
         if (!label?.trim() || !deployHook?.trim()) return res.status(400).json({ error: 'label and deployHook are required' });
         if (!/^https:\/\/api\.render\.com\/deploy\//.test(deployHook.trim())) return res.status(400).json({ error: 'deployHook must be a Render deploy-hook URL' });
-        const rows = await queryDb(`INSERT INTO deploy_targets (label, repo, deploy_hook) VALUES ($1,$2,$3) RETURNING id`,
-          [label.trim().slice(0, 120), (repo || '').trim().slice(0, 200) || null, deployHook.trim()]);
+        const rows = await queryDb(`INSERT INTO deploy_targets (label, repo, deploy_hook, api_key) VALUES ($1,$2,$3,$4) RETURNING id`,
+          [label.trim().slice(0, 120), (repo || '').trim().slice(0, 200) || null, deployHook.trim(), (apiKey || '').trim() || null]);
         await logAudit('admin', 'admin', 'deploy_target_created', `${label} (${rows[0].id})`).catch(() => {});
         return res.status(200).json({ ok: true, id: rows[0].id });
       }
       if (req.method === 'PUT') {
-        const { id, label, repo, deployHook } = req.body || {};
+        const { id, label, repo, deployHook, apiKey } = req.body || {};
         if (!id) return res.status(400).json({ error: 'id required' });
         if (deployHook && !/^https:\/\/api\.render\.com\/deploy\//.test(String(deployHook).trim())) return res.status(400).json({ error: 'deployHook must be a Render deploy-hook URL' });
-        await queryDb(`UPDATE deploy_targets SET label=COALESCE($2,label), repo=$3, deploy_hook=COALESCE($4,deploy_hook), updated_at=NOW() WHERE id=$1`,
-          [id, label ? String(label).trim().slice(0, 120) : null, (repo || '').trim().slice(0, 200) || null, deployHook ? String(deployHook).trim() : null]);
+        // apiKey: undefined = leave; '' = clear; string = set
+        const apiKeyArg = apiKey === undefined ? null : (String(apiKey).trim() || '');
+        await queryDb(`UPDATE deploy_targets SET label=COALESCE($2,label), repo=$3, deploy_hook=COALESCE($4,deploy_hook), api_key=CASE WHEN $5::text IS NULL THEN api_key ELSE NULLIF($5,'') END, updated_at=NOW() WHERE id=$1`,
+          [id, label ? String(label).trim().slice(0, 120) : null, (repo || '').trim().slice(0, 200) || null, deployHook ? String(deployHook).trim() : null, apiKey === undefined ? null : apiKeyArg]);
         await logAudit('admin', 'admin', 'deploy_target_updated', String(id)).catch(() => {});
         return res.status(200).json({ ok: true });
       }
@@ -185,13 +188,17 @@ export default async function handler(req, res) {
   // Exposes secrets (env values) → admin session required, RENDER_API_KEY needed.
   if (req.url?.includes('/services')) {
     if (!isAdmin(req)) return res.status(403).json({ error: 'Admin only' });
-    if (!RENDER_API_KEY) return res.status(200).json({ services: [], note: 'Set RENDER_API_KEY on the server to manage Render services, env vars and settings.' });
     const sid = req.query.id;
+    // Per-repo API key (set by admin next to the deploy hook) overrides the
+    // global RENDER_API_KEY, so a service in a different Render account loads.
+    let key = RENDER_API_KEY;
+    if (sid) { const tgt = (await loadTargets()).find((t) => svcIdOf(t.deploy_hook) === sid); if (tgt?.api_key) key = tgt.api_key; }
+    if (!key) return res.status(200).json({ services: [], service: null, envVars: [], deploys: [], note: 'No Render API key set. Add one next to this repo\'s deploy hook in Admin → Deploy.' });
     try {
       if (req.method === 'GET') {
         if (!sid) {
           // List every service on the account (grouped client-side by owner/project).
-          const r = await renderApi('/services?limit=100');
+          const r = await renderApi('/services?limit=100', {}, key);
           const raw = (await r.json().catch(() => [])) || [];
           const list = Array.isArray(raw) ? raw : [];
           const services = list.map((x) => x.service || x).map((s) => ({
@@ -203,13 +210,13 @@ export default async function handler(req, res) {
         }
         // Single service: details + env vars + recent deploys.
         const [sRes, eRes, dRes] = await Promise.all([
-          renderApi(`/services/${sid}`),
-          renderApi(`/services/${sid}/env-vars?limit=100`),
-          renderApi(`/services/${sid}/deploys?limit=20`),
+          renderApi(`/services/${sid}`, {}, key),
+          renderApi(`/services/${sid}/env-vars?limit=100`, {}, key),
+          renderApi(`/services/${sid}/deploys?limit=20`, {}, key),
         ]);
         const s = await sRes.json().catch(() => ({}));
         if (!sRes.ok || !s?.id) {
-          return res.status(200).json({ service: null, envVars: [], deploys: [], note: `This service isn't accessible with the current RENDER_API_KEY — it likely belongs to a different Render account/owner. (Render returned ${sRes.status}.) Deploys via its hook still work; to view its env/settings here, use an API key that owns this service.` });
+          return res.status(200).json({ service: null, envVars: [], deploys: [], note: `Couldn't load this service (Render returned ${sRes.status}). Set this repo's own Render API key next to its deploy hook in Admin → Deploy (the key must own this service).` });
         }
         const envRaw = (await eRes.json().catch(() => [])) || [];
         const depRaw = (await dRes.json().catch(() => [])) || [];
@@ -224,7 +231,7 @@ export default async function handler(req, res) {
         const vars = Array.isArray(req.body?.envVars) ? req.body.envVars : null;
         if (!vars) return res.status(400).json({ error: 'envVars array required' });
         const clean = vars.map((v) => ({ key: String(v.key || '').trim(), value: String(v.value ?? '') })).filter((v) => v.key);
-        const r = await renderApi(`/services/${sid}/env-vars`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(clean) });
+        const r = await renderApi(`/services/${sid}/env-vars`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(clean) }, key);
         if (!r.ok) return res.status(r.status).json({ error: `Render env update failed (${r.status})` });
         await logAudit('admin', 'admin', 'render_env_updated', sid).catch(() => {});
         return res.status(200).json({ ok: true, count: clean.length });
@@ -236,7 +243,7 @@ export default async function handler(req, res) {
         if (typeof req.body?.branch === 'string' && req.body.branch.trim()) body.branch = req.body.branch.trim();
         if (typeof req.body?.autoDeploy === 'string') body.autoDeploy = req.body.autoDeploy; // 'yes' | 'no'
         if (!Object.keys(body).length) return res.status(400).json({ error: 'Nothing to update' });
-        const r = await renderApi(`/services/${sid}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const r = await renderApi(`/services/${sid}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, key);
         if (!r.ok) return res.status(r.status).json({ error: `Render settings update failed (${r.status})` });
         await logAudit('admin', 'admin', 'render_service_updated', `${sid}:${Object.keys(body).join(',')}`).catch(() => {});
         return res.status(200).json({ ok: true });
@@ -274,7 +281,7 @@ export default async function handler(req, res) {
       let targetId = parseInt(req.query.targetId, 10) || null;
       // Team users only see deploy targets for repos an admin granted them; admins see all.
       const visible = (await loadTargets()).filter((t) => actor.admin || (t.repo && actor.allowedRepos.includes(String(t.repo).toLowerCase())));
-      const targets = visible.map((t) => ({ id: t.id, label: t.label, repo: t.repo })); // hook never exposed here
+      const targets = visible.map((t) => ({ id: t.id, label: t.label, repo: t.repo, serviceId: svcIdOf(t.deploy_hook) })); // hook/key never exposed here
       // A team user may only read history for a target they can see.
       if (targetId && !visible.some((t) => Number(t.id) === targetId)) targetId = -1;
       const scheduled = await queryDb(`SELECT id, triggered_by, run_at, note, target_label, created_at FROM deploys WHERE status='scheduled' ORDER BY run_at ASC`);

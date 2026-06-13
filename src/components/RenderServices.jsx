@@ -83,6 +83,7 @@ function ServiceDetailInner({ id, t, dark }) {
   const [autoDeploy, setAutoDeploy] = useState('yes');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const [peek, setPeek] = useState(null); // deploy opened in the history detail modal
 
   const load = () => fetchJson(`/api/deploy/services?id=${id}`).then((d) => {
     setData(d); setEnv(d.envVars || []);
@@ -114,19 +115,22 @@ function ServiceDetailInner({ id, t, dark }) {
       </div>
 
       {tab === 'env' && (
-        <div className="space-y-1.5">
-          {env.map((v, i) => (
-            <div key={i} className="flex gap-1.5">
-              <input className={`${inp} w-40 font-mono`} value={v.key} onChange={(e) => setRow(i, 'key', e.target.value)} placeholder="KEY" />
-              <input className={`${inp} flex-1 font-mono`} value={v.value} onChange={(e) => setRow(i, 'value', e.target.value)} placeholder="value" />
-              <button onClick={() => setEnv((e) => e.filter((_, j) => j !== i))} className={`text-xs px-2 rounded-lg ${t.btn2}`}>✕</button>
-            </div>
-          ))}
+        <div className="space-y-1.5 max-w-2xl">
+          <div className={`flex gap-1.5 px-0.5 text-[10px] uppercase tracking-wider ${t.sub}`}><span className="w-2/5">Key</span><span className="flex-1">Value</span><span className="w-6" /></div>
+          <div className="max-h-80 overflow-y-auto space-y-1.5 pr-0.5">
+            {env.map((v, i) => (
+              <div key={i} className="flex gap-1.5 items-center">
+                <input className={`${inp} w-2/5 font-mono`} value={v.key} onChange={(e) => setRow(i, 'key', e.target.value)} placeholder="KEY" />
+                <input className={`${inp} flex-1 font-mono`} value={v.value} onChange={(e) => setRow(i, 'value', e.target.value)} placeholder="value" />
+                <button onClick={() => setEnv((e) => e.filter((_, j) => j !== i))} title="Remove" className={`text-xs px-2 py-1.5 rounded-lg ${t.btn2}`}>✕</button>
+              </div>
+            ))}
+          </div>
           <div className="flex gap-2 pt-1">
             <button onClick={() => setEnv((e) => [...e, { key: '', value: '' }])} className={`text-xs px-3 py-1.5 rounded-lg ${t.btn2}`}>+ Add variable</button>
-            <button onClick={saveEnv} disabled={busy} className={`text-xs px-4 py-1.5 rounded-lg font-semibold ${t.btn} disabled:opacity-50`}>Save env vars</button>
+            <button onClick={saveEnv} disabled={busy || env.some((v) => !v.key.trim())} className={`text-xs px-4 py-1.5 rounded-lg font-semibold ${t.btn} disabled:opacity-50`}>{busy ? 'Saving…' : 'Save to Render'}</button>
           </div>
-          <p className={`text-[10px] ${t.sub}`}>Saving replaces the full env set and triggers a Render restart/redeploy.</p>
+          <p className={`text-[10px] ${t.sub}`}>Edits are written to this service's Render environment; saving replaces the full set and triggers a restart/redeploy. Every key must be non-empty.</p>
         </div>
       )}
 
@@ -147,19 +151,40 @@ function ServiceDetailInner({ id, t, dark }) {
       )}
 
       {tab === 'history' && (
-        <div className="space-y-1 max-h-72 overflow-y-auto">
+        <div className="space-y-1 max-h-72 overflow-y-auto max-w-2xl">
           {(data.deploys || []).map((d) => (
-            <div key={d.id} className={`flex items-center justify-between gap-2 text-[11px] ${t.sub} border-b ${dark ? 'border-white/5' : 'border-slate-100'} py-1.5`}>
+            <button key={d.id} onClick={() => setPeek(d)} className={`w-full text-left flex items-center justify-between gap-2 text-[11px] ${t.sub} border-b ${dark ? 'border-white/5 hover:bg-white/5' : 'border-slate-100 hover:bg-slate-100'} py-1.5 px-1 rounded`}>
               <span className="font-mono shrink-0">{d.commitId || '—'}</span>
               <span className="flex-1 truncate">{d.commitMsg || d.trigger || ''}</span>
               <span className="shrink-0">{d.createdAt ? new Date(d.createdAt).toLocaleString() : ''}</span>
               <span className={`shrink-0 ${['live', 'succeeded'].includes(d.status) ? 'text-emerald-400' : /fail|cancel/.test(d.status || '') ? 'text-red-400' : 'text-amber-400'}`}>{d.status}</span>
-            </div>
+            </button>
           ))}
           {!(data.deploys || []).length && <p className={`text-xs ${t.sub}`}>No deploys.</p>}
         </div>
       )}
       {msg && <p className={`text-[11px] mt-2 ${t.sub}`}>{msg}</p>}
+
+      {/* History detail popup (shared by admin & team) */}
+      {peek && (
+        <div className="fixed inset-0 z-[95] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) setPeek(null); }}>
+          <div className={`w-full max-w-md rounded-2xl shadow-2xl border ${dark ? 'bg-slate-900 border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900'} p-5`}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="font-bold text-sm">Deployment details</p>
+              <button onClick={() => setPeek(null)} className={t.sub}>✕</button>
+            </div>
+            <div className={`text-xs space-y-1.5 ${t.sub}`}>
+              <p><span className="font-semibold">Status:</span> <span className={['live', 'succeeded'].includes(peek.status) ? 'text-emerald-400' : /fail|cancel/.test(peek.status || '') ? 'text-red-400' : 'text-amber-400'}>{peek.status}</span></p>
+              <p><span className="font-semibold">Commit:</span> <span className="font-mono">{peek.commitId || '—'}</span></p>
+              <p className="whitespace-pre-wrap"><span className="font-semibold">Message:</span> {peek.commitMsg || '—'}</p>
+              <p><span className="font-semibold">Trigger:</span> {peek.trigger || '—'}</p>
+              <p><span className="font-semibold">Started:</span> {peek.createdAt ? new Date(peek.createdAt).toLocaleString() : '—'}</p>
+              <p><span className="font-semibold">Finished:</span> {peek.finishedAt ? new Date(peek.finishedAt).toLocaleString() : '—'}</p>
+              <p className="font-mono text-[10px] break-all pt-1">{peek.id}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
