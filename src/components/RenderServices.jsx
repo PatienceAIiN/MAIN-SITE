@@ -126,14 +126,17 @@ function ServiceDetailInner({ id, t, dark }) {
               <button onClick={() => setEnvOpen(false)} className={t.sub}>✕</button>
             </div>
             <div className="p-5 overflow-y-auto flex-1 space-y-1.5">
-              <div className={`flex gap-1.5 px-0.5 text-[10px] uppercase tracking-wider ${t.sub}`}><span className="w-1/2">Key</span><span className="flex-1">Value</span><span className="w-6" /></div>
-              {env.map((v, i) => (
-                <div key={i} className="flex gap-1.5 items-center">
-                  <input className={`${inp} w-1/2 font-mono py-2`} value={v.key} onChange={(e) => setRow(i, 'key', e.target.value)} placeholder="KEY" />
-                  <input className={`${inp} flex-1 font-mono py-2`} value={v.value} onChange={(e) => setRow(i, 'value', e.target.value)} placeholder="value" />
-                  <button onClick={() => setEnv((e) => e.filter((_, j) => j !== i))} title="Remove" className={`text-xs px-2 py-2 rounded-lg ${t.btn2}`}>✕</button>
-                </div>
-              ))}
+              <div className={`flex gap-1.5 px-0.5 text-[10px] uppercase tracking-wider ${t.sub}`}><span className="flex-1">Key</span><span className="flex-1">Value</span><span className="w-7" /></div>
+              {env.map((v, i) => {
+                const rowInp = `flex-1 min-w-0 rounded-lg border ${t.input} px-2.5 py-2 text-xs font-mono focus:outline-none`;
+                return (
+                  <div key={i} className="flex gap-1.5 items-center">
+                    <input className={rowInp} value={v.key} onChange={(e) => setRow(i, 'key', e.target.value)} placeholder="KEY" />
+                    <input className={rowInp} value={v.value} onChange={(e) => setRow(i, 'value', e.target.value)} placeholder="value" />
+                    <button onClick={() => setEnv((e) => e.filter((_, j) => j !== i))} title="Remove" className={`text-xs px-2 py-2 rounded-lg shrink-0 ${t.btn2}`}>✕</button>
+                  </div>
+                );
+              })}
               {!env.length && <p className={`text-xs ${t.sub} py-2`}>No environment variables yet.</p>}
             </div>
             <div className={`flex items-center gap-2 px-5 py-3 border-t ${dark ? 'border-white/10' : 'border-slate-200'}`}>
