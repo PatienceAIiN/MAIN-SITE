@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { FiMic, FiMicOff, FiVideo, FiVideoOff, FiMonitor, FiPhoneOff, FiPhone, FiMinimize2, FiUsers, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import { FiMic, FiMicOff, FiVideo, FiVideoOff, FiMonitor, FiPhoneOff, FiPhone, FiMinimize2, FiUsers, FiChevronDown, FiChevronUp, FiMessageSquare, FiFileText, FiShare2, FiX, FiSend, FiCheck } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import { playRingtone } from '../common/sounds';
 
@@ -13,6 +13,7 @@ export function useGroupCall(me, wsSend) {
   const [muted, setMuted] = useState(false);
   const [camOff, setCamOff] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [chat, setChat] = useState([]);       // in-call chat: { id, name, text, mine }
   const roomRef = useRef(null); roomRef.current = room;
   const pcs = useRef(new Map());               // email -> RTCPeerConnection
   const pending = useRef(new Map());           // email -> [ice]
@@ -25,8 +26,16 @@ export function useGroupCall(me, wsSend) {
   const cleanup = useCallback(() => {
     pcs.current.forEach((pc) => pc.close()); pcs.current.clear(); pending.current.clear();
     [localStream, screenStream].forEach((r) => { r.current?.getTracks().forEach((t) => t.stop()); r.current = null; });
-    setPeers({}); setRoom(null); setMuted(false); setCamOff(false); setSharing(false);
+    setPeers({}); setRoom(null); setMuted(false); setCamOff(false); setSharing(false); setChat([]);
   }, []);
+
+  // In-call chat: fan a message out to every peer I'm connected to (rides the
+  // existing rtc relay; the hub already permits guests to send to their room).
+  const sendChat = (text) => {
+    const t = String(text || '').trim(); if (!t || !roomRef.current) return;
+    setChat((c) => [...c, { id: `${Date.now()}-me-${c.length}`, name: me.name || 'You', text: t, mine: true }]);
+    pcs.current.forEach((_, email) => send(email, { kind: 'g-chat', text: t, name: me.name || me.email }));
+  };
 
   const ensureMedia = async () => {
     if (localStream.current) return localStream.current;
@@ -131,6 +140,8 @@ export function useGroupCall(me, wsSend) {
       else pending.current.set(from, [...(pending.current.get(from) || []), data.candidate]);
     } else if (data.kind === 'g-leave') {
       dropPeer(from);
+    } else if (data.kind === 'g-chat') {
+      setChat((c) => [...c, { id: `${Date.now()}-${from}-${c.length}`, name: fromName || from, text: String(data.text || '').slice(0, 2000), mine: false }]);
     }
   }, [me, wsSend]);
 
@@ -151,7 +162,7 @@ export function useGroupCall(me, wsSend) {
     } catch { /* cancelled */ }
   };
 
-  return { room, peers, muted, camOff, sharing, localStream, start, accept, leave, onRtc, onGcall, joinMeeting, toggleMute, toggleCam, toggleShare, me };
+  return { room, peers, muted, camOff, sharing, chat, sendChat, localStream, start, accept, leave, onRtc, onGcall, joinMeeting, toggleMute, toggleCam, toggleShare, me };
 }
 
 function Tile({ stream, name, muted, mine, speaking }) {
@@ -168,12 +179,19 @@ function Tile({ stream, name, muted, mine, speaking }) {
 }
 
 export function GroupCallOverlay({ api }) {
-  const { room, peers, muted, camOff, sharing, localStream, accept, leave, toggleMute, toggleCam, toggleShare, me } = api;
+  const { room, peers, muted, camOff, sharing, chat, sendChat, localStream, accept, leave, toggleMute, toggleCam, toggleShare, me } = api;
   const [min, setMin] = useState(false);
   const [partsOpen, setPartsOpen] = useState(false); // top participant bar collapsed by default
   const [active, setActive] = useState(null);         // active-speaker email
+  const [notesOpen, setNotesOpen] = useState(false);  // left sidebar
+  const [chatOpen, setChatOpen] = useState(false);    // right sidebar
+  const [copied, setCopied] = useState(false);
+  const [seenChat, setSeenChat] = useState(0);        // for the unread chat badge
   const peersRef = useRef(peers); peersRef.current = peers;
-  useEffect(() => { setMin(false); setPartsOpen(false); setActive(null); }, [room?.id]);
+  useEffect(() => { setMin(false); setPartsOpen(false); setActive(null); setNotesOpen(false); setChatOpen(false); setSeenChat(0); }, [room?.id]);
+  useEffect(() => { if (chatOpen) setSeenChat(chat.length); }, [chatOpen, chat.length]);
+  const unread = Math.max(0, (chat?.length || 0) - seenChat);
+  const copyLink = () => { try { navigator.clipboard.writeText(`${window.location.origin}/meet?room=${room.id}`); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* clipboard blocked */ } };
   // Ring while a group call is incoming.
   useEffect(() => { if (room?.incoming) return playRingtone(); }, [room?.incoming]);
   // Active-speaker detection: measure each remote stream's audio level; the
@@ -227,8 +245,9 @@ export function GroupCallOverlay({ api }) {
   const focus = active && peers[active] ? active : null;
   return (
     <div className="fixed inset-0 z-[72] bg-black/90 backdrop-blur-sm flex flex-col p-3">
-      {/* Collapsed participants bar (top) — opens on click */}
-      <div className="shrink-0">
+      {/* Collapsed participants bar (top-left) + Share (top-right) */}
+      <div className="shrink-0 flex items-start justify-between gap-2">
+        <div>
         <button onClick={() => setPartsOpen((o) => !o)} className="flex items-center gap-2 text-white/85 text-xs bg-white/10 hover:bg-white/15 rounded-full px-3 py-1.5">
           <FiUsers size={13} /> {tiles.length + 1} in {room.name || 'group'} call {partsOpen ? <FiChevronUp size={12} /> : <FiChevronDown size={12} />}
         </button>
@@ -242,10 +261,17 @@ export function GroupCallOverlay({ api }) {
             ))}
           </div>
         )}
+        </div>
+        {/* Share: copies the public join link (works for internal + external guests) */}
+        <button onClick={copyLink} title="Copy meeting link to share" className={`flex items-center gap-1.5 text-xs rounded-full px-3 py-1.5 ${copied ? 'bg-emerald-600 text-white' : 'bg-white/10 hover:bg-white/15 text-white/85'}`}>
+          {copied ? <FiCheck size={13} /> : <FiShare2 size={13} />} {copied ? 'Link copied' : 'Share'}
+        </button>
       </div>
 
-      {/* Stage: focus the active speaker; otherwise everyone stays minimized */}
-      <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2 py-2">
+      {/* Middle row: notes (left) · stage · chat (right) */}
+      <div className="flex-1 min-h-0 flex gap-2 py-2">
+        {notesOpen && <NotesPanel onClose={() => setNotesOpen(false)} />}
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2">
         {focus ? (
           <>
             <div className="w-full max-w-4xl flex-1 min-h-0 flex items-center justify-center">
@@ -262,13 +288,76 @@ export function GroupCallOverlay({ api }) {
             {tiles.map(([email, p]) => <Tile key={email} stream={p.stream} name={p.name || email} />)}
           </div>
         )}
+        </div>
+        {chatOpen && <ChatPanel chat={chat} onSend={sendChat} onClose={() => setChatOpen(false)} />}
       </div>
       <div className="flex justify-center gap-3 mt-1 shrink-0">
         <button onClick={toggleMute} className={`${rb} ${muted ? 'bg-amber-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={muted ? 'Unmute' : 'Mute'}>{muted ? <FiMicOff size={17} /> : <FiMic size={17} />}</button>
+        <button onClick={() => setChatOpen((o) => !o)} className={`${rb} relative ${chatOpen ? 'bg-indigo-500' : 'bg-slate-700 hover:bg-slate-600'}`} title="Call chat"><FiMessageSquare size={17} />{unread > 0 && !chatOpen && <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[9px] font-bold flex items-center justify-center">{unread > 9 ? '9+' : unread}</span>}</button>
+        <button onClick={() => setNotesOpen((o) => !o)} className={`${rb} ${notesOpen ? 'bg-indigo-500' : 'bg-slate-700 hover:bg-slate-600'}`} title="Notes"><FiFileText size={17} /></button>
         <button onClick={toggleCam} className={`${rb} ${camOff ? 'bg-amber-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={camOff ? 'Camera on' : 'Camera off'}>{camOff ? <FiVideoOff size={17} /> : <FiVideo size={17} />}</button>
         <button onClick={toggleShare} className={`${rb} ${sharing ? 'bg-indigo-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={sharing ? 'Stop sharing' : 'Share screen'}><FiMonitor size={17} /></button>
         <button onClick={() => setMin(true)} className={`${rb} bg-slate-700 hover:bg-slate-600`} title="Minimize"><FiMinimize2 size={16} /></button>
         <button onClick={leave} className={`${rb} bg-red-600 hover:bg-red-700`} title="Leave"><FiPhoneOff size={17} /></button>
+      </div>
+    </div>
+  );
+}
+
+// Left sidebar: jot notes during the call; Save persists to the team Notes tab
+// (silently no-ops for guests who aren't authenticated).
+function NotesPanel({ onClose }) {
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [status, setStatus] = useState('');
+  const save = async () => {
+    if (!body.trim() && !title.trim()) return;
+    setStatus('saving');
+    try {
+      await fetchJson('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title.trim() || 'Call notes', body, kind: 'note' }) });
+      setStatus('saved'); setTimeout(() => setStatus(''), 2000);
+    } catch { setStatus('error'); setTimeout(() => setStatus(''), 2500); }
+  };
+  return (
+    <div className="w-72 max-w-[42vw] shrink-0 bg-slate-900/95 border border-white/10 rounded-2xl flex flex-col overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
+        <span className="text-white text-sm font-semibold flex items-center gap-1.5"><FiFileText size={14} /> Notes</span>
+        <button onClick={onClose} className="text-white/60 hover:text-white"><FiX size={16} /></button>
+      </div>
+      <div className="p-3 flex flex-col gap-2 flex-1 min-h-0">
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className="rounded-lg bg-slate-800 border border-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+        <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Jot down notes during the call…" className="flex-1 min-h-0 resize-none rounded-lg bg-slate-800 border border-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+        <button onClick={save} disabled={status === 'saving'} className="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 disabled:opacity-50">{status === 'saved' ? 'Saved ✓' : status === 'error' ? 'Save failed' : status === 'saving' ? 'Saving…' : 'Save to Notes'}</button>
+      </div>
+    </div>
+  );
+}
+
+// Right sidebar: live chat shared by everyone in the call (mesh-relayed).
+function ChatPanel({ chat, onSend, onClose }) {
+  const [text, setText] = useState('');
+  const endRef = useRef(null);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chat.length]);
+  const submit = () => { const t = text.trim(); if (!t) return; onSend(t); setText(''); };
+  return (
+    <div className="w-72 max-w-[42vw] shrink-0 bg-slate-900/95 border border-white/10 rounded-2xl flex flex-col overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
+        <span className="text-white text-sm font-semibold flex items-center gap-1.5"><FiMessageSquare size={14} /> Call chat</span>
+        <button onClick={onClose} className="text-white/60 hover:text-white"><FiX size={16} /></button>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
+        {!chat.length && <p className="text-white/40 text-xs text-center py-6">No messages yet. Everyone in the call sees what you send here.</p>}
+        {chat.map((m) => (
+          <div key={m.id} className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'}`}>
+            {!m.mine && <span className="text-[10px] text-white/50 px-1">{m.name}</span>}
+            <span className={`max-w-[85%] text-sm px-3 py-1.5 rounded-2xl break-words ${m.mine ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-white/90'}`}>{m.text}</span>
+          </div>
+        ))}
+        <div ref={endRef} />
+      </div>
+      <div className="p-2 border-t border-white/10 flex gap-1.5">
+        <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} placeholder="Message everyone…" className="flex-1 rounded-full bg-slate-800 border border-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+        <button onClick={submit} className="h-9 w-9 shrink-0 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center"><FiSend size={15} /></button>
       </div>
     </div>
   );
