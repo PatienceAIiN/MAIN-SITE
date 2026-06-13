@@ -313,11 +313,22 @@ export default async function handler(req, res) {
         );
         // Inform the target even if they're offline — web-push + email so a
         // transfer to an away/offline executive still reaches them.
+        const word = kind === 'call' ? 'call' : 'chat';
         const tEmail = target[0].email;
         if (tEmail) {
-          sendPushToEmails([tEmail], { title: `Chat transferred to you`, body: `${exec.name} transferred a ${kind === 'call' ? 'call' : 'chat'} to you. Open the support console to accept.`, url: '/support-executive', tag: 'transfer' }).catch(() => {});
-          sendEmail({ to: tEmail, subject: `A ${kind === 'call' ? 'call' : 'chat'} was transferred to you`, html: `<p style="color:#475569">${exec.name} transferred a ${kind === 'call' ? 'call' : 'chat'} (conversation <b>${conversationId}</b>) to you. Open the support console to accept it.</p>`, text: `${exec.name} transferred a chat (${conversationId}) to you. Open the support console to accept.` }).catch(() => {});
+          sendPushToEmails([tEmail], { title: `⏳ Customer waiting — ${word} transferred to you`, body: `${exec.name} transferred a ${word} to you. Please join fast — the customer is waiting.`, url: '/support-executive', tag: 'transfer' }).catch(() => {});
+          sendEmail({ to: tEmail, subject: `⏳ Customer waiting — ${word} transferred to you`, html: `<p style="color:#475569"><b>${exec.name}</b> transferred a ${word} (conversation <b>${conversationId}</b>) to you. <b>Please join fast — the customer is waiting.</b></p><p><a href="https://patienceai.in/support-executive" style="color:#4f46e5">Open the support console &rarr;</a></p>`, text: `${exec.name} transferred a ${word} (${conversationId}) to you. Please join fast — the customer is waiting. Open: https://patienceai.in/support-executive` }).catch(() => {});
         }
+        // Also alert every other support executive (online / away / offline) so
+        // someone picks the customer up quickly even if the target is unavailable.
+        try {
+          const others = await queryDb(`SELECT email FROM ${TABLE} WHERE status='active' AND id NOT IN ($1,$2)`, [exec.id, toId]);
+          const emails = others.map((r) => r.email).filter(Boolean);
+          if (emails.length) {
+            sendPushToEmails(emails, { title: `⏳ A customer is waiting`, body: `A ${word} was transferred to ${target[0].name}. Please help if available — join fast.`, url: '/support-executive', tag: 'transfer-broadcast' }).catch(() => {});
+            sendEmail({ to: emails, subject: `⏳ A customer is waiting in support`, html: `<p style="color:#475569">A ${word} (conversation <b>${conversationId}</b>) was transferred to <b>${target[0].name}</b>. <b>The customer is waiting</b> — please join fast and assist if you're available.</p><p><a href="https://patienceai.in/support-executive" style="color:#4f46e5">Open the support console &rarr;</a></p>`, text: `A ${word} (${conversationId}) was transferred to ${target[0].name}. The customer is waiting — please join fast. Open: https://patienceai.in/support-executive` }).catch(() => {});
+          }
+        } catch { /* broadcast is best-effort */ }
         await logAudit('executive', exec.email, 'chat_transferred', tEmail || String(toId)).catch(() => {});
         return res.status(200).json({ transfer: rows[0] });
       } catch (err) {
