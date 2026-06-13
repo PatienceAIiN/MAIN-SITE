@@ -52,7 +52,15 @@ export default function RenderServices({ dark = true }) {
   );
 }
 
-function ServiceDetail({ id, t, dark }) {
+export function ServiceDetail({ id, t, dark = true }) {
+  // Allow standalone use (per deploy-target card) — supply default theme tokens.
+  t = t || (dark
+    ? { card: 'border-white/10 bg-white/5', sub: 'text-white/50', head: 'text-white', chip: 'bg-white/10 text-white/70', input: 'border-white/10 bg-white/5 text-white placeholder:text-white/35', btn: 'bg-white text-slate-950 hover:bg-white/90', btn2: 'border border-white/15 text-white/80 hover:bg-white/5', row: 'hover:bg-white/5 border-white/10' }
+    : { card: 'border-slate-200 bg-white', sub: 'text-slate-500', head: 'text-slate-900', chip: 'bg-slate-100 text-slate-600', input: 'border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400', btn: 'bg-slate-900 text-white hover:bg-slate-800', btn2: 'border border-slate-200 text-slate-600 hover:bg-slate-100', row: 'hover:bg-slate-50 border-slate-200' });
+  return <ServiceDetailInner id={id} t={t} dark={dark} />;
+}
+
+function ServiceDetailInner({ id, t, dark }) {
   const [data, setData] = useState(null);
   const [tab, setTab] = useState('env');
   const [env, setEnv] = useState([]);

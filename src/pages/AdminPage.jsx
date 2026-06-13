@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import Button from '../components/ui/Button';
 import AdminTicketOps from '../components/AdminTicketOps';
 import AdminPeos from '../components/AdminPeos';
-import RenderServices from '../components/RenderServices';
+import RenderServices, { ServiceDetail } from '../components/RenderServices';
 import { fetchJson } from '../common/fetchJson';
 
 const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support', 'executives', 'team', 'deploy', 'tickets', 'engineering', 'worklog', 'logs'];
@@ -227,11 +227,13 @@ function DeployTargets() {
     catch (e) { setMsg(e.message); }
   };
   const saveRow = async (t) => {
-    try { await fetchJson('/api/deploy/targets', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id, label: t.label, repo: t.repo, deployHook: t.deploy_hook }) }); setMsg('Saved ✓'); load(); }
+    try { await fetchJson('/api/deploy/targets', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id, label: t.label, repo: t.repo, deployHook: t.deploy_hook }) }); setMsg(`Saved “${t.label}” ✓`); setOpenSvc(t.id); load(); }
     catch (e) { setMsg(e.message); }
   };
   const del = async (id) => { if (!window.confirm('Delete this deploy target?')) return; try { await fetchJson(`/api/deploy/targets?id=${id}`, { method: 'DELETE' }); load(); } catch (e) { setMsg(e.message); } };
   const setField = (id, k, v) => setTargets((ts) => ts.map((t) => (t.id === id ? { ...t, [k]: v } : t)));
+  const [openSvc, setOpenSvc] = useState(null);
+  const svcId = (hook) => (String(hook || '').match(/deploy\/(srv-[a-z0-9]+)/i) || [])[1] || '';
   const inp = 'rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white placeholder:text-white/35 focus:outline-none';
   return (
     <div>
@@ -239,14 +241,20 @@ function DeployTargets() {
       <p className="text-white/55 text-sm mb-3">Each repository gets its own Render deploy hook. Team users pick a repo before deploying, and only that repo's hook is fired — no single hook for everything.</p>
       <div className="space-y-2">
         {targets.map((t) => (
-          <div key={t.id} className="rounded-2xl border border-white/10 bg-white/5 p-3 grid md:grid-cols-[1fr_1fr_2fr_auto] gap-2 items-center">
-            <input className={inp} value={t.label} onChange={(e) => setField(t.id, 'label', e.target.value)} placeholder="Label (e.g. Main site)" />
-            <select className={inp} value={t.repo || ''} onChange={(e) => setField(t.id, 'repo', e.target.value)}>{repoOpts(t.repo)}</select>
-            <input className={`${inp} font-mono`} value={t.deploy_hook} onChange={(e) => setField(t.id, 'deploy_hook', e.target.value)} placeholder="https://api.render.com/deploy/srv-…?key=…" />
-            <span className="flex gap-1.5">
-              <button onClick={() => saveRow(t)} className="text-xs px-3 py-1.5 rounded-lg bg-white text-slate-950 font-semibold">Save</button>
-              <button onClick={() => del(t.id)} className="text-xs px-2.5 py-1.5 rounded-lg border border-red-400/30 text-red-300 hover:bg-red-500/10">✕</button>
-            </span>
+          <div key={t.id} className="rounded-2xl border border-white/10 bg-white/5 p-3 space-y-2">
+            <div className="grid md:grid-cols-[1fr_1fr_2fr_auto] gap-2 items-center">
+              <input className={inp} value={t.label} onChange={(e) => setField(t.id, 'label', e.target.value)} placeholder="Label (e.g. Main site)" />
+              <select className={inp} value={t.repo || ''} onChange={(e) => setField(t.id, 'repo', e.target.value)}>{repoOpts(t.repo)}</select>
+              <input className={`${inp} font-mono`} value={t.deploy_hook} onChange={(e) => setField(t.id, 'deploy_hook', e.target.value)} placeholder="https://api.render.com/deploy/srv-…?key=…" />
+              <span className="flex gap-1.5">
+                <button onClick={() => saveRow(t)} className="text-xs px-3 py-1.5 rounded-lg bg-white text-slate-950 font-semibold">Save</button>
+                <button onClick={() => del(t.id)} className="text-xs px-2.5 py-1.5 rounded-lg border border-red-400/30 text-red-300 hover:bg-red-500/10">✕</button>
+              </span>
+            </div>
+            {svcId(t.deploy_hook)
+              ? <button onClick={() => setOpenSvc(openSvc === t.id ? null : t.id)} className="text-[11px] px-3 py-1 rounded-lg border border-white/15 text-white/80 hover:bg-white/5">{openSvc === t.id ? 'Hide' : 'Service & environment'} · <span className="font-mono">{svcId(t.deploy_hook)}</span></button>
+              : <p className="text-[11px] text-white/35">Save a Render deploy hook to manage this repo's service & environment.</p>}
+            {openSvc === t.id && svcId(t.deploy_hook) && <ServiceDetail id={svcId(t.deploy_hook)} dark />}
           </div>
         ))}
         {/* New target */}
