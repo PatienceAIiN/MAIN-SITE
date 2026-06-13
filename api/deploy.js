@@ -52,11 +52,12 @@ const getActor = async (req) => {
 };
 
 // Best-effort: the latest commit on main (the one a hook deploy will build).
-const latestCommit = async () => {
+const latestCommit = async (repoFull) => {
   const token = process.env.GITHUB_TOKEN;
   if (!token) return {};
-  const owner = process.env.GITHUB_OWNER || 'PatienceAIiN';
-  const repo = process.env.GITHUB_REPO || 'MAIN-SITE';
+  const [ro, rn] = String(repoFull || '').includes('/') ? repoFull.split('/') : [];
+  const owner = ro || process.env.GITHUB_OWNER || 'PatienceAIiN';
+  const repo = rn || process.env.GITHUB_REPO || 'MAIN-SITE';
   try {
     const r = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits/main`, {
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }
@@ -69,22 +70,31 @@ const latestCommit = async () => {
   } catch { return {}; }
 };
 
-const fireDeploy = async () => {
-  if (!DEPLOY_HOOK) throw new Error('Deploys are not configured — set RENDER_DEPLOY_HOOK in the server environment.');
-  const r = await fetch(DEPLOY_HOOK, { method: 'POST' });
+const fireDeploy = async (hook) => {
+  const url = hook || DEPLOY_HOOK;
+  if (!url) throw new Error('No deploy hook configured for this repo. An admin must set its deploy hook.');
+  const r = await fetch(url, { method: 'POST' });
   if (!r.ok) throw new Error(`Render hook responded ${r.status}`);
   const j = await r.json().catch(() => ({}));
   return j?.deploy?.id || null; // Render returns the new deploy id
 };
 
+// Per-repo deploy targets (admin-managed). Each has its own Render deploy hook.
+const loadTargets = async () => {
+  try { return await queryDb(`SELECT id, label, repo, deploy_hook FROM deploy_targets ORDER BY label ASC`); }
+  catch { return []; }
+};
+
 // Fire any scheduled deploys whose time has arrived. Called from server.js.
 export const sweepDeploys = async () => {
   try {
-    const due = await queryDb(`SELECT id FROM deploys WHERE status='scheduled' AND run_at <= NOW() ORDER BY run_at ASC`);
+    const due = await queryDb(`SELECT id, target_id FROM deploys WHERE status='scheduled' AND run_at <= NOW() ORDER BY run_at ASC`);
+    const targets = await loadTargets();
     for (const row of due) {
       try {
-        const c = await latestCommit();
-        const deployId = await fireDeploy();
+        const target = row.target_id ? targets.find((t) => Number(t.id) === Number(row.target_id)) : null;
+        const c = await latestCommit(target?.repo);
+        const deployId = await fireDeploy(target?.deploy_hook);
         await queryDb(`UPDATE deploys SET status='triggered', deploy_id=$2, commit_sha=$3, commit_msg=$4, pr=$5, updated_at=NOW() WHERE id=$1`,
           [row.id, deployId, c.sha || null, c.msg || null, c.pr || null]);
         await logAudit('system', 'scheduler', 'deploy_triggered', `deploy:${row.id}`).catch(() => {});
@@ -132,6 +142,101 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // ── Admin-only: per-repo deploy targets CRUD (label + repo + deploy hook) ──
+  if (req.url?.includes('/targets')) {
+    if (!isAdmin(req)) return res.status(403).json({ error: 'Admin only' });
+    try {
+      if (req.method === 'GET') {
+        const rows = await loadTargets();
+        return res.status(200).json({ targets: rows }); // admin sees full hooks for editing
+      }
+      if (req.method === 'POST') {
+        const { label, repo, deployHook } = req.body || {};
+        if (!label?.trim() || !deployHook?.trim()) return res.status(400).json({ error: 'label and deployHook are required' });
+        if (!/^https:\/\/api\.render\.com\/deploy\//.test(deployHook.trim())) return res.status(400).json({ error: 'deployHook must be a Render deploy-hook URL' });
+        const rows = await queryDb(`INSERT INTO deploy_targets (label, repo, deploy_hook) VALUES ($1,$2,$3) RETURNING id`,
+          [label.trim().slice(0, 120), (repo || '').trim().slice(0, 200) || null, deployHook.trim()]);
+        await logAudit('admin', 'admin', 'deploy_target_created', `${label} (${rows[0].id})`).catch(() => {});
+        return res.status(200).json({ ok: true, id: rows[0].id });
+      }
+      if (req.method === 'PUT') {
+        const { id, label, repo, deployHook } = req.body || {};
+        if (!id) return res.status(400).json({ error: 'id required' });
+        if (deployHook && !/^https:\/\/api\.render\.com\/deploy\//.test(String(deployHook).trim())) return res.status(400).json({ error: 'deployHook must be a Render deploy-hook URL' });
+        await queryDb(`UPDATE deploy_targets SET label=COALESCE($2,label), repo=$3, deploy_hook=COALESCE($4,deploy_hook), updated_at=NOW() WHERE id=$1`,
+          [id, label ? String(label).trim().slice(0, 120) : null, (repo || '').trim().slice(0, 200) || null, deployHook ? String(deployHook).trim() : null]);
+        await logAudit('admin', 'admin', 'deploy_target_updated', String(id)).catch(() => {});
+        return res.status(200).json({ ok: true });
+      }
+      if (req.method === 'DELETE') {
+        const id = parseInt(req.query.id, 10);
+        if (!id) return res.status(400).json({ error: 'id required' });
+        await queryDb(`DELETE FROM deploy_targets WHERE id=$1`, [id]);
+        await logAudit('admin', 'admin', 'deploy_target_deleted', String(id)).catch(() => {});
+        return res.status(200).json({ ok: true });
+      }
+      return res.status(405).json({ error: 'Method not allowed' });
+    } catch (e) { return res.status(500).json({ error: e.message }); }
+  }
+
+  // ── Admin-only Render dashboard: services, env vars, settings, history ────
+  // Exposes secrets (env values) → admin session required, RENDER_API_KEY needed.
+  if (req.url?.includes('/services')) {
+    if (!isAdmin(req)) return res.status(403).json({ error: 'Admin only' });
+    if (!RENDER_API_KEY) return res.status(200).json({ services: [], note: 'Set RENDER_API_KEY on the server to manage Render services, env vars and settings.' });
+    const sid = req.query.id;
+    try {
+      if (req.method === 'GET') {
+        if (!sid) {
+          // List every service on the account (grouped client-side by owner/project).
+          const r = await renderApi('/services?limit=100');
+          const list = (await r.json().catch(() => [])) || [];
+          const services = list.map((x) => x.service || x).map((s) => ({
+            id: s.id, name: s.name, type: s.type, env: s.env, branch: s.branch,
+            repo: s.repo, autoDeploy: s.autoDeploy, ownerId: s.ownerId, url: s.serviceDetails?.url || s.dashboardUrl,
+            suspended: s.suspended, updatedAt: s.updatedAt,
+          }));
+          return res.status(200).json({ services });
+        }
+        // Single service: details + env vars + recent deploys.
+        const [sRes, eRes, dRes] = await Promise.all([
+          renderApi(`/services/${sid}`),
+          renderApi(`/services/${sid}/env-vars?limit=100`),
+          renderApi(`/services/${sid}/deploys?limit=20`),
+        ]);
+        const s = await sRes.json().catch(() => ({}));
+        const envRaw = (await eRes.json().catch(() => [])) || [];
+        const depRaw = (await dRes.json().catch(() => [])) || [];
+        const envVars = envRaw.map((x) => x.envVar || x).map((e) => ({ key: e.key, value: e.value }));
+        const deploys = depRaw.map((x) => x.deploy || x).map((d) => ({ id: d.id, status: d.status, createdAt: d.createdAt, finishedAt: d.finishedAt, commitId: d.commit?.id?.slice(0, 7), commitMsg: d.commit?.message?.split('\n')[0]?.slice(0, 120), trigger: d.trigger }));
+        return res.status(200).json({ service: { id: s.id, name: s.name, type: s.type, env: s.env, branch: s.branch, repo: s.repo, autoDeploy: s.autoDeploy, rootDir: s.rootDir, buildCommand: s.serviceDetails?.envSpecificDetails?.buildCommand, startCommand: s.serviceDetails?.envSpecificDetails?.startCommand, region: s.serviceDetails?.region, plan: s.serviceDetails?.plan, url: s.serviceDetails?.url, dashboardUrl: s.dashboardUrl }, envVars, deploys });
+      }
+      if (req.method === 'PUT' && sid) {
+        // Replace the full env-var set (Render PUT semantics).
+        const vars = Array.isArray(req.body?.envVars) ? req.body.envVars : null;
+        if (!vars) return res.status(400).json({ error: 'envVars array required' });
+        const clean = vars.map((v) => ({ key: String(v.key || '').trim(), value: String(v.value ?? '') })).filter((v) => v.key);
+        const r = await renderApi(`/services/${sid}/env-vars`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(clean) });
+        if (!r.ok) return res.status(r.status).json({ error: `Render env update failed (${r.status})` });
+        await logAudit('admin', 'admin', 'render_env_updated', sid).catch(() => {});
+        return res.status(200).json({ ok: true, count: clean.length });
+      }
+      if (req.method === 'PATCH' && sid) {
+        // Update select service settings (name / branch / autoDeploy).
+        const body = {};
+        if (typeof req.body?.name === 'string' && req.body.name.trim()) body.name = req.body.name.trim().slice(0, 120);
+        if (typeof req.body?.branch === 'string' && req.body.branch.trim()) body.branch = req.body.branch.trim();
+        if (typeof req.body?.autoDeploy === 'string') body.autoDeploy = req.body.autoDeploy; // 'yes' | 'no'
+        if (!Object.keys(body).length) return res.status(400).json({ error: 'Nothing to update' });
+        const r = await renderApi(`/services/${sid}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (!r.ok) return res.status(r.status).json({ error: `Render settings update failed (${r.status})` });
+        await logAudit('admin', 'admin', 'render_service_updated', `${sid}:${Object.keys(body).join(',')}`).catch(() => {});
+        return res.status(200).json({ ok: true });
+      }
+      return res.status(405).json({ error: 'Method not allowed' });
+    } catch (e) { return res.status(500).json({ error: e.message }); }
+  }
+
   // GET /api/deploy/logs?id= — live deployment status + build log lines.
   if (req.method === 'GET' && req.url?.includes('/logs')) {
     const id = parseInt(req.query.id, 10);
@@ -158,11 +263,16 @@ export default async function handler(req, res) {
   // GET — current schedule + recent history (visible to any authenticated member).
   if (req.method === 'GET') {
     try {
-      const scheduled = await queryDb(`SELECT id, triggered_by, run_at, note, created_at FROM deploys WHERE status='scheduled' ORDER BY run_at ASC`);
-      const recent = await queryDb(`SELECT id, triggered_by, status, run_at, note, deploy_id, commit_sha, commit_msg, pr, created_at FROM deploys WHERE status<>'scheduled' ORDER BY created_at DESC LIMIT 15`);
-      return res.status(200).json({ scheduled, recent, canDeploy: actor.allowed, passwordSet: Boolean(actor.cfg.passwordHash), hasRenderApi: Boolean(RENDER_API_KEY) });
+      const targetId = parseInt(req.query.targetId, 10) || null;
+      // Team users get the target list WITHOUT hook values (just pick a repo).
+      const targets = (await loadTargets()).map((t) => ({ id: t.id, label: t.label, repo: t.repo }));
+      const scheduled = await queryDb(`SELECT id, triggered_by, run_at, note, target_label, created_at FROM deploys WHERE status='scheduled' ORDER BY run_at ASC`);
+      const recent = targetId
+        ? await queryDb(`SELECT id, triggered_by, status, run_at, note, deploy_id, commit_sha, commit_msg, pr, target_label, created_at FROM deploys WHERE status<>'scheduled' AND target_id=$1 ORDER BY created_at DESC LIMIT 15`, [targetId])
+        : await queryDb(`SELECT id, triggered_by, status, run_at, note, deploy_id, commit_sha, commit_msg, pr, target_label, created_at FROM deploys WHERE status<>'scheduled' ORDER BY created_at DESC LIMIT 15`);
+      return res.status(200).json({ scheduled, recent, targets, canDeploy: actor.allowed, passwordSet: Boolean(actor.cfg.passwordHash), hasRenderApi: Boolean(RENDER_API_KEY) });
     } catch (e) {
-      if (isMissingTableError(e.message)) return res.status(200).json({ scheduled: [], recent: [], canDeploy: actor.allowed, passwordSet: false });
+      if (isMissingTableError(e.message)) return res.status(200).json({ scheduled: [], recent: [], targets: [], canDeploy: actor.allowed, passwordSet: false });
       return res.status(500).json({ error: e.message });
     }
   }
@@ -203,13 +313,17 @@ export default async function handler(req, res) {
   // POST /api/deploy/schedule — schedule a deploy for later.
   if (req.method === 'POST' && req.url?.includes('/schedule')) {
     if (!checkPassword()) return res.status(401).json({ error: 'Incorrect deploy password' });
-    const { runAt, note } = req.body || {};
+    const { runAt, note, targetId } = req.body || {};
     const when = runAt ? new Date(runAt) : null;
     if (!when || isNaN(when.getTime())) return res.status(400).json({ error: 'A valid runAt time is required' });
     if (when.getTime() < Date.now() - 60000) return res.status(400).json({ error: 'Scheduled time must be in the future' });
     try {
-      const rows = await queryDb(`INSERT INTO deploys (triggered_by, status, run_at, note) VALUES ($1,'scheduled',$2,$3) RETURNING id, run_at, note`,
-        [actor.who, when.toISOString(), (note || '').slice(0, 300)]);
+      const targets = await loadTargets();
+      const tid = parseInt(targetId, 10) || null;
+      const target = tid ? targets.find((t) => Number(t.id) === tid) : null;
+      if (targets.length && !target) return res.status(400).json({ error: 'Select a repository to deploy.', needTarget: true });
+      const rows = await queryDb(`INSERT INTO deploys (triggered_by, status, run_at, note, target_id, target_label) VALUES ($1,'scheduled',$2,$3,$4,$5) RETURNING id, run_at, note`,
+        [actor.who, when.toISOString(), (note || '').slice(0, 300), target?.id || null, target?.label || null]);
       await logAudit('team', actor.who, 'deploy_scheduled', `deploy:${rows[0].id}`).catch(() => {});
       return res.status(200).json({ ok: true, scheduled: rows[0] });
     } catch (e) {
@@ -229,17 +343,27 @@ export default async function handler(req, res) {
     }
   }
 
-  // POST /api/deploy — trigger an immediate deploy.
+  // POST /api/deploy — trigger an immediate deploy for the selected repo target.
   if (req.method === 'POST') {
     if (!checkPassword()) return res.status(401).json({ error: 'Incorrect deploy password' });
     try {
-      const c = await latestCommit();
-      const rows = await queryDb(`INSERT INTO deploys (triggered_by, status, note, commit_sha, commit_msg, pr) VALUES ($1,'triggered','manual',$2,$3,$4) RETURNING id`,
-        [actor.who, c.sha || null, c.msg || null, c.pr || null]);
-      const deployId = await fireDeploy();
+      const targets = await loadTargets();
+      const targetId = parseInt((req.body || {}).targetId, 10) || null;
+      let target = null;
+      if (targetId) {
+        target = targets.find((t) => Number(t.id) === targetId);
+        if (!target) return res.status(400).json({ error: 'Selected repo target not found.' });
+      } else if (targets.length) {
+        // Targets are configured → a repo MUST be chosen (no blanket all-repos deploy).
+        return res.status(400).json({ error: 'Select a repository to deploy.', needTarget: true });
+      }
+      const c = await latestCommit(target?.repo);
+      const rows = await queryDb(`INSERT INTO deploys (triggered_by, status, note, commit_sha, commit_msg, pr, target_id, target_label) VALUES ($1,'triggered','manual',$2,$3,$4,$5,$6) RETURNING id`,
+        [actor.who, c.sha || null, c.msg || null, c.pr || null, target?.id || null, target?.label || null]);
+      const deployId = await fireDeploy(target?.deploy_hook);
       await queryDb(`UPDATE deploys SET deploy_id=$2 WHERE id=$1`, [rows[0].id, deployId]).catch(() => {});
-      await logAudit('team', actor.who, 'deploy_triggered', `deploy:${rows[0].id}${c.sha ? ` @${c.sha}` : ''}`).catch(() => {});
-      return res.status(200).json({ ok: true, id: rows[0].id, deployId, commit: c, message: 'Deploy triggered on Render.' });
+      await logAudit('team', actor.who, 'deploy_triggered', `deploy:${rows[0].id}${target ? ` [${target.label}]` : ''}${c.sha ? ` @${c.sha}` : ''}`).catch(() => {});
+      return res.status(200).json({ ok: true, id: rows[0].id, deployId, commit: c, target: target?.label || null, message: `Deploy triggered${target ? ` for ${target.label}` : ''}.` });
     } catch (e) {
       return res.status(502).json({ error: `Deploy failed: ${e.message}` });
     }

@@ -4,7 +4,7 @@ import {
   FiEye, FiEyeOff, FiLogOut, FiMoon, FiSun, FiSend, FiRefreshCw, FiSearch,
   FiLock, FiX, FiTag, FiUser, FiMail, FiClock, FiMessageSquare, FiSettings,
   FiBell, FiBellOff, FiUploadCloud, FiFileText, FiMaximize2,
-  FiCopy, FiUsers, FiGithub, FiExternalLink, FiTrash2, FiPlus, FiCode, FiCheck, FiShield, FiVideo, FiBookOpen, FiMove
+  FiCopy, FiUsers, FiGithub, FiExternalLink, FiTrash2, FiPlus, FiCode, FiCheck, FiShield, FiVideo, FiBookOpen, FiMove, FiServer
 } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import NetworkDot from '../common/NetworkDot';
@@ -12,6 +12,7 @@ import { NotificationBell, SlaBadge, AttachmentList, uploadFiles } from '../comp
 import TeamEngineering, { Modal } from '../components/TeamEngineering';
 import DevTickets from '../components/DevTickets';
 import { NotesTab, MeetingsTab } from '../components/TeamNotes';
+import RenderServices from '../components/RenderServices';
 import Colleagues, { enablePushNotifications, disablePushNotifications } from '../components/Colleagues';
 import { FiPaperclip, FiAlertTriangle } from 'react-icons/fi';
 
@@ -1052,13 +1053,15 @@ function TourGuide({ member, onDone }) {
 /* ── Deploy control: trigger a Render deploy now or schedule one for later.
    Hidden for QA and Software Developers (server enforces the same rule). ─── */
 const DEPLOY_DONE = ['live', 'failed', 'build_failed', 'update_failed', 'canceled', 'cancelled', 'deactivated'];
-function DeployControl() {
+function DeployControl({ dark = false }) {
   const [open, setOpen]     = useState(false);
+  const [showServices, setShowServices] = useState(false);
   const [busy, setBusy]     = useState(false);
   const [msg, setMsg]       = useState('');
   const [when, setWhen]     = useState('');
   const [pwd, setPwd]       = useState('');
-  const [data, setData]     = useState({ scheduled: [], recent: [], canDeploy: null });
+  const [data, setData]     = useState({ scheduled: [], recent: [], targets: [], canDeploy: null });
+  const [target, setTarget] = useState('');              // selected repo target id (per-repo deploy)
   const [activeId, setActive] = useState(null);          // deploy currently in progress
   const [logs, setLogs]     = useState({ status: null, lines: [], note: '' });
   const [logsBig, setLogsBig] = useState(false);
@@ -1067,7 +1070,7 @@ function DeployControl() {
   const shownRef = useRef(null); // last deploy id we already auto-surfaced
   const load = async () => {
     try {
-      const d = await fetchJson('/api/deploy');
+      const d = await fetchJson(`/api/deploy${target ? `?targetId=${target}` : ''}`);
       setData(d);
       // Only a recently-triggered deploy (last 15 min) counts as "in progress".
       const running = (d.recent || []).find((r) => r.status === 'triggered' && (Date.now() - new Date(r.created_at).getTime()) < 15 * 60 * 1000);
@@ -1083,7 +1086,7 @@ function DeployControl() {
   };
   // Keep watching even while closed so an in-progress deploy surfaces on its own.
   useEffect(() => { load(); const i = setInterval(load, 15000); return () => clearInterval(i); /* eslint-disable-next-line */ }, []);
-  useEffect(() => { if (open) load(); /* eslint-disable-next-line */ }, [open]);
+  useEffect(() => { if (open) load(); /* eslint-disable-next-line */ }, [open, target]);
 
   // Poll live logs/status for the active deploy.
   useEffect(() => {
@@ -1108,11 +1111,12 @@ function DeployControl() {
   // Hidden entirely unless an admin has granted this user deploy access.
   if (!data.canDeploy) return null;
 
-  const pwBody = (extra) => ({ ...(data.passwordSet ? { password: pwd } : {}), ...extra });
+  const pwBody = (extra) => ({ ...(data.passwordSet ? { password: pwd } : {}), ...(target ? { targetId: Number(target) } : {}), ...extra });
   const needPw = () => { if (data.passwordSet && !pwd) { setMsg('Enter the deploy password.'); return true; } return false; };
+  const needTarget = () => { if (data.targets?.length && !target) { setMsg('Select a repository to deploy.'); return true; } return false; };
 
   const deployNow = async () => {
-    if (needPw()) return;
+    if (needTarget() || needPw()) return;
     setBusy(true); setMsg(''); setLogs({ status: null, lines: [], note: '' });
     try { const r = await fetchJson('/api/deploy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pwBody()) }); setMsg(r.message || 'Deploy triggered.'); shownRef.current = r.id; setActive(r.id); setPwd(''); load(); }
     catch (e) { setMsg(e.message); }
@@ -1129,7 +1133,7 @@ function DeployControl() {
   };
   const schedule = async () => {
     if (!when) { setMsg('Pick a date & time first.'); return; }
-    if (needPw()) return;
+    if (needTarget() || needPw()) return;
     setBusy(true); setMsg('');
     try {
       await fetchJson('/api/deploy/schedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pwBody({ runAt: new Date(when).toISOString() })) });
@@ -1171,6 +1175,19 @@ function DeployControl() {
               <p className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2"><FiUploadCloud size={17} /> Deploy</p>
               <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><FiX size={17} /></button>
             </div>
+
+            {/* Per-repo target picker — choose which repo's deploy hook to fire */}
+            {data.targets?.length > 0 && (
+              <div className="mb-3">
+                <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 mb-1 flex items-center gap-1"><FiServer size={10} /> Repository to deploy</p>
+                <select value={target} onChange={(e) => setTarget(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-200">
+                  <option value="">Select a repository…</option>
+                  {data.targets.map((t) => <option key={t.id} value={t.id}>{t.label}{t.repo ? ` · ${t.repo}` : ''}</option>)}
+                </select>
+                {!target && <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">Pick a repository — each deploys on its own configured hook.</p>}
+              </div>
+            )}
 
             {/* Deploy password (when an admin has set one) */}
             {data.passwordSet && !activeId && (
@@ -1235,6 +1252,14 @@ function DeployControl() {
                 ))}
               </div>
             )}
+
+            {/* Render services: env vars, settings & history (admin session req.) */}
+            <div className="mt-3 border-t border-slate-100 dark:border-slate-800 pt-3">
+              <button onClick={() => setShowServices((s) => !s)} className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                <FiServer size={12} /> Services & environment {showServices ? '▾' : '▸'}
+              </button>
+              {showServices && <div className="mt-2"><RenderServices dark={dark} /></div>}
+            </div>
           </div>
         </div>
       )}
@@ -1395,7 +1420,7 @@ export default function TeamPortalPage() {
               </button>
             ))}
           </div>
-          <DeployControl />
+          <DeployControl dark={dark} />
           <NotificationBell dark={dark} />
           <button onClick={() => setDark((d) => !d)} title="Toggle theme"
             className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import Button from '../components/ui/Button';
 import AdminTicketOps from '../components/AdminTicketOps';
 import AdminPeos from '../components/AdminPeos';
+import RenderServices from '../components/RenderServices';
 import { fetchJson } from '../common/fetchJson';
 
 const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support', 'executives', 'team', 'deploy', 'tickets', 'engineering', 'worklog', 'logs'];
@@ -197,6 +198,64 @@ function AdminDeploy() {
           ))}
         </div>
       </div>
+
+      {/* Per-repo deploy targets — each repo + its own Render deploy hook */}
+      <DeployTargets />
+
+      {/* Render services: env vars, settings & deploy history per service */}
+      <div>
+        <h3 className="text-lg font-semibold mb-1">Services & environment</h3>
+        <p className="text-white/55 text-sm mb-3">Your Render project's services — open one to edit its environment variables, settings (name, branch, auto-deploy) and review its deploy history.</p>
+        <RenderServices dark />
+      </div>
+    </div>
+  );
+}
+
+/* ── Configure deployment per repo: each repo has its own Render deploy hook ── */
+function DeployTargets() {
+  const [targets, setTargets] = useState([]);
+  const [draft, setDraft] = useState({ label: '', repo: '', deployHook: '' });
+  const [msg, setMsg] = useState('');
+  const load = () => fetchJson('/api/deploy/targets').then((d) => setTargets(d.targets || [])).catch((e) => setMsg(e.message));
+  useEffect(() => { load(); }, []);
+  const add = async () => {
+    if (!draft.label.trim() || !draft.deployHook.trim()) { setMsg('Label and deploy hook are required.'); return; }
+    try { await fetchJson('/api/deploy/targets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) }); setDraft({ label: '', repo: '', deployHook: '' }); setMsg('Added ✓'); load(); }
+    catch (e) { setMsg(e.message); }
+  };
+  const saveRow = async (t) => {
+    try { await fetchJson('/api/deploy/targets', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id, label: t.label, repo: t.repo, deployHook: t.deploy_hook }) }); setMsg('Saved ✓'); load(); }
+    catch (e) { setMsg(e.message); }
+  };
+  const del = async (id) => { if (!window.confirm('Delete this deploy target?')) return; try { await fetchJson(`/api/deploy/targets?id=${id}`, { method: 'DELETE' }); load(); } catch (e) { setMsg(e.message); } };
+  const setField = (id, k, v) => setTargets((ts) => ts.map((t) => (t.id === id ? { ...t, [k]: v } : t)));
+  const inp = 'rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white placeholder:text-white/35 focus:outline-none';
+  return (
+    <div>
+      <h3 className="text-lg font-semibold mb-1">Configure deployment (per repo)</h3>
+      <p className="text-white/55 text-sm mb-3">Each repository gets its own Render deploy hook. Team users pick a repo before deploying, and only that repo's hook is fired — no single hook for everything.</p>
+      <div className="space-y-2">
+        {targets.map((t) => (
+          <div key={t.id} className="rounded-2xl border border-white/10 bg-white/5 p-3 grid md:grid-cols-[1fr_1fr_2fr_auto] gap-2 items-center">
+            <input className={inp} value={t.label} onChange={(e) => setField(t.id, 'label', e.target.value)} placeholder="Label (e.g. Main site)" />
+            <input className={inp} value={t.repo || ''} onChange={(e) => setField(t.id, 'repo', e.target.value)} placeholder="owner/repo (optional)" />
+            <input className={`${inp} font-mono`} value={t.deploy_hook} onChange={(e) => setField(t.id, 'deploy_hook', e.target.value)} placeholder="https://api.render.com/deploy/srv-…?key=…" />
+            <span className="flex gap-1.5">
+              <button onClick={() => saveRow(t)} className="text-xs px-3 py-1.5 rounded-lg bg-white text-slate-950 font-semibold">Save</button>
+              <button onClick={() => del(t.id)} className="text-xs px-2.5 py-1.5 rounded-lg border border-red-400/30 text-red-300 hover:bg-red-500/10">✕</button>
+            </span>
+          </div>
+        ))}
+        {/* New target */}
+        <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-3 grid md:grid-cols-[1fr_1fr_2fr_auto] gap-2 items-center">
+          <input className={inp} value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} placeholder="New label" />
+          <input className={inp} value={draft.repo} onChange={(e) => setDraft({ ...draft, repo: e.target.value })} placeholder="owner/repo (optional)" />
+          <input className={`${inp} font-mono`} value={draft.deployHook} onChange={(e) => setDraft({ ...draft, deployHook: e.target.value })} placeholder="Render deploy-hook URL" />
+          <button onClick={add} className="text-xs px-4 py-1.5 rounded-lg bg-emerald-500/90 hover:bg-emerald-500 text-white font-semibold">+ Add</button>
+        </div>
+      </div>
+      {msg && <p className="text-xs text-white/60 mt-2">{msg}</p>}
     </div>
   );
 }
