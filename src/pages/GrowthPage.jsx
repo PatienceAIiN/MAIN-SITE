@@ -245,9 +245,10 @@ function SettingsModal({ onClose, currency, setCurrency }) {
 }
 
 /* ── Reusable bits ─────────────────────────────────────────────────────────── */
-function KpiCard({ icon: Icon, label, value, sub, tint = 'bg-indigo-500', delta }) {
+function KpiCard({ icon: Icon, label, value, sub, tint = 'bg-indigo-500', delta, onClick }) {
   return (
-    <div className={`${card} p-4`}>
+    <div onClick={onClick}
+      className={`${card} p-4 ${onClick ? 'cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-700 hover:shadow-sm transition' : ''}`}>
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-slate-500">{label}</span>
         <span className={`grid place-items-center h-8 w-8 rounded-lg text-white ${tint}`}><Icon size={16} /></span>
@@ -255,7 +256,41 @@ function KpiCard({ icon: Icon, label, value, sub, tint = 'bg-indigo-500', delta 
       <div className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{value}</div>
       {sub && <div className="mt-0.5 text-xs text-slate-400">{sub}</div>}
       {delta != null && <div className={`mt-1 text-xs font-semibold ${delta >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}%</div>}
+      {onClick && <div className="mt-1 text-[10px] text-indigo-400">Click for details →</div>}
     </div>
+  );
+}
+
+// Metric detail modal: big value + an (i) info toggle that reveals the exact
+// calculation rule and validation checks, plus an optional breakdown / CRUD body.
+function MetricModal({ title, value, sub, rule, validations, onClose, children }) {
+  const [info, setInfo] = useState(false);
+  return (
+    <Modal title={title} onClose={onClose} wide>
+      <div className="flex items-start gap-3 -mt-2 mb-4">
+        <div>
+          <div className="text-3xl font-bold text-slate-900 dark:text-white">{value}</div>
+          {sub && <div className="text-xs text-slate-400 mt-0.5">{sub}</div>}
+        </div>
+        {(rule || validations) && (
+          <button title="How is this calculated?" onClick={() => setInfo((v) => !v)}
+            className={`ml-auto grid place-items-center h-9 w-9 rounded-full border text-sm font-bold ${info ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-300 dark:border-slate-600 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+            i
+          </button>
+        )}
+      </div>
+      {info && (rule || validations) && (
+        <div className="mb-4 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900 p-3.5 text-sm">
+          {rule && <div className="mb-2"><div className="text-[11px] font-semibold uppercase tracking-wide text-indigo-500 mb-1">Calculation</div><p className="text-slate-700 dark:text-slate-200 whitespace-pre-wrap font-mono text-xs leading-relaxed">{rule}</p></div>}
+          {validations?.length > 0 && (
+            <div><div className="text-[11px] font-semibold uppercase tracking-wide text-indigo-500 mb-1">Validation checks</div>
+              <ul className="list-disc pl-4 space-y-0.5 text-slate-600 dark:text-slate-300 text-xs">{validations.map((v, i) => <li key={i}>{v}</li>)}</ul>
+            </div>
+          )}
+        </div>
+      )}
+      {children}
+    </Modal>
   );
 }
 
@@ -306,6 +341,7 @@ const chartTheme = (dark) => ({
 function CommandCenter({ dark, onSeed }) {
   const [m, setM] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [metric, setMetric] = useState(null);
   const load = useCallback(() => { setLoading(true); api('/metrics').then(setM).catch(() => {}).finally(() => setLoading(false)); }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -373,13 +409,33 @@ function CommandCenter({ dark, onSeed }) {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <KpiCard icon={FiDollarSign} label="Revenue (6mo)" value={inr(h.revenue)} tint="bg-emerald-500" />
-        <KpiCard icon={FiTarget} label="Open pipeline" value={inr(h.pipelineValue)} sub={`weighted ${inr(h.weightedPipeline)}`} tint="bg-indigo-500" />
-        <KpiCard icon={FiActivity} label="Win rate" value={pct(h.winRate)} sub={`${h.openDeals} open deals`} tint="bg-violet-500" />
-        <KpiCard icon={FiUsers} label="Customers" value={h.customers} sub={`${h.leads} leads`} tint="bg-sky-500" />
-        <KpiCard icon={FiAlertTriangle} label="At-risk" value={h.atRisk} sub={`retention ${pct(h.retention)}`} tint="bg-red-500" />
-        <KpiCard icon={FiPieChart} label="ROAS / CAC" value={`${h.roas}x`} sub={`CAC ${inr(h.cac)}`} tint="bg-amber-500" />
+        <KpiCard icon={FiDollarSign} label="Revenue (6mo)" value={inr(h.revenue)} tint="bg-emerald-500" onClick={() => setMetric('revenue')} />
+        <KpiCard icon={FiTarget} label="Open pipeline" value={inr(h.pipelineValue)} sub={`weighted ${inr(h.weightedPipeline)}`} tint="bg-indigo-500" onClick={() => setMetric('pipeline')} />
+        <KpiCard icon={FiActivity} label="Win rate" value={pct(h.winRate)} sub={`${h.openDeals} open deals`} tint="bg-violet-500" onClick={() => setMetric('winRate')} />
+        <KpiCard icon={FiUsers} label="Customers" value={h.customers} sub={`${h.leads} leads`} tint="bg-sky-500" onClick={() => setMetric('customers')} />
+        <KpiCard icon={FiAlertTriangle} label="At-risk" value={h.atRisk} sub={`retention ${pct(h.retention)}`} tint="bg-red-500" onClick={() => setMetric('atRisk')} />
+        <KpiCard icon={FiPieChart} label="ROAS / CAC" value={`${h.roas}x`} sub={`CAC ${inr(h.cac)}`} tint="bg-amber-500" onClick={() => setMetric('roas')} />
       </div>
+      {metric && (() => {
+        const cfg = {
+          revenue: { title: 'Revenue (6 months)', value: inr(h.revenue), rule: "revenue = Σ(deal.value WHERE status='won') over last 6 months",
+            validations: ['Only won deals are counted.', 'Attributed to the close month (or last-updated month if no close date set).'],
+            body: <ul className="space-y-1 text-sm">{m.revenueTrend.map((r) => <li key={r.month} className="flex justify-between px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/40"><span>{r.month}</span><span className="font-medium">{inr(r.revenue)}</span></li>)}</ul> },
+          pipeline: { title: 'Open pipeline', value: inr(h.pipelineValue), sub: `weighted ${inr(h.weightedPipeline)}`, rule: 'open_pipeline = Σ(value of open deals)\nweighted = Σ(value × probability ÷ 100)',
+            validations: ['Open = stage in discovery/qualified/proposal/negotiation.', 'Probability must be 0–100%.', 'Won/lost deals are excluded.'],
+            body: <ul className="space-y-1 text-sm">{m.funnel.map((s) => <li key={s.stage} className="flex justify-between px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 capitalize"><span>{s.stage} ({s.count})</span><span className="font-medium">{inr(s.value)}</span></li>)}</ul> },
+          winRate: { title: 'Win rate', value: pct(h.winRate), sub: `${m.counts.won} won · ${m.counts.lost} lost`, rule: 'win_rate = won ÷ (won + lost) × 100',
+            validations: ['Still-open deals are excluded from the ratio.', 'A deal moved to "won"/"lost" sets status automatically.'] },
+          customers: { title: 'Customers', value: h.customers, sub: `${h.leads} leads/prospects`, rule: "customers = COUNT(contacts WHERE type='customer')",
+            validations: ['Type ∈ lead, prospect, customer, partner, vendor.', 'Leads & prospects are tracked separately.'] },
+          atRisk: { title: 'At-risk customers', value: h.atRisk, sub: `retention ${pct(h.retention)}`, rule: "at_risk = contacts WHERE stage='at_risk' OR (type='customer' AND health < 50)",
+            validations: ['Health is 0–100; below 50 flags risk.', 'Retention = (customers − churned) ÷ (customers + churned) × 100.'] },
+          roas: { title: 'ROAS / CAC', value: `${h.roas}x`, sub: `CAC ${inr(h.cac)}`, rule: 'ROAS = campaign_revenue ÷ campaign_spend\nCAC = total_spend ÷ conversions',
+            validations: ['Spend must be > 0 to compute ROAS.', 'Conversions must be > 0 to compute CAC.', 'Aggregated across all campaigns.'],
+            body: <ul className="space-y-1 text-sm">{m.byChannel.map((c) => <li key={c.channel} className="flex justify-between px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 capitalize"><span>{c.channel}</span><span className="font-medium">{inr(c.revenue)} / {inr(c.spend)}</span></li>)}{!m.byChannel.length && <li className="text-slate-400 text-center py-3">No campaign data.</li>}</ul> },
+        }[metric];
+        return <MetricModal title={cfg.title} value={cfg.value} sub={cfg.sub} rule={cfg.rule} validations={cfg.validations} onClose={() => setMetric(null)}>{cfg.body}</MetricModal>;
+      })()}
 
       <div className="grid lg:grid-cols-3 gap-4">
         <div className={`${card} p-4 lg:col-span-2`}>
@@ -875,6 +931,7 @@ function Accounts({ reload }) {
   const [m, setM] = useState(null);
   const [editInv, setEditInv] = useState(null);
   const [editExp, setEditExp] = useState(null);
+  const [metric, setMetric] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(() => {
@@ -899,14 +956,28 @@ function Accounts({ reload }) {
     <div className="space-y-5">
       {f && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <KpiCard icon={FiDollarSign} label="Collected" value={inr(f.collected)} tint="bg-emerald-500" />
-          <KpiCard icon={FiFileText} label="Outstanding AR" value={inr(f.outstanding)} sub={`overdue ${inr(f.overdueAr)}`} tint="bg-amber-500" />
-          <KpiCard icon={FiCreditCard} label="Expenses paid" value={inr(f.expensesPaid)} sub={`pending ${inr(f.expensePending)}`} tint="bg-slate-500" />
-          <KpiCard icon={FiTrendingUp} label="Net cashflow" value={inr(f.netCashflow)} tint={f.netCashflow >= 0 ? 'bg-emerald-500' : 'bg-red-500'} />
-          <KpiCard icon={FiActivity} label="Invoices" value={invoicesData.length} tint="bg-indigo-500" />
-          <KpiCard icon={FiPieChart} label="Expense items" value={expensesData.length} tint="bg-violet-500" />
+          <KpiCard icon={CURRENCIES[CUR]?.icon || FiDollarSign} label="Collected" value={inr(f.collected)} tint="bg-emerald-500" onClick={() => setMetric('collected')} />
+          <KpiCard icon={FiFileText} label="Outstanding AR" value={inr(f.outstanding)} sub={`overdue ${inr(f.overdueAr)}`} tint="bg-amber-500" onClick={() => setMetric('outstanding')} />
+          <KpiCard icon={FiCreditCard} label="Expenses paid" value={inr(f.expensesPaid)} sub={`pending ${inr(f.expensePending)}`} tint="bg-slate-500" onClick={() => setMetric('expenses')} />
+          <KpiCard icon={FiTrendingUp} label="Net cashflow" value={inr(f.netCashflow)} tint={f.netCashflow >= 0 ? 'bg-emerald-500' : 'bg-red-500'} onClick={() => setMetric('net')} />
+          <KpiCard icon={FiActivity} label="Invoices" value={invoicesData.length} tint="bg-indigo-500" onClick={() => setMetric('collected')} />
+          <KpiCard icon={FiPieChart} label="Expense items" value={expensesData.length} tint="bg-violet-500" onClick={() => setMetric('expenses')} />
         </div>
       )}
+      {metric && f && (() => {
+        const cfg = {
+          collected: { title: 'Collected revenue', value: inr(f.collected), rule: "collected = Σ(amount + tax) of invoices WHERE status='paid'",
+            validations: ['Only paid invoices count toward collected.', 'Amount and tax must be ≥ 0.', 'Marking an invoice paid stamps its paid date.'] },
+          outstanding: { title: 'Outstanding receivables', value: inr(f.outstanding), sub: `overdue ${inr(f.overdueAr)}`, rule: "outstanding = Σ(amount + tax) WHERE status IN ('sent','overdue')\noverdue = the subset past its due date",
+            validations: ['Draft & void invoices are excluded.', 'An invoice is overdue if status=overdue or due date has passed.'] },
+          expenses: { title: 'Expenses', value: inr(f.expensesPaid), sub: `pending ${inr(f.expensePending)}`, rule: "expenses_paid = Σ(amount) WHERE status IN ('paid','approved')",
+            validations: ['Category ∈ marketing, salaries, software, travel, office, infra, other.', 'Rejected expenses are excluded.', 'Amount must be ≥ 0.'],
+            body: <ul className="space-y-1 text-sm">{f.expenseByCategory.map((e) => <li key={e.category} className="flex justify-between px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 capitalize"><span>{e.category}</span><span className="font-medium">{inr(e.amount)}</span></li>)}</ul> },
+          net: { title: 'Net cashflow', value: inr(f.netCashflow), rule: 'net_cashflow = collected − expenses_paid',
+            validations: ['Collected = paid invoices (amount + tax).', 'Expenses = paid/approved expenses.', 'A negative value means outflow exceeds collection.'] },
+        }[metric];
+        return <MetricModal title={cfg.title} value={cfg.value} sub={cfg.sub} rule={cfg.rule} validations={cfg.validations} onClose={() => setMetric(null)}>{cfg.body}</MetricModal>;
+      })()}
 
       {/* Invoices */}
       <div className={`${card} overflow-hidden`}>
@@ -1027,6 +1098,7 @@ function Hr({ reload }) {
   const [dept, setDept] = useState('all');
   const [editing, setEditing] = useState(null);
   const [chipDept, setChipDept] = useState(null);
+  const [metric, setMetric] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(() => {
@@ -1052,12 +1124,75 @@ function Hr({ reload }) {
     <div className="space-y-5">
       {hr && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KpiCard icon={FiUsers} label="Headcount" value={hr.headcount} tint="bg-indigo-500" />
-          <KpiCard icon={FiUserCheck} label="Active" value={hr.active} sub={`${hr.onLeave} on leave`} tint="bg-emerald-500" />
-          <KpiCard icon={FiDollarSign} label="Monthly payroll" value={inr(hr.monthlyPayroll)} tint="bg-amber-500" />
-          <KpiCard icon={FiBriefcase} label="Departments" value={hr.headcountByDept.length} tint="bg-violet-500" />
+          <KpiCard icon={FiUsers} label="Headcount" value={hr.headcount} tint="bg-indigo-500" onClick={() => setMetric('headcount')} />
+          <KpiCard icon={FiUserCheck} label="Active" value={hr.active} sub={`${hr.onLeave} on leave`} tint="bg-emerald-500" onClick={() => setMetric('active')} />
+          <KpiCard icon={CURRENCIES[CUR]?.icon || FiDollarSign} label="Monthly payroll" value={inr(hr.monthlyPayroll)} tint="bg-amber-500" onClick={() => setMetric('payroll')} />
+          <KpiCard icon={FiBriefcase} label="Departments" value={hr.headcountByDept.length} tint="bg-violet-500" onClick={() => setMetric('departments')} />
         </div>
       )}
+      {metric && hr && (() => {
+        const empRow = (r) => (
+          <li key={r.id} className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-slate-800 px-3 py-2.5">
+            <div className="min-w-0"><div className="font-medium text-slate-800 dark:text-slate-100 truncate">{r.name}</div><div className="text-xs text-slate-400">{r.title || r.email} · {r.department} · {(r.status || '').replace('_', ' ')}</div></div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-sm font-medium text-slate-600 dark:text-slate-300">{inr(r.salary)}</span>
+              <button title="Edit" onClick={() => { setEditing(r); setMetric(null); }} className="grid place-items-center h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-950 dark:text-indigo-300"><FiEdit2 size={14} /></button>
+              <button title="Remove" onClick={() => remove(r.id)} className="grid place-items-center h-8 w-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950 dark:text-red-300"><FiTrash2 size={14} /></button>
+            </div>
+          </li>
+        );
+        const active = rows.filter((r) => ['active', 'probation', 'on_leave'].includes(r.status));
+        const cfg = {
+          headcount: {
+            title: 'Headcount', value: hr.headcount, sub: 'employees (excludes terminated)',
+            rule: "headcount = COUNT(employees WHERE status ≠ 'terminated')",
+            validations: ['Name and department are required for every employee.', 'Annual salary must be a non-negative number.', "Terminated employees are excluded; offboarding still counts."],
+            list: rows.filter((r) => r.status !== 'terminated'),
+          },
+          active: {
+            title: 'Active staff', value: hr.active, sub: `${hr.onLeave} on leave`,
+            rule: 'active = COUNT(status ∈ {active, probation, on_leave})',
+            validations: ['Status ∈ active, on_leave, probation, offboarding, terminated.', 'On-leave staff still count as active headcount.', 'Offboarding & terminated are NOT counted as active.'],
+            list: active,
+          },
+          payroll: {
+            title: 'Monthly payroll', value: inr(hr.monthlyPayroll), sub: 'gross, active staff',
+            rule: 'monthly_payroll = Σ(annual_salary of active/probation/on_leave) ÷ 12',
+            validations: ['Salaries are annual gross in the selected display currency.', 'Only active, probation and on-leave staff are included.', 'Each salary must be ≥ 0.'],
+            list: null,
+          },
+          departments: {
+            title: 'Departments', value: hr.headcountByDept.length, sub: 'with active members',
+            rule: "departments = COUNT(DISTINCT department WHERE status ≠ 'terminated')",
+            validations: ['Department must be one of the configured list.', 'Empty departments are not shown.'],
+            list: null,
+          },
+        }[metric];
+        return (
+          <MetricModal title={cfg.title} value={cfg.value} sub={cfg.sub} rule={cfg.rule} validations={cfg.validations} onClose={() => setMetric(null)}>
+            <div className="flex justify-end mb-2"><button className={btnPrimary} onClick={() => { setEditing({}); setMetric(null); }}><FiPlus /> Add employee</button></div>
+            {metric === 'payroll' && (
+              <ul className="space-y-1.5 max-h-80 overflow-y-auto">
+                {active.slice().sort((a, b) => Number(b.salary) - Number(a.salary)).map((r) => (
+                  <li key={r.id} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/40">
+                    <span className="truncate text-slate-700 dark:text-slate-200">{r.name} <span className="text-xs text-slate-400">· {r.department}</span></span>
+                    <span className="font-medium shrink-0">{inr(Number(r.salary) / 12)}/mo</span>
+                  </li>
+                ))}
+                {!active.length && <li className="text-sm text-slate-400 text-center py-6">No active staff.</li>}
+              </ul>
+            )}
+            {metric === 'departments' && (
+              <ul className="space-y-1.5">
+                {hr.headcountByDept.map((d) => (
+                  <li key={d.department}><button onClick={() => { setChipDept(d.department); setMetric(null); }} className="w-full flex items-center justify-between text-sm px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/40 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"><span>{d.department}</span><span className="font-medium">{d.count}</span></button></li>
+                ))}
+              </ul>
+            )}
+            {cfg.list && <ul className="space-y-2 max-h-80 overflow-y-auto">{cfg.list.map(empRow)}{!cfg.list.length && <li className="text-sm text-slate-400 text-center py-6">None.</li>}</ul>}
+          </MetricModal>
+        );
+      })()}
       {hr?.headcountByDept?.length > 0 && (
         <div className={`${card} p-4 flex flex-wrap gap-2`}>
           {hr.headcountByDept.map((d) => (
@@ -1174,12 +1309,16 @@ export default function GrowthPage() {
   const [nonce, setNonce] = useState(0); // forces metric reloads after mutations
   const reload = useCallback(() => setNonce((n) => n + 1), []);
 
+  // authed: null (checking) | false (not signed in) | 'denied' (signed in, no
+  // Growth access) | true (signed in with Growth access).
+  const verify = useCallback(() => fetchJson('/api/team-members/me', { credentials: 'include' })
+    .then((d) => setAuthed(d?.member?.growthAccess ? true : 'denied'))
+    .catch(() => setAuthed(false)), []);
   useEffect(() => {
     if (inviteToken && !activated) { setAuthed(false); return; }
-    fetchJson('/api/team-members/me', { credentials: 'include' }).then(() => setAuthed(true)).catch(() => setAuthed(false));
-  }, [inviteToken, activated]);
+    verify();
+  }, [inviteToken, activated, verify]);
   useEffect(() => { document.documentElement.classList.toggle('dark', dark); try { localStorage.setItem('growth-dark', dark ? '1' : '0'); } catch { /* ignore */ } }, [dark]);
-  useEffect(() => { document.title = 'Growth · Patience AI'; }, []);
 
   const changeCurrency = (code) => { CUR = code; setCur(code); try { localStorage.setItem('growth-cur', code); } catch { /* ignore */ } reload(); };
   const seed = async () => { await api('/seed', { method: 'POST' }); reload(); };
@@ -1189,17 +1328,31 @@ export default function GrowthPage() {
     setAuthed(false);
   };
 
-  if (inviteToken && !activated && !authed) {
-    return <Activate token={inviteToken} onActivated={() => { setActivated(true); setAuthed(true); }} />;
+  const signOut = async () => { await fetchJson('/api/team-members/logout', { method: 'POST', credentials: 'include' }).catch(() => {}); setAuthed(false); };
+
+  if (inviteToken && !activated && authed !== true && authed !== 'denied') {
+    return <Activate token={inviteToken} onActivated={() => { setActivated(true); verify(); }} />;
   }
   if (authed === null) return <div className="min-h-screen grid place-items-center bg-slate-50 dark:bg-slate-950"><Spinner size={28} /></div>;
-  if (!authed) return <Login onAuthed={() => setAuthed(true)} />;
+  if (authed === 'denied') {
+    return (
+      <div className="min-h-screen grid place-items-center bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 px-4">
+        <div className="w-full max-w-md rounded-3xl bg-white/95 backdrop-blur p-8 shadow-2xl text-center">
+          <div className="grid place-items-center h-12 w-12 rounded-2xl bg-amber-100 text-amber-600 mx-auto mb-4"><FiLock size={22} /></div>
+          <h1 className="text-xl font-bold text-slate-900">No Growth access</h1>
+          <p className="text-sm text-slate-500 mt-2">Your account isn't enabled for the Business Growth OS. Ask an admin to invite you from <strong>Admin → Growth</strong>.</p>
+          <button onClick={signOut} className={`${btnGhost} mt-6 w-full justify-center`}><FiLogOut /> Sign out</button>
+        </div>
+      </div>
+    );
+  }
+  if (!authed) return <Login onAuthed={() => verify()} />;
 
   return (
     <div className={`${dark ? 'dark' : ''}`}>
-      <div className="min-h-screen flex bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
-        {/* Sidebar */}
-        <aside className="w-60 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hidden md:flex flex-col">
+      <div className="h-screen overflow-hidden flex bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+        {/* Sidebar — fixed, does not scroll with the content */}
+        <aside className="w-60 shrink-0 h-screen sticky top-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hidden md:flex flex-col">
           <div className="p-5 flex items-center gap-2.5">
             <div className="grid place-items-center h-9 w-9 rounded-xl bg-indigo-600 text-white"><FiTrendingUp size={18} /></div>
             <div><div className="font-bold leading-tight text-base">Growth</div><div className="text-[10px] text-slate-400">Patience AI</div></div>
@@ -1219,8 +1372,8 @@ export default function GrowthPage() {
           </div>
         </aside>
 
-        {/* Main */}
-        <main className="flex-1 min-w-0">
+        {/* Main — the only scrollable column */}
+        <main className="flex-1 min-w-0 h-screen overflow-y-auto">
           <header className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
             <div>
               <h1 className="text-lg font-bold">Growth</h1>

@@ -166,13 +166,15 @@ export default async function handler(req, res) {
     let allowedRepos = [];
     let avatarStored = '';
     let perms = [];
+    let growthAccess = false;
     let ok = false;
     try {
-      const rows = await queryDb(`SELECT team_role, permissions, notifications_enabled, allowed_repos, avatar, name FROM ${TABLE} WHERE id=$1`, [member.id]);
+      const rows = await queryDb(`SELECT team_role, permissions, notifications_enabled, allowed_repos, growth_access, avatar, name FROM ${TABLE} WHERE id=$1`, [member.id]);
       teamRole = rows[0]?.team_role || 'member';
       notificationsEnabled = rows[0]?.notifications_enabled !== false;
       allowedRepos = String(rows[0]?.allowed_repos || '').split(',').map((x) => x.trim()).filter(Boolean);
       avatarStored = rows[0]?.avatar || '';
+      growthAccess = rows[0]?.growth_access === true;
       member.name = rows[0]?.name || member.name; // reflect latest self-edited name
       perms = resolvePerms(rows[0]);
       ok = true;
@@ -182,7 +184,7 @@ export default async function handler(req, res) {
     // perms/avatar — the client keeps its last-known values and never flickers
     // (this is what made the profile picture & tabs vanish "after a while").
     if (!ok) return res.status(200).json({ member: { ...member, degraded: true } });
-    return res.status(200).json({ member: { ...member, teamRole, permissions: perms, notificationsEnabled, allowedRepos, avatar: avatarUrlFor(member.id, avatarStored) } });
+    return res.status(200).json({ member: { ...member, teamRole, permissions: perms, notificationsEnabled, allowedRepos, growthAccess, avatar: avatarUrlFor(member.id, avatarStored) } });
   }
 
   // ── GET /api/team-members/avatar?id= — serve a member's picture ────────────
@@ -358,8 +360,8 @@ export default async function handler(req, res) {
 
   // PATCH — activate/deactivate a member
   if (req.method === 'PATCH') {
-    const { id, status, teamRole, permissions, allowedRepos } = req.body || {};
-    if (!id || (!status && !teamRole && permissions === undefined && allowedRepos === undefined)) return res.status(400).json({ error: 'id and status, teamRole, permissions or allowedRepos required' });
+    const { id, status, teamRole, permissions, allowedRepos, growthAccess } = req.body || {};
+    if (!id || (!status && !teamRole && permissions === undefined && allowedRepos === undefined && growthAccess === undefined)) return res.status(400).json({ error: 'id and status, teamRole, permissions, allowedRepos or growthAccess required' });
     if (permissions !== undefined && (!Array.isArray(permissions) || permissions.some((x) => !ALL_PERMS.includes(x))))
       return res.status(400).json({ error: 'Invalid permissions' });
     if (allowedRepos !== undefined && !Array.isArray(allowedRepos))
@@ -370,10 +372,11 @@ export default async function handler(req, res) {
       const rows = await queryDb(
         `UPDATE ${TABLE} SET status=COALESCE($1,status), team_role=COALESCE($2,team_role),
            permissions=CASE WHEN $3::text IS NULL THEN permissions ELSE $3 END,
-           allowed_repos=CASE WHEN $4::text IS NULL THEN allowed_repos ELSE $4 END, updated_at=NOW()
-         WHERE id=$5 RETURNING id, email, name, status, team_role, permissions, allowed_repos`,
+           allowed_repos=CASE WHEN $4::text IS NULL THEN allowed_repos ELSE $4 END,
+           growth_access=COALESCE($6,growth_access), updated_at=NOW()
+         WHERE id=$5 RETURNING id, email, name, status, team_role, permissions, allowed_repos, growth_access`,
         [status || null, teamRole || null, permissions === undefined ? null : permissions.join(','),
-         allowedRepos === undefined ? null : allowedRepos.join(','), id]
+         allowedRepos === undefined ? null : allowedRepos.join(','), id, growthAccess === undefined ? null : Boolean(growthAccess)]
       );
       await logAudit('admin', 'admin', 'team_member_status_changed', rows[0]?.email, { status });
       if (status === 'inactive') await revokeMember(id);      // instant lockout

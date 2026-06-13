@@ -114,6 +114,16 @@ const sendViaSmtp = async ({ provider, to, replyTo, subject, html, text }) => {
 export const sendEmail = async ({ to, replyTo, subject, html, text }) => {
   const provider = getEmailProvider();
   if (!provider) throw new Error('No email provider configured. Set BREVO_API_KEY+BREVO_SENDER_EMAIL or SMTP_*.');
+  // Test-mode safety net: when EMAIL_TEST_REDIRECT is set, every outbound email
+  // is rerouted to that single test inbox instead of the real recipient — so we
+  // never message real people (e.g. clients/owners) while testing. The original
+  // recipient is preserved in the subject for traceability.
+  const redirect = normalizeEmailAddress(process.env.EMAIL_TEST_REDIRECT || '');
+  if (redirect && isValidEmail(redirect)) {
+    const orig = (Array.isArray(to) ? to : [to]).map((r) => normalizeRecipient(r)?.email).filter(Boolean).join(', ');
+    to = { email: redirect, name: 'Test inbox' };
+    subject = `[TEST → ${orig || 'unknown'}] ${subject}`;
+  }
   if (provider.kind === 'brevo') return sendViaBrevo({ provider, to, replyTo, subject, html, text });
   return sendViaSmtp({ provider, to, replyTo, subject, html, text });
 };

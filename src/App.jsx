@@ -116,6 +116,7 @@ const getPageTitle = (pathname, siteContent) => {
   if (pathname === '/admin') return `Admin Console | ${brandName}`;
   if (pathname === '/support-executive') return `Support Executive Console | ${brandName}`;
   if (pathname === '/team') return `Team Portal | ${brandName}`;
+  if (pathname === '/growth') return `Growth · ${brandName}`;
   if (pathname === '/my-ticket') return `Track Your Ticket | ${brandName}`;
   if (pathname === '/live-chat' || pathname === '/support-chat') return `Live Support | ${brandName}`;
 

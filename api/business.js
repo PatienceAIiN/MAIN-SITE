@@ -661,22 +661,24 @@ async function aiCopilot(req) {
     `HR: ${m.hr.headcount} headcount (${m.hr.active} active, ${m.hr.onLeave} on leave), monthly payroll ₹${m.hr.monthlyPayroll}, by dept ${m.hr.headcountByDept.map((d) => `${d.department}:${d.count}`).join(', ') || 'none'}`,
   ].join('\n');
 
-  const prompt = `You are the AI business copilot inside the Patience AI Growth OS. Answer the operator's question using ONLY the live business data below. Be specific, cite the numbers, and finish with 2-3 concrete recommended actions. Keep it under 180 words. Use ₹ for currency.
+  // Greetings / trivial smalltalk get an instant, friendly reply — no AI round-trip.
+  if (/^(hi|hey|hello|yo|hola|sup|good (morning|afternoon|evening)|how are you|what'?s up)\b/i.test(question.trim())) {
+    return { answer: `Hi! 👋 I'm your Growth copilot. Right now: ₹${h.revenue} won (6mo), ₹${h.pipelineValue} open pipeline, ${h.customers} customers, health ${h.healthScore}/100. Ask me about revenue, pipeline, customers, campaigns, accounts or HR — e.g. "why might revenue change?" or "which customers are at risk?"`, grounded: m.headline };
+  }
 
-LIVE BUSINESS DATA:
-${context}
-
-OPERATOR QUESTION: ${question}`;
+  const system = 'You are the AI business copilot inside the Patience AI Growth OS. Answer the operator\'s actual question directly and conversationally, grounded in the live business data provided. Cite specific numbers when relevant. Be concise (under 150 words). When the question is analytical, finish with 1-3 concrete recommended actions. Use ₹ for currency. Do not invent data not present below.';
+  const prompt = `LIVE BUSINESS DATA (current snapshot):\n${context}\n\nOPERATOR QUESTION: ${question}`;
 
   let answer = '';
   try {
-    answer = await aiComplete(prompt, { maxTokens: 380 });
+    answer = await aiComplete(prompt, { maxTokens: 320, timeoutMs: 16000, system });
   } catch {
     answer = '';
   }
   if (!answer) {
-    // Deterministic fallback so the copilot is never dead even without an AI key.
-    answer = `Executive snapshot: ₹${h.revenue} won over 6 months with ₹${h.pipelineValue} in open pipeline (₹${h.weightedPipeline} weighted) across ${h.openDeals} deals. Win rate ${h.winRate}%, conversion ${h.conversionRate}%, retention ${h.retention}%. Health score ${h.healthScore}/100. ${h.atRisk > 0 ? `⚠ ${h.atRisk} customers are at risk — prioritise outreach. ` : ''}Recommended: 1) Push ${m.funnel.find((f) => f.stage === 'negotiation')?.count || 0} negotiation-stage deals to close. 2) ${h.roas < 2 ? 'Reallocate spend to higher-ROAS channels.' : 'Scale your best-performing channel.'} 3) ${h.atRisk ? 'Launch a retention play for at-risk accounts.' : 'Increase top-of-funnel lead generation.'}`;
+    // Deterministic, data-grounded fallback so the copilot always responds fast
+    // even if the AI provider is slow or unavailable.
+    answer = `Here's the live snapshot: ₹${h.revenue} won over 6 months with ₹${h.pipelineValue} in open pipeline (₹${h.weightedPipeline} weighted) across ${h.openDeals} deals. Win rate ${h.winRate}%, conversion ${h.conversionRate}%, retention ${h.retention}%, health ${h.healthScore}/100. ${h.atRisk > 0 ? `⚠ ${h.atRisk} customers at risk — prioritise outreach. ` : ''}Suggested focus: 1) Push ${m.funnel.find((f) => f.stage === 'negotiation')?.count || 0} negotiation-stage deals to close. 2) ${h.roas < 2 ? 'Reallocate spend to higher-ROAS channels.' : 'Scale your best-performing channel.'} 3) ${h.atRisk ? 'Launch a retention play for at-risk accounts.' : 'Grow top-of-funnel leads.'} (AI is busy right now — this is a live data summary.)`;
   }
   return { answer, grounded: m.headline };
 }
