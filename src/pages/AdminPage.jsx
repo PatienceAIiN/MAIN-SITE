@@ -215,10 +215,12 @@ function AdminDeploy() {
 /* ── Configure deployment per repo: each repo has its own Render deploy hook ── */
 function DeployTargets() {
   const [targets, setTargets] = useState([]);
+  const [repos, setRepos] = useState([]);
   const [draft, setDraft] = useState({ label: '', repo: '', deployHook: '' });
   const [msg, setMsg] = useState('');
   const load = () => fetchJson('/api/deploy/targets').then((d) => setTargets(d.targets || [])).catch((e) => setMsg(e.message));
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); fetchJson('/api/github?repos=1').then((d) => setRepos((d.repos || []).map((r) => r.full_name))).catch(() => {}); }, []);
+  const repoOpts = (cur) => [<option key="" value="">Select repo…</option>, ...Array.from(new Set([...(cur ? [cur] : []), ...repos])).map((r) => <option key={r} value={r}>{r}</option>)];
   const add = async () => {
     if (!draft.label.trim() || !draft.deployHook.trim()) { setMsg('Label and deploy hook are required.'); return; }
     try { await fetchJson('/api/deploy/targets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) }); setDraft({ label: '', repo: '', deployHook: '' }); setMsg('Added ✓'); load(); }
@@ -239,7 +241,7 @@ function DeployTargets() {
         {targets.map((t) => (
           <div key={t.id} className="rounded-2xl border border-white/10 bg-white/5 p-3 grid md:grid-cols-[1fr_1fr_2fr_auto] gap-2 items-center">
             <input className={inp} value={t.label} onChange={(e) => setField(t.id, 'label', e.target.value)} placeholder="Label (e.g. Main site)" />
-            <input className={inp} value={t.repo || ''} onChange={(e) => setField(t.id, 'repo', e.target.value)} placeholder="owner/repo (optional)" />
+            <select className={inp} value={t.repo || ''} onChange={(e) => setField(t.id, 'repo', e.target.value)}>{repoOpts(t.repo)}</select>
             <input className={`${inp} font-mono`} value={t.deploy_hook} onChange={(e) => setField(t.id, 'deploy_hook', e.target.value)} placeholder="https://api.render.com/deploy/srv-…?key=…" />
             <span className="flex gap-1.5">
               <button onClick={() => saveRow(t)} className="text-xs px-3 py-1.5 rounded-lg bg-white text-slate-950 font-semibold">Save</button>
@@ -250,7 +252,7 @@ function DeployTargets() {
         {/* New target */}
         <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-3 grid md:grid-cols-[1fr_1fr_2fr_auto] gap-2 items-center">
           <input className={inp} value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} placeholder="New label" />
-          <input className={inp} value={draft.repo} onChange={(e) => setDraft({ ...draft, repo: e.target.value })} placeholder="owner/repo (optional)" />
+          <select className={inp} value={draft.repo} onChange={(e) => setDraft({ ...draft, repo: e.target.value })}>{repoOpts(draft.repo)}</select>
           <input className={`${inp} font-mono`} value={draft.deployHook} onChange={(e) => setDraft({ ...draft, deployHook: e.target.value })} placeholder="Render deploy-hook URL" />
           <button onClick={add} className="text-xs px-4 py-1.5 rounded-lg bg-emerald-500/90 hover:bg-emerald-500 text-white font-semibold">+ Add</button>
         </div>

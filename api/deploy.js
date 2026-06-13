@@ -45,10 +45,12 @@ const getActor = async (req) => {
   const member = getMemberSession(req);
   if (member) {
     const email = (member.email || '').toLowerCase();
-    return { who: member.name || member.email || 'team_member', email, admin: false, allowed: cfg.allowedEmails.includes(email), cfg };
+    let allowedRepos = [];
+    try { const [row] = await queryDb(`SELECT allowed_repos FROM team_members WHERE id=$1`, [member.id]); allowedRepos = String(row?.allowed_repos || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean); } catch { /* ignore */ }
+    return { who: member.name || member.email || 'team_member', email, admin: false, allowed: cfg.allowedEmails.includes(email), allowedRepos, cfg };
   }
-  if (isAdmin(req)) return { who: 'admin', admin: true, allowed: true, cfg };
-  return { who: null, allowed: false, cfg };
+  if (isAdmin(req)) return { who: 'admin', admin: true, allowed: true, allowedRepos: null, cfg }; // null = all repos
+  return { who: null, allowed: false, allowedRepos: [], cfg };
 };
 
 // Best-effort: the latest commit on main (the one a hook deploy will build).
@@ -263,9 +265,12 @@ export default async function handler(req, res) {
   // GET — current schedule + recent history (visible to any authenticated member).
   if (req.method === 'GET') {
     try {
-      const targetId = parseInt(req.query.targetId, 10) || null;
-      // Team users get the target list WITHOUT hook values (just pick a repo).
-      const targets = (await loadTargets()).map((t) => ({ id: t.id, label: t.label, repo: t.repo }));
+      let targetId = parseInt(req.query.targetId, 10) || null;
+      // Team users only see deploy targets for repos an admin granted them; admins see all.
+      const visible = (await loadTargets()).filter((t) => actor.admin || (t.repo && actor.allowedRepos.includes(String(t.repo).toLowerCase())));
+      const targets = visible.map((t) => ({ id: t.id, label: t.label, repo: t.repo })); // hook never exposed here
+      // A team user may only read history for a target they can see.
+      if (targetId && !visible.some((t) => Number(t.id) === targetId)) targetId = -1;
       const scheduled = await queryDb(`SELECT id, triggered_by, run_at, note, target_label, created_at FROM deploys WHERE status='scheduled' ORDER BY run_at ASC`);
       const recent = targetId
         ? await queryDb(`SELECT id, triggered_by, status, run_at, note, deploy_id, commit_sha, commit_msg, pr, target_label, created_at FROM deploys WHERE status<>'scheduled' AND target_id=$1 ORDER BY created_at DESC LIMIT 15`, [targetId])
@@ -322,6 +327,8 @@ export default async function handler(req, res) {
       const tid = parseInt(targetId, 10) || null;
       const target = tid ? targets.find((t) => Number(t.id) === tid) : null;
       if (targets.length && !target) return res.status(400).json({ error: 'Select a repository to deploy.', needTarget: true });
+      if (target && !actor.admin && !(target.repo && actor.allowedRepos.includes(String(target.repo).toLowerCase())))
+        return res.status(403).json({ error: 'You are not granted access to deploy this repository.' });
       const rows = await queryDb(`INSERT INTO deploys (triggered_by, status, run_at, note, target_id, target_label) VALUES ($1,'scheduled',$2,$3,$4,$5) RETURNING id, run_at, note`,
         [actor.who, when.toISOString(), (note || '').slice(0, 300), target?.id || null, target?.label || null]);
       await logAudit('team', actor.who, 'deploy_scheduled', `deploy:${rows[0].id}`).catch(() => {});
@@ -353,6 +360,8 @@ export default async function handler(req, res) {
       if (targetId) {
         target = targets.find((t) => Number(t.id) === targetId);
         if (!target) return res.status(400).json({ error: 'Selected repo target not found.' });
+        if (!actor.admin && !(target.repo && actor.allowedRepos.includes(String(target.repo).toLowerCase())))
+          return res.status(403).json({ error: 'You are not granted access to deploy this repository.' });
       } else if (targets.length) {
         // Targets are configured → a repo MUST be chosen (no blanket all-repos deploy).
         return res.status(400).json({ error: 'Select a repository to deploy.', needTarget: true });
