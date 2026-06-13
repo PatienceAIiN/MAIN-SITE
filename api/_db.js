@@ -455,6 +455,8 @@ const SCHEMA_QUERIES = [
   `alter table public.team_members add column if not exists notifications_enabled boolean not null default true`,
   // GitHub repo grants: NULL/empty = no repos visible. Admin/execs see all.
   `alter table public.team_members add column if not exists allowed_repos text`,
+  // Growth OS access — set true only for people invited via Admin → Growth.
+  `alter table public.team_members add column if not exists growth_access boolean not null default false`,
   // Self-service profile picture (small base64 data URL set by the member).
   `alter table public.team_members add column if not exists avatar text`,
   // Render deploys triggered from the team portal: an immediate trigger writes a

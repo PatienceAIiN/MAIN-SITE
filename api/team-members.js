@@ -285,11 +285,13 @@ export default async function handler(req, res) {
   const admin = isAdmin(req);
   if (!admin && !(await isManager(req))) return res.status(401).json({ error: 'Unauthorized' });
 
-  // GET — list all team members
+  // GET — list members. ?portal=growth restricts to people granted Growth access.
   if (req.method === 'GET') {
     try {
+      const growthOnly = req.query?.portal === 'growth';
       const rows = await queryDb(
-        `SELECT id, email, name, status, team_role, permissions, allowed_repos, last_seen_at, created_at FROM ${TABLE} ORDER BY created_at DESC`
+        `SELECT id, email, name, status, team_role, permissions, allowed_repos, growth_access, last_seen_at, created_at
+         FROM ${TABLE} ${growthOnly ? 'WHERE growth_access = true' : ''} ORDER BY created_at DESC`
       );
       return res.status(200).json({ members: rows });
     } catch (err) {
@@ -310,20 +312,23 @@ export default async function handler(req, res) {
     const expiresAt = new Date(Date.now() + TTL_HOURS * 3600 * 1000).toISOString();
     const { salt, hash } = hashPassword(crypto.randomBytes(16).toString('hex'));
     try {
+      const isGrowth = portal === 'growth';
       const existing = await queryDb(`SELECT id FROM ${TABLE} WHERE email=$1 LIMIT 1`, [email.toLowerCase()]);
       let member;
       if (existing.length > 0) {
+        // A growth invite grants growth_access; a team invite never revokes it.
         const rows = await queryDb(
           `UPDATE ${TABLE} SET name=$1, invite_token=$2, invite_expires_at=$3, status='invited',
-           password_salt=$4, password_hash=$5, team_role=$6, updated_at=NOW() WHERE email=$7 RETURNING *`,
-          [name, inviteToken, expiresAt, salt, hash, teamRole, email.toLowerCase()]
+           password_salt=$4, password_hash=$5, team_role=$6,
+           growth_access=CASE WHEN $8 THEN true ELSE growth_access END, updated_at=NOW() WHERE email=$7 RETURNING *`,
+          [name, inviteToken, expiresAt, salt, hash, teamRole, email.toLowerCase(), isGrowth]
         );
         member = rows[0];
       } else {
         const rows = await queryDb(
-          `INSERT INTO ${TABLE} (email, name, password_salt, password_hash, status, invite_token, invite_expires_at, team_role)
-           VALUES ($1,$2,$3,$4,'invited',$5,$6,$7) RETURNING *`,
-          [email.toLowerCase(), name, salt, hash, inviteToken, expiresAt, teamRole]
+          `INSERT INTO ${TABLE} (email, name, password_salt, password_hash, status, invite_token, invite_expires_at, team_role, growth_access)
+           VALUES ($1,$2,$3,$4,'invited',$5,$6,$7,$8) RETURNING *`,
+          [email.toLowerCase(), name, salt, hash, inviteToken, expiresAt, teamRole, isGrowth]
         );
         member = rows[0];
       }

@@ -17,7 +17,7 @@ export default function AdminGrowth() {
 
   const load = useCallback(() => {
     setLoading(true);
-    fetchJson('/api/team-members', { credentials: 'include' })
+    fetchJson('/api/team-members?portal=growth', { credentials: 'include' })
       .then((d) => setMembers(d.members || [])).catch((e) => setErr(e.message)).finally(() => setLoading(false));
   }, []);
   useEffect(() => { load(); }, [load]);
