@@ -11,6 +11,7 @@ const fmt = (v) => v ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', t
 export function NotesTab() {
   const [notes, setNotes] = useState([]);
   const [edit, setEdit] = useState(null); // {id?, title, body}
+  const [view, setView] = useState(null); // note opened in the read dialog
   const load = () => fetchJson('/api/notes').then((d) => setNotes(d.notes || [])).catch(() => {});
   useEffect(() => { load(); }, []);
   const save = async () => {
@@ -29,21 +30,37 @@ export function NotesTab() {
         </div>
         {!notes.length && <p className="text-sm text-slate-400 text-center py-8">No notes yet. Use “+ New note”, or notes from a call land here automatically.</p>}
         {notes.map((n) => (
-          <div key={n.id} className={card}>
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">{n.kind === 'mom' && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 font-bold">MoM</span>}{n.title}</p>
-                <p className="text-[11px] text-slate-400">{n.author_name} · {fmt(n.updated_at)}</p>
-              </div>
-              <span className="flex gap-1.5 shrink-0">
-                <button className={tb2} onClick={() => setEdit({ id: n.id, title: n.title, body: n.body })}>Edit</button>
-                <button className="text-xs px-2 py-2 rounded-lg border border-red-200 dark:border-red-900 text-red-500 hover:bg-red-50 dark:hover:bg-red-950" onClick={() => del(n.id)}>✕</button>
-              </span>
-            </div>
-            <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap mt-2">{n.body}</p>
-          </div>
+          <button key={n.id} onClick={() => setView(n)}
+            className={`${card} w-full text-left cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors`}>
+            <p className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">{n.kind === 'mom' && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 font-bold">MoM</span>}{n.title}</p>
+            <p className="text-[11px] text-slate-400">{n.author_name} · {fmt(n.updated_at)}</p>
+            <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap mt-2 line-clamp-2">{n.body}</p>
+          </button>
         ))}
       </div>
+
+      {/* Read dialog with full CRUD actions */}
+      {view && (
+        <div className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) setView(null); }}>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg max-h-[88vh] flex flex-col">
+            <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-bold text-slate-900 dark:text-white flex items-center gap-2 break-words">{view.kind === 'mom' && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 font-bold shrink-0">MoM</span>}{view.title}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{view.author_name} · {fmt(view.updated_at)}</p>
+              </div>
+              <button onClick={() => setView(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-lg leading-none shrink-0">✕</button>
+            </div>
+            <div className="p-5 overflow-y-auto flex-1">
+              <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap">{view.body}</p>
+            </div>
+            <div className="px-5 py-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap gap-2">
+              <button className={tb} onClick={() => { setEdit({ id: view.id, title: view.title, body: view.body }); setView(null); }}>Edit</button>
+              <button className="text-xs px-3 py-2 rounded-lg border border-red-200 dark:border-red-900 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 font-medium" onClick={() => { const id = view.id; setView(null); del(id); }}>Delete</button>
+              <button className={`${tb2} ml-auto`} onClick={() => setView(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
       {edit && (
         <div className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) setEdit(null); }}>
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg p-5 space-y-3">

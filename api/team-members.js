@@ -170,8 +170,16 @@ export default async function handler(req, res) {
     const cleanName = typeof name === 'string' && name.trim() ? name.trim().slice(0, 80) : null;
     let av; // undefined = leave unchanged; '' = clear; string = set
     if (typeof avatar === 'string') {
-      if (avatar.length > 700000) return res.status(400).json({ error: 'Image too large — please choose a smaller picture.' });
-      av = avatar;
+      if (avatar === '') { av = ''; }
+      else {
+        // Strictly an image data URL — never store html/script/svg payloads that
+        // could become a stored-XSS vector if ever rendered outside an <img>.
+        if (!/^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(avatar)) {
+          return res.status(400).json({ error: 'Invalid image.' });
+        }
+        if (avatar.length > 700000) return res.status(400).json({ error: 'Image too large — please choose a smaller picture.' });
+        av = avatar;
+      }
     }
     if (!cleanName && av === undefined) return res.status(400).json({ error: 'Nothing to update' });
     try {

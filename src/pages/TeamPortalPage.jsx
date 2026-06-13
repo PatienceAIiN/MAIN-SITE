@@ -1359,16 +1359,16 @@ export default function TeamPortalPage() {
   return shell(
     <div className="min-h-screen h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col">
       {/* Header */}
-      <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-4 flex items-center justify-between shrink-0 shadow-sm">
-        <div>
-          <p className="text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 font-medium">Patience AI · Team</p>
-          <h1 className="text-lg font-bold text-slate-900 dark:text-white">{member.name}</h1>
+      <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 sm:px-6 py-3 sm:py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-2 shrink-0 shadow-sm">
+        <div className="shrink-0">
+          <p className="text-[10px] sm:text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 font-medium">Patience AI · Team</p>
+          <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate max-w-[60vw]">{member.name}</h1>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+        <div className="flex items-center gap-2 flex-wrap lg:flex-nowrap">
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1 overflow-x-auto max-w-full">
               {['overview', 'dev-tickets', 'tickets', 'engineering', ...((myPerms.includes('github_read') || myPerms.includes('github_write') || myRepos.length > 0) ? ['github'] : []), 'notes', 'meetings', 'colleagues'].map((v) => (
                 <button key={v} onClick={() => setView(v)}
-                  className={`relative px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors ${view === v ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-300'}`}>
+                  className={`relative px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors whitespace-nowrap shrink-0 ${view === v ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-300'}`}>
                   {v === 'overview' ? 'Overview' : v === 'dev-tickets' ? 'Dev Tickets' : v}
                   {v === 'colleagues' && colUnread > 0 && view !== 'colleagues' && (
                     <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold animate-pulse">{colUnread > 9 ? '9+' : colUnread}</span>
