@@ -10,9 +10,23 @@ export default function RenderServices({ dark = true }) {
   const [openId, setOpenId] = useState(null);
 
   useEffect(() => {
-    fetchJson('/api/deploy/services')
-      .then((d) => { setServices(d.services || []); setNote(d.note || ''); })
-      .catch((e) => { setServices([]); setNote(e.message); });
+    // Merge the Render account's services with every configured deploy target,
+    // so each repo you set up (e.g. Nexus-Exchange) appears here — not just the
+    // one service this API key owns.
+    Promise.all([
+      fetchJson('/api/deploy/services').catch((e) => ({ services: [], note: e.message })),
+      fetchJson('/api/deploy/targets').catch(() => ({ targets: [] })),
+    ]).then(([sv, tg]) => {
+      const acct = sv.services || [];
+      const byId = new Map(acct.map((s) => [s.id, s]));
+      for (const t of (tg.targets || [])) {
+        const sid = (String(t.deploy_hook || '').match(/deploy\/(srv-[a-z0-9]+)/i) || [])[1];
+        if (!sid) continue;
+        if (byId.has(sid)) { byId.get(sid).label = t.label; byId.get(sid).repo = byId.get(sid).repo || t.repo; }
+        else byId.set(sid, { id: sid, name: t.label, type: 'configured repo', repo: t.repo, ownerId: 'configured' });
+      }
+      setServices([...byId.values()]); setNote(sv.note || '');
+    });
   }, []);
 
   // theme tokens (admin panel is dark; team modal is light/dark via tailwind)
@@ -73,7 +87,7 @@ function ServiceDetailInner({ id, t, dark }) {
   const load = () => fetchJson(`/api/deploy/services?id=${id}`).then((d) => {
     setData(d); setEnv(d.envVars || []);
     setName(d.service?.name || ''); setBranch(d.service?.branch || ''); setAutoDeploy(d.service?.autoDeploy || 'yes');
-  }).catch((e) => setMsg(e.message));
+  }).catch((e) => { setData({ service: null, note: e.message || 'Could not load this service.' }); }); // never hang on "Loading…"
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
 
   const saveEnv = async () => {
