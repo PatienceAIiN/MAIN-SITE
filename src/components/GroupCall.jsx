@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { FiMic, FiMicOff, FiVideo, FiVideoOff, FiMonitor, FiPhoneOff, FiPhone, FiMinimize2, FiMaximize2, FiMove, FiUsers, FiChevronDown, FiChevronUp, FiMessageSquare, FiFileText, FiShare2, FiX, FiSend, FiCheck } from 'react-icons/fi';
+import { FiMic, FiMicOff, FiVideo, FiVideoOff, FiMonitor, FiPhoneOff, FiPhone, FiMinimize2, FiMaximize2, FiMove, FiUsers, FiUserPlus, FiChevronDown, FiChevronUp, FiMessageSquare, FiFileText, FiShare2, FiLink, FiX, FiSend, FiCheck } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import { playRingtone } from '../common/sounds';
 
@@ -67,6 +67,15 @@ export function useGroupCall(me, wsSend) {
     const id = `grp-${chatId}-${Date.now()}`;
     setRoom({ id, name, members, host: true }); roomRef.current = { id, name, members, host: true };
     members.filter((e) => e !== me.email).forEach((e) => wsSend({ type: 'rtc', to: e, data: { room: id, kind: 'g-invite', name, members } }));
+  };
+
+  // Ring an extra person INTO the live call: they receive a group invite whose
+  // member list is everyone currently connected, so on accept they g-join each
+  // of us and the mesh extends. Works for both chat group calls and meetings.
+  const invite = (email, name) => {
+    const r = roomRef.current; if (!r || r.incoming || !email) return;
+    const members = Array.from(new Set([me.email, ...pcs.current.keys()]));
+    wsSend({ type: 'rtc', to: email, data: { room: r.id, kind: 'g-invite', name: r.name || name || 'Group call', members } });
   };
 
   const accept = async () => {
@@ -174,7 +183,7 @@ export function useGroupCall(me, wsSend) {
     } catch { /* cancelled */ }
   };
 
-  return { room, peers, peerMuted, muted, camOff, sharing, chat, sendChat, localStream, start, accept, leave, onRtc, onGcall, joinMeeting, toggleMute, toggleCam, toggleShare, me };
+  return { room, peers, peerMuted, muted, camOff, sharing, chat, sendChat, localStream, start, accept, invite, leave, onRtc, onGcall, joinMeeting, toggleMute, toggleCam, toggleShare, me };
 }
 
 function Tile({ stream, name, mine, speaking, micMuted }) {
@@ -233,9 +242,73 @@ function MiniCall({ stream, name, mine, speaking, micMuted, count, onExpand, onL
   );
 }
 
-export function GroupCallOverlay({ api }) {
-  const { room, peers, peerMuted = {}, muted, camOff, sharing, chat, sendChat, localStream, accept, leave, toggleMute, toggleCam, toggleShare, me } = api;
+// "Add people" — ring an online internal colleague (Team / Support tabs) into
+// the live call, or copy the shareable link for anyone (internal or external).
+function AddPeople({ roster, presence = {}, roomId, inCall, onRing, onClose }) {
+  const [tab, setTab] = useState('team');
+  const [copied, setCopied] = useState(false);
+  const [rung, setRung] = useState({}); // email -> true (transient "Ringing…")
+  const link = `${window.location.origin}/meet?room=${roomId}`;
+  const copy = () => { try { navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* blocked */ } };
+  const inSet = new Set(inCall || []);
+  const list = (roster || []).filter((c) => (c.side || 'team') === tab && !inSet.has(c.email));
+  const ring = (c) => { onRing(c.email, c.name); setRung((r) => ({ ...r, [c.email]: true })); setTimeout(() => setRung((r) => { const n = { ...r }; delete n[c.email]; return n; }), 4000); };
+  const dot = (s) => s === 'online' ? 'bg-emerald-500' : s === 'away' ? 'bg-amber-500' : s === 'busy' ? 'bg-red-500' : 'bg-slate-400';
+  return (
+    <div className="fixed inset-0 z-[74] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[80vh]">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+          <p className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5"><FiUserPlus size={15} /> Add people</p>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><FiX size={16} /></button>
+        </div>
+        {/* Share link — works for internal & external guests */}
+        <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+          <p className="text-[11px] text-slate-400 mb-1.5 flex items-center gap-1"><FiLink size={11} /> Invite by link (anyone can join)</p>
+          <div className="flex gap-1.5">
+            <input readOnly value={link} className="flex-1 min-w-0 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 py-1.5 text-[11px] text-slate-600 dark:text-slate-300" />
+            <button onClick={copy} className={`text-[11px] px-2.5 py-1.5 rounded-lg font-medium ${copied ? 'bg-emerald-600 text-white' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'}`}>{copied ? 'Copied' : 'Copy'}</button>
+          </div>
+        </div>
+        {roster ? (
+          <>
+            <div className="flex gap-1 px-4 pt-3">
+              {['team', 'support'].map((s) => (
+                <button key={s} onClick={() => setTab(s)} className={`flex-1 py-1.5 text-xs font-medium rounded-md capitalize ${tab === s ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}>{s}</button>
+              ))}
+            </div>
+            <div className="flex-1 overflow-y-auto px-2 py-2">
+              {list.map((c) => {
+                const st = presence[c.email] || 'offline';
+                const live = st === 'online' || st === 'away';
+                return (
+                  <div key={c.email} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${dot(st)}`} />
+                      <span className="truncate text-sm text-slate-800 dark:text-slate-100">{c.name}<span className="text-[11px] text-slate-400"> · {c.email}</span></span>
+                    </span>
+                    {rung[c.email]
+                      ? <span className="text-[11px] text-emerald-600 dark:text-emerald-400 shrink-0">Ringing…</span>
+                      : live
+                        ? <button onClick={() => ring(c)} className="shrink-0 flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium"><FiPhone size={11} /> Ring</button>
+                        : <span className="text-[11px] text-slate-400 shrink-0">offline</span>}
+                  </div>
+                );
+              })}
+              {!list.length && <p className="text-xs text-slate-400 text-center py-6">Everyone here is already in the call.</p>}
+            </div>
+          </>
+        ) : (
+          <p className="text-xs text-slate-400 text-center py-6 px-4">Share the link above to invite anyone to this meeting.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function GroupCallOverlay({ api, roster, presence }) {
+  const { room, peers, peerMuted = {}, muted, camOff, sharing, chat, sendChat, localStream, accept, invite, leave, toggleMute, toggleCam, toggleShare, me } = api;
   const [min, setMin] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [partsOpen, setPartsOpen] = useState(false); // top participant bar collapsed by default
   const [active, setActive] = useState(null);         // active-speaker email
   const [notesOpen, setNotesOpen] = useState(false);  // left sidebar
@@ -243,7 +316,7 @@ export function GroupCallOverlay({ api }) {
   const [copied, setCopied] = useState(false);
   const [seenChat, setSeenChat] = useState(0);        // for the unread chat badge
   const peersRef = useRef(peers); peersRef.current = peers;
-  useEffect(() => { setMin(false); setPartsOpen(false); setActive(null); setNotesOpen(false); setChatOpen(false); setSeenChat(0); }, [room?.id]);
+  useEffect(() => { setMin(false); setPartsOpen(false); setActive(null); setNotesOpen(false); setChatOpen(false); setSeenChat(0); setAddOpen(false); }, [room?.id]);
   useEffect(() => { if (chatOpen) setSeenChat(chat.length); }, [chatOpen, chat.length]);
   const unread = Math.max(0, (chat?.length || 0) - seenChat);
   const copyLink = () => { try { navigator.clipboard.writeText(`${window.location.origin}/meet?room=${room.id}`); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* clipboard blocked */ } };
@@ -322,11 +395,19 @@ export function GroupCallOverlay({ api }) {
           </div>
         )}
         </div>
-        {/* Share: copies the public join link (works for internal + external guests) */}
-        <button onClick={copyLink} title="Copy meeting link to share" className={`flex items-center gap-1.5 text-xs rounded-full px-3 py-1.5 ${copied ? 'bg-emerald-600 text-white' : 'bg-white/10 hover:bg-white/15 text-white/85'}`}>
-          {copied ? <FiCheck size={13} /> : <FiShare2 size={13} />} {copied ? 'Link copied' : 'Share'}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Add more people — ring an online colleague in, or share the link */}
+          <button onClick={() => setAddOpen(true)} title="Add people to the call" className="flex items-center gap-1.5 text-xs rounded-full px-3 py-1.5 bg-white/10 hover:bg-white/15 text-white/85">
+            <FiUserPlus size={13} /> Add
+          </button>
+          {/* Share: copies the public join link (works for internal + external guests) */}
+          <button onClick={copyLink} title="Copy meeting link to share" className={`flex items-center gap-1.5 text-xs rounded-full px-3 py-1.5 ${copied ? 'bg-emerald-600 text-white' : 'bg-white/10 hover:bg-white/15 text-white/85'}`}>
+            {copied ? <FiCheck size={13} /> : <FiShare2 size={13} />} {copied ? 'Link copied' : 'Share'}
+          </button>
+        </div>
       </div>
+      {addOpen && <AddPeople roster={roster} presence={presence} roomId={room.id}
+        inCall={[me.email, ...Object.keys(peers)]} onRing={(email, name) => invite(email, name)} onClose={() => setAddOpen(false)} />}
 
       {/* Middle row: notes (left) · stage · chat (right) */}
       <div className="flex-1 min-h-0 flex gap-2 py-2">

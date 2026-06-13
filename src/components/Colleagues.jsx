@@ -863,7 +863,7 @@ export default function Colleagues({ member, visible, onUnread, canManageRoster 
         kept mounted (never under display:none) by the portals — so an incoming
         call rings fullscreen no matter which screen/tab the user is on. */}
     <CallOverlay callApi={callApi} />
-    <GroupCallOverlay api={groupApi} />
+    <GroupCallOverlay api={groupApi} roster={colleagues} presence={presence} />
     <div className={visible
       ? (fullscreen ? 'fixed inset-0 z-40 bg-slate-50 dark:bg-slate-950 flex flex-col md:flex-row' : 'flex flex-1 overflow-hidden flex-col md:flex-row')
       : 'hidden'}>
