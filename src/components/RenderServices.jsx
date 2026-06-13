@@ -84,6 +84,7 @@ function ServiceDetailInner({ id, t, dark }) {
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const [peek, setPeek] = useState(null); // deploy opened in the history detail modal
+  const [envOpen, setEnvOpen] = useState(false); // env-vars editor popup
 
   const load = () => fetchJson(`/api/deploy/services?id=${id}`).then((d) => {
     setData(d); setEnv(d.envVars || []);
@@ -110,29 +111,40 @@ function ServiceDetailInner({ id, t, dark }) {
 
   return (
     <div className={`px-4 py-3 border-t ${dark ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-slate-50'}`}>
-      <div className="flex flex-wrap gap-2 mb-3">{tabBtn('env', `Env vars (${env.length})`)}{tabBtn('settings', 'Settings')}{tabBtn('history', `History (${data.deploys?.length || 0})`)}
+      <div className="flex flex-wrap gap-2 mb-3">
+        <button onClick={() => setEnvOpen(true)} className={`text-xs px-3 py-1.5 rounded-lg ${t.btn2}`}>Env vars ({env.length})</button>
+        {tabBtn('settings', 'Settings')}{tabBtn('history', `History (${data.deploys?.length || 0})`)}
         <span className={`ml-auto text-[10px] ${t.sub} self-center font-mono`}>{data.service?.id}</span>
       </div>
 
-      {tab === 'env' && (
-        <div className="space-y-1.5 w-full">
-          <div className={`flex gap-1.5 px-0.5 text-[10px] uppercase tracking-wider ${t.sub}`}><span className="w-1/2">Key</span><span className="flex-1">Value</span><span className="w-6" /></div>
-          <div className="max-h-96 overflow-y-auto space-y-1.5 pr-0.5">
-            {env.map((v, i) => (
-              <div key={i} className="flex gap-1.5 items-center">
-                <input className={`${inp} w-1/2 font-mono py-2`} value={v.key} onChange={(e) => setRow(i, 'key', e.target.value)} placeholder="KEY" />
-                <input className={`${inp} flex-1 font-mono py-2`} value={v.value} onChange={(e) => setRow(i, 'value', e.target.value)} placeholder="value" />
-                <button onClick={() => setEnv((e) => e.filter((_, j) => j !== i))} title="Remove" className={`text-xs px-2 py-2 rounded-lg ${t.btn2}`}>✕</button>
-              </div>
-            ))}
+      {/* Env-vars editor — Render-style popup with full key/value CRUD */}
+      {envOpen && (
+        <div className="fixed inset-0 z-[96] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) setEnvOpen(false); }}>
+          <div className={`w-full max-w-3xl max-h-[88vh] flex flex-col rounded-2xl shadow-2xl border ${dark ? 'bg-slate-900 border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>
+            <div className={`flex items-center justify-between px-5 py-3.5 border-b ${dark ? 'border-white/10' : 'border-slate-200'}`}>
+              <p className="font-bold text-sm">Environment variables · <span className="font-mono text-xs">{data.service?.name || id}</span></p>
+              <button onClick={() => setEnvOpen(false)} className={t.sub}>✕</button>
+            </div>
+            <div className="p-5 overflow-y-auto flex-1 space-y-1.5">
+              <div className={`flex gap-1.5 px-0.5 text-[10px] uppercase tracking-wider ${t.sub}`}><span className="w-1/2">Key</span><span className="flex-1">Value</span><span className="w-6" /></div>
+              {env.map((v, i) => (
+                <div key={i} className="flex gap-1.5 items-center">
+                  <input className={`${inp} w-1/2 font-mono py-2`} value={v.key} onChange={(e) => setRow(i, 'key', e.target.value)} placeholder="KEY" />
+                  <input className={`${inp} flex-1 font-mono py-2`} value={v.value} onChange={(e) => setRow(i, 'value', e.target.value)} placeholder="value" />
+                  <button onClick={() => setEnv((e) => e.filter((_, j) => j !== i))} title="Remove" className={`text-xs px-2 py-2 rounded-lg ${t.btn2}`}>✕</button>
+                </div>
+              ))}
+              {!env.length && <p className={`text-xs ${t.sub} py-2`}>No environment variables yet.</p>}
+            </div>
+            <div className={`flex items-center gap-2 px-5 py-3 border-t ${dark ? 'border-white/10' : 'border-slate-200'}`}>
+              <button onClick={() => setEnv((e) => [...e, { key: '', value: '' }])} className={`text-xs px-3 py-1.5 rounded-lg ${t.btn2}`}>+ Add variable</button>
+              <button onClick={saveEnv} disabled={busy || env.some((v) => !v.key.trim())} className={`text-xs px-4 py-1.5 rounded-lg font-semibold ${t.btn} disabled:opacity-50`}>{busy ? 'Saving…' : 'Save to Render'}</button>
+              <span className={`ml-auto text-[10px] ${t.sub}`}>Saving replaces the full set & triggers a redeploy. Keys must be non-empty.</span>
+            </div>
           </div>
-          <div className="flex gap-2 pt-1">
-            <button onClick={() => setEnv((e) => [...e, { key: '', value: '' }])} className={`text-xs px-3 py-1.5 rounded-lg ${t.btn2}`}>+ Add variable</button>
-            <button onClick={saveEnv} disabled={busy || env.some((v) => !v.key.trim())} className={`text-xs px-4 py-1.5 rounded-lg font-semibold ${t.btn} disabled:opacity-50`}>{busy ? 'Saving…' : 'Save to Render'}</button>
-          </div>
-          <p className={`text-[10px] ${t.sub}`}>Edits are written to this service's Render environment; saving replaces the full set and triggers a restart/redeploy. Every key must be non-empty.</p>
         </div>
       )}
+
 
       {tab === 'settings' && (
         <div className="space-y-2 max-w-md">

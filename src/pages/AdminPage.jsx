@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import Button from '../components/ui/Button';
 import AdminTicketOps from '../components/AdminTicketOps';
 import AdminPeos from '../components/AdminPeos';
-import RenderServices, { ServiceDetail } from '../components/RenderServices';
+import { ServiceDetail } from '../components/RenderServices';
 import { fetchJson } from '../common/fetchJson';
 
 const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support', 'executives', 'team', 'deploy', 'tickets', 'engineering', 'worklog', 'logs'];
@@ -199,15 +199,9 @@ function AdminDeploy() {
         </div>
       </div>
 
-      {/* Per-repo deploy targets — each repo + its own Render deploy hook */}
+      {/* Per-repo deploy targets — each repo + its own Render deploy hook
+          (each card has its own Service & environment + env/settings/history). */}
       <DeployTargets />
-
-      {/* Render services: env vars, settings & deploy history per service */}
-      <div>
-        <h3 className="text-lg font-semibold mb-1">Services & environment</h3>
-        <p className="text-white/55 text-sm mb-3">Your Render project's services — open one to edit its environment variables, settings (name, branch, auto-deploy) and review its deploy history.</p>
-        <RenderServices dark />
-      </div>
     </div>
   );
 }
