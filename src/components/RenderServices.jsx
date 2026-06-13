@@ -115,14 +115,14 @@ function ServiceDetailInner({ id, t, dark }) {
       </div>
 
       {tab === 'env' && (
-        <div className="space-y-1.5 max-w-2xl">
-          <div className={`flex gap-1.5 px-0.5 text-[10px] uppercase tracking-wider ${t.sub}`}><span className="w-2/5">Key</span><span className="flex-1">Value</span><span className="w-6" /></div>
-          <div className="max-h-80 overflow-y-auto space-y-1.5 pr-0.5">
+        <div className="space-y-1.5 w-full">
+          <div className={`flex gap-1.5 px-0.5 text-[10px] uppercase tracking-wider ${t.sub}`}><span className="w-1/2">Key</span><span className="flex-1">Value</span><span className="w-6" /></div>
+          <div className="max-h-96 overflow-y-auto space-y-1.5 pr-0.5">
             {env.map((v, i) => (
               <div key={i} className="flex gap-1.5 items-center">
-                <input className={`${inp} w-2/5 font-mono`} value={v.key} onChange={(e) => setRow(i, 'key', e.target.value)} placeholder="KEY" />
-                <input className={`${inp} flex-1 font-mono`} value={v.value} onChange={(e) => setRow(i, 'value', e.target.value)} placeholder="value" />
-                <button onClick={() => setEnv((e) => e.filter((_, j) => j !== i))} title="Remove" className={`text-xs px-2 py-1.5 rounded-lg ${t.btn2}`}>✕</button>
+                <input className={`${inp} w-1/2 font-mono py-2`} value={v.key} onChange={(e) => setRow(i, 'key', e.target.value)} placeholder="KEY" />
+                <input className={`${inp} flex-1 font-mono py-2`} value={v.value} onChange={(e) => setRow(i, 'value', e.target.value)} placeholder="value" />
+                <button onClick={() => setEnv((e) => e.filter((_, j) => j !== i))} title="Remove" className={`text-xs px-2 py-2 rounded-lg ${t.btn2}`}>✕</button>
               </div>
             ))}
           </div>
