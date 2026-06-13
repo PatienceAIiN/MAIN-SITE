@@ -41,8 +41,10 @@ export default async function handler(req, res) {
     if (req.method === 'DELETE') {
       const id = parseInt(req.query.id || (req.body || {}).id, 10);
       if (!id) return res.status(400).json({ error: 'id required' });
-      await queryDb(`DELETE FROM team_meetings WHERE id=$1 AND created_by_email=$2`, [id, me.email]);
-      return res.status(200).json({ ok: true });
+      // Any authenticated team member / executive can cancel a meeting (it's a
+      // shared team resource) — Cancel always removes it.
+      const del = await queryDb(`DELETE FROM team_meetings WHERE id=$1 RETURNING id`, [id]);
+      return res.status(200).json({ ok: true, deleted: del.length });
     }
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (e) {
