@@ -12,7 +12,7 @@ import { NotificationBell, SlaBadge, AttachmentList, uploadFiles } from '../comp
 import TeamEngineering, { Modal } from '../components/TeamEngineering';
 import DevTickets from '../components/DevTickets';
 import { NotesTab, MeetingsTab } from '../components/TeamNotes';
-import RenderServices, { ServiceDetail } from '../components/RenderServices';
+import { ServiceDetail } from '../components/RenderServices';
 import Colleagues, { enablePushNotifications, disablePushNotifications } from '../components/Colleagues';
 import { FiPaperclip, FiAlertTriangle } from 'react-icons/fi';
 
