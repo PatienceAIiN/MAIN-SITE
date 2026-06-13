@@ -12,7 +12,7 @@ import {
   FiGrid, FiUsers, FiTrendingUp, FiTarget, FiCpu, FiCheckSquare, FiFileText,
   FiLogOut, FiMoon, FiSun, FiPlus, FiX, FiSearch, FiRefreshCw, FiSend, FiTrash2,
   FiDollarSign, FiActivity, FiAlertTriangle, FiArrowRight, FiDownload, FiZap,
-  FiEye, FiEyeOff, FiHeart, FiPieChart, FiDatabase, FiChevronRight,
+  FiEye, FiEyeOff, FiHeart, FiPieChart, FiChevronRight,
   FiCreditCard, FiBriefcase, FiUserCheck, FiEdit2, FiSettings, FiLock,
 } from 'react-icons/fi';
 import { TbCurrencyRupee, TbCurrencyDollar, TbCurrencyEuro, TbCurrencyPound } from 'react-icons/tb';
@@ -341,7 +341,7 @@ const chartTheme = (dark) => ({
 });
 
 /* ── Command Center ───────────────────────────────────────────────────────── */
-function CommandCenter({ dark, onSeed }) {
+function CommandCenter({ dark }) {
   const [m, setM] = useState(null);
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState(null);
@@ -387,12 +387,9 @@ function CommandCenter({ dark, onSeed }) {
   return (
     <div className="space-y-5">
       {empty && (
-        <div className="rounded-2xl border border-dashed border-indigo-300 bg-indigo-50/60 dark:bg-indigo-950/30 dark:border-indigo-800 p-5 flex items-center justify-between gap-4">
-          <div>
-            <p className="font-semibold text-slate-900 dark:text-white">Your Growth OS is empty.</p>
-            <p className="text-sm text-slate-500">Load a realistic demo dataset to explore the dashboards, pipeline and AI copilot.</p>
-          </div>
-          <button className={btnPrimary} onClick={onSeed}><FiDatabase /> Load demo data</button>
+        <div className="rounded-2xl border border-dashed border-indigo-300 bg-indigo-50/60 dark:bg-indigo-950/30 dark:border-indigo-800 p-5">
+          <p className="font-semibold text-slate-900 dark:text-white">Your Growth workspace is empty.</p>
+          <p className="text-sm text-slate-500">Add your first contacts, deals, campaigns, invoices or employees from each tab to populate the dashboards and AI copilot.</p>
         </div>
       )}
 
@@ -1354,7 +1351,6 @@ export default function GrowthPage() {
   useEffect(() => { document.documentElement.classList.toggle('dark', dark); try { localStorage.setItem('growth-dark', dark ? '1' : '0'); } catch { /* ignore */ } }, [dark]);
 
   const changeCurrency = (code) => { CUR = code; setCur(code); try { localStorage.setItem('growth-cur', code); } catch { /* ignore */ } reload(); };
-  const seed = async () => { await api('/seed', { method: 'POST' }); reload(); };
   const logout = async () => {
     if (!(await confirmDialog({ title: 'Sign out', message: 'Sign out of the Growth OS?', confirmText: 'Sign out' }))) return;
     await fetchJson('/api/team-members/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
@@ -1427,11 +1423,10 @@ export default function GrowthPage() {
                 ))}
               </div>
               <button className={btnGhost} onClick={() => setShowSettings(true)} title="Settings"><FiSettings /></button>
-              <button className={btnGhost} onClick={seed} title="Load demo data"><FiDatabase /></button>
             </div>
           </header>
           <div className="p-5" key={`${cur}-${tab === 'command' ? nonce : ''}`}>
-            {tab === 'command' && <CommandCenter key={nonce} dark={dark} onSeed={seed} />}
+            {tab === 'command' && <CommandCenter key={nonce} dark={dark} />}
             {tab === 'crm' && <Crm reload={reload} />}
             {tab === 'pipeline' && <Pipeline reload={reload} />}
             {tab === 'campaigns' && <Campaigns />}
