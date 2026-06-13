@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { FiMic, FiMicOff, FiVideo, FiVideoOff, FiMonitor, FiPhoneOff, FiPhone, FiMinimize2, FiUsers, FiChevronDown, FiChevronUp, FiMessageSquare, FiFileText, FiShare2, FiX, FiSend, FiCheck } from 'react-icons/fi';
+import { FiMic, FiMicOff, FiVideo, FiVideoOff, FiMonitor, FiPhoneOff, FiPhone, FiMinimize2, FiMaximize2, FiMove, FiUsers, FiChevronDown, FiChevronUp, FiMessageSquare, FiFileText, FiShare2, FiX, FiSend, FiCheck } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import { playRingtone } from '../common/sounds';
 
@@ -14,6 +14,8 @@ export function useGroupCall(me, wsSend) {
   const [camOff, setCamOff] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [chat, setChat] = useState([]);       // in-call chat: { id, name, text, mine }
+  const [peerMuted, setPeerMuted] = useState({}); // email -> bool (broadcast mic state)
+  const mutedRef = useRef(false);              // my live mic state (for late-joiner sync)
   const roomRef = useRef(null); roomRef.current = room;
   const pcs = useRef(new Map());               // email -> RTCPeerConnection
   const pending = useRef(new Map());           // email -> [ice]
@@ -26,7 +28,7 @@ export function useGroupCall(me, wsSend) {
   const cleanup = useCallback(() => {
     pcs.current.forEach((pc) => pc.close()); pcs.current.clear(); pending.current.clear();
     [localStream, screenStream].forEach((r) => { r.current?.getTracks().forEach((t) => t.stop()); r.current = null; });
-    setPeers({}); setRoom(null); setMuted(false); setCamOff(false); setSharing(false); setChat([]);
+    setPeers({}); setRoom(null); setMuted(false); setCamOff(false); setSharing(false); setChat([]); setPeerMuted({}); mutedRef.current = false;
   }, []);
 
   // In-call chat: fan a message out to every peer I'm connected to (rides the
@@ -55,7 +57,7 @@ export function useGroupCall(me, wsSend) {
     pcs.current.set(email, pc);
     return pc;
   };
-  const dropPeer = (email) => { pcs.current.get(email)?.close(); pcs.current.delete(email); setPeers((p) => { const n = { ...p }; delete n[email]; return n; }); };
+  const dropPeer = (email) => { pcs.current.get(email)?.close(); pcs.current.delete(email); setPeers((p) => { const n = { ...p }; delete n[email]; return n; }); setPeerMuted((m) => { const n = { ...m }; delete n[email]; return n; }); };
 
   const broadcast = (data) => (roomRef.current?.members || []).filter((e) => e !== me.email).forEach((e) => send(e, data));
 
@@ -95,6 +97,7 @@ export function useGroupCall(me, wsSend) {
       const pc = makePc(m.email, m.name);               // I'm already here → I offer to the newcomer
       const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
       send(m.email, { kind: 'g-offer', sdp: offer, name: me.name || me.email });
+      send(m.email, { kind: 'g-mute', muted: mutedRef.current });   // sync my mic state to the newcomer
     } else if (m.op === 'left') {
       dropPeer(m.email);
     }
@@ -125,6 +128,7 @@ export function useGroupCall(me, wsSend) {
       const pc = makePc(from, fromName);
       const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
       send(from, { kind: 'g-offer', sdp: offer, name: me.name || me.email });
+      send(from, { kind: 'g-mute', muted: mutedRef.current });
     } else if (data.kind === 'g-offer') {
       const pc = pcs.current.get(from) || makePc(from, fromName);
       await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
@@ -132,6 +136,9 @@ export function useGroupCall(me, wsSend) {
       pending.current.set(from, []);
       const ans = await pc.createAnswer(); await pc.setLocalDescription(ans);
       send(from, { kind: 'g-answer', sdp: ans });
+      send(from, { kind: 'g-mute', muted: mutedRef.current });
+    } else if (data.kind === 'g-mute') {
+      setPeerMuted((mm) => ({ ...mm, [from]: Boolean(data.muted) }));
     } else if (data.kind === 'g-answer') {
       await pcs.current.get(from)?.setRemoteDescription(new RTCSessionDescription(data.sdp)).catch(() => {});
     } else if (data.kind === 'g-ice') {
@@ -145,7 +152,12 @@ export function useGroupCall(me, wsSend) {
     }
   }, [me, wsSend]);
 
-  const toggleMute = () => { localStream.current?.getAudioTracks().forEach((t) => { t.enabled = muted; }); setMuted((m) => !m); };
+  const toggleMute = () => {
+    const next = !mutedRef.current; mutedRef.current = next;
+    localStream.current?.getAudioTracks().forEach((t) => { t.enabled = !next; });
+    setMuted(next);
+    pcs.current.forEach((_, email) => send(email, { kind: 'g-mute', muted: next })); // tell everyone
+  };
   const toggleCam = () => { localStream.current?.getVideoTracks().forEach((t) => { t.enabled = camOff; }); setCamOff((v) => !v); };
   const toggleShare = async () => {
     if (screenStream.current) {
@@ -162,24 +174,67 @@ export function useGroupCall(me, wsSend) {
     } catch { /* cancelled */ }
   };
 
-  return { room, peers, muted, camOff, sharing, chat, sendChat, localStream, start, accept, leave, onRtc, onGcall, joinMeeting, toggleMute, toggleCam, toggleShare, me };
+  return { room, peers, peerMuted, muted, camOff, sharing, chat, sendChat, localStream, start, accept, leave, onRtc, onGcall, joinMeeting, toggleMute, toggleCam, toggleShare, me };
 }
 
-function Tile({ stream, name, muted, mine, speaking }) {
+function Tile({ stream, name, mine, speaking, micMuted }) {
   const ref = useRef(null);
   useEffect(() => { if (ref.current && stream) ref.current.srcObject = stream; }, [stream]);
+  // A tile only gets the "speaking" highlight when its mic is actually live.
+  const live = speaking && !micMuted;
   return (
-    <div className={`relative rounded-2xl overflow-hidden bg-slate-800 aspect-video transition-shadow ${speaking ? 'ring-2 ring-emerald-400 shadow-[0_0_0_4px_rgba(16,185,129,0.25)]' : 'ring-1 ring-white/10'}`}>
-      <video ref={ref} autoPlay playsInline muted={mine || muted} className="w-full h-full object-cover" />
-      <span className="absolute bottom-2 left-2 flex items-center gap-1 text-[11px] text-white bg-black/55 backdrop-blur-sm px-2 py-0.5 rounded-full">
-        {speaking && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}{name}{mine ? ' (you)' : ''}
+    <div className={`relative rounded-2xl overflow-hidden bg-slate-800 aspect-video transition-shadow ${live ? 'ring-2 ring-emerald-400 shadow-[0_0_0_4px_rgba(16,185,129,0.25)]' : 'ring-1 ring-white/10'}`}>
+      <video ref={ref} autoPlay playsInline muted={mine} className="w-full h-full object-cover" />
+      {/* Bottom-left: muted → red crossed mic; speaking → green mic; name pill */}
+      <span className="absolute bottom-2 left-2 flex items-center gap-1.5 text-[11px] text-white bg-black/55 backdrop-blur-sm px-2 py-0.5 rounded-full">
+        {micMuted
+          ? <FiMicOff size={12} className="text-red-400" />
+          : live ? <FiMic size={12} className="text-emerald-400 animate-pulse" /> : null}
+        {name}{mine ? ' (you)' : ''}
       </span>
     </div>
   );
 }
 
+// Draggable picture-in-picture window shown when the call is minimized. Shows
+// the active speaker; movable anywhere; hover reveals expand / leave controls.
+function MiniCall({ stream, name, mine, speaking, micMuted, count, onExpand, onLeave }) {
+  const vref = useRef(null);
+  const drag = useRef(null);
+  const [pos, setPos] = useState(() => ({
+    x: (typeof window !== 'undefined' ? window.innerWidth - 256 : 20),
+    y: (typeof window !== 'undefined' ? window.innerHeight - 190 : 20),
+  }));
+  useEffect(() => { if (vref.current && stream) vref.current.srcObject = stream; }, [stream]);
+  const clamp = (x, y) => ({
+    x: Math.max(6, Math.min((window.innerWidth || 9999) - 246, x)),
+    y: Math.max(6, Math.min((window.innerHeight || 9999) - 184, y)),
+  });
+  const onDown = (e) => { drag.current = { sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* unsupported */ } };
+  const onMove = (e) => { if (!drag.current) return; setPos(clamp(drag.current.ox + (e.clientX - drag.current.sx), drag.current.oy + (e.clientY - drag.current.sy))); };
+  const onUp = () => { drag.current = null; };
+  const live = speaking && !micMuted;
+  return (
+    <div style={{ left: pos.x, top: pos.y, width: 240 }}
+      onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
+      className={`fixed z-[73] select-none cursor-move group rounded-2xl overflow-hidden shadow-2xl bg-slate-900 ${live ? 'ring-2 ring-emerald-400' : 'ring-1 ring-white/25'}`}>
+      <video ref={vref} autoPlay playsInline muted={mine} className="w-full aspect-video object-cover pointer-events-none bg-slate-800" />
+      <span className="absolute bottom-1.5 left-1.5 flex items-center gap-1 text-[10px] text-white bg-black/55 backdrop-blur-sm px-1.5 py-0.5 rounded-full">
+        {micMuted ? <FiMicOff size={11} className="text-red-400" /> : live ? <FiMic size={11} className="text-emerald-400 animate-pulse" /> : null}
+        {name}{mine ? ' (you)' : ''}
+      </span>
+      {count > 1 && <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 text-[10px] text-white bg-black/55 backdrop-blur-sm px-1.5 py-0.5 rounded-full"><FiUsers size={9} />{count}</span>}
+      <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button onPointerDown={(e) => e.stopPropagation()} onClick={onExpand} title="Expand" className="h-7 w-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center"><FiMaximize2 size={12} /></button>
+        <button onPointerDown={(e) => e.stopPropagation()} onClick={onLeave} title="Leave" className="h-7 w-7 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center"><FiPhoneOff size={12} /></button>
+      </div>
+      <span className="absolute top-1.5 left-1.5 opacity-0 group-hover:opacity-100 transition-opacity text-white/70"><FiMove size={12} /></span>
+    </div>
+  );
+}
+
 export function GroupCallOverlay({ api }) {
-  const { room, peers, muted, camOff, sharing, chat, sendChat, localStream, accept, leave, toggleMute, toggleCam, toggleShare, me } = api;
+  const { room, peers, peerMuted = {}, muted, camOff, sharing, chat, sendChat, localStream, accept, leave, toggleMute, toggleCam, toggleShare, me } = api;
   const [min, setMin] = useState(false);
   const [partsOpen, setPartsOpen] = useState(false); // top participant bar collapsed by default
   const [active, setActive] = useState(null);         // active-speaker email
@@ -234,15 +289,20 @@ export function GroupCallOverlay({ api }) {
       </div>
     );
   }
-  if (min) {
-    return (
-      <button onClick={() => setMin(false)} className="fixed bottom-4 right-4 z-[72] flex items-center gap-2 px-4 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xl animate-pulse">
-        <FiVideo size={15} /> <span className="text-xs font-semibold">Group call · {Object.keys(peers).length + 1}</span>
-      </button>
-    );
-  }
   const tiles = Object.entries(peers);
   const focus = active && peers[active] ? active : null;
+  if (min) {
+    // Floating, draggable PiP that shows whoever is speaking (or the first peer,
+    // or yourself when alone). Hover for restore / leave controls.
+    const fEmail = focus || tiles[0]?.[0] || null;
+    const fStream = fEmail ? peers[fEmail].stream : localStream.current;
+    const fName = fEmail ? (peers[fEmail].name || fEmail) : (me.name || 'You');
+    return (
+      <MiniCall stream={fStream} name={fName} mine={!fEmail} speaking={fEmail ? active === fEmail : !muted}
+        micMuted={fEmail ? peerMuted[fEmail] : muted} count={tiles.length + 1}
+        onExpand={() => setMin(false)} onLeave={leave} />
+    );
+  }
   return (
     <div className="fixed inset-0 z-[72] bg-black/90 backdrop-blur-sm flex flex-col p-3">
       {/* Collapsed participants bar (top-left) + Share (top-right) */}
@@ -275,17 +335,17 @@ export function GroupCallOverlay({ api }) {
         {focus ? (
           <>
             <div className="w-full max-w-4xl flex-1 min-h-0 flex items-center justify-center">
-              <div className="w-full"><Tile stream={peers[focus].stream} name={peers[focus].name || focus} speaking /></div>
+              <div className="w-full"><Tile stream={peers[focus].stream} name={peers[focus].name || focus} speaking micMuted={peerMuted[focus]} /></div>
             </div>
             <div className="flex gap-2 overflow-x-auto shrink-0 max-w-full pb-1">
-              <div className="w-32 shrink-0"><Tile stream={localStream.current} name={me.name || 'You'} mine /></div>
-              {tiles.filter(([e]) => e !== focus).map(([e, p]) => <div key={e} className="w-32 shrink-0"><Tile stream={p.stream} name={p.name || e} /></div>)}
+              <div className="w-32 shrink-0"><Tile stream={localStream.current} name={me.name || 'You'} mine micMuted={muted} /></div>
+              {tiles.filter(([e]) => e !== focus).map(([e, p]) => <div key={e} className="w-32 shrink-0"><Tile stream={p.stream} name={p.name || e} speaking={active === e} micMuted={peerMuted[e]} /></div>)}
             </div>
           </>
         ) : (
           <div className={`grid gap-2 w-full ${tiles.length >= 3 ? 'grid-cols-3 max-w-3xl' : tiles.length >= 1 ? 'grid-cols-2 max-w-2xl' : 'grid-cols-1 max-w-md'}`}>
-            <Tile stream={localStream.current} name={me.name || 'You'} mine />
-            {tiles.map(([email, p]) => <Tile key={email} stream={p.stream} name={p.name || email} />)}
+            <Tile stream={localStream.current} name={me.name || 'You'} mine micMuted={muted} />
+            {tiles.map(([email, p]) => <Tile key={email} stream={p.stream} name={p.name || email} speaking={active === email} micMuted={peerMuted[email]} />)}
           </div>
         )}
         </div>
