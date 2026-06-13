@@ -2,8 +2,9 @@ import crypto from 'node:crypto';
 import { queryDb, isMissingTableError } from './_db.js';
 import {
   getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, hashPassword, verifyPassword,
-  createMemberSessionToken, MEMBER_SESSION_COOKIE_NAME, serializeCookie, getMemberSession
+  createMemberSessionToken, MEMBER_SESSION_COOKIE_NAME, serializeCookie, getMemberSession, getExecSession
 } from './_security.js';
+import { isR2Configured, r2PutObject, r2SignedGetUrl, r2DeleteObject } from './_r2.js';
 import { sendEmail } from './_email.js';
 import { logAudit } from './_ticketing.js';
 import { redisSetJson, redisDel } from './_redis.js';
@@ -93,6 +94,14 @@ const setMemberCookie = (res, token, maxAge = 60 * 60 * 24 * 7) => {
   }));
 };
 
+// Avatars are served via a stable proxy URL (cached by the browser) that
+// redirects to a signed R2 object — keeps the heavy bytes out of Postgres and
+// out of the /me payload. The `v` token busts the cache when the picture changes.
+const avatarUrlFor = (id, stored) => stored
+  ? `/api/team-members/avatar?id=${id}&v=${crypto.createHash('sha1').update(stored).digest('hex').slice(0, 10)}`
+  : '';
+const extFromMime = (m) => ({ 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' }[m] || 'jpg');
+
 export default async function handler(req, res) {
   // ── POST /api/team-members/login ──────────────────────────────────────────
   if (req.method === 'POST' && req.url?.includes('/login')) {
@@ -148,18 +157,51 @@ export default async function handler(req, res) {
     let teamRole = 'member';
     let notificationsEnabled = true;
     let allowedRepos = [];
-    let avatar = '';
+    let avatarStored = '';
+    let perms = [];
+    let ok = false;
     try {
-      await queryDb(`UPDATE ${TABLE} SET last_seen_at=NOW() WHERE id=$1`, [member.id]);
       const rows = await queryDb(`SELECT team_role, permissions, notifications_enabled, allowed_repos, avatar, name FROM ${TABLE} WHERE id=$1`, [member.id]);
       teamRole = rows[0]?.team_role || 'member';
       notificationsEnabled = rows[0]?.notifications_enabled !== false;
       allowedRepos = String(rows[0]?.allowed_repos || '').split(',').map((x) => x.trim()).filter(Boolean);
-      avatar = rows[0]?.avatar || '';
+      avatarStored = rows[0]?.avatar || '';
       member.name = rows[0]?.name || member.name; // reflect latest self-edited name
-      var perms = resolvePerms(rows[0]);
-    } catch { perms = []; }
-    return res.status(200).json({ member: { ...member, teamRole, permissions: perms, notificationsEnabled, allowedRepos, avatar } });
+      perms = resolvePerms(rows[0]);
+      ok = true;
+      queryDb(`UPDATE ${TABLE} SET last_seen_at=NOW() WHERE id=$1`, [member.id]).catch(() => {}); // non-critical
+    } catch { ok = false; }
+    // On a transient DB read failure, return a degraded marker WITHOUT empty
+    // perms/avatar — the client keeps its last-known values and never flickers
+    // (this is what made the profile picture & tabs vanish "after a while").
+    if (!ok) return res.status(200).json({ member: { ...member, degraded: true } });
+    return res.status(200).json({ member: { ...member, teamRole, permissions: perms, notificationsEnabled, allowedRepos, avatar: avatarUrlFor(member.id, avatarStored) } });
+  }
+
+  // ── GET /api/team-members/avatar?id= — serve a member's picture ────────────
+  // Any authenticated staff (member/exec/admin) may view; redirects to a signed
+  // R2 object, or streams a legacy base64 value still in Postgres.
+  if (req.method === 'GET' && req.url?.includes('/avatar')) {
+    const staff = getMemberSession(req) || getExecSession(req) || (verifySessionToken(getCookieValue(req, SESSION_COOKIE_NAME)) ? { admin: true } : null);
+    if (!staff) return res.status(401).json({ error: 'Not authenticated' });
+    const id = parseInt(req.query.id, 10);
+    if (!id) return res.status(400).json({ error: 'id required' });
+    let stored = '';
+    try { const rows = await queryDb(`SELECT avatar FROM ${TABLE} WHERE id=$1`, [id]); stored = rows[0]?.avatar || ''; }
+    catch { return res.status(503).end(); }
+    if (!stored) return res.status(404).end();
+    if (stored.startsWith('data:')) { // legacy inline image
+      const m = stored.match(/^data:(image\/[a-z+]+);base64,(.+)$/i);
+      if (!m) return res.status(404).end();
+      res.setHeader('Content-Type', m[1]); res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      return res.status(200).send(Buffer.from(m[2], 'base64'));
+    }
+    try {
+      const url = await r2SignedGetUrl(stored, stored.split('/').pop());
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      return res.redirect(302, url);
+    } catch { return res.status(404).end(); }
   }
 
   // ── POST /api/team-members/update-profile (self-service: name + picture) ───
@@ -168,28 +210,38 @@ export default async function handler(req, res) {
     if (!member) return res.status(401).json({ error: 'Not authenticated' });
     const { name, avatar } = req.body || {};
     const cleanName = typeof name === 'string' && name.trim() ? name.trim().slice(0, 80) : null;
-    let av; // undefined = leave unchanged; '' = clear; string = set
+    let av;             // undefined = leave unchanged; '' = clear; string = R2 key or data URL
+    let avatarChange = false;
     if (typeof avatar === 'string') {
+      avatarChange = true;
       if (avatar === '') { av = ''; }
       else {
-        // Strictly an image data URL — never store html/script/svg payloads that
-        // could become a stored-XSS vector if ever rendered outside an <img>.
-        if (!/^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(avatar)) {
-          return res.status(400).json({ error: 'Invalid image.' });
-        }
-        if (avatar.length > 700000) return res.status(400).json({ error: 'Image too large — please choose a smaller picture.' });
-        av = avatar;
+        // Strictly an image data URL (never html/script/svg → stored-XSS).
+        const m = avatar.match(/^data:image\/(png|jpe?g|webp|gif);base64,([A-Za-z0-9+/=]+)$/);
+        if (!m) return res.status(400).json({ error: 'Invalid image.' });
+        if (avatar.length > 1500000) return res.status(400).json({ error: 'Image too large — please choose a smaller picture.' });
+        const mime = 'image/' + (m[1] === 'jpg' ? 'jpeg' : m[1]);
+        if (isR2Configured()) {
+          // Store the compressed bytes in R2; keep only the tiny key in Postgres.
+          const key = `avatars/${member.id}-${crypto.randomBytes(5).toString('hex')}.${extFromMime(mime)}`;
+          try { await r2PutObject(key, Buffer.from(m[2], 'base64'), mime); av = key; }
+          catch { av = avatar; } // R2 unavailable → fall back to inline (no failed upload, no data loss)
+        } else { av = avatar; }
       }
     }
-    if (!cleanName && av === undefined) return res.status(400).json({ error: 'Nothing to update' });
+    if (!cleanName && !avatarChange) return res.status(400).json({ error: 'Nothing to update' });
     try {
+      let prev = '';
+      if (avatarChange) { try { const p = await queryDb(`SELECT avatar FROM ${TABLE} WHERE id=$1`, [member.id]); prev = p[0]?.avatar || ''; } catch { /* ignore */ } }
       await queryDb(`UPDATE ${TABLE} SET name=COALESCE($1,name), avatar=COALESCE($2,avatar), updated_at=NOW() WHERE id=$3`,
-        [cleanName, av === undefined ? null : av, member.id]);
+        [cleanName, avatarChange ? av : null, member.id]);
+      // Best-effort cleanup of the superseded R2 object (only after the row is updated).
+      if (avatarChange && prev && !prev.startsWith('data:') && prev !== av) r2DeleteObject(prev).catch(() => {});
       const rows = await queryDb(`SELECT name, avatar FROM ${TABLE} WHERE id=$1`, [member.id]);
       const newName = rows[0]?.name || member.name;
       setMemberCookie(res, createMemberSessionToken({ id: member.id, email: member.email, name: newName }));
       await logAudit('member', member.email, 'profile_updated', member.email).catch(() => {});
-      return res.status(200).json({ ok: true, member: { id: member.id, email: member.email, name: newName, avatar: rows[0]?.avatar || '' } });
+      return res.status(200).json({ ok: true, member: { id: member.id, email: member.email, name: newName, avatar: avatarUrlFor(member.id, rows[0]?.avatar || '') } });
     } catch (err) { return res.status(500).json({ error: err.message }); }
   }
 

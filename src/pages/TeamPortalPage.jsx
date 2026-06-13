@@ -613,11 +613,12 @@ function ProfileEditModal({ member, avatar, onClose, onSaved }) {
     const f = e.target.files?.[0]; if (!f) return;
     const rd = new FileReader();
     rd.onload = () => { const img = new Image(); img.onload = () => {
-      const max = 160, scale = Math.min(1, max / Math.max(img.width, img.height));
+      // Compress to a small square-ish JPEG so the stored R2 object stays tiny.
+      const max = 128, scale = Math.min(1, max / Math.max(img.width, img.height));
       const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
       const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
       cv.getContext('2d').drawImage(img, 0, 0, w, h);
-      setPic(cv.toDataURL('image/jpeg', 0.82));
+      setPic(cv.toDataURL('image/jpeg', 0.7));
     }; img.src = rd.result; };
     rd.readAsDataURL(f);
   };
@@ -625,7 +626,12 @@ function ProfileEditModal({ member, avatar, onClose, onSaved }) {
     if (!name.trim()) { setErr('Name is required.'); return; }
     setBusy(true); setErr('');
     try {
-      const r = await fetchJson('/api/team-members/update-profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim(), avatar: pic || '' }) });
+      // Only send the picture when it actually changed — a new data URL, or '' to
+      // remove. If unchanged (still the existing proxy URL), omit it so the
+      // server keeps the stored image. Never POST the proxy URL back as "avatar".
+      const body = { name: name.trim() };
+      if (pic !== avatar) body.avatar = pic && pic.startsWith('data:') ? pic : '';
+      const r = await fetchJson('/api/team-members/update-profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       onSaved(r.member); onClose();
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
@@ -1266,10 +1272,11 @@ export default function TeamPortalPage() {
     if (!member) return;
     const refresh = () => {
       fetchJson('/api/team-members/me').then((d) => {
-        setMyPerms(d.member?.permissions || []);
-        setMyRepos(d.member?.allowedRepos || []);
-        setMyTeamRole(d.member?.teamRole || 'member');
-        setMyAvatar(d.member?.avatar || '');
+        if (!d.member || d.member.degraded) return; // keep last-known on a degraded read
+        setMyPerms(d.member.permissions || []);
+        setMyRepos(d.member.allowedRepos || []);
+        setMyTeamRole(d.member.teamRole || 'member');
+        setMyAvatar(d.member.avatar || '');
       }).catch(() => {});
       fetchJson('/api/dev-workflow?bucket=1').then((d) => setMyRole(d.myRole || 'member')).catch(() => {});
     };
@@ -1317,14 +1324,14 @@ export default function TeamPortalPage() {
   useEffect(() => {
     if (!member) return;
     fetchJson('/api/dev-workflow?bucket=1').then((d) => setMyRole(d.myRole || 'member')).catch(() => {});
-    fetchJson('/api/team-members/me').then((d) => { setMyPerms(d.member?.permissions || []); setMyRepos(d.member?.allowedRepos || []); setMyTeamRole(d.member?.teamRole || 'member'); setMyAvatar(d.member?.avatar || ''); }).catch(() => {});
+    fetchJson('/api/team-members/me').then((d) => { if (!d.member || d.member.degraded) return; setMyPerms(d.member.permissions || []); setMyRepos(d.member.allowedRepos || []); setMyTeamRole(d.member.teamRole || 'member'); setMyAvatar(d.member.avatar || ''); }).catch(() => {});
     try { if (!window.localStorage.getItem(`pa_tour_done_${member.email}`)) setShowTour(true); } catch { /* ignore */ }
     loadTickets();
     // perms/repo grants also refresh on this poll — belt-and-suspenders next
     // to the instant WS push, so tab visibility can never go stale
     const id = setInterval(() => {
       loadTickets();
-      fetchJson('/api/team-members/me').then((d) => { setMyPerms(d.member?.permissions || []); setMyRepos(d.member?.allowedRepos || []); setMyTeamRole(d.member?.teamRole || 'member'); setMyAvatar(d.member?.avatar || ''); }).catch(() => {});
+      fetchJson('/api/team-members/me').then((d) => { if (!d.member || d.member.degraded) return; setMyPerms(d.member.permissions || []); setMyRepos(d.member.allowedRepos || []); setMyTeamRole(d.member.teamRole || 'member'); setMyAvatar(d.member.avatar || ''); }).catch(() => {});
     }, 8000);
     return () => clearInterval(id);
 

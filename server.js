@@ -396,6 +396,7 @@ app.all('/api/team-members/login',           authLimiter, wrap(teamMembersHandle
 app.all('/api/team-members/activate',        authLimiter, wrap(teamMembersHandler));
 app.all('/api/team-members/change-password', authLimiter, wrap(teamMembersHandler));
 app.all('/api/team-members/me',              wrap(teamMembersHandler));
+app.all('/api/team-members/avatar',          wrap(teamMembersHandler));
 app.all('/api/team-members/update-profile',  wrap(teamMembersHandler));
 app.all('/api/team-members/logout',          wrap(teamMembersHandler));
 app.all('/api/team-members',                 wrap(teamMembersHandler));
