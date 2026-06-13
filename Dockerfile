@@ -1,39 +1,32 @@
-# Single Docker webservice: Node.js (port 4000) + Python FastAPI (port 8000)
-# Run build-docker.sh before docker build to prepare dist/ and backend/
+# Self-contained Node.js web service. The frontend (dist/) is built inside the
+# image from the committed source — no pre-build step or sibling repos required,
+# so a clean `git` checkout deploys correctly on Render. The legacy Python
+# marketing backend has been replaced by the Node-native Business Growth OS
+# (/api/business, /growth); /marketing-auto now redirects there.
 
-FROM python:3.11-slim
-
-# Install Node.js 20 + supervisor
-RUN apt-get update && \
-    apt-get install -y ca-certificates curl supervisor && \
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-
+# ── Stage 1: build the React frontend ────────────────────────────────────────
+FROM node:20-slim AS build
 WORKDIR /app
+COPY package*.json ./
+RUN npm ci --legacy-peer-deps
+COPY . .
+RUN npm run build
 
-# Python deps
-COPY backend/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+# ── Stage 2: runtime ─────────────────────────────────────────────────────────
+FROM node:20-slim
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=4000
 
-# Python backend source
-COPY backend/ /app/backend/
+# Production dependencies only
+COPY package*.json ./
+RUN npm ci --omit=dev --legacy-peer-deps && npm cache clean --force
 
-# Node deps
-COPY package*.json /app/
-RUN npm ci --omit=dev --legacy-peer-deps
+# Server + API handlers + the freshly built frontend
+COPY server.js ./
+COPY api/ ./api/
+COPY --from=build /app/dist ./dist
 
-# Node server + API handlers + pre-built frontend
-COPY server.js /app/
-COPY api/ /app/api/
-COPY dist/ /app/dist/
-
-# Images dir
 RUN mkdir -p /app/images
-
-# Supervisor
-COPY supervisord.conf /etc/supervisor/conf.d/app.conf
-
 EXPOSE 4000
-
-CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/conf.d/app.conf"]
+CMD ["node", "server.js"]
