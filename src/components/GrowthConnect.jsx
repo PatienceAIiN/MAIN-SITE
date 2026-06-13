@@ -12,6 +12,7 @@ import {
 } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import { confirmDialog, Spinner } from '../common/confirm';
+import { useGrowthHub, meetUrl } from '../common/growthHub';
 
 const card = 'rounded-2xl bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800';
 const input = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100';
@@ -19,7 +20,6 @@ const btn = 'inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-
 const btnPrimary = `${btn} bg-indigo-600 text-white hover:bg-indigo-500`;
 const btnGhost = `${btn} bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700`;
 const cApi = (path, opts = {}) => fetchJson(`/api/colleagues${path}`, { credentials: 'include', headers: { 'Content-Type': 'application/json' }, ...opts });
-const meetUrl = (room) => `${window.location.origin}/meet?room=${room}`;
 const fmtT = (v) => v ? new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(v)) : '';
 
 const PRESENCE = {
@@ -29,32 +29,6 @@ const PRESENCE = {
   offline: { label: 'Offline', dot: 'bg-slate-300 dark:bg-slate-600' },
 };
 const Dot = ({ s }) => <span className={`inline-block w-2.5 h-2.5 rounded-full ${(PRESENCE[s] || PRESENCE.offline).dot}`} />;
-
-/* ── realtime hub (presence + call invites) ───────────────────────────────── */
-function useHub(onEvent) {
-  const wsRef = useRef(null);
-  const handler = useRef(onEvent); handler.current = onEvent;
-  const [presence, setPresence] = useState({});
-  useEffect(() => {
-    let alive = true, retry;
-    const connect = () => {
-      if (!alive) return;
-      const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      const ws = new WebSocket(`${proto}://${window.location.host}/ws/team`);
-      wsRef.current = ws;
-      ws.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch { return; } if (m.type === 'presence') setPresence(m.users || {}); else handler.current?.(m); };
-      ws.onclose = () => { wsRef.current = null; if (alive) retry = setTimeout(connect, 3000); };
-    };
-    connect();
-    let last = 0;
-    const act = () => { const n = Date.now(); if (n - last > 30000 && wsRef.current?.readyState === 1) { last = n; wsRef.current.send(JSON.stringify({ type: 'activity' })); } };
-    const evs = ['mousemove', 'keydown', 'mousedown', 'touchstart'];
-    evs.forEach((ev) => window.addEventListener(ev, act, { passive: true }));
-    return () => { alive = false; clearTimeout(retry); evs.forEach((ev) => window.removeEventListener(ev, act)); wsRef.current?.close(); };
-  }, []);
-  const send = useCallback((o) => { if (wsRef.current?.readyState === 1) wsRef.current.send(JSON.stringify(o)); }, []);
-  return { presence, send };
-}
 
 /* ── Schedule / instant meeting modal ─────────────────────────────────────── */
 function MeetingModal({ preset, onClose, onCreated }) {
@@ -170,15 +144,12 @@ export default function GrowthConnect() {
   const [liveChatId, setLiveChatId] = useState(0);   // bumped on incoming chat WS event
   const [meetings, setMeetings] = useState([]);
   const [meetingModal, setMeetingModal] = useState(null); // {preset}
-  const [incoming, setIncoming] = useState(null);    // {room, fromName, title}
   const [view, setView] = useState('people');        // 'people' | 'meetings'
   const [copied, setCopied] = useState('');
 
-  const onEvent = useCallback((m) => {
-    if (m.type === 'chat' && m.message) setLiveChatId(m.chatId || m.message.chat_id);
-    else if (m.type === 'rtc' && m.data?.kind === 'meet-invite') setIncoming({ room: m.data.room, fromName: m.fromName || m.from, title: m.data.title });
-  }, []);
-  const { presence, send } = useHub(onEvent);
+  // Single page-level socket (incoming-call popups handled portal-wide in GrowthPage).
+  const { presence, send, subscribe } = useGrowthHub();
+  useEffect(() => subscribe((m) => { if (m.type === 'chat' && m.message) setLiveChatId(m.chatId || m.message.chat_id); }), [subscribe]);
 
   const loadRoster = useCallback(() => cApi('?list=1').then((d) => setRoster(d.colleagues || [])).catch(() => {}), []);
   const loadClients = useCallback(() => fetchJson('/api/business/contacts', { credentials: 'include' }).then((d) => setClients((d.contacts || []).filter((c) => c.email))).catch(() => {}), []);
@@ -305,17 +276,6 @@ export default function GrowthConnect() {
       )}
 
       {meetingModal && <MeetingModal preset={meetingModal.preset} onClose={() => setMeetingModal(null)} onCreated={onMeetingCreated} />}
-
-      {/* Incoming call toast */}
-      {incoming && (
-        <div className="fixed bottom-5 right-5 z-[70] w-80 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl p-4">
-          <div className="flex items-center gap-2 mb-1"><span className="grid place-items-center h-9 w-9 rounded-full bg-emerald-100 text-emerald-600"><FiVideo /></span><div className="min-w-0"><div className="font-semibold text-slate-800 dark:text-slate-100 truncate">{incoming.fromName}</div><div className="text-xs text-slate-400">is calling you…</div></div></div>
-          <div className="flex gap-2 mt-3">
-            <button className={`${btnPrimary} flex-1 justify-center`} onClick={() => { window.open(meetUrl(incoming.room), '_blank', 'noopener'); setIncoming(null); }}>Join</button>
-            <button className={`${btnGhost} flex-1 justify-center`} onClick={() => setIncoming(null)}>Dismiss</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

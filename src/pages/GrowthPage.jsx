@@ -16,8 +16,9 @@ import {
   FiCreditCard, FiBriefcase, FiUserCheck, FiEdit2, FiSettings, FiLock,
 } from 'react-icons/fi';
 import { TbCurrencyRupee, TbCurrencyDollar, TbCurrencyEuro, TbCurrencyPound } from 'react-icons/tb';
-import { FiMessageCircle } from 'react-icons/fi';
+import { FiMessageCircle, FiVideo, FiPhoneOff } from 'react-icons/fi';
 import GrowthConnect from '../components/GrowthConnect';
+import { GrowthHubProvider, useGrowthHub, meetUrl } from '../common/growthHub';
 import { fetchJson } from '../common/fetchJson';
 import { confirmDialog, Spinner } from '../common/confirm';
 
@@ -1287,6 +1288,35 @@ function EmployeeForm({ initial, onClose, onSave }) {
   );
 }
 
+/* ── Portal-wide incoming call/meeting popup (works on every tab) ─────────── */
+function IncomingCallWatcher() {
+  const { subscribe } = useGrowthHub();
+  const [calls, setCalls] = useState([]); // queue of {id, room, fromName, title}
+  useEffect(() => subscribe((m) => {
+    if (m.type === 'rtc' && m.data?.kind === 'meet-invite') {
+      setCalls((c) => c.some((x) => x.room === m.data.room) ? c : [...c, { id: `${m.data.room}-${m.from}`, room: m.data.room, fromName: m.fromName || m.from, title: m.data.title }]);
+    }
+  }), [subscribe]);
+  const dismiss = (id) => setCalls((c) => c.filter((x) => x.id !== id));
+  if (!calls.length) return null;
+  return (
+    <div className="fixed bottom-5 right-5 z-[80] space-y-2">
+      {calls.map((c) => (
+        <div key={c.id} className="w-80 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl p-4 animate-[pulse_2s_ease-in-out_1]">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="grid place-items-center h-9 w-9 rounded-full bg-emerald-100 text-emerald-600"><FiVideo /></span>
+            <div className="min-w-0"><div className="font-semibold text-slate-800 dark:text-slate-100 truncate">{c.fromName}</div><div className="text-xs text-slate-400 truncate">{c.title || 'is calling you…'}</div></div>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button className={`${btnPrimary} flex-1 justify-center`} onClick={() => { window.open(meetUrl(c.room), '_blank', 'noopener'); dismiss(c.id); }}><FiVideo size={14} /> Join</button>
+            <button className={`${btnGhost} flex-1 justify-center`} onClick={() => dismiss(c.id)}><FiPhoneOff size={14} /> Dismiss</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ── Shell ────────────────────────────────────────────────────────────────── */
 const NAV = [
   { key: 'command', label: 'Command Center', icon: FiGrid },
@@ -1352,7 +1382,9 @@ export default function GrowthPage() {
   if (!authed) return <Login onAuthed={() => verify()} />;
 
   return (
+    <GrowthHubProvider>
     <div className={`${dark ? 'dark' : ''}`}>
+      <IncomingCallWatcher />
       <div className="h-screen overflow-hidden flex bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
         {/* Sidebar — fixed, does not scroll with the content */}
         <aside className="w-60 shrink-0 h-screen sticky top-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hidden md:flex flex-col">
@@ -1414,5 +1446,6 @@ export default function GrowthPage() {
         </main>
       </div>
     </div>
+    </GrowthHubProvider>
   );
 }
