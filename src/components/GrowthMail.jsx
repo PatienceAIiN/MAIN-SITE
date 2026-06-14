@@ -27,35 +27,65 @@ const FOLDERS = [
   { key: 'TRASH', label: 'Trash', icon: FiTrash2 },
 ];
 
-/* ── Compose / reply / edit-draft ─────────────────────────────────────────── */
+/* ── Compose / reply / edit-draft (with attachments) ──────────────────────── */
+const MAX_ATTACH = 10 * 1024 * 1024; // ~10 MB total
+const readAsBase64 = (file) => new Promise((resolve, reject) => {
+  const r = new FileReader();
+  r.onload = () => resolve(String(r.result).split(',')[1] || '');
+  r.onerror = reject;
+  r.readAsDataURL(file);
+});
 function Compose({ initial, onClose, onDone }) {
   const [f, setF] = useState({ to: '', cc: '', subject: '', body: '', threadId: undefined, draftId: undefined, id: undefined, ...initial });
+  const [files, setFiles] = useState([]); // {filename, mimeType, dataBase64, size}
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+  const addFiles = async (list) => {
+    setErr('');
+    const picked = Array.from(list || []);
+    let total = files.reduce((s, x) => s + x.size, 0);
+    const next = [...files];
+    for (const file of picked) {
+      if (total + file.size > MAX_ATTACH) { setErr('Attachments exceed the 10 MB limit.'); break; }
+      total += file.size;
+      next.push({ filename: file.name, mimeType: file.type || 'application/octet-stream', dataBase64: await readAsBase64(file), size: file.size });
+    }
+    setFiles(next);
+  };
   const act = async (kind) => {
     setErr('');
     if (kind === 'send' && !f.to.trim()) { setErr('Add at least one recipient.'); return; }
     setBusy(kind);
+    const attachments = files.map(({ filename, mimeType, dataBase64 }) => ({ filename, mimeType, dataBase64 }));
     try {
-      if (kind === 'send') await gApi('', { method: 'POST', body: JSON.stringify({ action: 'send', to: f.to, cc: f.cc, subject: f.subject, body: (f.body || '').replace(/\n/g, '<br>'), threadId: f.threadId, draftId: f.draftId }) });
-      else await gApi('', { method: 'POST', body: JSON.stringify({ action: 'draft', id: f.id, to: f.to, cc: f.cc, subject: f.subject, body: (f.body || '').replace(/\n/g, '<br>'), threadId: f.threadId }) });
+      const common = { to: f.to, cc: f.cc, subject: f.subject, body: (f.body || '').replace(/\n/g, '<br>'), threadId: f.threadId, attachments };
+      if (kind === 'send') await gApi('', { method: 'POST', body: JSON.stringify({ action: 'send', draftId: f.draftId, ...common }) });
+      else await gApi('', { method: 'POST', body: JSON.stringify({ action: 'draft', id: f.id, ...common }) });
       onDone(kind);
     } catch (ex) { setErr(ex.message); } finally { setBusy(''); }
   };
   return (
     <div className="fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4" onClick={onClose}>
-      <div className={`${card} w-full max-w-2xl p-5`} onClick={(e) => e.stopPropagation()}>
+      <div className={`${card} w-full max-w-2xl p-5 max-h-[92vh] overflow-y-auto`} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-bold text-slate-900 dark:text-white">{f.draftId || f.id ? 'Edit draft' : initial?.threadId ? 'Reply' : 'New message'}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><FiX /></button></div>
         <div className="space-y-2">
           <input className={input} placeholder="To (comma-separated)" value={f.to} onChange={set('to')} />
           <input className={input} placeholder="Cc" value={f.cc} onChange={set('cc')} />
           <input className={input} placeholder="Subject" value={f.subject} onChange={set('subject')} />
-          <textarea className={`${input} min-h-[200px]`} placeholder="Write your message…" value={f.body} onChange={set('body')} />
+          <textarea className={`${input} min-h-[180px]`} placeholder="Write your message…" value={f.body} onChange={set('body')} />
+          {files.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {files.map((a, i) => <span key={i} className="inline-flex items-center gap-1 text-xs bg-slate-100 dark:bg-slate-800 rounded-full px-2 py-0.5 text-slate-600 dark:text-slate-300"><FiPaperclip size={11} /> {a.filename} <button onClick={() => setFiles((fs) => fs.filter((_, j) => j !== i))}><FiX size={11} /></button></span>)}
+            </div>
+          )}
           {err && <p className="text-sm text-red-600">{err}</p>}
-          <div className="flex justify-end gap-2 pt-1">
-            <button className={btnGhost} onClick={() => act('draft')} disabled={busy}>{busy === 'draft' ? <Spinner /> : 'Save draft'}</button>
-            <button className={btnPrimary} onClick={() => act('send')} disabled={busy}>{busy === 'send' ? <Spinner /> : <><FiSend size={14} /> Send</>}</button>
+          <div className="flex justify-between items-center gap-2 pt-1">
+            <label className={`${btnGhost} cursor-pointer`}><FiPaperclip size={14} /> Attach<input type="file" multiple className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} /></label>
+            <div className="flex gap-2">
+              <button className={btnGhost} onClick={() => act('draft')} disabled={busy}>{busy === 'draft' ? <Spinner /> : 'Save draft'}</button>
+              <button className={btnPrimary} onClick={() => act('send')} disabled={busy}>{busy === 'send' ? <Spinner /> : <><FiSend size={14} /> Send</>}</button>
+            </div>
           </div>
         </div>
       </div>
@@ -63,33 +93,67 @@ function Compose({ initial, onClose, onDone }) {
   );
 }
 
-/* ── Reader ───────────────────────────────────────────────────────────────── */
-function Reader({ id, onClose, onChanged, onReply }) {
-  const [m, setM] = useState(null);
-  useEffect(() => {
-    gApi(`?msg=${id}`).then((d) => { setM(d); if (d.unread) gApi('', { method: 'POST', body: JSON.stringify({ action: 'markRead', id }) }).then(() => onChanged?.()).catch(() => {}); }).catch(() => setM({ error: true }));
-  }, [id]); // eslint-disable-line
-  if (!m) return <div className="grid place-items-center h-full"><Spinner /></div>;
-  if (m.error) return <div className="grid place-items-center h-full text-slate-400">Could not load this message.</div>;
+/* ── Reader (threaded conversation + attachment downloads) ────────────────── */
+const downloadAttachment = async (msgId, att) => {
+  try {
+    const { data } = await gApi(`?attach=${msgId}&att=${att.attachmentId}`);
+    const b64 = String(data || '').replace(/-/g, '+').replace(/_/g, '/');
+    const bin = atob(b64); const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([arr], { type: att.mimeType || 'application/octet-stream' }));
+    const a = document.createElement('a'); a.href = url; a.download = att.filename || 'attachment'; a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) { window.alert(`Download failed: ${e.message}`); }
+};
+
+function MessageBlock({ m, defaultOpen }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="flex flex-col h-full min-h-0">
-      <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="font-bold text-slate-900 dark:text-white">{m.subject || '(no subject)'}</h3>
-          <div className="flex items-center gap-1 shrink-0">
-            <button title="Reply" onClick={() => onReply(m)} className="p-2 text-slate-400 hover:text-indigo-600"><FiCornerUpLeft /></button>
-            <button title="Trash" onClick={async () => { await gApi('', { method: 'POST', body: JSON.stringify({ action: 'trash', id: m.id }) }); onChanged?.(true); }} className="p-2 text-slate-400 hover:text-red-500"><FiTrash2 /></button>
-            <button title="Close" onClick={onClose} className="p-2 text-slate-400 hover:text-slate-700"><FiX /></button>
+    <div className="border-b border-slate-100 dark:border-slate-800">
+      <button onClick={() => setOpen((v) => !v)} className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+        <div className="flex items-center justify-between gap-2"><span className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{fromName(m.from)}</span><span className="text-[11px] text-slate-400 shrink-0">{fmt(m.date)}</span></div>
+        {!open && <div className="text-xs text-slate-400 truncate">{m.text ? m.text.slice(0, 120) : 'Open message'}</div>}
+      </button>
+      {open && (
+        <div className="px-2 pb-3">
+          <p className="text-[11px] text-slate-400 px-2 mb-1">to {m.to}{m.cc ? ` · cc ${m.cc}` : ''}</p>
+          {m.attachments?.length > 0 && <div className="flex flex-wrap gap-1.5 px-2 mb-2">{m.attachments.map((a, i) => <button key={i} onClick={() => downloadAttachment(m.id, a)} className="inline-flex items-center gap-1 text-xs bg-slate-100 dark:bg-slate-800 rounded-full px-2 py-0.5 text-slate-600 dark:text-slate-300 hover:text-indigo-600"><FiPaperclip size={11} /> {a.filename}</button>)}</div>}
+          <div className="bg-white rounded-lg overflow-hidden" style={{ height: 360 }}>
+            {m.html ? <iframe title={`email-${m.id}`} sandbox="allow-same-origin" srcDoc={m.html} className="w-full h-full border-0" />
+              : <pre className="p-3 whitespace-pre-wrap text-sm text-slate-700 font-sans">{m.text || '(empty)'}</pre>}
           </div>
         </div>
-        <p className="text-xs text-slate-500 mt-1"><b className="text-slate-700 dark:text-slate-200">{fromName(m.from)}</b> &lt;{(m.from || '').replace(/^.*</, '').replace(/>.*$/, '')}&gt;</p>
-        <p className="text-[11px] text-slate-400">to {m.to} · {fmt(m.date)}</p>
-        {m.attachments?.length > 0 && <div className="flex flex-wrap gap-1.5 mt-2">{m.attachments.map((a, i) => <span key={i} className="inline-flex items-center gap-1 text-xs bg-slate-100 dark:bg-slate-800 rounded-full px-2 py-0.5 text-slate-500"><FiPaperclip size={11} /> {a.filename}</span>)}</div>}
+      )}
+    </div>
+  );
+}
+
+function Reader({ id, threadId, onClose, onChanged, onReply }) {
+  const [thread, setThread] = useState(null);
+  useEffect(() => {
+    const url = threadId ? `?thread=${threadId}` : `?msg=${id}`;
+    gApi(url).then((d) => {
+      const msgs = d.messages || [d];
+      setThread(msgs);
+      const unreadOne = msgs.find((x) => x.unread);
+      if (unreadOne) gApi('', { method: 'POST', body: JSON.stringify({ action: 'markRead', id: unreadOne.id }) }).then(() => onChanged?.()).catch(() => {});
+    }).catch(() => setThread('error'));
+  }, [id, threadId]); // eslint-disable-line
+  if (!thread) return <div className="grid place-items-center h-full"><Spinner /></div>;
+  if (thread === 'error') return <div className="grid place-items-center h-full text-slate-400">Could not load this message.</div>;
+  const last = thread[thread.length - 1];
+  return (
+    <div className="flex flex-col h-full min-h-0">
+      <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between gap-2">
+        <div className="min-w-0"><h3 className="font-bold text-slate-900 dark:text-white truncate">{thread[0].subject || '(no subject)'}</h3><p className="text-[11px] text-slate-400">{thread.length} message{thread.length > 1 ? 's' : ''}</p></div>
+        <div className="flex items-center gap-1 shrink-0">
+          <button title="Reply" onClick={() => onReply(last)} className="p-2 text-slate-400 hover:text-indigo-600"><FiCornerUpLeft /></button>
+          <button title="Trash" onClick={async () => { await gApi('', { method: 'POST', body: JSON.stringify({ action: 'trash', id: last.id }) }); onChanged?.(true); }} className="p-2 text-slate-400 hover:text-red-500"><FiTrash2 /></button>
+          <button title="Close" onClick={onClose} className="p-2 text-slate-400 hover:text-slate-700"><FiX /></button>
+        </div>
       </div>
-      <div className="flex-1 overflow-hidden bg-white">
-        {m.html
-          ? <iframe title="email" sandbox="allow-same-origin" srcDoc={m.html} className="w-full h-full border-0" />
-          : <pre className="p-4 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200 font-sans">{m.text || '(empty)'}</pre>}
+      <div className="flex-1 overflow-y-auto">
+        {thread.map((m, i) => <MessageBlock key={m.id || i} m={m} defaultOpen={i === thread.length - 1} />)}
       </div>
     </div>
   );
@@ -101,8 +165,10 @@ export default function GrowthMail() {
   const [folder, setFolder] = useState('INBOX');
   const [msgs, setMsgs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextToken, setNextToken] = useState(null);
   const [q, setQ] = useState('');
-  const [openId, setOpenId] = useState(null);
+  const [open, setOpen] = useState(null); // { id, threadId }
   const [compose, setCompose] = useState(null);
 
   const loadStatus = useCallback(() => gApi('?status=1').then(setStatus).catch(() => setStatus({ configured: false, connected: false })), []);
@@ -112,10 +178,15 @@ export default function GrowthMail() {
 
   const load = useCallback(() => {
     if (!status?.connected) return;
-    setLoading(true); setOpenId(null);
-    gApi(`?list=1&label=${folder}${q ? `&q=${encodeURIComponent(q)}` : ''}`).then((d) => setMsgs(d.messages || [])).catch(() => setMsgs([])).finally(() => setLoading(false));
+    setLoading(true); setOpen(null); setNextToken(null);
+    gApi(`?list=1&label=${folder}${q ? `&q=${encodeURIComponent(q)}` : ''}`).then((d) => { setMsgs(d.messages || []); setNextToken(d.nextPageToken || null); }).catch(() => setMsgs([])).finally(() => setLoading(false));
   }, [status, folder, q]);
   useEffect(() => { load(); }, [folder, status]); // eslint-disable-line
+  const loadMore = () => {
+    if (!nextToken) return;
+    setLoadingMore(true);
+    gApi(`?list=1&label=${folder}${q ? `&q=${encodeURIComponent(q)}` : ''}&pageToken=${nextToken}`).then((d) => { setMsgs((cur) => [...cur, ...(d.messages || [])]); setNextToken(d.nextPageToken || null); }).catch(() => {}).finally(() => setLoadingMore(false));
+  };
 
   const connect = async () => { try { const { url } = await gApi('?authurl=1'); window.location.href = url; } catch (e) { window.alert(e.message); } };
   const disconnect = async () => { if (!(await confirmDialog({ title: 'Disconnect Gmail', message: 'Disconnect this Google account from Growth?', confirmText: 'Disconnect' }))) return; await gApi('', { method: 'POST', body: JSON.stringify({ action: 'disconnect' }) }); loadStatus(); setMsgs([]); };
@@ -167,8 +238,8 @@ export default function GrowthMail() {
           {loading && !msgs.length && <div className="grid place-items-center py-16"><Spinner /></div>}
           {!loading && !msgs.length && <p className="text-sm text-slate-400 text-center py-16">No messages.</p>}
           {msgs.map((m) => (
-            <button key={m.id || m.draftId} onClick={() => folder === 'DRAFT' ? openDraft(m) : setOpenId(m.id)}
-              className={`w-full text-left px-3.5 py-3 border-b border-slate-50 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/50 ${openId === m.id ? 'bg-slate-100 dark:bg-slate-800' : ''} ${m.unread ? 'font-semibold' : ''}`}>
+            <button key={m.id || m.draftId} onClick={() => folder === 'DRAFT' ? openDraft(m) : setOpen({ id: m.id, threadId: m.threadId })}
+              className={`w-full text-left px-3.5 py-3 border-b border-slate-50 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/50 ${open?.id === m.id ? 'bg-slate-100 dark:bg-slate-800' : ''} ${m.unread ? 'font-semibold' : ''}`}>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm text-slate-800 dark:text-slate-100 truncate">{folder === 'SENT' || folder === 'DRAFT' ? `To: ${fromName(m.to)}` : fromName(m.from)}</span>
                 <span className="text-[10px] text-slate-400 shrink-0">{fmt(m.date).split(',')[0]}</span>
@@ -177,12 +248,13 @@ export default function GrowthMail() {
               <div className="text-[11px] text-slate-400 truncate">{m.snippet}</div>
             </button>
           ))}
+          {nextToken && <button onClick={loadMore} disabled={loadingMore} className="w-full py-3 text-sm text-indigo-600 hover:bg-slate-50 dark:hover:bg-slate-800/50">{loadingMore ? 'Loading…' : 'Load more'}</button>}
         </div>
       </div>
 
       {/* Reader */}
       <div className={`${card} overflow-hidden`}>
-        {openId ? <Reader id={openId} onClose={() => setOpenId(null)} onChanged={(reload) => { if (reload) { setOpenId(null); load(); } else load(); }} onReply={replyTo} />
+        {open ? <Reader id={open.id} threadId={open.threadId} onClose={() => setOpen(null)} onChanged={(reload) => { if (reload) { setOpen(null); load(); } else load(); }} onReply={replyTo} />
           : <div className="h-full grid place-items-center text-slate-400 text-sm"><div className="text-center"><FiMail size={28} className="mx-auto mb-2 text-slate-300" />Select a message to read</div></div>}
       </div>
 

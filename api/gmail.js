@@ -79,19 +79,47 @@ const collectAttachments = (payload, out = []) => {
   return out;
 };
 
-// ── MIME builder for send / draft ────────────────────────────────────────────
-const buildRaw = ({ to, cc, subject, body, fromEmail }) => {
-  const lines = [
+// ── MIME builder for send / draft (with optional attachments) ───────────────
+const buildRaw = ({ to, cc, subject, body, fromEmail, attachments }) => {
+  const head = [
     `From: ${fromEmail}`,
     `To: ${to}`,
     ...(cc ? [`Cc: ${cc}`] : []),
     `Subject: ${subject || '(no subject)'}`,
     'MIME-Version: 1.0',
-    'Content-Type: text/html; charset="UTF-8"',
-    '',
-    body || '',
   ];
-  return b64urlEncode(lines.join('\r\n'));
+  if (!attachments?.length) {
+    return b64urlEncode([...head, 'Content-Type: text/html; charset="UTF-8"', '', body || ''].join('\r\n'));
+  }
+  const boundary = `pa_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const parts = [
+    `--${boundary}`, 'Content-Type: text/html; charset="UTF-8"', '', body || '', '',
+    ...attachments.flatMap((a) => [
+      `--${boundary}`,
+      `Content-Type: ${a.mimeType || 'application/octet-stream'}; name="${a.filename}"`,
+      'Content-Transfer-Encoding: base64',
+      `Content-Disposition: attachment; filename="${a.filename}"`,
+      '',
+      String(a.dataBase64 || '').replace(/[\r\n]/g, '').replace(/(.{76})/g, '$1\r\n'),
+      '',
+    ]),
+    `--${boundary}--`, '',
+  ];
+  return b64urlEncode([...head, `Content-Type: multipart/mixed; boundary="${boundary}"`, '', ...parts].join('\r\n'));
+};
+
+// Parse a Gmail message resource into our flat shape.
+const parseMessage = (full) => {
+  const h = full.payload?.headers || [];
+  const html = findPart(full.payload, 'text/html');
+  const text = findPart(full.payload, 'text/plain');
+  return {
+    id: full.id, threadId: full.threadId,
+    from: header(h, 'From'), to: header(h, 'To'), cc: header(h, 'Cc'), subject: header(h, 'Subject'), date: header(h, 'Date'),
+    html: html ? b64urlDecode(html) : null, text: text ? b64urlDecode(text) : null,
+    attachments: collectAttachments(full.payload),
+    unread: (full.labelIds || []).includes('UNREAD'),
+  };
 };
 
 const okRedirect = (res, status) => { res.statusCode = 302; res.setHeader('Location', `${SITE}/growth?mail=${status}`); res.end(); };
@@ -169,16 +197,13 @@ export default async function handler(req, res) {
       // Read one message in full.
       if (req.query.msg) {
         const full = await gapi(at.token, `/messages/${req.query.msg}?format=full`);
-        const h = full.payload?.headers || [];
-        const html = findPart(full.payload, 'text/html');
-        const text = findPart(full.payload, 'text/plain');
-        return res.status(200).json({
-          id: full.id, threadId: full.threadId,
-          from: header(h, 'From'), to: header(h, 'To'), cc: header(h, 'Cc'), subject: header(h, 'Subject'), date: header(h, 'Date'),
-          html: html ? b64urlDecode(html) : null, text: text ? b64urlDecode(text) : null,
-          attachments: collectAttachments(full.payload),
-          unread: (full.labelIds || []).includes('UNREAD'),
-        });
+        return res.status(200).json(parseMessage(full));
+      }
+
+      // Read a whole conversation thread (all messages).
+      if (req.query.thread) {
+        const t = await gapi(at.token, `/threads/${req.query.thread}?format=full`);
+        return res.status(200).json({ messages: (t.messages || []).map(parseMessage) });
       }
 
       // Download an attachment (base64).
@@ -198,13 +223,13 @@ export default async function handler(req, res) {
       const fromEmail = at.account.google_email || me.email;
 
       if (b.action === 'send') {
-        const raw = buildRaw({ to: b.to, cc: b.cc, subject: b.subject, body: b.body, fromEmail });
+        const raw = buildRaw({ to: b.to, cc: b.cc, subject: b.subject, body: b.body, fromEmail, attachments: b.attachments });
         const sent = await gapi(at.token, '/messages/send', { method: 'POST', body: JSON.stringify({ raw, ...(b.threadId ? { threadId: b.threadId } : {}) }) });
         if (b.draftId) await gapi(at.token, `/drafts/${b.draftId}`, { method: 'DELETE' }).catch(() => {});
         return res.status(200).json({ ok: true, id: sent.id });
       }
       if (b.action === 'draft') {
-        const raw = buildRaw({ to: b.to, cc: b.cc, subject: b.subject, body: b.body, fromEmail });
+        const raw = buildRaw({ to: b.to, cc: b.cc, subject: b.subject, body: b.body, fromEmail, attachments: b.attachments });
         const payload = { message: { raw, ...(b.threadId ? { threadId: b.threadId } : {}) } };
         const d = b.id
           ? await gapi(at.token, `/drafts/${b.id}`, { method: 'PUT', body: JSON.stringify(payload) })
