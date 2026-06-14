@@ -15,7 +15,9 @@ export function useGroupCall(me, wsSend) {
   const [sharing, setSharing] = useState(false);
   const [chat, setChat] = useState([]);       // in-call chat: { id, name, text, mine }
   const [peerMuted, setPeerMuted] = useState({}); // email -> bool (broadcast mic state)
+  const [peerCamOff, setPeerCamOff] = useState({}); // email -> bool (broadcast camera state)
   const mutedRef = useRef(false);              // my live mic state (for late-joiner sync)
+  const camOffRef = useRef(false);             // my live camera state (for late-joiner sync)
   const roomRef = useRef(null); roomRef.current = room;
   const pcs = useRef(new Map());               // email -> RTCPeerConnection
   const pending = useRef(new Map());           // email -> [ice]
@@ -114,6 +116,7 @@ export function useGroupCall(me, wsSend) {
       const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
       send(m.email, { kind: 'g-offer', sdp: offer, name: me.name || me.email });
       send(m.email, { kind: 'g-mute', muted: mutedRef.current });   // sync my mic state to the newcomer
+      send(m.email, { kind: 'g-cam', camOff: camOffRef.current });  // …and my camera state
     } else if (m.op === 'left') {
       dropPeer(m.email);
     }
@@ -145,6 +148,7 @@ export function useGroupCall(me, wsSend) {
       const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
       send(from, { kind: 'g-offer', sdp: offer, name: me.name || me.email });
       send(from, { kind: 'g-mute', muted: mutedRef.current });
+      send(from, { kind: 'g-cam', camOff: camOffRef.current });
     } else if (data.kind === 'g-offer') {
       const pc = pcs.current.get(from) || makePc(from, fromName);
       await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
@@ -153,8 +157,11 @@ export function useGroupCall(me, wsSend) {
       const ans = await pc.createAnswer(); await pc.setLocalDescription(ans);
       send(from, { kind: 'g-answer', sdp: ans });
       send(from, { kind: 'g-mute', muted: mutedRef.current });
+      send(from, { kind: 'g-cam', camOff: camOffRef.current });
     } else if (data.kind === 'g-mute') {
       setPeerMuted((mm) => ({ ...mm, [from]: Boolean(data.muted) }));
+    } else if (data.kind === 'g-cam') {
+      setPeerCamOff((cc) => ({ ...cc, [from]: Boolean(data.camOff) }));
     } else if (data.kind === 'g-answer') {
       await pcs.current.get(from)?.setRemoteDescription(new RTCSessionDescription(data.sdp)).catch(() => {});
     } else if (data.kind === 'g-ice') {
@@ -174,7 +181,12 @@ export function useGroupCall(me, wsSend) {
     setMuted(next);
     pcs.current.forEach((_, email) => send(email, { kind: 'g-mute', muted: next })); // tell everyone
   };
-  const toggleCam = () => { localStream.current?.getVideoTracks().forEach((t) => { t.enabled = camOff; }); setCamOff((v) => !v); };
+  const toggleCam = () => {
+    const next = !camOffRef.current; camOffRef.current = next;
+    localStream.current?.getVideoTracks().forEach((t) => { t.enabled = !next; });
+    setCamOff(next);
+    pcs.current.forEach((_, email) => send(email, { kind: 'g-cam', camOff: next })); // tell everyone
+  };
   const toggleShare = async () => {
     if (screenStream.current) {
       screenStream.current.getTracks().forEach((t) => t.stop()); screenStream.current = null;
@@ -190,22 +202,36 @@ export function useGroupCall(me, wsSend) {
     } catch { /* cancelled */ }
   };
 
-  return { room, peers, peerMuted, muted, camOff, sharing, chat, sendChat, localStream, start, accept, invite, leave, onRtc, onGcall, joinMeeting, toggleMute, toggleCam, toggleShare, me };
+  return { room, peers, peerMuted, peerCamOff, muted, camOff, sharing, chat, sendChat, localStream, start, accept, invite, leave, onRtc, onGcall, joinMeeting, toggleMute, toggleCam, toggleShare, me };
 }
 
-function Tile({ stream, name, mine, speaking, micMuted }) {
+function Tile({ stream, name, mine, micMuted, camOff, pinned, onPin }) {
   const ref = useRef(null);
   useEffect(() => { if (ref.current && stream) ref.current.srcObject = stream; }, [stream]);
-  // A tile only gets the "speaking" highlight when its mic is actually live.
-  const live = speaking && !micMuted;
+  const initial = ((name || '?').trim().charAt(0) || '?').toUpperCase();
   return (
-    <div className={`relative rounded-2xl overflow-hidden bg-slate-800 aspect-video transition-shadow ${live ? 'ring-2 ring-emerald-400 shadow-[0_0_0_4px_rgba(16,185,129,0.25)]' : 'ring-1 ring-white/10'}`}>
-      <video ref={ref} autoPlay playsInline muted={mine} className="w-full h-full object-cover" />
-      {/* Bottom-left: muted → red crossed mic; speaking → green mic; name pill */}
+    <div className="group relative rounded-2xl overflow-hidden bg-slate-800 aspect-video ring-1 ring-white/10 w-full h-full">
+      {/* Own preview is mirrored (selfie view, like Google Meet); remote people are
+          shown true-to-life (not mirrored). */}
+      <video ref={ref} autoPlay playsInline muted={mine}
+        className={`w-full h-full object-cover ${mine ? 'scale-x-[-1]' : ''} ${camOff ? 'invisible' : ''}`} />
+      {/* Camera off → initial avatar + crossed-camera icon instead of a black screen */}
+      {camOff && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-700 to-slate-900">
+          <span className="h-16 w-16 rounded-full bg-indigo-600 text-white grid place-items-center text-2xl font-bold select-none">{initial}</span>
+          <FiVideoOff size={15} className="text-white/40" />
+        </div>
+      )}
+      {/* Pin / enlarge this person (manual focus — no auto speaker-switching) */}
+      {onPin && (
+        <button onClick={onPin} title={pinned ? 'Unpin' : 'Pin / enlarge'}
+          className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/50 hover:bg-black/70 text-white grid place-items-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition">
+          {pinned ? <FiMinimize2 size={13} /> : <FiMaximize2 size={13} />}
+        </button>
+      )}
       <span className="absolute bottom-2 left-2 flex items-center gap-1.5 text-[11px] text-white bg-black/55 backdrop-blur-sm px-2 py-0.5 rounded-full">
-        {micMuted
-          ? <FiMicOff size={12} className="text-red-400" />
-          : live ? <FiMic size={12} className="text-emerald-400 animate-pulse" /> : null}
+        {micMuted && <FiMicOff size={12} className="text-red-400" />}
+        {camOff && <FiVideoOff size={12} className="text-amber-400" />}
         {name}{mine ? ' (you)' : ''}
       </span>
     </div>
@@ -213,8 +239,8 @@ function Tile({ stream, name, mine, speaking, micMuted }) {
 }
 
 // Draggable picture-in-picture window shown when the call is minimized. Shows
-// the active speaker; movable anywhere; hover reveals expand / leave controls.
-function MiniCall({ stream, name, mine, speaking, micMuted, count, onExpand, onLeave }) {
+// the pinned person (or first peer); movable anywhere; hover reveals controls.
+function MiniCall({ stream, name, mine, micMuted, camOff, count, onExpand, onLeave }) {
   const vref = useRef(null);
   const drag = useRef(null);
   const [pos, setPos] = useState(() => ({
@@ -229,14 +255,16 @@ function MiniCall({ stream, name, mine, speaking, micMuted, count, onExpand, onL
   const onDown = (e) => { drag.current = { sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* unsupported */ } };
   const onMove = (e) => { if (!drag.current) return; setPos(clamp(drag.current.ox + (e.clientX - drag.current.sx), drag.current.oy + (e.clientY - drag.current.sy))); };
   const onUp = () => { drag.current = null; };
-  const live = speaking && !micMuted;
+  const initial = ((name || '?').trim().charAt(0) || '?').toUpperCase();
   return (
     <div style={{ left: pos.x, top: pos.y, width: 240 }}
       onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
-      className={`fixed z-[73] select-none cursor-move group rounded-2xl overflow-hidden shadow-2xl bg-slate-900 ${live ? 'ring-2 ring-emerald-400' : 'ring-1 ring-white/25'}`}>
-      <video ref={vref} autoPlay playsInline muted={mine} className="w-full aspect-video object-cover pointer-events-none bg-slate-800" />
+      className="fixed z-[73] select-none cursor-move group rounded-2xl overflow-hidden shadow-2xl bg-slate-900 ring-1 ring-white/25">
+      <video ref={vref} autoPlay playsInline muted={mine} className={`w-full aspect-video object-cover pointer-events-none bg-slate-800 ${mine ? 'scale-x-[-1]' : ''} ${camOff ? 'invisible' : ''}`} />
+      {camOff && <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-900"><span className="h-12 w-12 rounded-full bg-indigo-600 text-white grid place-items-center text-lg font-bold">{initial}</span></div>}
       <span className="absolute bottom-1.5 left-1.5 flex items-center gap-1 text-[10px] text-white bg-black/55 backdrop-blur-sm px-1.5 py-0.5 rounded-full">
-        {micMuted ? <FiMicOff size={11} className="text-red-400" /> : live ? <FiMic size={11} className="text-emerald-400 animate-pulse" /> : null}
+        {micMuted && <FiMicOff size={11} className="text-red-400" />}
+        {camOff && <FiVideoOff size={11} className="text-amber-400" />}
         {name}{mine ? ' (you)' : ''}
       </span>
       {count > 1 && <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 text-[10px] text-white bg-black/55 backdrop-blur-sm px-1.5 py-0.5 rounded-full"><FiUsers size={9} />{count}</span>}
@@ -316,11 +344,11 @@ function AddPeople({ roster, presence = {}, roomId, inCall, onRing, onClose, can
 }
 
 export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
-  const { room, peers, peerMuted = {}, muted, camOff, sharing, chat, sendChat, localStream, accept, invite, leave, toggleMute, toggleCam, toggleShare, me } = api;
+  const { room, peers, peerMuted = {}, peerCamOff = {}, muted, camOff, sharing, chat, sendChat, localStream, accept, invite, leave, toggleMute, toggleCam, toggleShare, me } = api;
   const [min, setMin] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [partsOpen, setPartsOpen] = useState(false); // top participant bar collapsed by default
-  const [active, setActive] = useState(null);         // active-speaker email
+  const [pinned, setPinned] = useState(null);         // manually pinned tile: 'me' | email | null
   const [notesOpen, setNotesOpen] = useState(false);  // left sidebar
   const [chatOpen, setChatOpen] = useState(false);    // right sidebar
   const [copied, setCopied] = useState(false);
@@ -329,7 +357,7 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
   const noteRef = useRef(note); noteRef.current = note;
   const roomRef = useRef(room); roomRef.current = room;
   const peersRef = useRef(peers); peersRef.current = peers;
-  useEffect(() => { setMin(false); setPartsOpen(false); setActive(null); setNotesOpen(false); setChatOpen(false); setSeenChat(0); setAddOpen(false); setNote({ title: '', body: '' }); }, [room?.id]);
+  useEffect(() => { setMin(false); setPartsOpen(false); setPinned(null); setNotesOpen(false); setChatOpen(false); setSeenChat(0); setAddOpen(false); setNote({ title: '', body: '' }); }, [room?.id]);
   // Leaving the call: if notes were taken, save + email them as the Minutes of
   // Meeting to everyone in the room (saved to each member's Notes too), then drop.
   const endWithMom = useCallback(() => {
@@ -346,28 +374,9 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
   const copyLink = () => { try { navigator.clipboard.writeText(`${window.location.origin}/meet?room=${room.id}`); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* clipboard blocked */ } };
   // Ring while a group call is incoming.
   useEffect(() => { if (room?.incoming) return playRingtone(); }, [room?.incoming]);
-  // Active-speaker detection: measure each remote stream's audio level; the
-  // loudest above a threshold is focused, otherwise everyone stays minimized.
-  useEffect(() => {
-    if (!room || room.incoming) return undefined;
-    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return undefined;
-    const actx = new AC(); const nodes = new Map();
-    const id = setInterval(() => {
-      Object.entries(peersRef.current).forEach(([email, p]) => {
-        if (nodes.has(email) || !p.stream || !p.stream.getAudioTracks().length) return;
-        try { const src = actx.createMediaStreamSource(p.stream); const an = actx.createAnalyser(); an.fftSize = 512; src.connect(an); nodes.set(email, { an, data: new Uint8Array(an.frequencyBinCount) }); } catch { /* no audio */ }
-      });
-      let loud = null, max = 0;
-      nodes.forEach(({ an, data }, email) => {
-        if (!peersRef.current[email]) return;
-        an.getByteTimeDomainData(data);
-        let sum = 0; for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sum += v * v; }
-        const rms = Math.sqrt(sum / data.length); if (rms > max) { max = rms; loud = email; }
-      });
-      setActive(max > 0.045 ? loud : null);
-    }, 400);
-    return () => { clearInterval(id); actx.close().catch(() => {}); };
-  }, [room?.id, room?.incoming]);
+  // (Auto active-speaker detection was removed: the 400 ms audio-analysis loop +
+  // full re-render on every speaker change was the main cause of in-call lag.
+  // Focus is now manual via the per-tile pin button — see `pinned` below.)
   if (!room) return null;
   const rb = 'h-11 w-11 rounded-full flex items-center justify-center text-white transition-colors';
 
@@ -387,16 +396,21 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
     );
   }
   const tiles = Object.entries(peers);
-  const focus = active && peers[active] ? active : null;
+  const pinValid = pinned && (pinned === 'me' || peers[pinned]) ? pinned : null;
+  const allKeys = ['me', ...tiles.map(([e]) => e)];               // self first, then peers
+  const cols = Math.max(1, Math.ceil(Math.sqrt(allKeys.length))); // balanced equal grid
+  const togglePin = (k) => setPinned((p) => (p === k ? null : k));
+  const renderTile = (k) => (k === 'me'
+    ? <Tile key="me" stream={localStream.current} name={me.name || 'You'} mine micMuted={muted} camOff={camOff} pinned={pinValid === 'me'} onPin={() => togglePin('me')} />
+    : <Tile key={k} stream={peers[k]?.stream} name={peers[k]?.name || k} micMuted={peerMuted[k]} camOff={peerCamOff[k]} pinned={pinValid === k} onPin={() => togglePin(k)} />);
   if (min) {
-    // Floating, draggable PiP that shows whoever is speaking (or the first peer,
-    // or yourself when alone). Hover for restore / leave controls.
-    const fEmail = focus || tiles[0]?.[0] || null;
-    const fStream = fEmail ? peers[fEmail].stream : localStream.current;
-    const fName = fEmail ? (peers[fEmail].name || fEmail) : (me.name || 'You');
+    // Floating, draggable PiP — shows the pinned person, else the first peer, else you.
+    const mEmail = pinValid && pinValid !== 'me' ? pinValid : (pinValid === 'me' ? null : (tiles[0]?.[0] || null));
+    const mStream = mEmail ? peers[mEmail]?.stream : localStream.current;
+    const mName = mEmail ? (peers[mEmail]?.name || mEmail) : (me.name || 'You');
     return (
-      <MiniCall stream={fStream} name={fName} mine={!fEmail} speaking={fEmail ? active === fEmail : !muted}
-        micMuted={fEmail ? peerMuted[fEmail] : muted} count={tiles.length + 1}
+      <MiniCall stream={mStream} name={mName} mine={!mEmail}
+        micMuted={mEmail ? peerMuted[mEmail] : muted} camOff={mEmail ? peerCamOff[mEmail] : camOff} count={tiles.length + 1}
         onExpand={() => setMin(false)} onLeave={endWithMom} />
     );
   }
@@ -412,8 +426,10 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
           <div className="mt-2 bg-slate-900/95 border border-white/10 rounded-xl p-2.5 w-64 text-xs space-y-1">
             <p className="text-white/90">{me.name || 'You'} <span className="text-white/40">(you)</span></p>
             {tiles.map(([e, p]) => (
-              <p key={e} className={active === e ? 'text-emerald-300 font-semibold' : 'text-white/80'}>
-                {p.name || e}{active === e ? ' · speaking' : ''}
+              <p key={e} className="text-white/80 flex items-center gap-1.5">
+                {p.name || e}
+                {peerMuted[e] && <FiMicOff size={10} className="text-red-400" />}
+                {peerCamOff[e] && <FiVideoOff size={10} className="text-amber-400" />}
               </p>
             ))}
           </div>
@@ -440,20 +456,21 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
       <div className="flex-1 min-h-0 flex gap-2 py-2">
         {notesOpen && <NotesPanel note={note} setNote={setNote} room={room} onClose={() => setNotesOpen(false)} />}
         <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2">
-        {focus ? (
+        {pinValid ? (
+          // Pinned: the chosen person fills the stage; everyone else in a strip.
           <>
-            <div className="w-full max-w-4xl flex-1 min-h-0 flex items-center justify-center">
-              <div className="w-full"><Tile stream={peers[focus].stream} name={peers[focus].name || focus} speaking micMuted={peerMuted[focus]} /></div>
+            <div className="w-full max-w-5xl flex-1 min-h-0 flex items-center justify-center">
+              <div className="w-full max-h-full">{renderTile(pinValid)}</div>
             </div>
             <div className="flex gap-2 overflow-x-auto shrink-0 max-w-full pb-1">
-              <div className="w-32 shrink-0"><Tile stream={localStream.current} name={me.name || 'You'} mine micMuted={muted} /></div>
-              {tiles.filter(([e]) => e !== focus).map(([e, p]) => <div key={e} className="w-32 shrink-0"><Tile stream={p.stream} name={p.name || e} speaking={active === e} micMuted={peerMuted[e]} /></div>)}
+              {allKeys.filter((k) => k !== pinValid).map((k) => <div key={k} className="w-32 shrink-0">{renderTile(k)}</div>)}
             </div>
           </>
         ) : (
-          <div className={`grid gap-2 w-full ${tiles.length >= 3 ? 'grid-cols-3 max-w-3xl' : tiles.length >= 1 ? 'grid-cols-2 max-w-2xl' : 'grid-cols-1 max-w-md'}`}>
-            <Tile stream={localStream.current} name={me.name || 'You'} mine micMuted={muted} />
-            {tiles.map(([email, p]) => <Tile key={email} stream={p.stream} name={p.name || email} speaking={active === email} micMuted={peerMuted[email]} />)}
+          // Equal-size auto grid: every participant gets the same-size card.
+          <div className="grid gap-2 w-full place-content-center"
+            style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, maxWidth: `${cols * 360}px` }}>
+            {allKeys.map((k) => renderTile(k))}
           </div>
         )}
         </div>
@@ -461,7 +478,15 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
       </div>
       <div className="flex justify-center gap-3 mt-1 shrink-0">
         <button onClick={toggleMute} className={`${rb} ${muted ? 'bg-amber-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={muted ? 'Unmute' : 'Mute'}>{muted ? <FiMicOff size={17} /> : <FiMic size={17} />}</button>
-        <button onClick={() => setChatOpen((o) => !o)} className={`${rb} relative ${chatOpen ? 'bg-indigo-500' : 'bg-slate-700 hover:bg-slate-600'}`} title="Call chat"><FiMessageSquare size={17} />{unread > 0 && !chatOpen && <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[9px] font-bold flex items-center justify-center">{unread > 9 ? '9+' : unread}</span>}</button>
+        <button onClick={() => setChatOpen((o) => !o)} className={`${rb} relative ${chatOpen ? 'bg-indigo-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={unread > 0 && !chatOpen ? `${unread} new message(s)` : 'Call chat'}>
+          <FiMessageSquare size={17} />
+          {unread > 0 && !chatOpen && (
+            <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-60" />
+              <span className="relative inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">{unread > 9 ? '9+' : unread}</span>
+            </span>
+          )}
+        </button>
         <button onClick={() => setNotesOpen((o) => !o)} className={`${rb} ${notesOpen ? 'bg-indigo-500' : 'bg-slate-700 hover:bg-slate-600'}`} title="Notes"><FiFileText size={17} /></button>
         <button onClick={toggleCam} className={`${rb} ${camOff ? 'bg-amber-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={camOff ? 'Camera on' : 'Camera off'}>{camOff ? <FiVideoOff size={17} /> : <FiVideo size={17} />}</button>
         <button onClick={toggleShare} className={`${rb} ${sharing ? 'bg-indigo-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={sharing ? 'Stop sharing' : 'Share screen'}><FiMonitor size={17} /></button>
@@ -502,6 +527,29 @@ function NotesPanel({ note, setNote, room, onClose }) {
   );
 }
 
+// Render message text with clickable links (open in a new browser tab).
+const linkify = (text) => String(text).split(/(https?:\/\/[^\s]+)/g).map((part, i) => (
+  /^https?:\/\//.test(part)
+    ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline text-indigo-200 break-all hover:text-white">{part}</a>
+    : <span key={i}>{part}</span>
+));
+// Compact, clickable preview card for the first link in a message.
+function LinkPreview({ url }) {
+  let host = url;
+  try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { /* keep raw */ }
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer"
+      className="mt-1 flex items-center gap-2 max-w-[85%] rounded-xl border border-white/15 bg-slate-800/80 px-2.5 py-1.5 hover:bg-slate-700 transition">
+      <img src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32`} alt="" className="h-5 w-5 rounded shrink-0" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+      <span className="min-w-0">
+        <span className="block text-[11px] font-medium text-white truncate">{host}</span>
+        <span className="block text-[10px] text-white/50 truncate">{url}</span>
+      </span>
+      <FiLink size={12} className="text-white/50 shrink-0" />
+    </a>
+  );
+}
+
 // Right sidebar: live chat shared by everyone in the call (mesh-relayed).
 function ChatPanel({ chat, onSend, onClose }) {
   const [text, setText] = useState('');
@@ -516,12 +564,16 @@ function ChatPanel({ chat, onSend, onClose }) {
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
         {!chat.length && <p className="text-white/40 text-xs text-center py-6">No messages yet. Everyone in the call sees what you send here.</p>}
-        {chat.map((m) => (
-          <div key={m.id} className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'}`}>
-            {!m.mine && <span className="text-[10px] text-white/50 px-1">{m.name}</span>}
-            <span className={`max-w-[85%] text-sm px-3 py-1.5 rounded-2xl break-words ${m.mine ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-white/90'}`}>{m.text}</span>
-          </div>
-        ))}
+        {chat.map((m) => {
+          const firstUrl = (String(m.text).match(/https?:\/\/[^\s]+/) || [])[0];
+          return (
+            <div key={m.id} className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'}`}>
+              {!m.mine && <span className="text-[10px] text-white/50 px-1">{m.name}</span>}
+              <span className={`max-w-[85%] text-sm px-3 py-1.5 rounded-2xl break-words whitespace-pre-wrap ${m.mine ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-white/90'}`}>{linkify(m.text)}</span>
+              {firstUrl && <LinkPreview url={firstUrl} />}
+            </div>
+          );
+        })}
         <div ref={endRef} />
       </div>
       <div className="p-2 border-t border-white/10 flex gap-1.5">
