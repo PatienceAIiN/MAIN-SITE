@@ -15,6 +15,7 @@ import { NotesTab, MeetingsTab } from '../components/TeamNotes';
 import { ServiceDetail } from '../components/RenderServices';
 import { confirmDialog, Spinner } from '../common/confirm';
 import Colleagues, { enablePushNotifications, disablePushNotifications } from '../components/Colleagues';
+import GrowthMail from '../components/GrowthMail';
 import { FiPaperclip, FiAlertTriangle } from 'react-icons/fi';
 
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
@@ -1411,7 +1412,7 @@ export default function TeamPortalPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap lg:flex-nowrap">
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1 overflow-x-auto max-w-full">
-              {['overview', 'dev-tickets', 'tickets', 'engineering', ...((myPerms.includes('github_read') || myPerms.includes('github_write') || myRepos.length > 0) ? ['github'] : []), 'notes', 'meetings', 'colleagues'].map((v) => (
+              {['overview', 'dev-tickets', 'tickets', 'engineering', ...((myPerms.includes('github_read') || myPerms.includes('github_write') || myRepos.length > 0) ? ['github'] : []), 'notes', 'meetings', 'mail', 'colleagues'].map((v) => (
                 <button key={v} onClick={() => setView(v)}
                   className={`relative px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors whitespace-nowrap shrink-0 ${view === v ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-300'}`}>
                   {v === 'overview' ? 'Overview' : v === 'dev-tickets' ? 'Dev Tickets' : v}
@@ -1460,6 +1461,7 @@ export default function TeamPortalPage() {
       {view === 'notes' && <NotesTab />}
       {view === 'meetings' && <MeetingsTab />}
       {view === 'engineering' && <TeamEngineering myRole={myRole} />}
+      {view === 'mail' && <div className="flex-1 overflow-y-auto p-4"><GrowthMail gmailOnly portal="team" /></div>}
       {/* Colleagues stays mounted so presence, pushes and incoming calls work on every tab */}
       <Colleagues member={member} visible={view === 'colleagues'} onUnread={setColUnread} canManageRoster={myPerms.includes('roster_manage')} />
       {view === 'tickets' && (

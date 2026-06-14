@@ -207,7 +207,7 @@ function Reader({ api, provider, folder, labels = [], open, onClose, onChanged, 
 }
 
 /* ── Main ─────────────────────────────────────────────────────────────────── */
-export default function GrowthMail() {
+export default function GrowthMail({ gmailOnly = false, portal = 'growth' } = {}) {
   const [status, setStatus] = useState(null); // { provider, configured, connected, email, gmailConfigured }
   const [folder, setFolder] = useState('INBOX');
   const [msgs, setMsgs] = useState([]);
@@ -228,14 +228,16 @@ export default function GrowthMail() {
 
   const loadStatus = useCallback(async () => {
     try {
-      const [g, t] = await Promise.all([mApi('gmail', '?status=1').catch(() => ({})), mApi('titan', '?status=1').catch(() => ({}))]);
-      if (g.connected) setStatus({ provider: 'gmail', connected: true, configured: true, email: g.email, gmailConfigured: g.configured });
-      else if (t.connected) setStatus({ provider: 'titan', connected: true, configured: true, email: t.email, gmailConfigured: g.configured });
+      const g = await mApi('gmail', '?status=1').catch(() => ({}));
+      if (g.connected) { setStatus({ provider: 'gmail', connected: true, configured: true, email: g.email, gmailConfigured: g.configured }); return; }
+      if (gmailOnly) { setStatus({ provider: null, connected: false, gmailConfigured: g.configured }); return; }
+      const t = await mApi('titan', '?status=1').catch(() => ({}));
+      if (t.connected) setStatus({ provider: 'titan', connected: true, configured: true, email: t.email, gmailConfigured: g.configured });
       else setStatus({ provider: null, connected: false, gmailConfigured: g.configured });
     } catch { setStatus({ provider: null, connected: false, gmailConfigured: false }); }
-  }, []);
+  }, [gmailOnly]);
   useEffect(() => { loadStatus(); }, [loadStatus]);
-  useEffect(() => { if (new URLSearchParams(window.location.search).get('mail')) { window.history.replaceState({}, '', '/growth'); loadStatus(); } }, [loadStatus]);
+  useEffect(() => { if (new URLSearchParams(window.location.search).get('mail')) { window.history.replaceState({}, '', window.location.pathname); loadStatus(); } }, [loadStatus]);
   useEffect(() => { if (provider === 'gmail') api('?labels=1').then((d) => setLabels(d.labels || [])).catch(() => {}); }, [provider, api]);
 
   const folders = provider === 'titan' ? TITAN_FOLDERS : GMAIL_FOLDERS;
@@ -263,7 +265,7 @@ export default function GrowthMail() {
     return () => clearInterval(id);
   }, [provider, folder, q, page, fetchPage]);
 
-  const connectGmail = async () => { try { const { url } = await mApi('gmail', '?authurl=1'); window.location.href = url; } catch (e) { window.alert(e.message); } };
+  const connectGmail = async () => { try { const { url } = await mApi('gmail', `?authurl=1&portal=${portal}`); window.location.href = url; } catch (e) { window.alert(e.message); } };
   const newLabel = async () => { const name = window.prompt('New label name:'); if (!name?.trim()) return; await api('', { method: 'POST', body: JSON.stringify({ action: 'createLabel', name: name.trim() }) }).catch((e) => window.alert(e.message)); api('?labels=1').then((d) => setLabels(d.labels || [])).catch(() => {}); };
   const replyTo = (m) => setCompose({ to: (m.from || '').replace(/^.*</, '').replace(/>.*$/, '') || m.from, subject: /^re:/i.test(m.subject || '') ? m.subject : `Re: ${m.subject || ''}`, threadId: m.threadId, body: `\n\n----- On ${fmt(m.date)}, ${fromName(m.from)} wrote -----\n` });
   const openDraft = (d) => provider === 'gmail' ? setCompose({ id: d.draftId, to: d.to, subject: d.subject, threadId: d.threadId }) : setOpen({ id: d.id });
@@ -288,10 +290,10 @@ export default function GrowthMail() {
         <p className="text-sm text-slate-500 mt-2 mb-5">Choose your email provider to send and receive mail inside Growth.</p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <button className={btnPrimary} onClick={connectGmail} disabled={!status.gmailConfigured} title={status.gmailConfigured ? '' : 'Gmail not configured by admin'}><FiMail /> Continue with Gmail</button>
-          <button className={btnGhost} onClick={() => setTitanLogin(true)}><FiMail /> Sign in with Titan Mail</button>
+          {!gmailOnly && <button className={btnGhost} onClick={() => setTitanLogin(true)}><FiMail /> Sign in with Titan Mail</button>}
         </div>
-        {!status.gmailConfigured && <p className="text-[11px] text-slate-400 mt-3">Gmail needs admin setup (GOOGLE_CLIENT_ID/SECRET). Titan works with your mailbox login.</p>}
-        {titanLogin && <TitanLogin onClose={() => setTitanLogin(false)} onDone={() => { setTitanLogin(false); loadStatus(); }} />}
+        {!status.gmailConfigured && <p className="text-[11px] text-slate-400 mt-3">Gmail needs admin setup (GOOGLE_CLIENT_ID/SECRET){gmailOnly ? '.' : '. Titan works with your mailbox login.'}</p>}
+        {!gmailOnly && titanLogin && <TitanLogin onClose={() => setTitanLogin(false)} onDone={() => { setTitanLogin(false); loadStatus(); }} />}
       </div>
     );
   }

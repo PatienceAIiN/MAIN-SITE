@@ -7,7 +7,12 @@
 // (defaults to <site>/api/gmail/callback). Add that redirect URI to the OAuth
 // client in Google Cloud Console.
 import { queryDb, isMissingTableError } from './_db.js';
-import { getMemberSession } from './_security.js';
+import { getMemberSession, getExecSession } from './_security.js';
+
+// Gmail works for team members AND support executives — each connects their own
+// Google account; tokens are keyed by the actor's email so mailboxes are fully
+// isolated (one user never sees another's mail).
+const actorOf = (req) => getMemberSession(req) || getExecSession(req);
 
 const SITE = (process.env.PUBLIC_SITE_URL || process.env.SITE_URL || 'https://patienceai.in').replace(/\/$/, '');
 const REDIRECT = process.env.GOOGLE_REDIRECT_URI || `${SITE}/api/gmail/callback`;
@@ -124,17 +129,19 @@ const parseMessage = (full) => {
   };
 };
 
-const okRedirect = (res, status) => { res.statusCode = 302; res.setHeader('Location', `${SITE}/growth?mail=${status}`); res.end(); };
+const PORTAL_PATH = { team: '/team', support: '/support-executive', growth: '/growth' };
+const okRedirect = (res, status, portal) => { res.statusCode = 302; res.setHeader('Location', `${SITE}${PORTAL_PATH[portal] || '/growth'}?mail=${status}`); res.end(); };
 
 export default async function handler(req, res) {
   const path = (req.path || req.url.split('?')[0]);
 
   // ── OAuth callback (browser redirect from Google; uses the session cookie) ──
   if (path.endsWith('/callback')) {
-    const me = getMemberSession(req);
+    const me = actorOf(req);
     const code = req.query.code;
-    if (!me) return okRedirect(res, 'error');
-    if (!code) return okRedirect(res, 'cancelled');
+    const portal = ['team', 'support', 'growth'].includes(req.query.state) ? req.query.state : 'growth';
+    if (!me) return okRedirect(res, 'error', portal);
+    if (!code) return okRedirect(res, 'cancelled', portal);
     try {
       const tok = await exchangeCode(code);
       const ui = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', { headers: { Authorization: `Bearer ${tok.access_token}` } }).then((r) => r.json()).catch(() => ({}));
@@ -146,14 +153,14 @@ export default async function handler(req, res) {
            refresh_token=COALESCE($4, gmail_accounts.refresh_token), token_expiry=$5, updated_at=now()`,
         [me.email, ui.email || null, tok.access_token, tok.refresh_token || null, expiry]
       );
-      return okRedirect(res, 'connected');
+      return okRedirect(res, 'connected', portal);
     } catch (e) {
       console.error('[gmail callback]', e.message);
-      return okRedirect(res, 'error');
+      return okRedirect(res, 'error', portal);
     }
   }
 
-  const me = getMemberSession(req);
+  const me = actorOf(req);
   if (!me) return res.status(401).json({ error: 'Not authenticated' });
 
   try {
@@ -164,9 +171,10 @@ export default async function handler(req, res) {
       }
       if (req.query.authurl === '1') {
         if (!configured()) return res.status(503).json({ error: 'Gmail is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.' });
+        const portal = ['team', 'support', 'growth'].includes(req.query.portal) ? req.query.portal : 'growth';
         const url = `https://accounts.google.com/o/oauth2/v2/auth?` + new URLSearchParams({
           client_id: process.env.GOOGLE_CLIENT_ID, redirect_uri: REDIRECT, response_type: 'code',
-          scope: SCOPES, access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true',
+          scope: SCOPES, access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true', state: portal,
         });
         return res.status(200).json({ url });
       }
