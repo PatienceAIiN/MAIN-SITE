@@ -119,6 +119,8 @@ const parseMessage = (full) => {
     html: html ? b64urlDecode(html) : null, text: text ? b64urlDecode(text) : null,
     attachments: collectAttachments(full.payload),
     unread: (full.labelIds || []).includes('UNREAD'),
+    starred: (full.labelIds || []).includes('STARRED'),
+    labelIds: full.labelIds || [],
   };
 };
 
@@ -172,9 +174,15 @@ export default async function handler(req, res) {
       const at = await accessTokenFor(me.email);
       if (!at) return res.status(200).json({ connected: false, messages: [] });
 
-      // List a folder (INBOX / SENT / DRAFT) with optional search query.
+      // User-created labels (for the sidebar + the message label picker).
+      if (req.query.labels === '1') {
+        const d = await gapi(at.token, '/labels');
+        return res.status(200).json({ labels: (d.labels || []).filter((l) => l.type === 'user').map((l) => ({ id: l.id, name: l.name })) });
+      }
+
+      // List a folder (system label or user label id) with optional search query.
       if (req.query.list === '1') {
-        const label = ['INBOX', 'SENT', 'DRAFT', 'STARRED', 'TRASH'].includes(req.query.label) ? req.query.label : 'INBOX';
+        const label = String(req.query.label || 'INBOX').replace(/[^A-Za-z0-9_]/g, '') || 'INBOX';
         if (label === 'DRAFT') {
           const d = await gapi(at.token, `/drafts?maxResults=25${req.query.pageToken ? `&pageToken=${req.query.pageToken}` : ''}`);
           const drafts = await Promise.all((d.drafts || []).map(async (dr) => {
@@ -241,6 +249,21 @@ export default async function handler(req, res) {
       if (b.action === 'markRead' || b.action === 'markUnread') {
         const mod = b.action === 'markRead' ? { removeLabelIds: ['UNREAD'] } : { addLabelIds: ['UNREAD'] };
         await gapi(at.token, `/messages/${b.id}/modify`, { method: 'POST', body: JSON.stringify(mod) });
+        return res.status(200).json({ ok: true });
+      }
+      // Apply / remove labels (incl. STARRED) on a message.
+      if (b.action === 'modifyLabels') {
+        const clean = (a) => (Array.isArray(a) ? a : []).map((x) => String(x).replace(/[^A-Za-z0-9_]/g, '')).filter(Boolean);
+        await gapi(at.token, `/messages/${b.id}/modify`, { method: 'POST', body: JSON.stringify({ addLabelIds: clean(b.add), removeLabelIds: clean(b.remove) }) });
+        return res.status(200).json({ ok: true });
+      }
+      if (b.action === 'createLabel') {
+        if (!b.name?.trim()) return res.status(400).json({ error: 'Label name required' });
+        const l = await gapi(at.token, '/labels', { method: 'POST', body: JSON.stringify({ name: String(b.name).slice(0, 100), labelListVisibility: 'labelShow', messageListVisibility: 'show' }) });
+        return res.status(200).json({ label: { id: l.id, name: l.name } });
+      }
+      if (b.action === 'deleteLabel') {
+        await gapi(at.token, `/labels/${String(b.id).replace(/[^A-Za-z0-9_]/g, '')}`, { method: 'DELETE' });
         return res.status(200).json({ ok: true });
       }
       return res.status(400).json({ error: 'Unknown action' });

@@ -2,10 +2,11 @@
 // (Inbox / Sent / Drafts / Starred / Trash), search, open, reply, compose, save
 // drafts, trash and mark read/unread — all via /api/gmail. Email HTML is
 // rendered in a sandboxed iframe (no scripts) to stay XSS-safe.
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FiMail, FiInbox, FiSend, FiFileText, FiStar, FiTrash2, FiEdit, FiSearch,
   FiRefreshCw, FiX, FiCornerUpLeft, FiPaperclip, FiLink2,
+  FiTag, FiPlus, FiBold, FiItalic, FiUnderline, FiList,
 } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import { Spinner, confirmDialog } from '../common/confirm';
@@ -40,7 +41,12 @@ function Compose({ initial, onClose, onDone }) {
   const [files, setFiles] = useState([]); // {filename, mimeType, dataBase64, size}
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
+  const editorRef = useRef(null);
+  const initialHtml = (f.body || '').replace(/\n/g, '<br>');
+  const exec = (cmd, val) => { document.execCommand(cmd, false, val); editorRef.current?.focus(); };
+  const link = () => { const u = window.prompt('Link URL:'); if (u) exec('createLink', u); };
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+  const tbBtn = 'h-8 w-8 grid place-items-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800';
   const addFiles = async (list) => {
     setErr('');
     const picked = Array.from(list || []);
@@ -59,7 +65,7 @@ function Compose({ initial, onClose, onDone }) {
     setBusy(kind);
     const attachments = files.map(({ filename, mimeType, dataBase64 }) => ({ filename, mimeType, dataBase64 }));
     try {
-      const common = { to: f.to, cc: f.cc, subject: f.subject, body: (f.body || '').replace(/\n/g, '<br>'), threadId: f.threadId, attachments };
+      const common = { to: f.to, cc: f.cc, subject: f.subject, body: editorRef.current?.innerHTML || '', threadId: f.threadId, attachments };
       if (kind === 'send') await gApi('', { method: 'POST', body: JSON.stringify({ action: 'send', draftId: f.draftId, ...common }) });
       else await gApi('', { method: 'POST', body: JSON.stringify({ action: 'draft', id: f.id, ...common }) });
       onDone(kind);
@@ -73,7 +79,21 @@ function Compose({ initial, onClose, onDone }) {
           <input className={input} placeholder="To (comma-separated)" value={f.to} onChange={set('to')} />
           <input className={input} placeholder="Cc" value={f.cc} onChange={set('cc')} />
           <input className={input} placeholder="Subject" value={f.subject} onChange={set('subject')} />
-          <textarea className={`${input} min-h-[180px]`} placeholder="Write your message…" value={f.body} onChange={set('body')} />
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="flex items-center gap-0.5 px-2 py-1 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+              <button type="button" title="Bold" className={tbBtn} onMouseDown={(e) => { e.preventDefault(); exec('bold'); }}><FiBold size={14} /></button>
+              <button type="button" title="Italic" className={tbBtn} onMouseDown={(e) => { e.preventDefault(); exec('italic'); }}><FiItalic size={14} /></button>
+              <button type="button" title="Underline" className={tbBtn} onMouseDown={(e) => { e.preventDefault(); exec('underline'); }}><FiUnderline size={14} /></button>
+              <span className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1" />
+              <button type="button" title="Bulleted list" className={tbBtn} onMouseDown={(e) => { e.preventDefault(); exec('insertUnorderedList'); }}><FiList size={14} /></button>
+              <button type="button" title="Numbered list" className={`${tbBtn} text-[11px] font-bold`} onMouseDown={(e) => { e.preventDefault(); exec('insertOrderedList'); }}>1.</button>
+              <button type="button" title="Insert link" className={tbBtn} onMouseDown={(e) => { e.preventDefault(); link(); }}><FiLink2 size={14} /></button>
+              <button type="button" title="Clear formatting" className={`${tbBtn} text-[11px]`} onMouseDown={(e) => { e.preventDefault(); exec('removeFormat'); }}>Tx</button>
+            </div>
+            <div ref={editorRef} contentEditable suppressContentEditableWarning
+              className="min-h-[180px] max-h-[40vh] overflow-y-auto px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none"
+              dangerouslySetInnerHTML={{ __html: initialHtml }} />
+          </div>
           {files.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {files.map((a, i) => <span key={i} className="inline-flex items-center gap-1 text-xs bg-slate-100 dark:bg-slate-800 rounded-full px-2 py-0.5 text-slate-600 dark:text-slate-300"><FiPaperclip size={11} /> {a.filename} <button onClick={() => setFiles((fs) => fs.filter((_, j) => j !== i))}><FiX size={11} /></button></span>)}
@@ -128,13 +148,18 @@ function MessageBlock({ m, defaultOpen }) {
   );
 }
 
-function Reader({ id, threadId, onClose, onChanged, onReply }) {
+function Reader({ id, threadId, labels = [], onClose, onChanged, onReply }) {
   const [thread, setThread] = useState(null);
+  const [star, setStar] = useState(false);
+  const [applied, setApplied] = useState([]);
+  const [labelMenu, setLabelMenu] = useState(false);
   useEffect(() => {
     const url = threadId ? `?thread=${threadId}` : `?msg=${id}`;
     gApi(url).then((d) => {
       const msgs = d.messages || [d];
       setThread(msgs);
+      const l = msgs[msgs.length - 1];
+      setStar(Boolean(l?.starred)); setApplied(l?.labelIds || []);
       const unreadOne = msgs.find((x) => x.unread);
       if (unreadOne) gApi('', { method: 'POST', body: JSON.stringify({ action: 'markRead', id: unreadOne.id }) }).then(() => onChanged?.()).catch(() => {});
     }).catch(() => setThread('error'));
@@ -142,11 +167,28 @@ function Reader({ id, threadId, onClose, onChanged, onReply }) {
   if (!thread) return <div className="grid place-items-center h-full"><Spinner /></div>;
   if (thread === 'error') return <div className="grid place-items-center h-full text-slate-400">Could not load this message.</div>;
   const last = thread[thread.length - 1];
+  const toggleStar = async () => { const add = !star; setStar(add); await gApi('', { method: 'POST', body: JSON.stringify({ action: 'modifyLabels', id: last.id, add: add ? ['STARRED'] : [], remove: add ? [] : ['STARRED'] }) }).catch(() => {}); onChanged?.(); };
+  const toggleLabel = async (lid) => { const has = applied.includes(lid); setApplied((a) => has ? a.filter((x) => x !== lid) : [...a, lid]); await gApi('', { method: 'POST', body: JSON.stringify({ action: 'modifyLabels', id: last.id, add: has ? [] : [lid], remove: has ? [lid] : [] }) }).catch(() => {}); };
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between gap-2">
         <div className="min-w-0"><h3 className="font-bold text-slate-900 dark:text-white truncate">{thread[0].subject || '(no subject)'}</h3><p className="text-[11px] text-slate-400">{thread.length} message{thread.length > 1 ? 's' : ''}</p></div>
         <div className="flex items-center gap-1 shrink-0">
+          <button title={star ? 'Unstar' : 'Star'} onClick={toggleStar} className={`p-2 ${star ? 'text-amber-400' : 'text-slate-400 hover:text-amber-400'}`}><FiStar fill={star ? 'currentColor' : 'none'} /></button>
+          <div className="relative">
+            <button title="Labels" onClick={() => setLabelMenu((v) => !v)} className="p-2 text-slate-400 hover:text-indigo-600"><FiTag /></button>
+            {labelMenu && (
+              <div className="absolute right-0 mt-1 w-52 max-h-64 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-20 p-1.5" onMouseLeave={() => setLabelMenu(false)}>
+                {!labels.length && <p className="text-xs text-slate-400 px-2 py-1.5">No labels. Create one in the sidebar.</p>}
+                {labels.map((l) => (
+                  <button key={l.id} onClick={() => toggleLabel(l.id)} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <span className={`w-4 h-4 rounded grid place-items-center border ${applied.includes(l.id) ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 dark:border-slate-600'}`}>{applied.includes(l.id) ? '✓' : ''}</span>
+                    <span className="truncate">{l.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button title="Reply" onClick={() => onReply(last)} className="p-2 text-slate-400 hover:text-indigo-600"><FiCornerUpLeft /></button>
           <button title="Trash" onClick={async () => { await gApi('', { method: 'POST', body: JSON.stringify({ action: 'trash', id: last.id }) }); onChanged?.(true); }} className="p-2 text-slate-400 hover:text-red-500"><FiTrash2 /></button>
           <button title="Close" onClick={onClose} className="p-2 text-slate-400 hover:text-slate-700"><FiX /></button>
@@ -170,9 +212,13 @@ export default function GrowthMail() {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(null); // { id, threadId }
   const [compose, setCompose] = useState(null);
+  const [labels, setLabels] = useState([]);
 
   const loadStatus = useCallback(() => gApi('?status=1').then(setStatus).catch(() => setStatus({ configured: false, connected: false })), []);
+  const loadLabels = useCallback(() => gApi('?labels=1').then((d) => setLabels(d.labels || [])).catch(() => {}), []);
   useEffect(() => { loadStatus(); }, [loadStatus]);
+  useEffect(() => { if (status?.connected) loadLabels(); }, [status, loadLabels]);
+  const newLabel = async () => { const name = window.prompt('New label name:'); if (!name?.trim()) return; await gApi('', { method: 'POST', body: JSON.stringify({ action: 'createLabel', name: name.trim() }) }).catch((e) => window.alert(e.message)); loadLabels(); };
   // Clean the ?mail=connected flag the OAuth callback adds.
   useEffect(() => { if (new URLSearchParams(window.location.search).get('mail')) { window.history.replaceState({}, '', '/growth'); loadStatus(); } }, [loadStatus]);
 
@@ -222,6 +268,18 @@ export default function GrowthMail() {
             <fo.icon size={15} /> {fo.label}
           </button>
         ))}
+        <div className="flex items-center justify-between px-3 pt-3 pb-1">
+          <span className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Labels</span>
+          <button title="New label" onClick={newLabel} className="text-slate-400 hover:text-indigo-600"><FiPlus size={14} /></button>
+        </div>
+        <div className="overflow-y-auto max-h-48">
+          {labels.map((l) => (
+            <button key={l.id} onClick={() => setFolder(l.id)} className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-sm ${folder === l.id ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+              <FiTag size={14} /> <span className="truncate">{l.name}</span>
+            </button>
+          ))}
+          {!labels.length && <p className="px-3 text-[11px] text-slate-400">No labels yet.</p>}
+        </div>
         <div className="mt-auto pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 px-1">
           <p className="truncate" title={status.email}>{status.email}</p>
           <button onClick={disconnect} className="text-red-400 hover:text-red-500 mt-1">Disconnect</button>
@@ -254,7 +312,7 @@ export default function GrowthMail() {
 
       {/* Reader */}
       <div className={`${card} overflow-hidden`}>
-        {open ? <Reader id={open.id} threadId={open.threadId} onClose={() => setOpen(null)} onChanged={(reload) => { if (reload) { setOpen(null); load(); } else load(); }} onReply={replyTo} />
+        {open ? <Reader id={open.id} threadId={open.threadId} labels={labels} onClose={() => setOpen(null)} onChanged={(reload) => { if (reload) { setOpen(null); load(); } else load(); }} onReply={replyTo} />
           : <div className="h-full grid place-items-center text-slate-400 text-sm"><div className="text-center"><FiMail size={28} className="mx-auto mb-2 text-slate-300" />Select a message to read</div></div>}
       </div>
 
