@@ -1078,12 +1078,12 @@ export default function SupportExecutivePage() {
       </AnimatePresence>
 
       {/* Header */}
-      <header className="border-b border-slate-200 bg-white px-6 py-4 flex items-center justify-between shrink-0 shadow-sm">
-        <div>
-          <p className="text-xs uppercase tracking-widest text-slate-400 font-medium">Support Executive</p>
-          <h1 className="text-lg font-bold text-slate-900">{executive.name}</h1>
+      <header className="border-b border-slate-200 bg-white px-3 sm:px-6 py-3 sm:py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-2 shrink-0 shadow-sm">
+        <div className="shrink-0">
+          <p className="text-[10px] sm:text-xs uppercase tracking-widest text-slate-400 font-medium">Support Executive</p>
+          <h1 className="text-base sm:text-lg font-bold text-slate-900 truncate max-w-[70vw]">{executive.name}</h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 lg:gap-3 flex-wrap lg:flex-nowrap w-full lg:w-auto">
           {/* Chats / Tickets view toggle */}
           <div className="flex items-center bg-slate-100 rounded-lg p-1">
             {[{ key: 'chats', label: 'Chats', icon: FiMessageSquare }, { key: 'tickets', label: 'Tickets', icon: FiTag }, { key: 'mail', label: 'Mail', icon: FiMail }].map(({ key, label, icon: Icon }) => (
@@ -1175,8 +1175,9 @@ export default function SupportExecutivePage() {
         <TicketsPanel onCreateNew={() => setTicketModal({})} />
       ) : (
       <div className="flex flex-1 overflow-hidden">
-        {/* Session sidebar */}
-        <aside className="w-72 border-r border-slate-200 bg-white flex flex-col shrink-0">
+        {/* Session sidebar — on mobile it takes the full width and is replaced by
+            the chat once a session is opened; desktop keeps both side-by-side. */}
+        <aside className={`w-full md:w-72 border-r border-slate-200 bg-white flex-col shrink-0 ${selectedId ? 'hidden md:flex' : 'flex'}`}>
           <div className="p-3 border-b border-slate-100">
             <div className="relative">
               <FiSearch size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -1259,19 +1260,25 @@ export default function SupportExecutivePage() {
         </aside>
 
         {/* Chat panel */}
-        <main className="flex-1 flex flex-col overflow-hidden">
+        <main className={`flex-1 flex-col overflow-hidden ${selectedId ? 'flex' : 'hidden md:flex'}`}>
           {!selectedId ? (
             <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
               Select a session to start chatting
             </div>
           ) : (
             <>
-              <div className="border-b border-slate-200 px-6 py-3 flex items-center justify-between bg-white shrink-0">
-                <div className="min-w-0">
-                  <p className="font-semibold text-slate-900 text-sm font-mono truncate">{selectedId}</p>
-                  <p className="text-xs text-slate-500 truncate">{selectedSession?.customer_name || selectedSession?.customer_email || 'Anonymous customer'}</p>
+              <div className="border-b border-slate-200 px-3 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <button onClick={() => setSelectedId(null)} title="Back to sessions"
+                    className="md:hidden shrink-0 p-1.5 -ml-1 rounded-lg text-slate-500 hover:bg-slate-100">
+                    <FiChevronLeft size={18} />
+                  </button>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-900 text-sm font-mono truncate">{selectedId}</p>
+                    <p className="text-xs text-slate-500 truncate">{selectedSession?.customer_name || selectedSession?.customer_email || 'Anonymous customer'}</p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0 flex-wrap">
                   <button
                     onClick={() => setTicketModal({
                       conversationId: selectedId,
