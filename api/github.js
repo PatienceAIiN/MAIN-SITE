@@ -92,6 +92,9 @@ const handleCli = async (req, res, actor, owner, repo) => {
   if (tokens[0] === 'gh') tokens = tokens.slice(1);
   const sub = (tokens[0] || '').toLowerCase();
   const rest = tokens.slice(1);
+  // "git pr …" / "git issue …" drive the same aliases as bare "pr …"/"issue …".
+  const aSub = sub === 'git' ? (rest[0] || '').toLowerCase() : sub;
+  const aRest = sub === 'git' ? rest.slice(1) : rest;
   const scoped = (path) => `/repos/${owner}/${repo}/${String(path).replace(/^\/+/, '')}`;
   const run = async (method, path, body) => {
     const data = await gh(path, { method, body });
@@ -99,33 +102,95 @@ const handleCli = async (req, res, actor, owner, repo) => {
   };
   const needWrite = () => { if (!actor.write) { res.status(403).json({ error: 'This command writes — you need the github_write permission.' }); return true; } return false; };
 
+  const text = (s) => res.status(200).json({ ok: true, command: raw, output: s });
+
   try {
-    if (sub === 'help' || sub === '') {
-      return res.status(200).json({ ok: true, help: true, output: [
-        'GitHub CLI console — runs against this repository via the GitHub API.',
+    if (sub === 'help' || sub === '' || (sub === 'git' && (rest[0] || 'help') === 'help')) {
+      return text([
+        `Console for ${owner}/${repo} — git-style commands, served live via the GitHub API.`,
         '',
         'Read:',
-        '  gh repo view',
-        '  gh pr list                 gh pr view <n>',
-        '  gh issue list              gh issue view <n>',
-        '  gh branch list             gh release list',
-        '  gh run list                gh workflow list',
-        '  gh api repos/' + owner + '/' + repo + '/contributors',
+        '  git status                      overview: branch, commits, PRs',
+        '  git log [-n 20] [branch]        recent commits',
+        '  git branch                      list branches',
+        '  git show <sha>                  a commit with its file changes',
+        '  git remote -v                   clone / SSH URLs',
+        '  git ls-files [branch]           files tracked on a branch',
+        '  git tag                         release tags',
         '',
-        'Write (needs github_write):',
-        '  gh pr create --title "T" --head <branch> [--base <b>] [--body "B"]',
-        '  gh pr merge <n>            gh pr close <n>',
-        '  gh issue create --title "T" [--body "B"]   gh issue close <n>',
-        '  gh api -X POST repos/' + owner + '/' + repo + '/labels -f name=bug -f color=ff0000',
+        'Write (needs write access):',
+        '  git pr list | view <n> | create --title "T" --head <branch> | merge <n> | close <n>',
+        '  git issue list | view <n> | create --title "T" | close <n>',
         '',
-        'Notes: scoped to repos an admin granted you. Shell pipes/redirects are not supported.',
-      ].join('\n') });
+        'Advanced: api [-X METHOD] <path> [-f key=value]   (raw GitHub API)',
+        'Scoped to repos an admin granted you. Pipes/redirects are not supported.',
+      ].join('\n'));
     }
 
-    // Generic passthrough: gh api [-X METHOD] <path> [-f k=v ...]
-    if (sub === 'api') {
-      const { method, path, body } = buildApiCall(rest);
-      if (!path) return res.status(400).json({ error: 'Usage: gh api [-X METHOD] <path> [-f key=value ...]' });
+    // ── git-style commands (mapped to the GitHub API; no working tree) ────────
+    if (sub === 'git') {
+      const op = (rest[0] || '').toLowerCase();
+      const gargs = rest.slice(1);
+      const firstArg = gargs.find((a) => !a.startsWith('-'));
+      const fmtCommit = (c) => `${(c.sha || '').slice(0, 7)}  ${(c.commit?.message || '').split('\n')[0]}  — ${c.commit?.author?.name || '?'}, ${new Date(c.commit?.author?.date || Date.now()).toLocaleDateString()}`;
+      // pr/issue delegate to the existing aliases below.
+      if (op === 'pr' || op === 'issue') { /* fall through by rewriting sub */ }
+      else {
+        await logAudit('staff', actor.email, 'github_cli', `git ${op}`.slice(0, 200)).catch(() => {});
+        if (op === 'status') {
+          const [info, branches, prs, commits] = await Promise.all([
+            gh(`/repos/${owner}/${repo}`), gh(`/repos/${owner}/${repo}/branches?per_page=100`),
+            gh(`/repos/${owner}/${repo}/pulls?state=open&per_page=100`), gh(`/repos/${owner}/${repo}/commits?per_page=1`),
+          ]);
+          return text([
+            `Repository  ${info.full_name}${info.private ? ' (private)' : ''}`,
+            `On branch   ${info.default_branch}`,
+            `Latest      ${commits[0] ? fmtCommit(commits[0]) : '—'}`,
+            `Branches    ${branches.length}        Open PRs  ${prs.length}        Open issues  ${info.open_issues_count}`,
+            `Updated     ${new Date(info.pushed_at || info.updated_at).toLocaleString()}`,
+          ].join('\n'));
+        }
+        if (op === 'log') {
+          const nFlag = gargs.indexOf('-n'); const n = Math.min(nFlag >= 0 ? parseInt(gargs[nFlag + 1], 10) || 20 : 20, 100);
+          const branch = gargs.find((a, i) => !a.startsWith('-') && (nFlag < 0 || i !== nFlag + 1));
+          const list = await gh(`/repos/${owner}/${repo}/commits?per_page=${n}${branch ? `&sha=${encodeURIComponent(branch)}` : ''}`);
+          return text(list.map(fmtCommit).join('\n') || 'No commits.');
+        }
+        if (op === 'branch') {
+          const info = await gh(`/repos/${owner}/${repo}`);
+          const list = await gh(`/repos/${owner}/${repo}/branches?per_page=100`);
+          return text(list.map((b) => `${b.name === info.default_branch ? '* ' : '  '}${b.name}${b.protected ? '  (protected)' : ''}`).join('\n') || 'No branches.');
+        }
+        if (op === 'remote') {
+          const info = await gh(`/repos/${owner}/${repo}`);
+          return text(`origin  ${info.clone_url}  (fetch/push)\norigin  ${info.ssh_url}  (ssh)`);
+        }
+        if (op === 'show' || op === 'diff') {
+          if (!firstArg) return res.status(400).json({ error: `Usage: git ${op} <sha>` });
+          const c = await gh(`/repos/${owner}/${repo}/commits/${encodeURIComponent(firstArg)}`);
+          const head = `commit ${c.sha}\nAuthor: ${c.commit?.author?.name} <${c.commit?.author?.email || ''}>\nDate:   ${new Date(c.commit?.author?.date).toLocaleString()}\n\n    ${(c.commit?.message || '').split('\n').join('\n    ')}\n`;
+          const files = (c.files || []).map((f) => `  ${f.status.padEnd(9)} ${f.filename}  (+${f.additions} -${f.deletions})`).join('\n');
+          return text(`${head}\nFiles changed (${(c.files || []).length}):\n${files}`);
+        }
+        if (op === 'ls-files' || op === 'ls-tree') {
+          const ref = firstArg || (await gh(`/repos/${owner}/${repo}`)).default_branch;
+          const br = await gh(`/repos/${owner}/${repo}/branches/${encodeURIComponent(ref)}`);
+          const t = await gh(`/repos/${owner}/${repo}/git/trees/${br.commit.commit.tree.sha}?recursive=1`);
+          const files = (t.tree || []).filter((nde) => nde.type === 'blob').map((nde) => nde.path);
+          return text(files.join('\n') + (t.truncated ? '\n… (truncated)' : '') || 'No files.');
+        }
+        if (op === 'tag') {
+          const tags = await gh(`/repos/${owner}/${repo}/tags?per_page=100`);
+          return text(tags.map((t) => `${t.name}  ${(t.commit?.sha || '').slice(0, 7)}`).join('\n') || 'No tags.');
+        }
+        return res.status(400).json({ error: `git: '${op}' isn't supported here. Try: status, log, branch, show, remote, ls-files, tag (or 'git help').` });
+      }
+    }
+
+    // Generic passthrough: api [-X METHOD] <path> [-f k=v ...]
+    if (aSub === 'api') {
+      const { method, path, body } = buildApiCall(aRest);
+      if (!path) return res.status(400).json({ error: 'Usage: api [-X METHOD] <path> [-f key=value ...]' });
       const np = normPath(path);
       const rp = repoOfPath(np);
       // Hard block: deleting/transferring a repository, and org-level mutations.
@@ -142,35 +207,34 @@ const handleCli = async (req, res, actor, owner, repo) => {
     }
 
     // Friendly aliases, all scoped to the selected repo.
-    if (sub === 'repo' && (rest[0] === 'view' || !rest[0])) return run('GET', `/repos/${owner}/${repo}`);
-    if (sub === 'branch' && (rest[0] === 'list' || !rest[0])) return run('GET', scoped('branches?per_page=100'));
-    if (sub === 'release' && (rest[0] === 'list' || !rest[0])) return run('GET', scoped('releases?per_page=50'));
-    if (sub === 'run' && (rest[0] === 'list' || !rest[0])) return run('GET', scoped('actions/runs?per_page=30'));
-    if (sub === 'workflow' && (rest[0] === 'list' || !rest[0])) return run('GET', scoped('actions/workflows'));
-    if (sub === 'label' && (rest[0] === 'list' || !rest[0])) return run('GET', scoped('labels?per_page=100'));
+    if (aSub === 'repo' && (aRest[0] === 'view' || !aRest[0])) return run('GET', `/repos/${owner}/${repo}`);
+    if (aSub === 'release' && (aRest[0] === 'list' || !aRest[0])) return run('GET', scoped('releases?per_page=50'));
+    if (aSub === 'run' && (aRest[0] === 'list' || !aRest[0])) return run('GET', scoped('actions/runs?per_page=30'));
+    if (aSub === 'workflow' && (aRest[0] === 'list' || !aRest[0])) return run('GET', scoped('actions/workflows'));
+    if (aSub === 'label' && (aRest[0] === 'list' || !aRest[0])) return run('GET', scoped('labels?per_page=100'));
 
-    if (sub === 'pr') {
-      const op = rest[0] || 'list';
-      if (op === 'list') return run('GET', scoped(`pulls?state=${/* */ 'open'}&per_page=30`));
-      if (op === 'view' && rest[1]) return run('GET', scoped(`pulls/${parseInt(rest[1], 10)}`));
-      const flags = parseFlags(rest.slice(1));
-      if (op === 'create') { if (needWrite()) return; if (!flags.title || !flags.head) return res.status(400).json({ error: 'gh pr create --title "T" --head <branch> [--base <b>] [--body "B"]' }); const r = await gh(scoped('pulls'), { method: 'POST', body: { title: flags.title, head: flags.head, base: flags.base || (await gh(`/repos/${owner}/${repo}`)).default_branch, body: flags.body || '' } }); await logAudit('staff', actor.email, 'github_cli_pr_created', `${repo}#${r.number}`).catch(() => {}); return res.status(200).json({ ok: true, command: raw, data: { number: r.number, url: r.html_url } }); }
-      if (op === 'merge' && rest[1]) { if (needWrite()) return; const r = await gh(scoped(`pulls/${parseInt(rest[1], 10)}/merge`), { method: 'PUT', body: { merge_method: 'squash' } }); await logAudit('staff', actor.email, 'github_cli_pr_merged', `${repo}#${rest[1]}`).catch(() => {}); return res.status(200).json({ ok: true, command: raw, data: r }); }
-      if (op === 'close' && rest[1]) { if (needWrite()) return; const r = await gh(scoped(`pulls/${parseInt(rest[1], 10)}`), { method: 'PATCH', body: { state: 'closed' } }); await logAudit('staff', actor.email, 'github_cli_pr_closed', `${repo}#${rest[1]}`).catch(() => {}); return res.status(200).json({ ok: true, command: raw, data: { number: r.number, state: r.state } }); }
-      return res.status(400).json({ error: 'Usage: gh pr list | view <n> | create … | merge <n> | close <n>' });
+    if (aSub === 'pr') {
+      const op = aRest[0] || 'list';
+      if (op === 'list') return run('GET', scoped('pulls?state=open&per_page=30'));
+      if (op === 'view' && aRest[1]) return run('GET', scoped(`pulls/${parseInt(aRest[1], 10)}`));
+      const flags = parseFlags(aRest.slice(1));
+      if (op === 'create') { if (needWrite()) return; if (!flags.title || !flags.head) return res.status(400).json({ error: 'pr create --title "T" --head <branch> [--base <b>] [--body "B"]' }); const r = await gh(scoped('pulls'), { method: 'POST', body: { title: flags.title, head: flags.head, base: flags.base || (await gh(`/repos/${owner}/${repo}`)).default_branch, body: flags.body || '' } }); await logAudit('staff', actor.email, 'github_cli_pr_created', `${repo}#${r.number}`).catch(() => {}); return res.status(200).json({ ok: true, command: raw, data: { number: r.number, url: r.html_url } }); }
+      if (op === 'merge' && aRest[1]) { if (needWrite()) return; const r = await gh(scoped(`pulls/${parseInt(aRest[1], 10)}/merge`), { method: 'PUT', body: { merge_method: 'squash' } }); await logAudit('staff', actor.email, 'github_cli_pr_merged', `${repo}#${aRest[1]}`).catch(() => {}); return res.status(200).json({ ok: true, command: raw, data: r }); }
+      if (op === 'close' && aRest[1]) { if (needWrite()) return; const r = await gh(scoped(`pulls/${parseInt(aRest[1], 10)}`), { method: 'PATCH', body: { state: 'closed' } }); await logAudit('staff', actor.email, 'github_cli_pr_closed', `${repo}#${aRest[1]}`).catch(() => {}); return res.status(200).json({ ok: true, command: raw, data: { number: r.number, state: r.state } }); }
+      return res.status(400).json({ error: 'Usage: pr list | view <n> | create … | merge <n> | close <n>' });
     }
 
-    if (sub === 'issue') {
-      const op = rest[0] || 'list';
+    if (aSub === 'issue') {
+      const op = aRest[0] || 'list';
       if (op === 'list') return run('GET', scoped('issues?state=open&per_page=30'));
-      if (op === 'view' && rest[1]) return run('GET', scoped(`issues/${parseInt(rest[1], 10)}`));
-      const flags = parseFlags(rest.slice(1));
-      if (op === 'create') { if (needWrite()) return; if (!flags.title) return res.status(400).json({ error: 'gh issue create --title "T" [--body "B"]' }); const r = await gh(scoped('issues'), { method: 'POST', body: { title: flags.title, body: flags.body || '' } }); await logAudit('staff', actor.email, 'github_cli_issue_created', `${repo}#${r.number}`).catch(() => {}); return res.status(200).json({ ok: true, command: raw, data: { number: r.number, url: r.html_url } }); }
-      if (op === 'close' && rest[1]) { if (needWrite()) return; const r = await gh(scoped(`issues/${parseInt(rest[1], 10)}`), { method: 'PATCH', body: { state: 'closed' } }); await logAudit('staff', actor.email, 'github_cli_issue_closed', `${repo}#${rest[1]}`).catch(() => {}); return res.status(200).json({ ok: true, command: raw, data: { number: r.number, state: r.state } }); }
-      return res.status(400).json({ error: 'Usage: gh issue list | view <n> | create … | close <n>' });
+      if (op === 'view' && aRest[1]) return run('GET', scoped(`issues/${parseInt(aRest[1], 10)}`));
+      const flags = parseFlags(aRest.slice(1));
+      if (op === 'create') { if (needWrite()) return; if (!flags.title) return res.status(400).json({ error: 'issue create --title "T" [--body "B"]' }); const r = await gh(scoped('issues'), { method: 'POST', body: { title: flags.title, body: flags.body || '' } }); await logAudit('staff', actor.email, 'github_cli_issue_created', `${repo}#${r.number}`).catch(() => {}); return res.status(200).json({ ok: true, command: raw, data: { number: r.number, url: r.html_url } }); }
+      if (op === 'close' && aRest[1]) { if (needWrite()) return; const r = await gh(scoped(`issues/${parseInt(aRest[1], 10)}`), { method: 'PATCH', body: { state: 'closed' } }); await logAudit('staff', actor.email, 'github_cli_issue_closed', `${repo}#${aRest[1]}`).catch(() => {}); return res.status(200).json({ ok: true, command: raw, data: { number: r.number, state: r.state } }); }
+      return res.status(400).json({ error: 'Usage: issue list | view <n> | create … | close <n>' });
     }
 
-    return res.status(400).json({ error: `Unsupported command: "${sub}". Type \`gh help\` for the supported commands.` });
+    return res.status(400).json({ error: `Unsupported command: "${sub === 'git' ? `git ${aSub}` : sub}". Type \`git help\` for the supported commands.` });
   } catch (err) {
     return res.status(err.code === 503 ? 503 : 200).json({ ok: false, command: raw, error: err.message });
   }

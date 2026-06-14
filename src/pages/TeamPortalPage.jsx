@@ -967,32 +967,33 @@ function CliConsole({ repo, canWrite, onClose }) {
       <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-3xl h-[80vh] flex flex-col">
         <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 border-b border-slate-700">
           <p className="text-sm font-bold text-white flex items-center gap-2 min-w-0">
-            <FiTerminal size={15} className="shrink-0" /> <span className="truncate">GitHub CLI · {repo}</span>
+            <FiTerminal size={15} className="shrink-0" /> <span className="truncate">{repo} — terminal</span>
             <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded font-semibold ${canWrite ? 'bg-emerald-900/40 text-emerald-300' : 'bg-slate-700 text-slate-300'}`}>{canWrite ? 'read · write' : 'read only'}</span>
           </p>
           <button onClick={onClose} className="text-slate-400 hover:text-white shrink-0"><FiX size={18} /></button>
         </div>
-        <div ref={outRef} className="flex-1 overflow-auto bg-slate-950 p-4 font-mono text-xs leading-relaxed">
-          <p className="text-slate-500 mb-2">GitHub CLI console — runs against <span className="text-slate-300">{repo}</span> via the GitHub API. Type <span className="text-emerald-400">gh help</span> for commands. Use ↑/↓ for history.</p>
+        {/* Terminal surface — click anywhere to focus; commands fire on Enter. */}
+        <div ref={outRef} onClick={() => inRef.current?.focus()} className="flex-1 overflow-auto bg-slate-950 p-4 font-mono text-xs leading-relaxed cursor-text">
+          <p className="text-slate-500 mb-3">{repo} · git-style commands run live via the GitHub API. Type <span className="text-emerald-400">git help</span> for commands. ↑/↓ recalls history.</p>
           {hist.map((h, i) => (
             <div key={i} className="mb-3">
-              <p className="text-indigo-300"><span className="text-slate-500 select-none">$ </span>{h.cmd}</p>
+              <p className="text-slate-200"><span className="text-emerald-400 select-none">{n} $ </span>{h.cmd}</p>
               <pre className={`whitespace-pre-wrap mt-1 ${h.ok ? 'text-slate-200' : 'text-red-400'}`}>{h.text}</pre>
             </div>
           ))}
-          {busy && <p className="text-amber-400">Running<span className="caret-blink">▋</span></p>}
-        </div>
-        <div className="flex items-center gap-2 px-3 sm:px-4 py-3 border-t border-slate-700 bg-slate-900 cursor-text" onClick={() => inRef.current?.focus()}>
-          <span className="text-emerald-400 font-mono text-sm select-none">gh</span>
-          <div className="flex-1 relative flex items-center">
-            <input ref={inRef} value={cmd} onChange={(e) => setCmd(e.target.value)} onKeyDown={onKey} disabled={busy}
-              onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-              placeholder={canWrite ? 'pr list   ·   api repos/.../commits   ·   pr merge 12' : 'pr list   ·   repo view   ·   api repos/.../contributors'}
-              className="w-full bg-transparent border-0 outline-none text-slate-100 font-mono text-sm placeholder:text-slate-600" />
-            {/* Blinking caret: shown while idle so it reads like a terminal waiting for input. */}
-            {!cmd && !busy && <span className={`pointer-events-none absolute left-0 text-slate-300 font-mono text-sm ${focused ? 'caret-blink' : 'opacity-40'}`}>▋</span>}
+          {/* Live prompt — inline input, just like a real shell line. */}
+          <div className="flex items-baseline">
+            <span className="text-emerald-400 select-none shrink-0">{n}&nbsp;$&nbsp;</span>
+            <span className="relative flex-1 min-w-0">
+              <input ref={inRef} value={cmd} onChange={(e) => setCmd(e.target.value)} onKeyDown={onKey} disabled={busy}
+                onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} spellCheck={false} autoComplete="off"
+                placeholder={focused ? '' : (canWrite ? 'git status · git log · pr merge 12' : 'git status · git log · pr list')}
+                className="w-full bg-transparent border-0 outline-none text-slate-100 font-mono text-xs caret-slate-100 placeholder:text-slate-600" />
+              {/* Block caret shown when the line is empty so it reads as "waiting for input". */}
+              {!cmd && !busy && <span className={`pointer-events-none absolute left-0 top-0 text-slate-300 ${focused ? 'caret-blink' : 'opacity-40'}`}>▋</span>}
+            </span>
+            {busy && <span className="text-amber-400 shrink-0 ml-2">running<span className="caret-blink">▋</span></span>}
           </div>
-          <button onClick={runCmd} disabled={busy || !cmd.trim()} className="text-[11px] px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-40">Run</button>
         </div>
       </div>
     </div>
