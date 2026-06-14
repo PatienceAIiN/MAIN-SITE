@@ -1288,16 +1288,25 @@ function Hr({ reload }) {
             <tr><th className="text-left px-4 py-3">Name</th><th className="text-left px-4 py-3">Department</th><th className="text-left px-4 py-3">Type</th><th className="text-right px-4 py-3">Salary</th><th className="text-center px-4 py-3">Status</th><th className="px-4 py-3"></th></tr>
           </thead>
           <tbody>
-            {filtered.map((r) => (
-              <tr key={r.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer" onClick={() => setEditing(r)}>
-                <td className="px-4 py-3"><div className="font-semibold text-slate-800 dark:text-slate-100">{r.name}</div><div className="text-xs text-slate-400">{r.title || r.email}</div></td>
-                <td className="px-4 py-3 text-slate-500">{r.department}</td>
-                <td className="px-4 py-3 text-slate-500">{(r.employment_type || '').replace('_', ' ')}</td>
-                <td className="px-4 py-3 text-right font-medium">{inr(r.salary)}</td>
-                <td className="px-4 py-3 text-center"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[r.status]}`}>{(r.status || '').replace('_', ' ')}</span></td>
-                <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}><button className="text-slate-400 hover:text-red-500" onClick={() => remove(r.id)}><FiTrash2 size={15} /></button></td>
-              </tr>
-            ))}
+            {[['team', 'Team'], ['support', 'Support'], ['hr', 'HR'], ['other', 'Others']].map(([cat, label]) => {
+              const group = filtered.filter((r) => (r.category || 'other') === cat);
+              if (!group.length) return null;
+              return (
+                <React.Fragment key={cat}>
+                  <tr className="bg-slate-100 dark:bg-slate-800/70"><td colSpan="6" className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">{label} · {group.length}</td></tr>
+                  {group.map((r) => (
+                    <tr key={r.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer" onClick={() => setEditing(r)}>
+                      <td className="px-4 py-3"><div className="font-semibold text-slate-800 dark:text-slate-100">{r.name}</div><div className="text-xs text-slate-400">{r.title || r.email}</div></td>
+                      <td className="px-4 py-3 text-slate-500">{r.department}</td>
+                      <td className="px-4 py-3 text-slate-500">{(r.employment_type || '').replace('_', ' ')}</td>
+                      <td className="px-4 py-3 text-right font-medium">{inr(r.salary)}</td>
+                      <td className="px-4 py-3 text-center"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[r.status]}`}>{(r.status || '').replace('_', ' ')}</span></td>
+                      <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}><button className="text-slate-400 hover:text-red-500" onClick={() => remove(r.id)}><FiTrash2 size={15} /></button></td>
+                    </tr>
+                  ))}
+                </React.Fragment>
+              );
+            })}
             {!filtered.length && <tr><td colSpan="6" className="text-center py-12 text-slate-400">No employees.</td></tr>}
           </tbody>
         </table>
@@ -1309,7 +1318,7 @@ function Hr({ reload }) {
 }
 
 function EmployeeForm({ initial, onClose, onSave }) {
-  const [f, setF] = useState({ name: '', email: '', title: '', department: 'Operations', status: 'active', employment_type: 'full_time', salary: 0, location: '', manager_email: '', start_date: '', notes: '', ...initial });
+  const [f, setF] = useState({ name: '', email: '', title: '', department: 'Operations', category: 'other', status: 'active', employment_type: 'full_time', salary: 0, location: '', manager_email: '', start_date: '', notes: '', ...initial });
   const [saving, setSaving] = useState(false);
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
   const submit = async (e) => { e.preventDefault(); setSaving(true); try { await onSave(f); } finally { setSaving(false); } };
@@ -1321,6 +1330,7 @@ function EmployeeForm({ initial, onClose, onSave }) {
           <input className={input} placeholder="Job title" value={f.title || ''} onChange={set('title')} />
           <input className={input} placeholder="Email" type="email" value={f.email || ''} onChange={set('email')} />
           <input className={input} placeholder="Location" value={f.location || ''} onChange={set('location')} />
+          <label className="text-xs text-slate-500">Group<select className={input} value={f.category} onChange={set('category')}>{[['team', 'Team'], ['support', 'Support'], ['hr', 'HR'], ['other', 'Others']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
           <select className={input} value={f.department} onChange={set('department')}>{DEPARTMENTS.map((t) => <option key={t}>{t}</option>)}</select>
           <select className={input} value={f.employment_type} onChange={set('employment_type')}>{EMP_TYPES.map((t) => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}</select>
           <select className={input} value={f.status} onChange={set('status')}>{EMP_STATUSES.map((t) => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}</select>
