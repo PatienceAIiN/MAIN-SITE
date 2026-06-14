@@ -8,6 +8,8 @@
 // Persistence reuses the app's Neon layer (queryDb). Auth reuses the existing
 // team-member / support-exec session — any signed-in operator gets access.
 // ─────────────────────────────────────────────────────────────────────────────
+import fs from 'node:fs';
+import path from 'node:path';
 import { queryDb, isMissingTableError } from './_db.js';
 import { getMemberSession, getExecSession } from './_security.js';
 import { aiComplete } from './_ai.js';
@@ -619,33 +621,65 @@ const receiptTotals = (r) => {
 };
 const fmtMoney = (n, cur) => `${CUR_SYMBOL[cur] || ''}${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+// Company identity used across the receipt PDF and the email shell.
+const COMPANY = {
+  name: 'Patience AI',
+  tagline: 'Business Growth OS',
+  email: process.env.CONTACT_TO_EMAIL?.split(/[\s,;]+/)[0] || 'support@patienceai.in',
+  site: 'patienceai.in',
+};
+// Load the logo mark once (PNG; pdfkit can't read SVG). Tries built + source paths.
+let _logoBuf; let _logoTried = false;
+const companyLogo = () => {
+  if (_logoTried) return _logoBuf;
+  _logoTried = true;
+  for (const c of ['dist/pwa-512.png', 'public/pwa-512.png', 'dist/favicon-256.png', 'public/favicon-256.png']) {
+    try { const p = path.resolve(process.cwd(), c); if (fs.existsSync(p)) { _logoBuf = fs.readFileSync(p); break; } } catch { /* keep trying */ }
+  }
+  return _logoBuf;
+};
+
 const buildReceiptPdf = async (r) => {
   const PDFDocument = (await import('pdfkit')).default;
   const { items, subtotal, discount, tax, total } = receiptTotals(r);
   const cur = r.currency || 'INR';
+  const year = new Date().getFullYear();
+  // PDFKit's built-in Helvetica can't render ₹ (U+20B9), so the PDF uses the
+  // unambiguous ISO code (e.g. "INR 1,200.00") instead of the symbol.
+  const fmtMoney = (n) => `${cur} ${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const doc = new PDFDocument({ margin: 48, size: 'A4' });
   const chunks = [];
   doc.on('data', (c) => chunks.push(c));
   const done = new Promise((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
 
-  doc.fillColor('#4338ca').fontSize(22).text('PATIENCE AI', { continued: false });
-  doc.fillColor('#64748b').fontSize(10).text('Receipt', { align: 'left' });
-  doc.moveUp(2).fillColor('#0f172a').fontSize(11).text(`Receipt #: ${r.receipt_no || r.id}`, { align: 'right' });
-  doc.fillColor('#64748b').fontSize(10).text(`Date: ${new Date(r.issued_date || Date.now()).toLocaleDateString()}`, { align: 'right' });
-  doc.text(`Stage: ${(r.stage || 'draft').replace('_', ' ')}`, { align: 'right' });
-  doc.moveDown(1.5);
+  // ── Header: logo + wordmark (left), RECEIPT meta (right) ──────────────────
+  const hTop = doc.y; const logo = companyLogo();
+  if (logo) { try { doc.image(logo, 48, hTop, { fit: [44, 44] }); } catch { /* skip logo */ } }
+  const wordX = logo ? 102 : 48;
+  doc.fillColor('#4338ca').font('Helvetica-Bold').fontSize(20).text(COMPANY.name.toUpperCase(), wordX, hTop + 2);
+  doc.fillColor('#64748b').font('Helvetica').fontSize(9).text(COMPANY.tagline, wordX, doc.y);
+  doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(20).text('RECEIPT', 320, hTop + 2, { width: 227, align: 'right' });
+  doc.font('Helvetica').fillColor('#64748b').fontSize(10)
+    .text(`Receipt No.  ${r.receipt_no || r.id}`, 320, hTop + 28, { width: 227, align: 'right' })
+    .text(`Date  ${new Date(r.issued_date || Date.now()).toLocaleDateString()}`, { width: 227, align: 'right' })
+    .text(`Status  ${(r.stage || 'draft').replace('_', ' ').toUpperCase()}`, { width: 227, align: 'right' });
+  doc.moveTo(48, hTop + 64).lineTo(547, hTop + 64).strokeColor('#e2e8f0').lineWidth(1).stroke();
+  doc.y = hTop + 78;
 
-  doc.fillColor('#0f172a').fontSize(11).text('Billed to', { underline: false });
-  doc.fillColor('#334155').fontSize(11).text(r.customer_name || '');
-  if (r.customer_email) doc.fillColor('#64748b').fontSize(10).text(r.customer_email);
-  if (r.project) doc.fillColor('#64748b').fontSize(10).text(`Project: ${r.project}`);
-  doc.moveDown(1);
+  // ── Billed-to block ───────────────────────────────────────────────────────
+  doc.fillColor('#94a3b8').font('Helvetica-Bold').fontSize(8).text('BILLED TO', 48, doc.y);
+  doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(12).text(r.customer_name || '—', 48, doc.y + 2);
+  doc.font('Helvetica').fillColor('#64748b').fontSize(10);
+  if (r.customer_email) doc.text(r.customer_email, { width: 280 });
+  if (r.project) doc.text(`Project: ${r.project}`, { width: 280 });
+  doc.moveDown(1.2);
 
   // Table header
   const top = doc.y; const x0 = 48; const wDesc = 270; const wQty = 60; const wPrice = 90; const wAmt = 90;
-  doc.fillColor('#475569').fontSize(9);
+  doc.fillColor('#94a3b8').font('Helvetica-Bold').fontSize(8);
   doc.text('DESCRIPTION', x0, top); doc.text('QTY', x0 + wDesc, top, { width: wQty, align: 'right' });
   doc.text('PRICE', x0 + wDesc + wQty, top, { width: wPrice, align: 'right' }); doc.text('AMOUNT', x0 + wDesc + wQty + wPrice, top, { width: wAmt, align: 'right' });
+  doc.font('Helvetica');
   doc.moveTo(x0, doc.y + 2).lineTo(547, doc.y + 2).strokeColor('#e2e8f0').stroke();
   doc.moveDown(0.6);
   items.forEach((it) => {
@@ -659,23 +693,73 @@ const buildReceiptPdf = async (r) => {
   doc.moveTo(x0, doc.y + 2).lineTo(547, doc.y + 2).strokeColor('#e2e8f0').stroke();
   doc.moveDown(0.6);
   const totalRow = (label, val, bold) => {
-    const y = doc.y; doc.fillColor(bold ? '#0f172a' : '#475569').fontSize(bold ? 12 : 10);
+    const y = doc.y;
+    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fillColor(bold ? '#0f172a' : '#475569').fontSize(bold ? 12 : 10);
     doc.text(label, x0 + wDesc, y, { width: wQty + wPrice, align: 'right' });
     doc.text(val, x0 + wDesc + wQty + wPrice, y, { width: wAmt, align: 'right' }); doc.moveDown(0.4);
   };
   totalRow('Subtotal', fmtMoney(subtotal, cur));
   if (discount) totalRow('Discount', `- ${fmtMoney(discount, cur)}`);
   if (tax) totalRow(`Tax (${num(r.tax_rate)}%)`, fmtMoney(tax, cur));
-  totalRow('Total', fmtMoney(total, cur), true);
-  if (r.notes) { doc.moveDown(1.5).fillColor('#64748b').fontSize(9).text(`Notes: ${r.notes}`, x0, doc.y, { width: 499 }); }
-  doc.moveDown(2).fillColor('#94a3b8').fontSize(8).text('Thank you for your business. · Patience AI', x0, doc.y, { align: 'center', width: 499 });
+  totalRow('Total Paid', fmtMoney(total, cur), true);
+  doc.font('Helvetica');
+  if (r.notes) {
+    doc.moveDown(1.5).fillColor('#94a3b8').font('Helvetica-Bold').fontSize(8).text('NOTES', x0, doc.y);
+    doc.fillColor('#475569').font('Helvetica').fontSize(9).text(r.notes, x0, doc.y + 2, { width: 499 });
+  }
+
+  // ── Footer pinned near the page bottom (falls inline if content is long) ──
+  let fy = 760;
+  if (doc.y > fy - 28) fy = doc.y + 24;
+  doc.moveTo(48, fy).lineTo(547, fy).strokeColor('#e2e8f0').lineWidth(1).stroke();
+  doc.font('Helvetica').fillColor('#475569').fontSize(8.5)
+    .text(`Thank you for your business.  ·  ${COMPANY.email}  ·  ${COMPANY.site}`, 48, fy + 8, { align: 'center', width: 499 });
+  doc.fillColor('#94a3b8').fontSize(8)
+    .text(`© ${year} ${COMPANY.name}. All rights reserved.  This is a computer-generated receipt and does not require a signature.`, 48, doc.y + 2, { align: 'center', width: 499 });
   doc.end();
   return done;
 };
 
 const DEFAULT_RECEIPT_TEMPLATE = {
-  subject: 'Your receipt from Patience AI ({receipt_no})',
-  body: 'Hi {customer_name},\n\nPlease find attached your receipt {receipt_no}{project_line} for a total of {total}.\n\nThank you for working with us.\n\nWarm regards,\nPatience AI',
+  subject: 'Receipt {receipt_no} from Patience AI',
+  body: [
+    'Dear {customer_name},',
+    '',
+    'Thank you for choosing Patience AI. Please find your official receipt {receipt_no}{project_line} attached to this email as a PDF, for a total of {total}.',
+    '',
+    'This receipt confirms the amount recorded against your account. Kindly retain it for your records.',
+    '',
+    'If you have any questions about this receipt or need further assistance, simply reply to this email — our team will be glad to help.',
+    '',
+    'Warm regards,',
+    'The Patience AI Team',
+  ].join('\n'),
+};
+const escapeHtml = (s = '') => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+// Branded HTML shell: header band + the (customizable) message body + a note
+// that the PDF is attached + a footer with contact and rights-reserved line.
+const receiptEmailHtml = (bodyText, r) => {
+  const year = new Date().getFullYear();
+  const body = escapeHtml(bodyText).replace(/\n/g, '<br>');
+  return `
+  <div style="margin:0;background:#f1f5f9;padding:28px 12px;font-family:Arial,'Helvetica Neue',sans-serif;color:#0f172a;">
+    <div style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;">
+      <div style="background:#4338ca;padding:22px 26px;">
+        <div style="color:#ffffff;font-size:20px;font-weight:bold;letter-spacing:0.04em;">PATIENCE AI</div>
+        <div style="color:#c7d2fe;font-size:12px;margin-top:2px;">${escapeHtml(COMPANY.tagline)} · Receipt ${escapeHtml(r.receipt_no || String(r.id))}</div>
+      </div>
+      <div style="padding:26px;">
+        <div style="font-size:14px;line-height:1.7;color:#334155;">${body}</div>
+        <div style="margin-top:22px;padding:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;font-size:13px;color:#475569;">
+          📎 Your receipt <strong>${escapeHtml(r.receipt_no || String(r.id))}</strong> is attached as a PDF — total <strong>${escapeHtml(fmtMoney(receiptTotals(r).total, r.currency || 'INR'))}</strong>.
+        </div>
+      </div>
+      <div style="padding:18px 26px;border-top:1px solid #e2e8f0;background:#f8fafc;">
+        <div style="font-size:12px;color:#475569;">${escapeHtml(COMPANY.name)} · <a href="mailto:${escapeHtml(COMPANY.email)}" style="color:#4338ca;text-decoration:none;">${escapeHtml(COMPANY.email)}</a> · ${escapeHtml(COMPANY.site)}</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:6px;">© ${year} ${escapeHtml(COMPANY.name)}. All rights reserved. This is an automated message regarding your receipt.</div>
+      </div>
+    </div>
+  </div>`;
 };
 const loadReceiptTemplate = async () => {
   try { const [row] = await queryDb(`select value from business_settings where key='receipt_email_template' limit 1`); if (row?.value) return { ...DEFAULT_RECEIPT_TEMPLATE, ...JSON.parse(row.value) }; } catch { /* default */ }
@@ -717,7 +801,7 @@ async function receipts(method, req, me) {
     await sendEmail({
       to: [{ email: to, name: r.customer_name }],
       subject: renderTemplate(b.subject != null ? b.subject : tpl.subject, r),
-      html: `<div style="font-family:Arial,sans-serif;color:#0f172a;white-space:pre-wrap;line-height:1.6">${bodyText.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</div>`,
+      html: receiptEmailHtml(bodyText, r),
       text: bodyText,
       attachments: [{ filename: `receipt-${r.receipt_no || r.id}.pdf`, content: pdf, contentType: 'application/pdf' }],
     });
