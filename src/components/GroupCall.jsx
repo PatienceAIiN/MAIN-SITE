@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { FiMic, FiMicOff, FiVideo, FiVideoOff, FiMonitor, FiPhoneOff, FiPhone, FiMinimize2, FiMaximize2, FiMove, FiUsers, FiUserPlus, FiChevronDown, FiChevronUp, FiMessageSquare, FiFileText, FiShare2, FiLink, FiX, FiSend, FiCheck } from 'react-icons/fi';
+import { FiMic, FiMicOff, FiVideo, FiVideoOff, FiMonitor, FiPhoneOff, FiPhone, FiMinimize2, FiMaximize2, FiMove, FiUsers, FiUserPlus, FiChevronDown, FiChevronUp, FiMessageSquare, FiFileText, FiShare2, FiLink, FiX, FiSend, FiCheck, FiExternalLink } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import { playRingtone } from '../common/sounds';
 
@@ -181,6 +181,15 @@ export function useGroupCall(me, wsSend) {
     setMuted(next);
     pcs.current.forEach((_, email) => send(email, { kind: 'g-mute', muted: next })); // tell everyone
   };
+  // Explicit mic on/off (used by push-to-talk). No-ops if already in that state.
+  const setMic = (on) => {
+    const nextMuted = !on;
+    if (mutedRef.current === nextMuted) return;
+    mutedRef.current = nextMuted;
+    localStream.current?.getAudioTracks().forEach((t) => { t.enabled = on; });
+    setMuted(nextMuted);
+    pcs.current.forEach((_, email) => send(email, { kind: 'g-mute', muted: nextMuted }));
+  };
   const toggleCam = () => {
     const next = !camOffRef.current; camOffRef.current = next;
     localStream.current?.getVideoTracks().forEach((t) => { t.enabled = !next; });
@@ -202,7 +211,7 @@ export function useGroupCall(me, wsSend) {
     } catch { /* cancelled */ }
   };
 
-  return { room, peers, peerMuted, peerCamOff, muted, camOff, sharing, chat, sendChat, localStream, start, accept, invite, leave, onRtc, onGcall, joinMeeting, toggleMute, toggleCam, toggleShare, me };
+  return { room, peers, peerMuted, peerCamOff, muted, camOff, sharing, chat, sendChat, localStream, start, accept, invite, leave, onRtc, onGcall, joinMeeting, toggleMute, setMic, toggleCam, toggleShare, me };
 }
 
 function Tile({ stream, name, mine, micMuted, camOff, pinned, onPin }) {
@@ -344,7 +353,7 @@ function AddPeople({ roster, presence = {}, roomId, inCall, onRing, onClose, can
 }
 
 export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
-  const { room, peers, peerMuted = {}, peerCamOff = {}, muted, camOff, sharing, chat, sendChat, localStream, accept, invite, leave, toggleMute, toggleCam, toggleShare, me } = api;
+  const { room, peers, peerMuted = {}, peerCamOff = {}, muted, camOff, sharing, chat, sendChat, localStream, accept, invite, leave, toggleMute, setMic, toggleCam, toggleShare, me } = api;
   const [min, setMin] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [partsOpen, setPartsOpen] = useState(false); // top participant bar collapsed by default
@@ -357,7 +366,29 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
   const noteRef = useRef(note); noteRef.current = note;
   const roomRef = useRef(room); roomRef.current = room;
   const peersRef = useRef(peers); peersRef.current = peers;
+  const pipRef = useRef(null);                         // hidden video used for native Picture-in-Picture
+  const pttRef = useRef(false);                        // currently holding Space to talk?
+  const mutedNowRef = useRef(muted); mutedNowRef.current = muted;
+  const setMicRef = useRef(setMic); setMicRef.current = setMic;
   useEffect(() => { setMin(false); setPartsOpen(false); setPinned(null); setNotesOpen(false); setChatOpen(false); setSeenChat(0); setAddOpen(false); setNote({ title: '', body: '' }); }, [room?.id]);
+
+  // Push-to-talk: hold Space to unmute, release to mute again. Ignored while
+  // typing (chat/notes) so a space in a message doesn't toggle the mic.
+  useEffect(() => {
+    if (!room || room.incoming) return undefined;
+    const typing = () => { const el = document.activeElement; return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable); };
+    const down = (e) => {
+      if (e.code !== 'Space' || e.repeat || typing()) return;
+      e.preventDefault();
+      if (mutedNowRef.current && !pttRef.current) { pttRef.current = true; setMicRef.current?.(true); }
+    };
+    const up = (e) => {
+      if (e.code !== 'Space' || !pttRef.current) return;
+      e.preventDefault(); pttRef.current = false; setMicRef.current?.(false);
+    };
+    window.addEventListener('keydown', down); window.addEventListener('keyup', up);
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); pttRef.current = false; };
+  }, [room?.id, room?.incoming]);
   // Leaving the call: if notes were taken, save + email them as the Minutes of
   // Meeting to everyone in the room (saved to each member's Notes too), then drop.
   const endWithMom = useCallback(() => {
@@ -400,6 +431,19 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
   const allKeys = ['me', ...tiles.map(([e]) => e)];               // self first, then peers
   const cols = Math.max(1, Math.ceil(Math.sqrt(allKeys.length))); // balanced equal grid
   const togglePin = (k) => setPinned((p) => (p === k ? null : k));
+  // Native (OS-level) Picture-in-Picture of the pinned person, else first peer, else you.
+  const pipSupported = typeof document !== 'undefined' && document.pictureInPictureEnabled;
+  const togglePip = async () => {
+    try {
+      if (document.pictureInPictureElement) { await document.exitPictureInPicture(); return; }
+      const email = pinValid && pinValid !== 'me' ? pinValid : (tiles[0]?.[0] || null);
+      const stream = email ? peers[email]?.stream : localStream.current;
+      if (!stream || !pipRef.current) return;
+      pipRef.current.srcObject = stream;
+      await pipRef.current.play().catch(() => {});
+      await pipRef.current.requestPictureInPicture();
+    } catch { /* PiP unsupported or dismissed */ }
+  };
   const renderTile = (k) => (k === 'me'
     ? <Tile key="me" stream={localStream.current} name={me.name || 'You'} mine micMuted={muted} camOff={camOff} pinned={pinValid === 'me'} onPin={() => togglePin('me')} />
     : <Tile key={k} stream={peers[k]?.stream} name={peers[k]?.name || k} micMuted={peerMuted[k]} camOff={peerCamOff[k]} pinned={pinValid === k} onPin={() => togglePin(k)} />);
@@ -476,8 +520,9 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
         </div>
         {chatOpen && <ChatPanel chat={chat} onSend={sendChat} onClose={() => setChatOpen(false)} />}
       </div>
-      <div className="flex justify-center gap-3 mt-1 shrink-0">
-        <button onClick={toggleMute} className={`${rb} ${muted ? 'bg-amber-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={muted ? 'Unmute' : 'Mute'}>{muted ? <FiMicOff size={17} /> : <FiMic size={17} />}</button>
+      <div className="flex flex-col items-center gap-1 mt-1 shrink-0">
+       <div className="flex justify-center gap-3">
+        <button onClick={toggleMute} className={`${rb} ${muted ? 'bg-amber-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={muted ? 'Unmute (or hold Space to talk)' : 'Mute'}>{muted ? <FiMicOff size={17} /> : <FiMic size={17} />}</button>
         <button onClick={() => setChatOpen((o) => !o)} className={`${rb} relative ${chatOpen ? 'bg-indigo-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={unread > 0 && !chatOpen ? `${unread} new message(s)` : 'Call chat'}>
           <FiMessageSquare size={17} />
           {unread > 0 && !chatOpen && (
@@ -490,9 +535,14 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
         <button onClick={() => setNotesOpen((o) => !o)} className={`${rb} ${notesOpen ? 'bg-indigo-500' : 'bg-slate-700 hover:bg-slate-600'}`} title="Notes"><FiFileText size={17} /></button>
         <button onClick={toggleCam} className={`${rb} ${camOff ? 'bg-amber-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={camOff ? 'Camera on' : 'Camera off'}>{camOff ? <FiVideoOff size={17} /> : <FiVideo size={17} />}</button>
         <button onClick={toggleShare} className={`${rb} ${sharing ? 'bg-indigo-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={sharing ? 'Stop sharing' : 'Share screen'}><FiMonitor size={17} /></button>
+        {pipSupported && <button onClick={togglePip} className={`${rb} bg-slate-700 hover:bg-slate-600`} title="Picture-in-Picture (pop out video)"><FiExternalLink size={16} /></button>}
         <button onClick={() => setMin(true)} className={`${rb} bg-slate-700 hover:bg-slate-600`} title="Minimize"><FiMinimize2 size={16} /></button>
         <button onClick={endWithMom} className={`${rb} bg-red-600 hover:bg-red-700`} title="Leave"><FiPhoneOff size={17} /></button>
+       </div>
+       <p className="text-[10px] text-white/35">{muted ? 'Hold ' : ''}<kbd className="px-1 rounded bg-white/10 text-white/60">Space</kbd>{muted ? ' to talk' : ' held = talking'}</p>
       </div>
+      {/* Hidden video element used as the source for native Picture-in-Picture. */}
+      <video ref={pipRef} muted playsInline style={{ position: 'fixed', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />
     </div>
   );
 }
