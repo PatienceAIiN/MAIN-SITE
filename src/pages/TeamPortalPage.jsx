@@ -934,6 +934,7 @@ function CliConsole({ repo, canWrite, onClose }) {
   const [hist, setHist] = useState([]);        // [{cmd, ok, text}]
   const [recall, setRecall] = useState([]);    // command history for ↑/↓
   const [ri, setRi] = useState(-1);
+  const [focused, setFocused] = useState(false);
   const outRef = useRef(null);
   const inRef = useRef(null);
   useEffect(() => { inRef.current?.focus(); }, []);
@@ -979,13 +980,18 @@ function CliConsole({ repo, canWrite, onClose }) {
               <pre className={`whitespace-pre-wrap mt-1 ${h.ok ? 'text-slate-200' : 'text-red-400'}`}>{h.text}</pre>
             </div>
           ))}
-          {busy && <p className="text-amber-400">Running…</p>}
+          {busy && <p className="text-amber-400">Running<span className="caret-blink">▋</span></p>}
         </div>
-        <div className="flex items-center gap-2 px-3 sm:px-4 py-3 border-t border-slate-700 bg-slate-900">
+        <div className="flex items-center gap-2 px-3 sm:px-4 py-3 border-t border-slate-700 bg-slate-900 cursor-text" onClick={() => inRef.current?.focus()}>
           <span className="text-emerald-400 font-mono text-sm select-none">gh</span>
-          <input ref={inRef} value={cmd} onChange={(e) => setCmd(e.target.value)} onKeyDown={onKey} disabled={busy}
-            placeholder={canWrite ? 'pr list   ·   api repos/.../commits   ·   pr merge 12' : 'pr list   ·   repo view   ·   api repos/.../contributors'}
-            className="flex-1 bg-transparent border-0 outline-none text-slate-100 font-mono text-sm placeholder:text-slate-600" />
+          <div className="flex-1 relative flex items-center">
+            <input ref={inRef} value={cmd} onChange={(e) => setCmd(e.target.value)} onKeyDown={onKey} disabled={busy}
+              onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+              placeholder={canWrite ? 'pr list   ·   api repos/.../commits   ·   pr merge 12' : 'pr list   ·   repo view   ·   api repos/.../contributors'}
+              className="w-full bg-transparent border-0 outline-none text-slate-100 font-mono text-sm placeholder:text-slate-600" />
+            {/* Blinking caret: shown while idle so it reads like a terminal waiting for input. */}
+            {!cmd && !busy && <span className={`pointer-events-none absolute left-0 text-slate-300 font-mono text-sm ${focused ? 'caret-blink' : 'opacity-40'}`}>▋</span>}
+          </div>
           <button onClick={runCmd} disabled={busy || !cmd.trim()} className="text-[11px] px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-40">Run</button>
         </div>
       </div>

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   FiPhone, FiPhoneOff, FiPhoneIncoming, FiMic, FiMicOff, FiSend,
   FiLogOut, FiUser, FiRefreshCw, FiCheck, FiEye, FiEyeOff, FiChevronLeft, FiChevronRight, FiSearch,
-  FiVolume2, FiSmartphone, FiUsers, FiX, FiCornerUpRight, FiSun, FiMoon, FiAlertTriangle, FiTag, FiMessageSquare, FiBell, FiBellOff, FiMail, FiSettings
+  FiVolume2, FiSmartphone, FiUsers, FiX, FiCornerUpRight, FiSun, FiMoon, FiAlertTriangle, FiTag, FiMessageSquare, FiBell, FiBellOff, FiMail, FiSettings, FiLock
 } from 'react-icons/fi';
 import { TicketModal, TicketsPanel, NotificationBell } from '../components/TicketCenter';
 import GrowthMail from '../components/GrowthMail';
@@ -350,6 +350,18 @@ export default function SupportExecutivePage() {
   const [mailAcct, setMailAcct] = useState(null);
   const loadMailAcct = () => fetchJson('/api/gmail?status=1', { credentials: 'include' }).then((d) => setMailAcct(d.connected ? { email: d.email } : false)).catch(() => setMailAcct(false));
   const disconnectMail = async () => { await fetchJson('/api/gmail', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'disconnect' }) }).catch(() => {}); loadMailAcct(); };
+  const [pwd, setPwd] = useState({ cur: '', next: '', show: false });
+  const [pwdMsg, setPwdMsg] = useState({ type: '', text: '' });
+  const [pwdBusy, setPwdBusy] = useState(false);
+  const changePassword = async () => {
+    if (!pwd.cur || !pwd.next) { setPwdMsg({ type: 'err', text: 'Enter your current and new password.' }); return; }
+    if (pwd.next.length < 8) { setPwdMsg({ type: 'err', text: 'New password must be at least 8 characters.' }); return; }
+    setPwdBusy(true); setPwdMsg({ type: '', text: '' });
+    try {
+      await fetchJson('/api/support-executives/change-password', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword: pwd.cur, newPassword: pwd.next }) });
+      setPwdMsg({ type: 'ok', text: 'Password updated.' }); setPwd({ cur: '', next: '', show: false });
+    } catch (e) { setPwdMsg({ type: 'err', text: e.message }); } finally { setPwdBusy(false); }
+  };
 
   const [sessions,     setSessions]     = useState([]);
   const [selectedId,   setSelectedId]   = useState('');
@@ -1056,6 +1068,21 @@ export default function SupportExecutivePage() {
                   <button onClick={disconnectMail} className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 font-medium shrink-0">Disconnect</button>
                 </div>
               ) : <p className="text-xs text-slate-400">No Gmail connected. Connect it from the Mail tab.</p>}
+
+            <div className="mt-4 pt-4 border-t border-slate-200">
+              <p className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-2"><FiLock size={13} /> Change password</p>
+              <div className="space-y-2">
+                <input type={pwd.show ? 'text' : 'password'} value={pwd.cur} onChange={(e) => setPwd((p) => ({ ...p, cur: e.target.value }))} placeholder="Current password" autoComplete="current-password"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-900/20" />
+                <div className="relative">
+                  <input type={pwd.show ? 'text' : 'password'} value={pwd.next} onChange={(e) => setPwd((p) => ({ ...p, next: e.target.value }))} placeholder="New password (min 8 chars)" autoComplete="new-password"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-9 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-900/20" />
+                  <button type="button" onClick={() => setPwd((p) => ({ ...p, show: !p.show }))} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">{pwd.show ? <FiEyeOff size={14} /> : <FiEye size={14} />}</button>
+                </div>
+                {pwdMsg.text && <p className={`text-xs ${pwdMsg.type === 'ok' ? 'text-emerald-600' : 'text-red-600'}`}>{pwdMsg.text}</p>}
+                <button onClick={changePassword} disabled={pwdBusy} className="w-full text-sm font-medium px-3 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50">{pwdBusy ? 'Updating…' : 'Update password'}</button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -390,6 +390,7 @@ app.all('/api/support-chat', writeLimit, wrap(supportChatHandler));
 app.all('/api/support-executives/login',    authLimiter, wrap(supportExecutivesHandler));
 app.all('/api/support-executives/activate', wrap(supportExecutivesHandler));
 app.all('/api/support-executives/me',       wrap(supportExecutivesHandler));
+app.all('/api/support-executives/change-password', authLimiter, wrap(supportExecutivesHandler));
 app.all('/api/support-executives/logout',   wrap(supportExecutivesHandler));
 app.all('/api/support-executives/status',   wrap(supportExecutivesHandler));
 app.all('/api/support-executives/activity', wrap(supportExecutivesHandler));

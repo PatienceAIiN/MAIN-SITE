@@ -173,6 +173,15 @@ select {
   }
 }
 
+/* Terminal-style blinking caret (crisp on/off, not a fade). */
+@keyframes caret-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.caret-blink {
+  animation: caret-blink 1s steps(1) infinite;
+}
+
 @media (max-width: 767px) {
   html,
   body,

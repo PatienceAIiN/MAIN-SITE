@@ -153,6 +153,28 @@ export default async function handler(req, res) {
     return res.status(200).json({ executive: exec });
   }
 
+  // ── POST /api/support-executives/change-password ─────────────────────────
+  if (req.method === 'POST' && req.url?.includes('/change-password')) {
+    const exec = getExecSession(req);
+    if (!exec) return res.status(401).json({ error: 'Not authenticated' });
+    const { currentPassword, newPassword } = req.body || {};
+    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'currentPassword and newPassword required' });
+    if (String(newPassword).length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    try {
+      const rows = await queryDb(`SELECT password_salt, password_hash FROM ${TABLE} WHERE id=$1 LIMIT 1`, [exec.id]);
+      const row = rows[0];
+      if (!row || !verifyPassword(currentPassword, row.password_salt, row.password_hash)) {
+        return res.status(401).json({ error: 'Current password is incorrect' });
+      }
+      const { salt, hash } = hashPassword(String(newPassword));
+      await queryDb(`UPDATE ${TABLE} SET password_salt=$1, password_hash=$2, updated_at=NOW() WHERE id=$3`, [salt, hash, exec.id]);
+      await logAudit('executive', exec.email, 'password_changed', exec.email).catch(() => {});
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
   // ── DELETE /api/support-executives/logout ───────────────────────────────────
   if (req.method === 'DELETE' && req.url?.includes('/logout')) {
     const exec = getExecSession(req);

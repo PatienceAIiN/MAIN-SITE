@@ -13,7 +13,7 @@ import {
   FiLogOut, FiMoon, FiSun, FiPlus, FiX, FiSearch, FiRefreshCw, FiSend, FiTrash2,
   FiDollarSign, FiActivity, FiAlertTriangle, FiArrowRight, FiDownload, FiZap,
   FiEye, FiEyeOff, FiHeart, FiPieChart, FiChevronRight,
-  FiCreditCard, FiBriefcase, FiUserCheck, FiEdit2, FiSettings, FiLock, FiInbox,
+  FiCreditCard, FiBriefcase, FiUserCheck, FiEdit2, FiSettings, FiLock, FiInbox, FiArchive, FiCheckCircle,
 } from 'react-icons/fi';
 import { TbCurrencyRupee, TbCurrencyDollar, TbCurrencyEuro, TbCurrencyPound } from 'react-icons/tb';
 import { FiMessageCircle, FiMail, FiMenu, FiChevronsLeft, FiChevronsRight } from 'react-icons/fi';
@@ -1363,7 +1363,7 @@ function Responses() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [q, setQ] = useState('');
-  const [open, setOpen] = useState({});
+  const [selected, setSelected] = useState(null);   // response opened in the modal
   const [busyId, setBusyId] = useState(null);
   const load = useCallback(() => {
     setLoading(true);
@@ -1373,13 +1373,13 @@ function Responses() {
 
   const setStatus = async (id, status) => {
     setBusyId(id);
-    try { const r = await api('/responses', { method: 'PATCH', body: JSON.stringify({ id, status }) }); if (r.item) setItems((c) => c.map((it) => (it.id === r.item.id ? r.item : it))); }
+    try { const r = await api('/responses', { method: 'PATCH', body: JSON.stringify({ id, status }) }); if (r.item) { setItems((c) => c.map((it) => (it.id === r.item.id ? r.item : it))); setSelected((s) => (s && s.id === r.item.id ? r.item : s)); } }
     finally { setBusyId(null); }
   };
   const remove = async (id) => {
     if (!(await confirmDialog({ title: 'Delete response', message: 'Permanently delete this submission?', confirmText: 'Delete' }))) return;
     setBusyId(id);
-    try { await api(`/responses?id=${id}`, { method: 'DELETE' }); setItems((c) => c.filter((it) => it.id !== id)); }
+    try { await api(`/responses?id=${id}`, { method: 'DELETE' }); setItems((c) => c.filter((it) => it.id !== id)); setSelected(null); }
     finally { setBusyId(null); }
   };
 
@@ -1411,34 +1411,15 @@ function Responses() {
             ) : (
               <div className="divide-y divide-slate-100 dark:divide-slate-800">
                 {g.rows.map((it) => (
-                  <div key={it.id} className="px-4 py-3 text-sm hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                    <div className="flex items-start justify-between gap-3 cursor-pointer" onClick={() => setOpen((o) => ({ ...o, [it.id]: !o[it.id] }))}>
-                      <div className="min-w-0">
-                        <p className="font-medium text-slate-800 dark:text-slate-100 truncate">{it.name} <span className="text-slate-400 font-normal">· {it.email}</span></p>
-                        <p className="text-slate-500 dark:text-slate-400 truncate">{it.subject}</p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full capitalize ${RESP_STATUS_TINT[it.status] || 'bg-slate-100 text-slate-500'}`}>{it.status}</span>
-                        <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">{new Date(it.created_at).toLocaleDateString()}</span>
-                      </div>
+                  <div key={it.id} className="px-4 py-3 text-sm hover:bg-slate-50 dark:hover:bg-slate-800/40 flex items-start justify-between gap-3 cursor-pointer" onClick={() => setSelected(it)}>
+                    <div className="min-w-0">
+                      <p className="font-medium text-slate-800 dark:text-slate-100 truncate">{it.name} <span className="text-slate-400 font-normal">· {it.email}</span></p>
+                      <p className="text-slate-500 dark:text-slate-400 truncate">{it.subject}</p>
                     </div>
-                    {open[it.id] && (
-                      <div className="mt-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-3 space-y-2">
-                        {it.company && <p className="text-slate-600 dark:text-slate-300 text-xs"><span className="text-slate-400">Company:</span> {it.company}</p>}
-                        {it.product_name && <p className="text-slate-600 dark:text-slate-300 text-xs"><span className="text-slate-400">Product:</span> {it.product_name}</p>}
-                        <p className="text-slate-400 text-[10px] uppercase tracking-wider">Message</p>
-                        <p className="text-slate-700 dark:text-slate-200 whitespace-pre-wrap leading-relaxed text-xs">{it.message}</p>
-                        <p className="text-slate-400 text-[10px] font-mono">{new Date(it.created_at).toLocaleString()} · source: {it.source}</p>
-                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                          {['new', 'reviewing', 'replied', 'archived'].map((st) => (
-                            <button key={st} disabled={busyId === it.id || it.status === st} onClick={() => setStatus(it.id, st)}
-                              className={`text-[10px] px-2.5 py-1 rounded-lg capitalize transition-colors disabled:opacity-40 ${it.status === st ? 'bg-indigo-600 text-white' : 'border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{st}</button>
-                          ))}
-                          <a href={`mailto:${it.email}?subject=Re: ${encodeURIComponent(it.subject)}`} className="text-[10px] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">Reply</a>
-                          <button disabled={busyId === it.id} onClick={() => remove(it.id)} className="text-[10px] px-2.5 py-1 rounded-lg bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-300 hover:bg-red-100 disabled:opacity-40 ml-auto">Delete</button>
-                        </div>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full capitalize ${RESP_STATUS_TINT[it.status] || 'bg-slate-100 text-slate-500'}`}>{it.status}</span>
+                      <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">{new Date(it.created_at).toLocaleDateString()}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1446,7 +1427,66 @@ function Responses() {
           </div>
         ))}
       </div>
+      {selected && <ResponseModal it={selected} busy={busyId === selected.id} onStatus={(st) => setStatus(selected.id, st)} onDelete={() => remove(selected.id)} onClose={() => setSelected(null)} />}
     </div>
+  );
+}
+
+/* ── Response detail modal with CRUD action icons ─────────────────────────── */
+const RESP_ACTIONS = [
+  { key: 'new', label: 'Mark new', icon: FiInbox },
+  { key: 'reviewing', label: 'Reviewing', icon: FiEye },
+  { key: 'replied', label: 'Replied', icon: FiCheckCircle },
+  { key: 'archived', label: 'Archive', icon: FiArchive },
+];
+function ResponseModal({ it, busy, onStatus, onDelete, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const copyEmail = () => { try { navigator.clipboard.writeText(it.email); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* blocked */ } };
+  return (
+    <Modal title="Response" onClose={onClose} wide>
+      <div className="space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-base font-bold text-slate-900 dark:text-white truncate">{it.name}</p>
+            <a href={`mailto:${it.email}`} className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline break-all">{it.email}</a>
+          </div>
+          <span className={`text-[11px] px-2.5 py-1 rounded-full capitalize shrink-0 ${RESP_STATUS_TINT[it.status] || 'bg-slate-100 text-slate-500'}`}>{it.status}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          {it.company && <p className="text-slate-600 dark:text-slate-300"><span className="text-slate-400">Company:</span> {it.company}</p>}
+          {it.product_name && <p className="text-slate-600 dark:text-slate-300"><span className="text-slate-400">Product:</span> {it.product_name}</p>}
+          <p className="text-slate-600 dark:text-slate-300"><span className="text-slate-400">Source:</span> {it.source}</p>
+          <p className="text-slate-600 dark:text-slate-300"><span className="text-slate-400">Received:</span> {new Date(it.created_at).toLocaleString()}</p>
+        </div>
+        <div>
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">Subject</p>
+          <p className="text-sm text-slate-800 dark:text-slate-100 font-medium">{it.subject}</p>
+        </div>
+        <div>
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">Message</p>
+          <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap leading-relaxed rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-3 max-h-60 overflow-y-auto">{it.message}</p>
+        </div>
+        {/* CRUD action icons */}
+        <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-2">Update status</p>
+          <div className="flex flex-wrap gap-2">
+            {RESP_ACTIONS.map(({ key, label, icon: Icon }) => (
+              <button key={key} disabled={busy || it.status === key} onClick={() => onStatus(key)} title={label}
+                className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl transition-colors disabled:opacity-40 ${it.status === key ? 'bg-indigo-600 text-white' : 'border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                <Icon size={14} /> {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <a href={`mailto:${it.email}?subject=Re: ${encodeURIComponent(it.subject)}`} title="Reply by email"
+              className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 hover:bg-emerald-100"><FiMail size={14} /> Reply</a>
+            <button onClick={copyEmail} title="Copy email address" className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">{copied ? <><FiCheckCircle size={14} className="text-emerald-500" /> Copied</> : <><FiSend size={14} /> Copy email</>}</button>
+            <button disabled={busy} onClick={onDelete} title="Delete response"
+              className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-300 hover:bg-red-100 disabled:opacity-40 ml-auto"><FiTrash2 size={14} /> Delete</button>
+          </div>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

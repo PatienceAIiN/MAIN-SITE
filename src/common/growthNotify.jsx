@@ -85,10 +85,21 @@ const STATUS = {
 export function PresenceControl() {
   const { presence, send, me } = useGrowthHub();
   const [open, setOpen] = useState(false);
+  const ref = useRef(null);
   const mine = (me && presence[me.email]) || 'online';
   const set = (s) => { send({ type: 'setstatus', status: s }); send({ type: 'activity' }); setOpen(false); };
+  // Auto-collapse on any click outside the dropdown (and on Escape) without
+  // intercepting that click — so the click also lands on its real target.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [open]);
   return (
-    <div className="relative">
+    <div className="relative" ref={ref}>
       <button onClick={() => setOpen((v) => !v)} title="Your status"
         className="flex items-center gap-1.5 h-9 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
         <span className={`w-2.5 h-2.5 rounded-full ${(STATUS[mine] || STATUS.online).dot}`} />
@@ -96,8 +107,6 @@ export function PresenceControl() {
         <FiChevronDown size={13} />
       </button>
       {open && (
-        <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div className="absolute right-0 mt-1 w-44 z-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-1.5">
             {['online', 'away', 'offline'].map((s) => (
               <button key={s} onClick={() => set(s)} className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
@@ -106,7 +115,6 @@ export function PresenceControl() {
             ))}
             <p className="text-[10px] text-slate-400 px-2.5 pt-1.5">Auto-away after 15 min idle · offline when you sign out.</p>
           </div>
-        </>
       )}
     </div>
   );
