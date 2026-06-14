@@ -19,9 +19,10 @@ import { TbCurrencyRupee, TbCurrencyDollar, TbCurrencyEuro, TbCurrencyPound } fr
 import { FiMessageCircle, FiMail, FiMenu, FiChevronsLeft, FiChevronsRight } from 'react-icons/fi';
 import GrowthConnect from '../components/GrowthConnect';
 import GrowthMail from '../components/GrowthMail';
+import GrowthWorklog from '../components/GrowthWorklog';
 import { GrowthHubProvider } from '../common/growthHub';
 import { PresenceControl, NotificationCenter, enablePush, disablePush } from '../common/growthNotify';
-import { FiBell } from 'react-icons/fi';
+import { FiBell, FiClock } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import { confirmDialog, Spinner } from '../common/confirm';
 
@@ -1344,6 +1345,7 @@ const NAV = [
   { key: 'mail', label: 'Mail', icon: FiMail },
   { key: 'accounts', label: 'Accounts', icon: FiCreditCard },
   { key: 'hr', label: 'People / HR', icon: FiBriefcase },
+  { key: 'worklog', label: 'Worklog', icon: FiClock },
   { key: 'copilot', label: 'AI Copilot', icon: FiCpu },
   { key: 'tasks', label: 'Tasks', icon: FiCheckSquare },
   { key: 'reports', label: 'Reports', icon: FiFileText },
@@ -1468,6 +1470,7 @@ export default function GrowthPage() {
             {tab === 'mail' && <GrowthMail />}
             {tab === 'accounts' && <Accounts reload={reload} />}
             {tab === 'hr' && <Hr reload={reload} />}
+            {tab === 'worklog' && <GrowthWorklog />}
             {tab === 'copilot' && <Copilot />}
             {tab === 'tasks' && <Tasks />}
             {tab === 'reports' && <Reports />}
