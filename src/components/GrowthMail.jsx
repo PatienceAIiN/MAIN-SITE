@@ -212,6 +212,7 @@ export default function GrowthMail() {
   const [folder, setFolder] = useState('INBOX');
   const [msgs, setMsgs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [nextToken, setNextToken] = useState(null);
   const [q, setQ] = useState('');
@@ -243,6 +244,18 @@ export default function GrowthMail() {
     api(`?list=1&label=${folder}${q ? `&q=${encodeURIComponent(q)}` : ''}`).then((d) => { setMsgs(d.messages || []); setNextToken(d.nextPageToken || null); }).catch(() => setMsgs([])).finally(() => setLoading(false));
   }, [provider, folder, q, api]);
   useEffect(() => { load(); }, [folder, provider]); // eslint-disable-line
+  // Auto-refresh: quietly re-pull the current folder's first page on an interval
+  // (doesn't disturb an open message, selection, or search).
+  useEffect(() => {
+    if (!provider) return undefined;
+    const ms = provider === 'titan' ? 90000 : 45000;
+    const id = setInterval(() => {
+      if (document.hidden) return;
+      setRefreshing(true);
+      api(`?list=1&label=${folder}${q ? `&q=${encodeURIComponent(q)}` : ''}`).then((d) => setMsgs(d.messages || [])).catch(() => {}).finally(() => setRefreshing(false));
+    }, ms);
+    return () => clearInterval(id);
+  }, [provider, folder, q, api]);
   const loadMore = () => {
     if (!nextToken) return; setLoadingMore(true);
     const param = provider === 'titan' ? `offset=${nextToken}` : `pageToken=${nextToken}`;
@@ -304,7 +317,8 @@ export default function GrowthMail() {
           <button title={allSelected ? 'Deselect all' : 'Select all'} onClick={toggleAll} className="p-2 text-slate-400 hover:text-indigo-600">{allSelected ? <FiCheckSquare size={16} /> : <FiSquare size={16} />}</button>
           {sel.size > 0
             ? <><span className="text-xs text-slate-500">{sel.size} selected</span><button className="ml-auto text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950 dark:text-red-300 font-medium" onClick={deleteSelected}><FiTrash2 className="inline -mt-0.5" size={13} /> Delete</button></>
-            : <><div className="relative flex-1"><FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} /><input className={`${input} pl-9`} placeholder="Search mail…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && load()} /></div><button className={btnGhost} onClick={load} title="Refresh"><FiRefreshCw className={loading ? 'animate-spin' : ''} size={15} /></button></>}
+            : <div className="relative flex-1"><FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} /><input className={`${input} pl-9`} placeholder="Search mail…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && load()} /></div>}
+          <button className={btnGhost} onClick={() => load()} title="Refresh inbox" disabled={loading}><FiRefreshCw className={loading || refreshing ? 'animate-spin' : ''} size={15} /></button>
         </div>
         <div className="flex-1 overflow-y-auto">
           {loading && !msgs.length && <div className="grid place-items-center py-16"><Spinner /></div>}
