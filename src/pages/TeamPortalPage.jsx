@@ -1090,10 +1090,18 @@ function DeployControl({ dark = false }) {
     try {
       const d = await fetchJson(`/api/deploy${target ? `?targetId=${target}` : ''}`);
       setData(d);
-      // Only a recently-triggered deploy (last 15 min) counts as "in progress".
-      const running = (d.recent || []).find((r) => r.status === 'triggered' && (Date.now() - new Date(r.created_at).getTime()) < 15 * 60 * 1000);
-      // A brand-new deploy (any source — manual, scheduled, git push) auto-opens
-      // the modal live and clears the previous deploy's logs.
+      // Authoritative source of truth: ask Render directly whether a deploy is
+      // in progress right now — this catches deploys started from the Render
+      // dashboard or via the deploy hook, not just ones we triggered locally.
+      let running = null;
+      try {
+        const a = await fetchJson('/api/deploy/active');
+        if (a?.active) running = { id: a.active.id, status: 'triggered' };
+      } catch { /* fall back to local history below */ }
+      // Fallback: a recently-triggered local deploy (last 15 min).
+      if (!running) running = (d.recent || []).find((r) => r.status === 'triggered' && (Date.now() - new Date(r.created_at).getTime()) < 15 * 60 * 1000) || null;
+      // A brand-new deploy (any source — manual, scheduled, git push, Render
+      // dashboard) auto-surfaces live and clears the previous deploy's logs.
       if (running && running.id !== shownRef.current) {
         shownRef.current = running.id;
         setActive(running.id);
@@ -1106,9 +1114,11 @@ function DeployControl({ dark = false }) {
   useEffect(() => { load(); const i = setInterval(load, 15000); return () => clearInterval(i); /* eslint-disable-next-line */ }, []);
   useEffect(() => { if (open) load(); /* eslint-disable-next-line */ }, [open, target]);
 
-  // Poll live logs/status for the active deploy.
+  // Poll live logs/status for the active deploy — runs whenever a deploy is in
+  // progress (even if the modal is closed) so status stays in sync and the
+  // "Deploying…" indicator clears as soon as Render reports it done.
   useEffect(() => {
-    if (!open || !activeId) return;
+    if (!activeId) return;
     let alive = true;
     const tick = async () => {
       try {
@@ -1122,7 +1132,7 @@ function DeployControl({ dark = false }) {
     const t = setInterval(tick, 3000);
     return () => { alive = false; clearInterval(t); };
     /* eslint-disable-next-line */
-  }, [open, activeId]);
+  }, [activeId]);
 
   useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [logs]);
 
@@ -1167,9 +1177,9 @@ function DeployControl({ dark = false }) {
 
   return (
     <>
-      <button onClick={() => setOpen(true)} title="Deploy"
-        className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors">
-        <FiUploadCloud size={15} /> Deploy
+      <button onClick={() => setOpen(true)} title={activeId ? 'Deployment in progress' : 'Deploy'}
+        className={`flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border transition-colors ${activeId ? 'border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20' : 'border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30'}`}>
+        {activeId ? <><span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" /><span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" /></span> Deploying…</> : <><FiUploadCloud size={15} /> Deploy</>}
       </button>
       {/* Enlarged live-logs modal */}
       {logsBig && (

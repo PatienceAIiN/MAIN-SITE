@@ -284,6 +284,68 @@ export default async function handler(req, res) {
     }
   }
 
+  // GET /api/deploy/active — detect a deploy currently in progress on Render,
+  // no matter how it was started (our deploy hook, a scheduled sweep, OR a
+  // manual deploy from the Render dashboard). For any in-progress deploy not yet
+  // tracked locally, a tracking row is inserted so the existing /logs and
+  // /cancel flows (which key off the local id) work for externally-started
+  // deploys too. This is what keeps the Team portal in sync continuously.
+  if (req.method === 'GET' && req.url?.includes('/active')) {
+    // Render statuses that mean "still running".
+    const IN_PROGRESS = new Set(['created', 'queued', 'build_in_progress', 'update_in_progress', 'pre_deploy_in_progress']);
+    try {
+      // Candidate services the actor may watch: their visible targets, plus the
+      // global service for legacy (no-target) setups when they can deploy.
+      const visible = (await loadTargets()).filter((t) => canSeeTarget(actor, t));
+      const candidates = visible
+        .map((t) => ({ targetId: Number(t.id), svc: svcIdOf(t.deploy_hook), key: t.api_key || RENDER_API_KEY, label: t.label }))
+        .filter((c) => c.svc && c.key);
+      if (!visible.length && SERVICE_ID && RENDER_API_KEY && (actor.admin || actor.allowed)) {
+        candidates.push({ targetId: null, svc: SERVICE_ID, key: RENDER_API_KEY, label: null });
+      }
+      if (!candidates.length) return res.status(200).json({ active: null, hasRenderApi: Boolean(RENDER_API_KEY) });
+
+      for (const cand of candidates) {
+        const r = await renderApi(`/services/${cand.svc}/deploys?limit=1`, {}, cand.key);
+        if (!r.ok) continue;
+        const raw = (await r.json().catch(() => [])) || [];
+        const d = (Array.isArray(raw) ? raw : []).map((x) => x.deploy || x)[0];
+        if (!d || !IN_PROGRESS.has(d.status)) continue;
+
+        // Reconcile with local history: reuse an existing row for this Render
+        // deploy id, otherwise insert one so it's tracked + cancellable.
+        let [local] = await queryDb(`SELECT id, status FROM deploys WHERE deploy_id=$1 LIMIT 1`, [d.id]);
+        if (!local) {
+          const sha = (d.commit?.id || '').slice(0, 7) || null;
+          const msg = (d.commit?.message || '').split('\n')[0]?.slice(0, 300) || null;
+          const by = d.trigger === 'deploy_hook' ? 'deploy hook' : (d.trigger || 'Render dashboard');
+          const ins = await queryDb(
+            `INSERT INTO deploys (triggered_by, status, note, deploy_id, commit_sha, commit_msg, target_id, target_label) VALUES ($1,'triggered','external',$2,$3,$4,$5,$6) RETURNING id`,
+            [by, d.id, sha, msg, cand.targetId, cand.label]
+          );
+          local = { id: ins[0].id, status: 'triggered' };
+          await logAudit('system', 'render', 'deploy_detected', `deploy:${local.id} (${d.trigger || 'external'})`).catch(() => {});
+        } else if (local.status === 'cancelled' || local.status === 'failed') {
+          // A user cancelled locally but Render still reports it running — keep
+          // the local decision; don't resurrect it as active.
+          continue;
+        }
+        return res.status(200).json({
+          active: {
+            id: local.id, deployId: d.id, status: d.status,
+            trigger: d.trigger || 'external', label: cand.label,
+            commit: { sha: (d.commit?.id || '').slice(0, 7), msg: (d.commit?.message || '').split('\n')[0]?.slice(0, 120) },
+            createdAt: d.createdAt || null,
+          },
+          hasRenderApi: true,
+        });
+      }
+      return res.status(200).json({ active: null, hasRenderApi: Boolean(RENDER_API_KEY) });
+    } catch (e) {
+      return res.status(200).json({ active: null, note: e.message });
+    }
+  }
+
   // GET — current schedule + recent history (visible to any authenticated member).
   if (req.method === 'GET') {
     try {

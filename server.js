@@ -412,6 +412,7 @@ app.all('/api/deploy/targets',               wrap(deployHandler));
 app.all('/api/deploy/schedule',              wrap(deployHandler));
 app.all('/api/deploy/cancel',                wrap(deployHandler));
 app.all('/api/deploy/logs',                  wrap(deployHandler));
+app.all('/api/deploy/active',                wrap(deployHandler));
 app.all('/api/deploy',                       wrap(deployHandler));
 app.all('/api/work-log',                     wrap(workLogHandler));
 app.all('/api/notes',                        writeLimit, wrap(notesHandler));
