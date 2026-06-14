@@ -5,6 +5,7 @@
 import { queryDb, isMissingTableError } from './_db.js';
 import { getMemberSession, getExecSession } from './_security.js';
 import { sendEmail } from './_email.js';
+import { sweepDue, setSweepNextDue, invalidateSweep } from './_sweepgate.js';
 
 const actorOf = (req) => getMemberSession(req) || getExecSession(req);
 const SITE = (process.env.PUBLIC_SITE_URL || process.env.SITE_URL || 'https://patienceai.in').replace(/\/$/, '');
@@ -140,6 +141,7 @@ export default async function handler(req, res) {
       );
       const joinUrl = `${SITE}/meet?room=${room}${mode === 'voice' ? '&audio=1' : ''}`;
       await notifyAttendees({ list, organizerEmail: me.email, subjectPrefix: 'Meeting invite', title, description, when: when.toISOString(), durationMins, organizer, joinUrl });
+      await invalidateSweep('meetingReminders'); // ensure the reminder fires on time
       return res.status(200).json({ meeting: rows[0] });
     }
 
@@ -165,6 +167,7 @@ export default async function handler(req, res) {
       );
       const joinUrl = `${SITE}/meet?room=${cur.room}${cur.mode === 'voice' ? '&audio=1' : ''}`;
       if (b.notify !== false) await notifyAttendees({ list, organizerEmail: me.email, subjectPrefix: 'Meeting updated', title, description, when: when.toISOString(), durationMins, organizer, joinUrl, edited: true });
+      await invalidateSweep('meetingReminders'); // reschedule may move the reminder earlier
       return res.status(200).json({ meeting: rows[0] });
     }
 
@@ -184,6 +187,10 @@ export default async function handler(req, res) {
 // Reminder sweep — emails attendees + organizer ~10 min before a meeting starts,
 // once per meeting. Wired to a setInterval in server.js.
 export const runMeetingReminders = async () => {
+  // Gated: skip the DB unless a reminder is due (scheduling a meeting calls
+  // invalidateSweep so a soon-to-start meeting is picked up on the next tick).
+  if (!(await sweepDue('meetingReminders'))) return;
+  let ok = false; let nextMs = null;
   try {
     const due = await queryDb(
       `SELECT * FROM team_meetings
@@ -199,7 +206,12 @@ export const runMeetingReminders = async () => {
       });
       await queryDb(`UPDATE team_meetings SET reminded_at=NOW() WHERE id=$1`, [m.id]).catch(() => {});
     }
+    // Next DB touch = 10 min before the soonest un-reminded future meeting (else idle).
+    const [nxt] = await queryDb(`SELECT MIN(scheduled_at) AS t FROM team_meetings WHERE reminded_at IS NULL AND scheduled_at > NOW()`);
+    nextMs = nxt?.t ? new Date(nxt.t).getTime() - 10 * 60 * 1000 : null;
+    ok = true;
   } catch (e) {
     if (!isMissingTableError(e.message)) console.error('[meeting reminders]', e.message);
   }
+  if (ok) await setSweepNextDue('meetingReminders', nextMs);
 };

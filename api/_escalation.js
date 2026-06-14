@@ -8,6 +8,7 @@ import { queryDb } from './_db.js';
 import { sendEmail } from './_email.js';
 import { notify, logAudit } from './_ticketing.js';
 import { bumpVersion, verScopes } from './_cache.js';
+import { sweepDue, setSweepNextDue } from './_sweepgate.js';
 
 const REMINDER_HOURS = parseFloat(process.env.TICKET_REMINDER_HOURS || '2');
 const SLA_WARNING_HOURS = parseFloat(process.env.TICKET_SLA_WARNING_HOURS || '2');
@@ -36,7 +37,12 @@ const recordEscalation = async (ticket, level, reason, notifiedEmail) => {
 
 export const runEscalationSweep = async () => {
   if (!process.env.DATABASE_URL) return;
+  // Gated: skip the DB unless a reminder/SLA deadline is actually due. The 30-min
+  // backstop cap (in _sweepgate) guarantees newly-created tickets are picked up
+  // within 30 min regardless, so timing stays correct (SLAs are hour-scale).
+  if (!(await sweepDue('escalation'))) return;
   const hoursAgo = (h) => new Date(Date.now() - h * 3600 * 1000).toISOString();
+  let ok = false; let nextMs = null;
 
   try {
     // ── No-response escalation ladder ─────────────────────────────────────
@@ -118,7 +124,21 @@ export const runEscalationSweep = async () => {
       ).catch(() => {});
       await bumpVersion(verScopes.tickets, verScopes.ticket(t.id));
     }
+
+    // Earliest moment any open ticket next becomes actionable (reminder ladder,
+    // SLA warning window opening, or SLA breach). Null = nothing pending → idle.
+    const [nxt] = await queryDb(
+      `SELECT LEAST(
+          MIN(COALESCE(last_reminder_at, created_at)) FILTER (WHERE first_response_at IS NULL AND escalation_level < 3) + (INTERVAL '1 hour' * ${REMINDER_HOURS}),
+          MIN(due_at) FILTER (WHERE sla_warned = false AND due_at IS NOT NULL) - (INTERVAL '1 hour' * ${SLA_WARNING_HOURS}),
+          MIN(due_at) FILTER (WHERE sla_breached = false AND due_at IS NOT NULL)
+        ) AS t
+       FROM support_tickets WHERE status IN ('open','in_progress')`
+    );
+    nextMs = nxt?.t ? new Date(nxt.t).getTime() : null;
+    ok = true;
   } catch (err) {
     console.error('[escalation] sweep failed:', err.message);
   }
+  if (ok) await setSweepNextDue('escalation', nextMs);
 };

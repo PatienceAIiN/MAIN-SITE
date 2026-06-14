@@ -6,6 +6,7 @@
 import { queryDb, isMissingTableError } from './_db.js';
 import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, getMemberSession, hashPassword, verifyPassword } from './_security.js';
 import { logAudit } from './_ticketing.js';
+import { sweepDue, setSweepNextDue, invalidateSweep } from './_sweepgate.js';
 
 // The Render deploy hook MUST come from the environment — never hardcode a live
 // deploy credential in source (anyone who can read the repo could force a prod
@@ -94,6 +95,10 @@ const canSeeTarget = (actor, t) => actor.admin || (targetGrants(t).length ? targ
 
 // Fire any scheduled deploys whose time has arrived. Called from server.js.
 export const sweepDeploys = async () => {
+  // Skip touching Postgres unless a scheduled deploy is actually due (gated via
+  // Redis); scheduling one calls invalidateSweep('deploys') so it's picked up next tick.
+  if (!(await sweepDue('deploys'))) return;
+  let ok = false; let nextMs = null;
   try {
     const due = await queryDb(`SELECT id, target_id FROM deploys WHERE status='scheduled' AND run_at <= NOW() ORDER BY run_at ASC`);
     const targets = await loadTargets();
@@ -109,9 +114,14 @@ export const sweepDeploys = async () => {
         await queryDb(`UPDATE deploys SET status='failed', note=$2, updated_at=NOW() WHERE id=$1`, [row.id, e.message]).catch(() => {});
       }
     }
+    // Next time we need the DB = the soonest still-scheduled deploy (else idle).
+    const [nxt] = await queryDb(`SELECT MIN(run_at) AS t FROM deploys WHERE status='scheduled' AND run_at > NOW()`);
+    nextMs = nxt?.t ? new Date(nxt.t).getTime() : null;
+    ok = true;
   } catch (e) {
     if (!isMissingTableError(e.message)) console.error('[deploy] sweep error:', e.message);
   }
+  if (ok) await setSweepNextDue('deploys', nextMs);
 };
 
 export default async function handler(req, res) {
@@ -425,6 +435,7 @@ export default async function handler(req, res) {
       const rows = await queryDb(`INSERT INTO deploys (triggered_by, status, run_at, note, target_id, target_label) VALUES ($1,'scheduled',$2,$3,$4,$5) RETURNING id, run_at, note`,
         [actor.who, when.toISOString(), (note || '').slice(0, 300), target?.id || null, target?.label || null]);
       await logAudit('team', actor.who, 'deploy_scheduled', `deploy:${rows[0].id}`).catch(() => {});
+      await invalidateSweep('deploys'); // pick up the new schedule on the next tick
       return res.status(200).json({ ok: true, scheduled: rows[0] });
     } catch (e) {
       return res.status(500).json({ error: e.message });
