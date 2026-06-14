@@ -435,15 +435,15 @@ app.post('/api/github-webhook',              wrap(githubWebhookHandler));
 app.all('/api/github',                       wrap(githubHandler));
 app.all('/api/dev-workflow',                 wrap(devWorkflowHandler));
 // Business Growth OS — CRM, pipeline, campaigns, exec metrics & AI copilot.
-app.all('/api/business',                     wrap(businessHandler));
-app.all('/api/business/*',                   wrap(businessHandler));
+app.all('/api/business',                     writeLimit, wrap(businessHandler));
+app.all('/api/business/*',                   writeLimit, wrap(businessHandler));
 // Gmail integration (Growth) — OAuth connect + inbox/sent/drafts/send/draft.
 app.all('/api/gmail/callback',               wrap(gmailHandler));
-app.all('/api/gmail',                        wrap(gmailHandler));
-app.all('/api/gmail/*',                      wrap(gmailHandler));
+app.all('/api/gmail',                        writeLimit, wrap(gmailHandler));
+app.all('/api/gmail/*',                      writeLimit, wrap(gmailHandler));
 // Titan Mail (GoDaddy) — IMAP/SMTP, credential sign-in.
-app.all('/api/titan',                        wrap(titanHandler));
-app.all('/api/titan/*',                      wrap(titanHandler));
+app.all('/api/titan',                        writeLimit, wrap(titanHandler));
+app.all('/api/titan/*',                      writeLimit, wrap(titanHandler));
 // Machine-readable API contract for the ticketing + PEOS surface
 app.get('/api/openapi.json', (req, res) => res.json(openapiSpec));
 

@@ -32,6 +32,20 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true
+    sourcemap: true,
+    chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      output: {
+        // Split heavy third-party libs into their own cacheable chunks so the
+        // main app bundle stays small and first paint is faster.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (id.includes('echarts') || id.includes('zrender')) return 'echarts';
+          if (id.includes('framer-motion')) return 'framer';
+          if (/react-icons|lucide/.test(id)) return 'icons';
+          if (/[\\/](react|react-dom|react-router|scheduler)[\\/]/.test(id)) return 'react-vendor';
+        },
+      },
+    },
   },
 });

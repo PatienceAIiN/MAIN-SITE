@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, Suspense, lazy } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
@@ -7,6 +7,13 @@ const pageVariants = {
   animate: { opacity: 1, y: 0, transition: { duration: 0.28, ease: [0.25, 0.1, 0.25, 1] } },
   exit:    { opacity: 0, y: -8, transition: { duration: 0.18, ease: [0.4, 0, 1, 1] } },
 };
+
+// Lightweight fallback shown while a lazy-loaded portal chunk is fetched.
+const PortalLoader = () => (
+  <div className="min-h-screen grid place-items-center bg-slate-50">
+    <div className="h-9 w-9 rounded-full border-2 border-slate-200 border-t-indigo-500 animate-spin" />
+  </div>
+);
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ContactUs from './components/ContactUs';
@@ -14,14 +21,15 @@ import ProductDemoModal from './components/ProductDemoModal';
 import Home from './pages/Home';
 import FAQPage from './pages/FAQPage';
 import DetailPage from './pages/DetailPage';
-import AdminPage from './pages/AdminPage';
-import GuestMeet from './pages/GuestMeet';
-import SupportExecutivePage from './pages/SupportExecutivePage';
-import TeamPortalPage from './pages/TeamPortalPage';
-import GrowthPage from './pages/GrowthPage';
 import { ConfirmHost } from './common/confirm';
-import ClientTicketPage from './pages/ClientTicketPage';
-import LiveChatPage from './pages/LiveChatPage';
+// Heavy, auth-gated portals — lazy-loaded so they stay out of the marketing bundle.
+const AdminPage = lazy(() => import('./pages/AdminPage'));
+const GuestMeet = lazy(() => import('./pages/GuestMeet'));
+const SupportExecutivePage = lazy(() => import('./pages/SupportExecutivePage'));
+const TeamPortalPage = lazy(() => import('./pages/TeamPortalPage'));
+const GrowthPage = lazy(() => import('./pages/GrowthPage'));
+const ClientTicketPage = lazy(() => import('./pages/ClientTicketPage'));
+const LiveChatPage = lazy(() => import('./pages/LiveChatPage'));
 import Product from './pages/Product';
 import PlatformPage from './pages/PlatformPage';
 import CareersPage from './pages/CareersPage';
@@ -229,19 +237,21 @@ function App() {
     [navigate]
   );
 
-  if (isMeetRoute) return <GuestMeet />;
+  if (isMeetRoute) return <Suspense fallback={<PortalLoader />}><GuestMeet /></Suspense>;
 
   if (isAdminRoute) {
     return (
       <div className="min-h-screen">
         <ConfirmHost />
-        <Routes>
-          <Route path="/admin" element={
-            <AdminPage onAction={handleAction} defaultContent={defaultSiteContent}
-              currentContent={defaultSiteContent} currentContentSource="admin" onContentSaved={() => {}} />
-          } />
-          <Route path="*" element={<Navigate to="/admin" replace />} />
-        </Routes>
+        <Suspense fallback={<PortalLoader />}>
+          <Routes>
+            <Route path="/admin" element={
+              <AdminPage onAction={handleAction} defaultContent={defaultSiteContent}
+                currentContent={defaultSiteContent} currentContentSource="admin" onContentSaved={() => {}} />
+            } />
+            <Route path="*" element={<Navigate to="/admin" replace />} />
+          </Routes>
+        </Suspense>
       </div>
     );
   }
@@ -250,10 +260,12 @@ function App() {
     return (
       <>
         <ConfirmHost />
-        <Routes>
-          <Route path="/support-executive" element={<SupportExecutivePage />} />
-          <Route path="*" element={<Navigate to="/support-executive" replace />} />
-        </Routes>
+        <Suspense fallback={<PortalLoader />}>
+          <Routes>
+            <Route path="/support-executive" element={<SupportExecutivePage />} />
+            <Route path="*" element={<Navigate to="/support-executive" replace />} />
+          </Routes>
+        </Suspense>
       </>
     );
   }
@@ -262,10 +274,12 @@ function App() {
     return (
       <>
         <ConfirmHost />
-        <Routes>
-          <Route path="/team" element={<TeamPortalPage />} />
-          <Route path="*" element={<Navigate to="/team" replace />} />
-        </Routes>
+        <Suspense fallback={<PortalLoader />}>
+          <Routes>
+            <Route path="/team" element={<TeamPortalPage />} />
+            <Route path="*" element={<Navigate to="/team" replace />} />
+          </Routes>
+        </Suspense>
       </>
     );
   }
@@ -274,30 +288,36 @@ function App() {
     return (
       <>
         <ConfirmHost />
-        <Routes>
-          <Route path="/growth" element={<GrowthPage />} />
-          <Route path="*" element={<Navigate to="/growth" replace />} />
-        </Routes>
+        <Suspense fallback={<PortalLoader />}>
+          <Routes>
+            <Route path="/growth" element={<GrowthPage />} />
+            <Route path="*" element={<Navigate to="/growth" replace />} />
+          </Routes>
+        </Suspense>
       </>
     );
   }
 
   if (isMyTicketRoute) {
     return (
-      <Routes>
-        <Route path="/my-ticket" element={<ClientTicketPage />} />
-        <Route path="*" element={<Navigate to="/my-ticket" replace />} />
-      </Routes>
+      <Suspense fallback={<PortalLoader />}>
+        <Routes>
+          <Route path="/my-ticket" element={<ClientTicketPage />} />
+          <Route path="*" element={<Navigate to="/my-ticket" replace />} />
+        </Routes>
+      </Suspense>
     );
   }
 
   if (isLiveChatRoute) {
     return (
-      <Routes>
-        <Route path="/live-chat" element={<LiveChatPage />} />
-        <Route path="/support-chat" element={<LiveChatPage />} />
-        <Route path="*" element={<Navigate to="/live-chat" replace />} />
-      </Routes>
+      <Suspense fallback={<PortalLoader />}>
+        <Routes>
+          <Route path="/live-chat" element={<LiveChatPage />} />
+          <Route path="/support-chat" element={<LiveChatPage />} />
+          <Route path="*" element={<Navigate to="/live-chat" replace />} />
+        </Routes>
+      </Suspense>
     );
   }
 
