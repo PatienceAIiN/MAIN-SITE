@@ -750,47 +750,108 @@ function GroupInfoModal({ chat, colleagues, canManage, presence, meEmail, onClos
   );
 }
 
-/* ── Schedule a meeting for a chat (voice/video) — emails all participants ──── */
+/* ── Schedule a meeting for a chat + per-group schedule history ─────────────── */
+const meetLink = (m) => `${window.location.origin}/meet?room=${encodeURIComponent(m.room || '')}${m.mode === 'voice' ? '&audio=1' : ''}`;
+const fmtIST = (d) => { try { return `${new Date(d).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' })} IST`; } catch { return new Date(d).toLocaleString(); } };
+const joinedList = (p) => String(p || '').split('\n').map((s) => s.trim()).filter(Boolean);
+
 function ScheduleMeetingModal({ chat, me, attendees, title, onClose }) {
+  const [tab, setTab] = useState('new');
   const [form, setForm] = useState({ title: `${title} sync`, when: '', duration: 30, mode: 'video' });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState({ type: '', text: '' });
+  const [history, setHistory] = useState([]);
+  const [loadingHist, setLoadingHist] = useState(false);
+  const [copied, setCopied] = useState(null);
+  const loadHistory = useCallback(() => {
+    if (!chat?.id) return;
+    setLoadingHist(true);
+    fetchJson(`/api/meetings?chatId=${chat.id}`).then((d) => setHistory(d.meetings || [])).catch(() => {}).finally(() => setLoadingHist(false));
+  }, [chat?.id]);
+  useEffect(() => { loadHistory(); }, [loadHistory]);
+
   const submit = async () => {
     if (!form.when) { setMsg({ type: 'err', text: 'Pick a date & time.' }); return; }
     if (!attendees.length) { setMsg({ type: 'err', text: 'This chat has no other participants to invite.' }); return; }
     setBusy(true); setMsg({ type: '', text: '' });
     try {
       await fetchJson('/api/meetings', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: form.title.trim() || `${title} sync`, scheduledAt: new Date(form.when).toISOString(), durationMins: Number(form.duration) || 30, attendees, organizerName: me?.name, mode: form.mode, description: `Scheduled from the “${title}” chat.` }) });
+        body: JSON.stringify({ title: form.title.trim() || `${title} sync`, scheduledAt: new Date(form.when).toISOString(), durationMins: Number(form.duration) || 30, attendees, organizerName: me?.name, mode: form.mode, chatId: chat?.id, description: `Scheduled from the “${title}” chat.` }) });
       setMsg({ type: 'ok', text: `Scheduled — invite emailed to ${attendees.length} participant(s).` });
-      setTimeout(onClose, 1200);
+      setForm({ ...form, when: '' }); loadHistory(); setTab('history');
     } catch (e) { setMsg({ type: 'err', text: e.message }); } finally { setBusy(false); }
   };
+  const join = async (m) => {
+    fetchJson('/api/meetings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'join', id: m.id }) }).then(loadHistory).catch(() => {});
+    window.open(meetLink(m), '_blank', 'noopener');
+  };
+  const copyLink = (m) => { try { navigator.clipboard.writeText(meetLink(m)); setCopied(m.id); setTimeout(() => setCopied(null), 1500); } catch { /* blocked */ } };
+
+  const TabBtn = ({ k, label }) => (
+    <button onClick={() => setTab(k)} className={`flex-1 text-xs font-medium py-2 rounded-lg transition-colors ${tab === k ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{label}</button>
+  );
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-md max-h-[88vh] flex flex-col">
         <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-          <p className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2"><FiCalendar size={14} /> Schedule meeting</p>
+          <p className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2"><FiCalendar size={14} /> Meetings · {title}</p>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><FiX size={16} /></button>
         </div>
-        <div className="p-5 space-y-3">
-          <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Meeting title" className={`${inp} w-full`} />
-          <div className="grid grid-cols-2 gap-2">
-            <label className="text-[11px] text-slate-400">When<input type="datetime-local" value={form.when} onChange={(e) => setForm({ ...form, when: e.target.value })} className={`${inp} w-full`} /></label>
-            <label className="text-[11px] text-slate-400">Duration (min)<input type="number" min="5" value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })} className={`${inp} w-full`} /></label>
+        <div className="px-5 pt-3"><div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1"><TabBtn k="new" label="Schedule" /><TabBtn k="history" label={`History${history.length ? ` (${history.length})` : ''}`} /></div></div>
+
+        {tab === 'new' ? (
+          <div className="p-5 space-y-3 overflow-y-auto">
+            <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Meeting title" className={`${inp} w-full`} />
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-[11px] text-slate-400">When (IST)<input type="datetime-local" value={form.when} onChange={(e) => setForm({ ...form, when: e.target.value })} className={`${inp} w-full`} /></label>
+              <label className="text-[11px] text-slate-400">Duration (min)<input type="number" min="5" value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })} className={`${inp} w-full`} /></label>
+            </div>
+            <div className="flex items-center gap-2">
+              {['video', 'voice'].map((k) => (
+                <button key={k} onClick={() => setForm({ ...form, mode: k })}
+                  className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded-lg border transition-colors ${form.mode === k ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`}>
+                  {k === 'video' ? <FiVideo size={13} /> : <FiPhone size={13} />} {k === 'video' ? 'Video' : 'Voice'}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-slate-400 flex items-center gap-1"><FiClock size={11} /> Invites are emailed (in IST) to all {attendees.length} participant(s) with a join link.</p>
+            {msg.text && <p className={`text-xs ${msg.type === 'ok' ? 'text-emerald-600' : 'text-red-500'}`}>{msg.text}</p>}
+            <button onClick={submit} disabled={busy} className={`${tb} w-full !py-2.5`}>{busy ? 'Scheduling…' : 'Schedule & email invites'}</button>
           </div>
-          <div className="flex items-center gap-2">
-            {['video', 'voice'].map((k) => (
-              <button key={k} onClick={() => setForm({ ...form, mode: k })}
-                className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded-lg border transition-colors ${form.mode === k ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`}>
-                {k === 'video' ? <FiVideo size={13} /> : <FiPhone size={13} />} {k === 'video' ? 'Video' : 'Voice'}
-              </button>
-            ))}
+        ) : (
+          <div className="p-5 overflow-y-auto space-y-3">
+            {loadingHist && !history.length && <p className="text-xs text-slate-400 text-center py-4">Loading…</p>}
+            {!loadingHist && !history.length && <p className="text-xs text-slate-400 text-center py-6">No meetings scheduled for this chat yet.</p>}
+            {history.map((m) => {
+              const joined = joinedList(m.participants);
+              const past = new Date(m.scheduled_at).getTime() < Date.now();
+              return (
+                <div key={m.id} className="rounded-xl border border-slate-200 dark:border-slate-800 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{m.title}</p>
+                      <p className="text-[11px] text-slate-400">{fmtIST(m.scheduled_at)} · {m.duration_mins}min · {m.mode === 'voice' ? 'Voice' : 'Video'}</p>
+                    </div>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${past ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'}`}>{past ? 'Past' : 'Upcoming'}</span>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2 text-[11px] font-mono bg-slate-50 dark:bg-slate-800 rounded-lg px-2 py-1.5">
+                    <span className="flex-1 truncate text-slate-500 dark:text-slate-400">{meetLink(m)}</span>
+                    <button onClick={() => copyLink(m)} className="text-slate-500 dark:text-slate-300 hover:text-indigo-600 shrink-0">{copied === m.id ? <FiCheck size={13} className="text-emerald-500" /> : <FiPaperclip size={13} />}</button>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-slate-400 flex items-center gap-1"><FiUsers size={11} /> {joined.length ? `${joined.length} joined` : 'No one joined yet'}{m.attendees ? ` · ${m.attendees.split(',').filter(Boolean).length} invited` : ''}</p>
+                    <button onClick={() => join(m)} className={`${tb} !py-1.5 inline-flex items-center gap-1`}>{m.mode === 'voice' ? <FiPhone size={12} /> : <FiVideo size={12} />} Join</button>
+                  </div>
+                  {joined.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {joined.map((p, i) => <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300">{p.replace(/\s*<[^>]+>/, '')}</span>)}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-          <p className="text-[11px] text-slate-400 flex items-center gap-1"><FiClock size={11} /> Invites are emailed to all {attendees.length} participant(s) with a join link.</p>
-          {msg.text && <p className={`text-xs ${msg.type === 'ok' ? 'text-emerald-600' : 'text-red-500'}`}>{msg.text}</p>}
-          <button onClick={submit} disabled={busy} className={`${tb} w-full !py-2.5`}>{busy ? 'Scheduling…' : 'Schedule & email invites'}</button>
-        </div>
+        )}
       </div>
     </div>
   );

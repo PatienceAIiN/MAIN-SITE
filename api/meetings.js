@@ -23,10 +23,15 @@ const gcalLink = (title, desc, startISO, durationMins, joinUrl) => {
   return `https://calendar.google.com/calendar/render?${p.toString()}`;
 };
 
+// Always render meeting times in IST so the invite matches what the organiser
+// picked (the server runs in UTC, so an un-zoned toLocaleString would show UTC).
+const IST_TZ = 'Asia/Kolkata';
+const fmtIST = (when, opts) => `${new Date(when).toLocaleString('en-IN', { ...opts, timeZone: IST_TZ })} IST`;
+
 const inviteEmail = ({ title, description, when, durationMins, organizer, joinUrl, edited }) => {
   const safeTitle = esc(title);
   const gcal = gcalLink(title, description, when, durationMins, joinUrl);
-  const whenStr = new Date(when).toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short' });
+  const whenStr = fmtIST(when, { dateStyle: 'full', timeStyle: 'short' });
   const html = `<div style="font-family:sans-serif;max-width:540px;margin:auto;padding:28px">
     <h2 style="color:#0f172a">${edited ? '🔁 Updated: ' : '📅 You are invited: '}${safeTitle}</h2>
     <p style="color:#475569;font-size:15px"><b>When:</b> ${whenStr} (${durationMins} min)<br><b>Organizer:</b> ${esc(organizer)}</p>
@@ -41,7 +46,7 @@ const inviteEmail = ({ title, description, when, durationMins, organizer, joinUr
 
 const notifyAttendees = async ({ list, organizerEmail, subjectPrefix, title, description, when, durationMins, organizer, joinUrl, edited }) => {
   const { html, text } = inviteEmail({ title, description, when, durationMins, organizer, joinUrl, edited });
-  const whenStr = new Date(when).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+  const whenStr = fmtIST(when, { dateStyle: 'medium', timeStyle: 'short' });
   for (const to of list.slice(0, 40)) {
     await sendEmail({ to, subject: `${subjectPrefix}: ${String(title).slice(0, 120)} — ${whenStr}`, html, text }).catch(() => {});
   }
@@ -75,6 +80,17 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
+      // Per-group schedule history: every meeting scheduled from a given chat,
+      // visible to any member of that chat (not just the organizer/attendees).
+      const chatId = parseInt(req.query.chatId, 10);
+      if (chatId) {
+        const chat = (await queryDb(`SELECT members FROM team_chats WHERE id=$1 LIMIT 1`, [chatId]))[0];
+        const members = String(chat?.members || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+        if (!members.includes(me.email.toLowerCase())) return res.status(403).json({ error: 'Not a member of this chat' });
+        const rows = await queryDb(
+          `SELECT * FROM team_meetings WHERE chat_id=$1 ORDER BY scheduled_at DESC LIMIT 200`, [chatId]);
+        return res.status(200).json({ meetings: rows });
+      }
       // Privacy: a user sees only meetings they organized or were invited to —
       // never other people's calls/meetings.
       const rows = await queryDb(
@@ -97,7 +113,20 @@ export default async function handler(req, res) {
         return res.status(200).json({ meeting: rows[0] });
       }
 
-      const { title, description = '', scheduledAt, durationMins = 30, attendees = [], organizerName, mode = 'video' } = b;
+      // Record that the current user joined a meeting (for the schedule history).
+      if (b.action === 'join') {
+        const id = parseInt(b.id, 10);
+        if (!id) return res.status(400).json({ error: 'id required' });
+        const cur = (await queryDb(`SELECT participants FROM team_meetings WHERE id=$1 LIMIT 1`, [id]))[0];
+        if (!cur) return res.status(404).json({ error: 'Meeting not found' });
+        const who = `${me.name || me.email} <${me.email}>`;
+        const have = String(cur.participants || '').split('\n').map((s) => s.trim()).filter(Boolean);
+        if (!have.some((h) => h.toLowerCase().includes(me.email.toLowerCase()))) have.push(who);
+        const rows = await queryDb(`UPDATE team_meetings SET participants=$1 WHERE id=$2 RETURNING *`, [have.join('\n'), id]);
+        return res.status(200).json({ meeting: rows[0] });
+      }
+
+      const { title, description = '', scheduledAt, durationMins = 30, attendees = [], organizerName, mode = 'video', chatId } = b;
       if (!title?.trim() || !scheduledAt) return res.status(400).json({ error: 'title and scheduledAt are required' });
       const when = new Date(scheduledAt);
       if (isNaN(when.getTime())) return res.status(400).json({ error: 'Invalid scheduledAt' });
@@ -105,9 +134,9 @@ export default async function handler(req, res) {
       const organizer = String(organizerName || me.name || me.email).slice(0, 120);
       const room = `mtg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
       const rows = await queryDb(
-        `INSERT INTO team_meetings (title, description, scheduled_at, duration_mins, created_by_email, created_by_name, attendees, room, mode)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-        [String(title).slice(0, 200), String(description).slice(0, 4000), when.toISOString(), parseInt(durationMins, 10) || 30, me.email, organizer, list.join(','), room, mode === 'voice' ? 'voice' : 'video']
+        `INSERT INTO team_meetings (title, description, scheduled_at, duration_mins, created_by_email, created_by_name, attendees, room, mode, chat_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+        [String(title).slice(0, 200), String(description).slice(0, 4000), when.toISOString(), parseInt(durationMins, 10) || 30, me.email, organizer, list.join(','), room, mode === 'voice' ? 'voice' : 'video', parseInt(chatId, 10) || null]
       );
       const joinUrl = `${SITE}/meet?room=${room}${mode === 'voice' ? '&audio=1' : ''}`;
       await notifyAttendees({ list, organizerEmail: me.email, subjectPrefix: 'Meeting invite', title, description, when: when.toISOString(), durationMins, organizer, joinUrl });
