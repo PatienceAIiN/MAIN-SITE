@@ -548,6 +548,46 @@ app.get('/favicon.ico', (req, res) => {
   res.status(404).end();
 });
 
+// Server-rendered legal content so /legal/* URLs are responsive with real text
+// for crawlers and OAuth/app verification (the SPA still hydrates the styled
+// page for users — React replaces #root on mount).
+const LEGAL_BODY = {
+  '/legal/privacy-policy': `<main style="max-width:760px;margin:40px auto;padding:0 20px;font-family:sans-serif;color:#0f172a;line-height:1.6">
+    <h1>Privacy Policy</h1>
+    <p>PATIENCE AI ("we", "us") operates patienceai.in and its internal Growth platform. This policy explains what we collect, why, and your choices. Contact: <a href="mailto:support@patienceai.in">support@patienceai.in</a>.</p>
+    <h2>Information we collect</h2>
+    <p>Account details (name, work email), content you create in the platform (CRM records, messages, meetings), and, if you connect an email account, the email data needed to show and send your mail.</p>
+    <h2>Google user data (Gmail)</h2>
+    <p>If you connect Gmail, we request only the scopes needed to let you read, send, organize and manage your own email inside the platform. We access this data solely to provide those features at your request, do not sell it, do not use it for advertising, and do not use it to train AI models. Our use of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements. You can disconnect at any time from Settings, which removes our stored tokens.</p>
+    <h2>How we use data</h2>
+    <p>To operate the platform's features (CRM, communications, mail, meetings, reporting), secure accounts, and provide support.</p>
+    <h2>Storage & security</h2>
+    <p>Data is stored on managed cloud infrastructure. Credentials and access tokens are encrypted at rest. Access is restricted to authorized staff.</p>
+    <h2>Retention & deletion</h2>
+    <p>We keep data while your account is active. Disconnecting an email account deletes its tokens/credentials. To delete your account or data, email <a href="mailto:support@patienceai.in">support@patienceai.in</a>.</p>
+    <h2>Sharing</h2>
+    <p>We do not sell personal data. We share data only with service providers needed to run the platform, or when required by law.</p>
+    <h2>Your rights</h2>
+    <p>You may request access, correction or deletion of your data by contacting us.</p>
+    <p>Last updated: 2026.</p>
+  </main>`,
+  '/legal/terms-of-service': `<main style="max-width:760px;margin:40px auto;padding:0 20px;font-family:sans-serif;color:#0f172a;line-height:1.6">
+    <h1>Terms of Service</h1>
+    <p>By using PATIENCE AI (patienceai.in) and its Growth platform you agree to these terms. Contact: <a href="mailto:support@patienceai.in">support@patienceai.in</a>.</p>
+    <h2>Use of the service</h2>
+    <p>The platform is provided to authorized users for business use. You are responsible for activity under your account and for any email accounts you connect.</p>
+    <h2>Acceptable use</h2>
+    <p>Do not misuse the service, attempt unauthorized access, or use it to send spam or unlawful content.</p>
+    <h2>Email integrations</h2>
+    <p>When you connect Gmail or Titan Mail, you authorize the platform to access that mailbox to provide email features on your behalf. You can disconnect at any time.</p>
+    <h2>Disclaimer & liability</h2>
+    <p>The service is provided "as is" without warranties. To the extent permitted by law, we are not liable for indirect or consequential damages.</p>
+    <h2>Changes</h2>
+    <p>We may update these terms; continued use constitutes acceptance.</p>
+    <p>Last updated: 2026.</p>
+  </main>`,
+};
+
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api/')) {
     return next();
@@ -560,7 +600,9 @@ app.get('*', (req, res, next) => {
 
   // Strip query params for route matching
   const route = req.path.replace(/\/$/, '') || '/';
-  const html = injectMeta(template, route);
+  let html = injectMeta(template, route);
+  const legal = LEGAL_BODY[route];
+  if (legal) html = html.replace(/(<div id="root"[^>]*>)/, `$1${legal}`);
   res.set('Content-Type', 'text/html');
   res.send(html);
 });
