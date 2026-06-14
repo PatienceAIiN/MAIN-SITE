@@ -144,13 +144,17 @@ function SettingsModal({ open, onClose }) {
   const [notifOn, setNotifOn] = useState(true);
   const [notifMsg, setNotifMsg] = useState('');
   const [notifBusy, setNotifBusy] = useState(false);
+  const [mail, setMail] = useState(null); // { email } | false
 
+  const loadMail = () => fetchJson('/api/gmail?status=1', { credentials: 'include' }).then((d) => setMail(d.connected ? { email: d.email } : false)).catch(() => setMail(false));
   useEffect(() => {
     if (open) {
       setForm({ currentPassword: '', newPassword: '', confirm: '' }); setErr(''); setDone(false); setNotifMsg('');
       fetchJson('/api/team-members/me').then((d) => setNotifOn(d.member?.notificationsEnabled !== false)).catch(() => {});
+      loadMail();
     }
   }, [open]);
+  const disconnectMail = async () => { await fetchJson('/api/gmail', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'disconnect' }) }).catch(() => {}); loadMail(); };
 
   const toggleNotifications = async () => {
     setNotifBusy(true); setNotifMsg('');
@@ -207,6 +211,17 @@ function SettingsModal({ open, onClose }) {
                 </button>
               </div>
               {notifMsg && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">{notifMsg}</p>}
+            </div>
+            {/* Connected mail */}
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+              <p className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2"><FiMail size={13} /> Connected mailbox (Gmail)</p>
+              {mail === null ? <p className="text-[11px] text-slate-400 mt-1">Checking…</p>
+                : mail ? (
+                  <div className="flex items-center justify-between gap-2 mt-2">
+                    <span className="text-xs text-slate-600 dark:text-slate-300 truncate">{mail.email}</span>
+                    <button onClick={disconnectMail} className="text-[11px] px-2.5 py-1 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950 dark:text-red-300 font-medium shrink-0">Disconnect</button>
+                  </div>
+                ) : <p className="text-[11px] text-slate-400 mt-1">No Gmail connected. Connect it from the Mail tab.</p>}
             </div>
             <p className="px-5 pt-4 text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5"><FiLock size={11} /> Change password</p>
             {done ? (

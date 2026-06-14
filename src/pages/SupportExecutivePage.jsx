@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   FiPhone, FiPhoneOff, FiPhoneIncoming, FiMic, FiMicOff, FiSend,
   FiLogOut, FiUser, FiRefreshCw, FiCheck, FiEye, FiEyeOff, FiChevronLeft, FiChevronRight, FiSearch,
-  FiVolume2, FiSmartphone, FiUsers, FiX, FiCornerUpRight, FiSun, FiMoon, FiAlertTriangle, FiTag, FiMessageSquare, FiBell, FiBellOff, FiMail
+  FiVolume2, FiSmartphone, FiUsers, FiX, FiCornerUpRight, FiSun, FiMoon, FiAlertTriangle, FiTag, FiMessageSquare, FiBell, FiBellOff, FiMail, FiSettings
 } from 'react-icons/fi';
 import { TicketModal, TicketsPanel, NotificationBell } from '../components/TicketCenter';
 import GrowthMail from '../components/GrowthMail';
@@ -346,6 +346,10 @@ export default function SupportExecutivePage() {
     try { return window.localStorage.getItem('pa_support_theme') || 'light'; } catch { return 'light'; }
   });
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [mailAcct, setMailAcct] = useState(null);
+  const loadMailAcct = () => fetchJson('/api/gmail?status=1', { credentials: 'include' }).then((d) => setMailAcct(d.connected ? { email: d.email } : false)).catch(() => setMailAcct(false));
+  const disconnectMail = async () => { await fetchJson('/api/gmail', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'disconnect' }) }).catch(() => {}); loadMailAcct(); };
 
   const [sessions,     setSessions]     = useState([]);
   const [selectedId,   setSelectedId]   = useState('');
@@ -1040,6 +1044,21 @@ export default function SupportExecutivePage() {
       {showLogoutDialog && (
         <LogoutConfirmDialog onCancel={() => setShowLogoutDialog(false)} onConfirm={confirmLogout} />
       )}
+      {showSettings && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4" onClick={() => setShowSettings(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white border border-slate-200 shadow-2xl p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-bold text-slate-900 flex items-center gap-2"><FiSettings size={16} /> Settings</h3><button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-slate-600"><FiX /></button></div>
+            <p className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-1"><FiMail size={13} /> Connected mailbox (Gmail)</p>
+            {mailAcct === null ? <p className="text-xs text-slate-400">Checking…</p>
+              : mailAcct ? (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-slate-600 truncate">{mailAcct.email}</span>
+                  <button onClick={disconnectMail} className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 font-medium shrink-0">Disconnect</button>
+                </div>
+              ) : <p className="text-xs text-slate-400">No Gmail connected. Connect it from the Mail tab.</p>}
+          </div>
+        </div>
+      )}
 
       <AnimatePresence>
         {callState && (
@@ -1140,6 +1159,9 @@ export default function SupportExecutivePage() {
           <NotificationBell pushOn={pushOn} onTogglePush={togglepush} />
           <button onClick={loadSessions} className="text-slate-400 hover:text-slate-700 p-2 rounded-lg hover:bg-slate-100 transition-colors">
             <FiRefreshCw size={16} />
+          </button>
+          <button onClick={() => { setShowSettings(true); loadMailAcct(); }} title="Settings" className="text-slate-400 hover:text-slate-700 p-2 rounded-lg hover:bg-slate-100 transition-colors">
+            <FiSettings size={16} />
           </button>
           <button onClick={() => setShowLogoutDialog(true)} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors">
             <FiLogOut size={15} /> Logout
