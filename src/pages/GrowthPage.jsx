@@ -16,7 +16,7 @@ import {
   FiCreditCard, FiBriefcase, FiUserCheck, FiEdit2, FiSettings, FiLock,
 } from 'react-icons/fi';
 import { TbCurrencyRupee, TbCurrencyDollar, TbCurrencyEuro, TbCurrencyPound } from 'react-icons/tb';
-import { FiMessageCircle, FiVideo, FiPhoneOff, FiMail } from 'react-icons/fi';
+import { FiMessageCircle, FiVideo, FiPhoneOff, FiMail, FiMenu, FiChevronsLeft, FiChevronsRight } from 'react-icons/fi';
 import GrowthConnect from '../components/GrowthConnect';
 import GrowthMail from '../components/GrowthMail';
 import { GrowthHubProvider, useGrowthHub, meetUrl } from '../common/growthHub';
@@ -1359,6 +1359,9 @@ export default function GrowthPage() {
   const [dark, setDark] = useState(() => { try { return localStorage.getItem('growth-dark') === '1'; } catch { return false; } });
   const [cur, setCur] = useState(CUR);
   const [showSettings, setShowSettings] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem('growth-collapsed') === '1'; } catch { return false; } });
+  const [mobileNav, setMobileNav] = useState(false);
+  useEffect(() => { try { localStorage.setItem('growth-collapsed', collapsed ? '1' : '0'); } catch { /* ignore */ } }, [collapsed]);
   const [nonce, setNonce] = useState(0); // forces metric reloads after mutations
   const reload = useCallback(() => setNonce((n) => n + 1), []);
 
@@ -1405,37 +1408,46 @@ export default function GrowthPage() {
     <div className={`${dark ? 'dark' : ''}`}>
       <IncomingCallWatcher />
       <div className="h-screen overflow-hidden flex bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
-        {/* Sidebar — fixed, does not scroll with the content */}
-        <aside className="w-60 shrink-0 h-screen sticky top-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hidden md:flex flex-col">
-          <div className="p-5 flex items-center gap-2.5">
-            <div className="grid place-items-center h-9 w-9 rounded-xl bg-indigo-600 text-white"><FiTrendingUp size={18} /></div>
-            <div><div className="font-bold leading-tight text-base">Growth</div><div className="text-[10px] text-slate-400">Patience AI</div></div>
+        {/* Mobile drawer backdrop */}
+        {mobileNav && <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={() => setMobileNav(false)} />}
+        {/* Sidebar — collapsible on desktop, slide-in drawer on mobile */}
+        <aside className={`fixed md:sticky top-0 left-0 z-50 h-screen shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col transition-all duration-200 ${mobileNav ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 ${collapsed ? 'w-16' : 'w-60'}`}>
+          <div className={`p-3 flex items-center ${collapsed ? 'justify-center' : 'gap-2.5'}`}>
+            {!collapsed && (<>
+              <div className="grid place-items-center h-9 w-9 rounded-xl bg-indigo-600 text-white shrink-0"><FiTrendingUp size={18} /></div>
+              <div className="min-w-0"><div className="font-bold leading-tight text-base">Growth</div><div className="text-[10px] text-slate-400">Patience AI</div></div>
+            </>)}
+            <button onClick={() => setCollapsed((c) => !c)} title={collapsed ? 'Expand' : 'Collapse'}
+              className={`hidden md:grid place-items-center h-7 w-7 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 ${collapsed ? '' : 'ml-auto'}`}>
+              {collapsed ? <FiChevronsRight size={16} /> : <FiChevronsLeft size={16} />}
+            </button>
+            <button onClick={() => setMobileNav(false)} className="md:hidden ml-auto h-7 w-7 grid place-items-center text-slate-400"><FiX size={18} /></button>
           </div>
-          <nav className="px-3 space-y-1 flex-1">
+          <nav className="px-2 space-y-1 flex-1 overflow-y-auto">
             {NAV.map((n) => (
-              <button key={n.key} onClick={() => setTab(n.key)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${tab === n.key ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
-                <n.icon size={17} /> {n.label}
-                {tab === n.key && <FiChevronRight className="ml-auto" size={14} />}
+              <button key={n.key} onClick={() => { setTab(n.key); setMobileNav(false); }} title={n.label}
+                className={`w-full flex items-center gap-3 ${collapsed ? 'justify-center px-0' : 'px-3'} py-2.5 rounded-xl text-sm font-medium transition ${tab === n.key ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                <n.icon size={18} className="shrink-0" />
+                {!collapsed && <>{n.label}{tab === n.key && <FiChevronRight className="ml-auto" size={14} />}</>}
               </button>
             ))}
           </nav>
-          <div className="p-3 space-y-1">
-            <button onClick={() => setDark((d) => !d)} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">{dark ? <FiSun /> : <FiMoon />} {dark ? 'Light' : 'Dark'} mode</button>
-            <button onClick={logout} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-slate-500 hover:bg-red-50 hover:text-red-500"><FiLogOut /> Sign out</button>
+          <div className="p-2 border-t border-slate-100 dark:border-slate-800">
+            <button onClick={logout} title="Sign out" className={`w-full flex items-center gap-3 ${collapsed ? 'justify-center px-0' : 'px-3'} py-2 rounded-xl text-sm text-slate-500 hover:bg-red-50 hover:text-red-500`}><FiLogOut size={17} className="shrink-0" /> {!collapsed && 'Sign out'}</button>
           </div>
         </aside>
 
         {/* Main — the only scrollable column */}
         <main className="flex-1 min-w-0 h-screen overflow-y-auto">
-          <header className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
-            <div>
-              <h1 className="text-lg font-bold">Growth</h1>
-              <p className="text-xs text-slate-400">{NAV.find((n) => n.key === tab)?.label} · Patience AI</p>
+          <header className="sticky top-0 z-10 flex items-center justify-between px-4 sm:px-5 py-3 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
+            <div className="flex items-center gap-3 min-w-0">
+              <button className="md:hidden grid place-items-center h-9 w-9 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 shrink-0" onClick={() => setMobileNav(true)} title="Menu"><FiMenu size={18} /></button>
+              <div className="min-w-0">
+                <h1 className="text-lg font-bold leading-tight">Growth</h1>
+                <p className="text-xs text-slate-400 truncate">{NAV.find((n) => n.key === tab)?.label} · Patience AI</p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
-              {/* mobile nav */}
-              <select className={`${input} w-auto md:hidden`} value={tab} onChange={(e) => setTab(e.target.value)}>{NAV.map((n) => <option key={n.key} value={n.key}>{n.label}</option>)}</select>
               {/* animated theme toggle */}
               <button onClick={() => setDark((d) => !d)} title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
                 className="grid place-items-center h-9 w-9 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 overflow-hidden">
