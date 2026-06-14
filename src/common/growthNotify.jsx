@@ -26,15 +26,45 @@ export const chime = () => {
 };
 
 /* ── Web-push enable/disable (browser OS notifications) ───────────────────── */
-const b64ToUint8 = (s) => { const pad = '='.repeat((4 - (s.length % 4)) % 4); const raw = window.atob((s + pad).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from([...raw].map((c) => c.charCodeAt(0))); };
+const b64ToUint8 = (s) => {
+  // Strip whitespace/newlines — a VAPID key pasted into an env var often carries
+  // a trailing newline, which makes atob throw "not correctly encoded".
+  const clean = String(s || '').trim().replace(/\s+/g, '');
+  const pad = '='.repeat((4 - (clean.length % 4)) % 4);
+  const raw = window.atob((clean + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+};
 export async function enablePush() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) throw new Error('Push notifications are not supported in this browser.');
   const perm = await Notification.requestPermission();
   if (perm !== 'granted') throw new Error('Notification permission was denied.');
   const reg = await navigator.serviceWorker.register('/sw.js'); await navigator.serviceWorker.ready;
   const { key } = await fetchJson('/api/colleagues?vapid=1', { credentials: 'include' });
+  if (!key) throw new Error('Push is not configured on the server (missing VAPID key).');
+  const appKey = b64ToUint8(key);
   let sub = await reg.pushManager.getSubscription();
-  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToUint8(key) });
+  // If a stale subscription exists with a DIFFERENT key (e.g. the VAPID key was
+  // rotated), drop it first — resubscribing with a new key over an old one fails
+  // with "Registration failed - push service error".
+  if (sub) {
+    const cur = sub.options?.applicationServerKey ? new Uint8Array(sub.options.applicationServerKey) : null;
+    const same = cur && cur.length === appKey.length && cur.every((b, i) => b === appKey[i]);
+    if (!same) { try { await sub.unsubscribe(); } catch { /* ignore */ } sub = null; }
+  }
+  if (!sub) {
+    try {
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey });
+    } catch (e) {
+      // "Registration failed - push service error" can also come from a broken
+      // existing registration. Clear any leftover sub and retry once.
+      try { const old = await reg.pushManager.getSubscription(); if (old) await old.unsubscribe(); } catch { /* ignore */ }
+      try {
+        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey });
+      } catch {
+        throw new Error('Could not register for push. Reload the page and try again, or check your browser notification settings.' + (e?.message ? ` (${e.message})` : ''));
+      }
+    }
+  }
   await fetchJson('/api/colleagues', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'push_subscribe', subscription: sub.toJSON() }) });
 }
 export async function disablePush() {

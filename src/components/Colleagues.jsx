@@ -67,6 +67,7 @@ export async function enablePushNotifications() {
   const reg = await navigator.serviceWorker.register('/sw.js');
   await navigator.serviceWorker.ready;
   const { key } = await fetchJson('/api/colleagues?vapid=1');
+  if (!key) throw new Error('Push is not configured on the server (missing VAPID key)');
   const appKey = b64ToUint8(key);
   let sub = await reg.pushManager.getSubscription();
   // If a stale subscription exists with a DIFFERENT key (e.g. the VAPID key was
@@ -77,7 +78,20 @@ export async function enablePushNotifications() {
     const same = cur && cur.length === appKey.length && cur.every((b, i) => b === appKey[i]);
     if (!same) { try { await sub.unsubscribe(); } catch { /* ignore */ } sub = null; }
   }
-  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey });
+  if (!sub) {
+    try {
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey });
+    } catch (e) {
+      // A broken/leftover registration also throws "Registration failed - push
+      // service error". Clear it and retry once before giving up.
+      try { const old = await reg.pushManager.getSubscription(); if (old) await old.unsubscribe(); } catch { /* ignore */ }
+      try {
+        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey });
+      } catch {
+        throw new Error('Could not register for push. Reload the page and try again, or check your browser notification settings.' + (e?.message ? ` (${e.message})` : ''));
+      }
+    }
+  }
   await fetchJson('/api/colleagues', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'push_subscribe', subscription: sub.toJSON() }) });
   // Instant confirmation so the user knows push is actually working now.
