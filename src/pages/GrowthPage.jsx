@@ -1436,15 +1436,15 @@ export default function GrowthPage() {
             <div className="flex items-center gap-2">
               {/* mobile nav */}
               <select className={`${input} w-auto md:hidden`} value={tab} onChange={(e) => setTab(e.target.value)}>{NAV.map((n) => <option key={n.key} value={n.key}>{n.label}</option>)}</select>
-              {/* currency selector */}
-              <div className="flex items-center rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                {Object.entries(CURRENCIES).map(([code, c]) => (
-                  <button key={code} onClick={() => changeCurrency(code)} title={code}
-                    className={`grid place-items-center h-9 w-9 ${cur === code ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
-                    <c.icon size={17} />
-                  </button>
-                ))}
-              </div>
+              {/* animated theme toggle */}
+              <button onClick={() => setDark((d) => !d)} title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+                className="grid place-items-center h-9 w-9 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 overflow-hidden">
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.span key={dark ? 'sun' : 'moon'} initial={{ y: 14, rotate: -90, opacity: 0 }} animate={{ y: 0, rotate: 0, opacity: 1 }} exit={{ y: -14, rotate: 90, opacity: 0 }} transition={{ duration: 0.22 }}>
+                    {dark ? <FiSun size={17} className="text-amber-400" /> : <FiMoon size={17} />}
+                  </motion.span>
+                </AnimatePresence>
+              </button>
               <button className={btnGhost} onClick={() => setShowSettings(true)} title="Settings"><FiSettings /></button>
             </div>
           </header>
