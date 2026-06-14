@@ -213,8 +213,9 @@ export default function GrowthMail() {
   const [msgs, setMsgs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [nextToken, setNextToken] = useState(null);
+  const [page, setPage] = useState(0);
+  const [hasNext, setHasNext] = useState(false);
+  const pageTokens = useRef([null]); // token to fetch each page (index = page)
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(null);
   const [compose, setCompose] = useState(null);
@@ -238,29 +239,29 @@ export default function GrowthMail() {
   useEffect(() => { if (provider === 'gmail') api('?labels=1').then((d) => setLabels(d.labels || [])).catch(() => {}); }, [provider, api]);
 
   const folders = provider === 'titan' ? TITAN_FOLDERS : GMAIL_FOLDERS;
-  const load = useCallback(() => {
+  // Page-based: fetch exactly one page (25) using the stored token for that page.
+  const fetchPage = useCallback((idx, quiet) => {
     if (!provider) return;
-    setLoading(true); setOpen(null); setNextToken(null); setSel(new Set());
-    api(`?list=1&label=${folder}${q ? `&q=${encodeURIComponent(q)}` : ''}`).then((d) => { setMsgs(d.messages || []); setNextToken(d.nextPageToken || null); }).catch(() => setMsgs([])).finally(() => setLoading(false));
+    const token = pageTokens.current[idx];
+    const param = token ? (provider === 'titan' ? `&offset=${token}` : `&pageToken=${token}`) : '';
+    if (!quiet) { setLoading(true); setOpen(null); setSel(new Set()); } else setRefreshing(true);
+    api(`?list=1&label=${folder}${q ? `&q=${encodeURIComponent(q)}` : ''}${param}`)
+      .then((d) => { setMsgs(d.messages || []); pageTokens.current[idx + 1] = d.nextPageToken || null; setHasNext(Boolean(d.nextPageToken)); })
+      .catch(() => { if (!quiet) setMsgs([]); })
+      .finally(() => { setLoading(false); setRefreshing(false); });
   }, [provider, folder, q, api]);
-  useEffect(() => { load(); }, [folder, provider]); // eslint-disable-line
-  // Auto-refresh: quietly re-pull the current folder's first page on an interval
-  // (doesn't disturb an open message, selection, or search).
+  // Reset to page 0 whenever folder / provider / search changes.
+  useEffect(() => { pageTokens.current = [null]; setPage(0); fetchPage(0); }, [folder, provider]); // eslint-disable-line
+  const runSearch = () => { pageTokens.current = [null]; setPage(0); fetchPage(0); };
+  const load = () => fetchPage(page); // manual refresh of current page
+  const goPage = (idx) => { setPage(idx); fetchPage(idx); };
+  // Auto-refresh: quietly re-pull the CURRENT page on an interval.
   useEffect(() => {
     if (!provider) return undefined;
     const ms = provider === 'titan' ? 90000 : 45000;
-    const id = setInterval(() => {
-      if (document.hidden) return;
-      setRefreshing(true);
-      api(`?list=1&label=${folder}${q ? `&q=${encodeURIComponent(q)}` : ''}`).then((d) => setMsgs(d.messages || [])).catch(() => {}).finally(() => setRefreshing(false));
-    }, ms);
+    const id = setInterval(() => { if (!document.hidden) fetchPage(page, true); }, ms);
     return () => clearInterval(id);
-  }, [provider, folder, q, api]);
-  const loadMore = () => {
-    if (!nextToken) return; setLoadingMore(true);
-    const param = provider === 'titan' ? `offset=${nextToken}` : `pageToken=${nextToken}`;
-    api(`?list=1&label=${folder}${q ? `&q=${encodeURIComponent(q)}` : ''}&${param}`).then((d) => { setMsgs((c) => [...c, ...(d.messages || [])]); setNextToken(d.nextPageToken || null); }).catch(() => {}).finally(() => setLoadingMore(false));
-  };
+  }, [provider, folder, q, page, fetchPage]);
 
   const connectGmail = async () => { try { const { url } = await mApi('gmail', '?authurl=1'); window.location.href = url; } catch (e) { window.alert(e.message); } };
   const newLabel = async () => { const name = window.prompt('New label name:'); if (!name?.trim()) return; await api('', { method: 'POST', body: JSON.stringify({ action: 'createLabel', name: name.trim() }) }).catch((e) => window.alert(e.message)); api('?labels=1').then((d) => setLabels(d.labels || [])).catch(() => {}); };
@@ -317,8 +318,8 @@ export default function GrowthMail() {
           <button title={allSelected ? 'Deselect all' : 'Select all'} onClick={toggleAll} className="p-2 text-slate-400 hover:text-indigo-600">{allSelected ? <FiCheckSquare size={16} /> : <FiSquare size={16} />}</button>
           {sel.size > 0
             ? <><span className="text-xs text-slate-500">{sel.size} selected</span><button className="ml-auto text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950 dark:text-red-300 font-medium" onClick={deleteSelected}><FiTrash2 className="inline -mt-0.5" size={13} /> Delete</button></>
-            : <div className="relative flex-1"><FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} /><input className={`${input} pl-9`} placeholder="Search mail…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && load()} /></div>}
-          <button className={btnGhost} onClick={() => load()} title="Refresh inbox" disabled={loading}><FiRefreshCw className={loading || refreshing ? 'animate-spin' : ''} size={15} /></button>
+            : <div className="relative flex-1"><FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} /><input className={`${input} pl-9`} placeholder="Search mail…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && runSearch()} /></div>}
+          <button className={btnGhost} onClick={() => load()} title="Refresh" disabled={loading}><FiRefreshCw className={loading || refreshing ? 'animate-spin' : ''} size={15} /></button>
         </div>
         <div className="flex-1 overflow-y-auto">
           {loading && !msgs.length && <div className="grid place-items-center py-16"><Spinner /></div>}
@@ -336,7 +337,12 @@ export default function GrowthMail() {
               </div>
             );
           })}
-          {nextToken && <button onClick={loadMore} disabled={loadingMore} className="w-full py-3 text-sm text-indigo-600 hover:bg-slate-50 dark:hover:bg-slate-800/50">{loadingMore ? 'Loading…' : 'Load more'}</button>}
+        </div>
+        {/* Page navigation (no infinite scroll) */}
+        <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-slate-100 dark:border-slate-800 text-sm">
+          <button disabled={page === 0 || loading} onClick={() => goPage(page - 1)} className="px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-800">‹ Prev</button>
+          <span className="text-xs text-slate-400">Page {page + 1}</span>
+          <button disabled={!hasNext || loading} onClick={() => goPage(page + 1)} className="px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-800">Next ›</button>
         </div>
       </div>
 

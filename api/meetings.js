@@ -75,8 +75,14 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
+      // Privacy: a user sees only meetings they organized or were invited to —
+      // never other people's calls/meetings.
       const rows = await queryDb(
-        `SELECT * FROM team_meetings WHERE scheduled_at > NOW() - interval '1 day' ORDER BY scheduled_at ASC LIMIT 200`
+        `SELECT * FROM team_meetings
+         WHERE scheduled_at > NOW() - interval '1 day'
+           AND (created_by_email = $1 OR (',' || lower(coalesce(attendees, '')) || ',') LIKE $2)
+         ORDER BY scheduled_at ASC LIMIT 200`,
+        [me.email, `%,${me.email.toLowerCase()},%`]
       );
       return res.status(200).json({ meetings: rows });
     }

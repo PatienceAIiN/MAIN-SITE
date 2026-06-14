@@ -9,9 +9,10 @@
 import { WebSocketServer } from 'ws';
 import { getCookieValue, MEMBER_SESSION_COOKIE_NAME, EXEC_SESSION_COOKIE_NAME, verifySessionToken } from './_security.js';
 import { sendPushToEmails } from './_push.js';
+import { sendEmail } from './_email.js';
 import { queryDb } from './_db.js';
 
-const AWAY_AFTER_MS = 10 * 60 * 1000;
+const AWAY_AFTER_MS = 15 * 60 * 1000;
 
 // email -> { name, sockets:Set<ws>, lastActivity:ms, away:boolean }
 const users = new Map();
@@ -22,8 +23,11 @@ const statusOf = (u) => {
   if (!u || u.sockets.size === 0) return 'offline';
   if (u.manualStatus === 'offline') return 'offline';   // user chose "appear offline"
   if (u.busy) return 'busy';   // on a call — others see a chip and can't dial in
-  if (u.manualStatus === 'away' || u.manualStatus === 'online') return u.manualStatus;
-  return Date.now() - u.lastActivity > AWAY_AFTER_MS ? 'away' : 'online';
+  if (u.manualStatus === 'away') return 'away';
+  // Auto-away after 15 min of inactivity — applies even if the user chose
+  // "online" (so an idle tab still shows away to teammates).
+  if (Date.now() - u.lastActivity > AWAY_AFTER_MS) return 'away';
+  return 'online';
 };
 
 // Record a work/presence transition for the admin timesheet. 'busy' counts as
@@ -53,6 +57,31 @@ export const broadcastToEmails = (emails, payload) => {
 };
 
 export const hasActiveSocket = (email) => (users.get(email)?.sockets.size || 0) > 0;
+
+// Unified notify: OS web-push when the user has no tab open, and an email to
+// their notifications address when they are away or offline. Used for new
+// messages, calls/meetings and mail so people are reached when not present.
+export const notifyMembers = async (emails, payload) => {
+  const list = [...new Set((emails || []).filter(Boolean))];
+  if (!list.length) return;
+  const noTab = list.filter((e) => !hasActiveSocket(e));
+  if (noTab.length) sendPushToEmails(noTab, payload);
+  const awayOrOffline = list.filter((e) => ['offline', 'away'].includes(statusOf(users.get(e))));
+  if (!awayOrOffline.length) return;
+  try {
+    const rows = await queryDb(`SELECT email, notify_email, notifications_enabled FROM team_members WHERE email = ANY($1)`, [awayOrOffline]);
+    const url = `https://patienceai.in${payload.url || '/growth'}`;
+    for (const r of rows) {
+      if (r.notifications_enabled === false) continue;
+      const to = (r.notify_email && r.notify_email.trim()) || r.email;
+      await sendEmail({
+        to, subject: payload.title || 'New activity in Growth',
+        html: `<div style="font-family:sans-serif"><p>${String(payload.body || '').replace(/</g, '&lt;')}</p><p><a href="${url}">Open Growth</a></p></div>`,
+        text: `${payload.body || ''}\n${url}`,
+      }).catch(() => {});
+    }
+  } catch { /* notify_email column / table not ready */ }
+};
 
 const broadcastPresence = () => {
   const payload = { type: 'presence', users: presenceSnapshot() };
@@ -147,15 +176,14 @@ export const attachTeamHub = (server) => {
           { type: 'typing', chatId: msg.chatId, email, name: payload.name });
         return;
       }
-      // WebRTC signaling relay: { type:'rtc', to, data:{kind:'offer'|'answer'|'ice'|'hangup'|'decline', ...} }
+      // WebRTC signaling relay: { type:'rtc', to, data:{kind:'offer'|'answer'|'ice'|'hangup'|'decline'|'meet-invite', ...} }
       if (msg.type === 'rtc' && msg.to && msg.data) {
         broadcastToEmails([msg.to], { type: 'rtc', from: email, fromName: payload.name, data: msg.data });
-        // Push-notify an incoming call if the callee has no portal tab open.
-        if (msg.data.kind === 'offer' && !hasActiveSocket(msg.to)) {
-          sendPushToEmails([msg.to], {
-            title: `Incoming ${msg.data.video === false ? 'voice' : 'video'} call`,
-            body: `${payload.name || email} is calling you`,
-            url: '/team', tag: 'call'
+        // Push + email-on-offline for an incoming call / meeting invite.
+        if ((msg.data.kind === 'offer' || msg.data.kind === 'meet-invite')) {
+          notifyMembers([msg.to], {
+            title: msg.data.title || `Incoming ${msg.data.video === false ? 'voice' : 'video'} call`,
+            body: `${payload.name || email} is calling you`, url: '/growth', tag: 'call',
           });
         }
       }

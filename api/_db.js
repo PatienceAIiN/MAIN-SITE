@@ -453,6 +453,8 @@ const SCHEMA_QUERIES = [
   )`,
   `create index if not exists team_chat_files_message_idx on public.team_chat_files (message_id)`,
   `alter table public.team_members add column if not exists notifications_enabled boolean not null default true`,
+  // Address to email for away/offline notifications (defaults to the login email).
+  `alter table public.team_members add column if not exists notify_email text`,
   // GitHub repo grants: NULL/empty = no repos visible. Admin/execs see all.
   `alter table public.team_members add column if not exists allowed_repos text`,
   // Growth OS access — set true only for people invited via Admin → Growth.

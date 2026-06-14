@@ -4,7 +4,7 @@
 // notification toggle.
 import { queryDb, isMissingTableError } from './_db.js';
 import { getMemberSession, getExecSession } from './_security.js';
-import { presenceSnapshot, broadcastToEmails, hasActiveSocket } from './_teamhub.js';
+import { presenceSnapshot, broadcastToEmails, hasActiveSocket, notifyMembers } from './_teamhub.js';
 import { getVapidPublicKey, sendPushToEmails } from './_push.js';
 import { resolvePerms } from './team-members.js';
 import { cached } from './_cache.js';
@@ -207,11 +207,10 @@ export default async function handler(req, res) {
           [chat.id, myEmail, me.name, text.slice(0, 4000), quoted?.id || null, quoted?.name || null, quoted?.text || null]);
         const msg = rows[0];
         notifyChat(chat, { type: 'chat', event: 'new', chatId: chat.id, message: msg });
-        // Web-push colleagues who don't have the portal open right now
-        const recipients = chatMembers(chat).filter((e) => e !== myEmail && !hasActiveSocket(e));
-        sendPushToEmails(recipients, {
-          title: chat.kind === 'group' ? `${me.name} · ${chat.name || 'Group'}` : `${me.name}`,
-          body: text.slice(0, 140), url: '/team', tag: `chat-${chat.id}`
+        // Notify other members: OS push if no tab open + email if away/offline.
+        notifyMembers(chatMembers(chat).filter((e) => e !== myEmail), {
+          title: chat.kind === 'group' ? `${me.name} · ${chat.name || 'Group'}` : `New message from ${me.name}`,
+          body: text.slice(0, 140), url: '/growth', tag: `chat-${chat.id}`,
         });
         return res.status(200).json({ message: msg });
       }
@@ -250,10 +249,17 @@ export default async function handler(req, res) {
       }
 
       if (action === 'settings') {
-        const { notificationsEnabled } = req.body;
-        await queryDb(`UPDATE team_members SET notifications_enabled=$1, updated_at=NOW() WHERE email=$2`,
-          [Boolean(notificationsEnabled), myEmail]);
-        return res.status(200).json({ ok: true, notificationsEnabled: Boolean(notificationsEnabled) });
+        const { notificationsEnabled, notifyEmail } = req.body;
+        await queryDb(
+          `UPDATE team_members SET notifications_enabled=COALESCE($1,notifications_enabled),
+             notify_email=CASE WHEN $2::text IS NULL THEN notify_email ELSE NULLIF($2,'') END, updated_at=NOW() WHERE email=$3`,
+          [notificationsEnabled == null ? null : Boolean(notificationsEnabled), notifyEmail == null ? null : String(notifyEmail).trim(), myEmail]
+        );
+        return res.status(200).json({ ok: true });
+      }
+      if (action === 'getsettings') {
+        const [row] = await queryDb(`SELECT notifications_enabled, notify_email FROM team_members WHERE email=$1`, [myEmail]).catch(() => []);
+        return res.status(200).json({ notificationsEnabled: row ? row.notifications_enabled !== false : true, notifyEmail: row?.notify_email || '' });
       }
 
       return res.status(400).json({ error: 'Unknown action' });

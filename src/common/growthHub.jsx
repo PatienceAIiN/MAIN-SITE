@@ -3,15 +3,18 @@
 // work on every tab — not just inside the Connect tab. Components subscribe to
 // raw events; presence is exposed as live state.
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import { fetchJson } from './fetchJson';
 
 const HubCtx = createContext(null);
-export const useGrowthHub = () => useContext(HubCtx) || { presence: {}, send: () => {}, subscribe: () => () => {} };
+export const useGrowthHub = () => useContext(HubCtx) || { presence: {}, send: () => {}, subscribe: () => () => {}, me: null };
 export const meetUrl = (room) => `${window.location.origin}/meet?room=${room}`;
 
 export function GrowthHubProvider({ children }) {
   const wsRef = useRef(null);
   const subs = useRef(new Set());
   const [presence, setPresence] = useState({});
+  const [me, setMe] = useState(null);
+  useEffect(() => { fetchJson('/api/team-members/me', { credentials: 'include' }).then((d) => setMe(d.member)).catch(() => {}); }, []);
 
   useEffect(() => {
     let alive = true, retry;
@@ -39,5 +42,5 @@ export function GrowthHubProvider({ children }) {
   const send = useCallback((o) => { if (wsRef.current?.readyState === 1) wsRef.current.send(JSON.stringify(o)); }, []);
   const subscribe = useCallback((fn) => { subs.current.add(fn); return () => subs.current.delete(fn); }, []);
 
-  return <HubCtx.Provider value={{ presence, send, subscribe }}>{children}</HubCtx.Provider>;
+  return <HubCtx.Provider value={{ presence, send, subscribe, me }}>{children}</HubCtx.Provider>;
 }

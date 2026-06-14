@@ -16,10 +16,12 @@ import {
   FiCreditCard, FiBriefcase, FiUserCheck, FiEdit2, FiSettings, FiLock,
 } from 'react-icons/fi';
 import { TbCurrencyRupee, TbCurrencyDollar, TbCurrencyEuro, TbCurrencyPound } from 'react-icons/tb';
-import { FiMessageCircle, FiVideo, FiPhoneOff, FiMail, FiMenu, FiChevronsLeft, FiChevronsRight } from 'react-icons/fi';
+import { FiMessageCircle, FiMail, FiMenu, FiChevronsLeft, FiChevronsRight } from 'react-icons/fi';
 import GrowthConnect from '../components/GrowthConnect';
 import GrowthMail from '../components/GrowthMail';
-import { GrowthHubProvider, useGrowthHub, meetUrl } from '../common/growthHub';
+import { GrowthHubProvider } from '../common/growthHub';
+import { PresenceControl, NotificationCenter, enablePush, disablePush } from '../common/growthNotify';
+import { FiBell } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import { confirmDialog, Spinner } from '../common/confirm';
 
@@ -200,6 +202,19 @@ function SettingsModal({ onClose, currency, setCurrency }) {
   const [done, setDone] = useState(false);
   const [saving, setSaving] = useState(false);
   const [mail, setMail] = useState(null); // { provider, email } | false
+  const [notif, setNotif] = useState({ enabled: true, email: '' });
+  const [notifBusy, setNotifBusy] = useState(false);
+  useEffect(() => { fetchJson('/api/colleagues?getsettings=1', { credentials: 'include' }).then((d) => setNotif({ enabled: d.notificationsEnabled !== false, email: d.notifyEmail || '' })).catch(() => {}); }, []);
+  const togglePush = async () => {
+    setNotifBusy(true);
+    const next = !notif.enabled;
+    try {
+      if (next) await enablePush(); else await disablePush();
+      await fetchJson('/api/colleagues', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'settings', notificationsEnabled: next }) });
+      setNotif((n) => ({ ...n, enabled: next }));
+    } catch (ex) { window.alert(ex.message); } finally { setNotifBusy(false); }
+  };
+  const saveNotifyEmail = async () => { await fetchJson('/api/colleagues', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'settings', notifyEmail: notif.email }) }).catch(() => {}); };
   const loadMail = () => Promise.all([
     fetchJson('/api/gmail?status=1', { credentials: 'include' }).catch(() => ({})),
     fetchJson('/api/titan?status=1', { credentials: 'include' }).catch(() => ({})),
@@ -236,6 +251,18 @@ function SettingsModal({ onClose, currency, setCurrency }) {
               </button>
             ))}
           </div>
+        </div>
+        <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
+          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2 flex items-center gap-2"><FiBell size={15} /> Notifications</h4>
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <span className="text-sm text-slate-600 dark:text-slate-300">Push notifications (new mail, messages &amp; calls)</span>
+            <button onClick={togglePush} disabled={notifBusy} className={`relative h-6 w-11 rounded-full transition ${notif.enabled ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'}`}>
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${notif.enabled ? 'left-[22px]' : 'left-0.5'}`} />
+            </button>
+          </div>
+          <label className="text-xs text-slate-500">Email for away/offline alerts
+            <input className={`${input} mt-1`} type="email" placeholder="you@company.com (defaults to login email)" value={notif.email} onChange={(e) => setNotif((n) => ({ ...n, email: e.target.value }))} onBlur={saveNotifyEmail} />
+          </label>
         </div>
         <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
           <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2 flex items-center gap-2"><FiMail size={15} /> Connected mailbox</h4>
@@ -1307,35 +1334,6 @@ function EmployeeForm({ initial, onClose, onSave }) {
   );
 }
 
-/* ── Portal-wide incoming call/meeting popup (works on every tab) ─────────── */
-function IncomingCallWatcher() {
-  const { subscribe } = useGrowthHub();
-  const [calls, setCalls] = useState([]); // queue of {id, room, fromName, title}
-  useEffect(() => subscribe((m) => {
-    if (m.type === 'rtc' && m.data?.kind === 'meet-invite') {
-      setCalls((c) => c.some((x) => x.room === m.data.room) ? c : [...c, { id: `${m.data.room}-${m.from}`, room: m.data.room, fromName: m.fromName || m.from, title: m.data.title }]);
-    }
-  }), [subscribe]);
-  const dismiss = (id) => setCalls((c) => c.filter((x) => x.id !== id));
-  if (!calls.length) return null;
-  return (
-    <div className="fixed bottom-5 right-5 z-[80] space-y-2">
-      {calls.map((c) => (
-        <div key={c.id} className="w-80 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl p-4 animate-[pulse_2s_ease-in-out_1]">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="grid place-items-center h-9 w-9 rounded-full bg-emerald-100 text-emerald-600"><FiVideo /></span>
-            <div className="min-w-0"><div className="font-semibold text-slate-800 dark:text-slate-100 truncate">{c.fromName}</div><div className="text-xs text-slate-400 truncate">{c.title || 'is calling you…'}</div></div>
-          </div>
-          <div className="flex gap-2 mt-3">
-            <button className={`${btnPrimary} flex-1 justify-center`} onClick={() => { window.open(meetUrl(c.room), '_blank', 'noopener'); dismiss(c.id); }}><FiVideo size={14} /> Join</button>
-            <button className={`${btnGhost} flex-1 justify-center`} onClick={() => dismiss(c.id)}><FiPhoneOff size={14} /> Dismiss</button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 /* ── Shell ────────────────────────────────────────────────────────────────── */
 const NAV = [
   { key: 'command', label: 'Command Center', icon: FiGrid },
@@ -1406,7 +1404,7 @@ export default function GrowthPage() {
   return (
     <GrowthHubProvider>
     <div className={`${dark ? 'dark' : ''}`}>
-      <IncomingCallWatcher />
+      <NotificationCenter />
       <div className="h-screen overflow-hidden flex bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
         {/* Mobile drawer backdrop */}
         {mobileNav && <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={() => setMobileNav(false)} />}
@@ -1448,6 +1446,7 @@ export default function GrowthPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <PresenceControl />
               {/* animated theme toggle */}
               <button onClick={() => setDark((d) => !d)} title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
                 className="grid place-items-center h-9 w-9 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 overflow-hidden">
