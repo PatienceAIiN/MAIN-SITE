@@ -547,6 +547,34 @@ async function leaves(method, req) {
   throw httpErr(405, 'Method not allowed');
 }
 
+// ── Responses: website form submissions (contact / sales / demo / careers…) ──
+// Read-and-manage from the Growth portal. Same table the admin Responses tab
+// uses (contact_submissions); Growth members manage status / delete here.
+const RESPONSE_STATUSES = ['new', 'reviewing', 'replied', 'archived'];
+async function responses(method, req) {
+  if (method === 'GET') {
+    try {
+      const rows = await queryDb(`select * from contact_submissions order by created_at desc limit 1000`);
+      return { items: rows };
+    } catch (e) { if (isMissingTableError(e.message)) return { items: [] }; throw e; }
+  }
+  const b = req.body || {};
+  if (method === 'PATCH') {
+    const id = parseInt(req.query.id || b.id, 10);
+    if (!id) throw httpErr(400, 'id required');
+    const status = oneOf(b.status, RESPONSE_STATUSES, 'new');
+    const rows = await queryDb(`update contact_submissions set status=$1, updated_at=now() where id=$2 returning *`, [status, id]);
+    return { item: rows[0] || null };
+  }
+  if (method === 'DELETE') {
+    const id = parseInt(req.query.id || b.id, 10);
+    if (!id) throw httpErr(400, 'id required');
+    await queryDb(`delete from contact_submissions where id=$1`, [id]);
+    return { ok: true };
+  }
+  throw httpErr(405, 'Method not allowed');
+}
+
 // Pair presence_log online→away/offline transitions into work sessions.
 const sessionize = (rows) => {
   let openAt = null; const sessions = []; let totalMins = 0;
@@ -942,6 +970,7 @@ export default async function handler(req, res) {
       case 'expenses': out = await expenses(req.method, req); break;
       case 'employees': out = await employees(req.method, req); break;
       case 'leaves': out = await leaves(req.method, req); break;
+      case 'responses': out = await responses(req.method, req); break;
       case 'worklog': out = await worklog(req); break;
       case 'metrics': out = await computeMetrics(); break;
       case 'ai': out = await aiCopilot(req); break;

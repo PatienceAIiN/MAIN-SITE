@@ -13,7 +13,7 @@ import {
   FiLogOut, FiMoon, FiSun, FiPlus, FiX, FiSearch, FiRefreshCw, FiSend, FiTrash2,
   FiDollarSign, FiActivity, FiAlertTriangle, FiArrowRight, FiDownload, FiZap,
   FiEye, FiEyeOff, FiHeart, FiPieChart, FiChevronRight,
-  FiCreditCard, FiBriefcase, FiUserCheck, FiEdit2, FiSettings, FiLock,
+  FiCreditCard, FiBriefcase, FiUserCheck, FiEdit2, FiSettings, FiLock, FiInbox,
 } from 'react-icons/fi';
 import { TbCurrencyRupee, TbCurrencyDollar, TbCurrencyEuro, TbCurrencyPound } from 'react-icons/tb';
 import { FiMessageCircle, FiMail, FiMenu, FiChevronsLeft, FiChevronsRight } from 'react-icons/fi';
@@ -1345,10 +1345,116 @@ function EmployeeForm({ initial, onClose, onSave }) {
   );
 }
 
+/* ── Responses: website form submissions grouped by type ─────────────────── */
+const RESPONSE_GROUPS = [
+  { key: 'contact', label: 'Contact Us', match: (s) => s === 'contact' },
+  { key: 'sales', label: 'Sales Enquiries', match: (s) => s === 'sales' || s === 'chatbot' },
+  { key: 'product-demo', label: 'Product Demo Requests', match: (s) => s === 'product-demo' },
+  { key: 'careers', label: 'Job Inquiries', match: (s) => s === 'careers' || s === 'job-inquiry-chat' },
+  { key: 'newsletter', label: 'Newsletter Signups', match: (s) => s === 'newsletter' },
+];
+const RESP_STATUS_TINT = {
+  new: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300',
+  reviewing: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+  replied: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+  archived: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
+};
+function Responses() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState({});
+  const [busyId, setBusyId] = useState(null);
+  const load = useCallback(() => {
+    setLoading(true);
+    api('/responses').then((r) => setItems(r.items || [])).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+  useEffect(() => { load(); const i = setInterval(load, 30000); return () => clearInterval(i); }, [load]);
+
+  const setStatus = async (id, status) => {
+    setBusyId(id);
+    try { const r = await api('/responses', { method: 'PATCH', body: JSON.stringify({ id, status }) }); if (r.item) setItems((c) => c.map((it) => (it.id === r.item.id ? r.item : it))); }
+    finally { setBusyId(null); }
+  };
+  const remove = async (id) => {
+    if (!(await confirmDialog({ title: 'Delete response', message: 'Permanently delete this submission?', confirmText: 'Delete' }))) return;
+    setBusyId(id);
+    try { await api(`/responses?id=${id}`, { method: 'DELETE' }); setItems((c) => c.filter((it) => it.id !== id)); }
+    finally { setBusyId(null); }
+  };
+
+  const needle = q.trim().toLowerCase();
+  const visible = items.filter((it) => !needle || JSON.stringify(it).toLowerCase().includes(needle));
+  const grouped = RESPONSE_GROUPS.map((g) => ({ ...g, rows: visible.filter((it) => g.match((it.source || '').toLowerCase())) }));
+  const other = visible.filter((it) => !RESPONSE_GROUPS.some((g) => g.match((it.source || '').toLowerCase())));
+  if (other.length) grouped.push({ key: 'other', label: 'Other', rows: other });
+
+  return (
+    <div className="space-y-4 max-w-4xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white">Responses</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Every website form submission — Contact Us, Sales, Product Demo, Job Inquiries and more — grouped by type. Auto-refreshes every 30s.</p>
+        </div>
+        <button onClick={load} className="text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 self-start shrink-0">{loading ? 'Loading…' : 'Refresh'}</button>
+      </div>
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search across all responses…" className={input} />
+      <div className="space-y-4">
+        {grouped.map((g) => (
+          <div key={g.key} className={`${card} overflow-hidden`}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">{g.label}</h3>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">{g.rows.length}</span>
+            </div>
+            {!g.rows.length ? (
+              <p className="text-slate-400 text-xs p-4">No {g.label.toLowerCase()} yet.</p>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                {g.rows.map((it) => (
+                  <div key={it.id} className="px-4 py-3 text-sm hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <div className="flex items-start justify-between gap-3 cursor-pointer" onClick={() => setOpen((o) => ({ ...o, [it.id]: !o[it.id] }))}>
+                      <div className="min-w-0">
+                        <p className="font-medium text-slate-800 dark:text-slate-100 truncate">{it.name} <span className="text-slate-400 font-normal">· {it.email}</span></p>
+                        <p className="text-slate-500 dark:text-slate-400 truncate">{it.subject}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full capitalize ${RESP_STATUS_TINT[it.status] || 'bg-slate-100 text-slate-500'}`}>{it.status}</span>
+                        <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">{new Date(it.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    {open[it.id] && (
+                      <div className="mt-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-3 space-y-2">
+                        {it.company && <p className="text-slate-600 dark:text-slate-300 text-xs"><span className="text-slate-400">Company:</span> {it.company}</p>}
+                        {it.product_name && <p className="text-slate-600 dark:text-slate-300 text-xs"><span className="text-slate-400">Product:</span> {it.product_name}</p>}
+                        <p className="text-slate-400 text-[10px] uppercase tracking-wider">Message</p>
+                        <p className="text-slate-700 dark:text-slate-200 whitespace-pre-wrap leading-relaxed text-xs">{it.message}</p>
+                        <p className="text-slate-400 text-[10px] font-mono">{new Date(it.created_at).toLocaleString()} · source: {it.source}</p>
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                          {['new', 'reviewing', 'replied', 'archived'].map((st) => (
+                            <button key={st} disabled={busyId === it.id || it.status === st} onClick={() => setStatus(it.id, st)}
+                              className={`text-[10px] px-2.5 py-1 rounded-lg capitalize transition-colors disabled:opacity-40 ${it.status === st ? 'bg-indigo-600 text-white' : 'border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{st}</button>
+                          ))}
+                          <a href={`mailto:${it.email}?subject=Re: ${encodeURIComponent(it.subject)}`} className="text-[10px] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">Reply</a>
+                          <button disabled={busyId === it.id} onClick={() => remove(it.id)} className="text-[10px] px-2.5 py-1 rounded-lg bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-300 hover:bg-red-100 disabled:opacity-40 ml-auto">Delete</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ── Shell ────────────────────────────────────────────────────────────────── */
 const NAV = [
   { key: 'command', label: 'Command Center', icon: FiGrid },
   { key: 'crm', label: 'CRM', icon: FiUsers },
+  { key: 'responses', label: 'Responses', icon: FiInbox },
   { key: 'pipeline', label: 'Pipeline', icon: FiTarget },
   { key: 'campaigns', label: 'Campaigns', icon: FiTrendingUp },
   { key: 'connect', label: 'Connect', icon: FiMessageCircle },
@@ -1474,6 +1580,7 @@ export default function GrowthPage() {
           <div className="p-5" key={`${cur}-${tab === 'command' ? nonce : ''}`}>
             {tab === 'command' && <CommandCenter key={nonce} dark={dark} />}
             {tab === 'crm' && <Crm reload={reload} />}
+            {tab === 'responses' && <Responses />}
             {tab === 'pipeline' && <Pipeline reload={reload} />}
             {tab === 'campaigns' && <Campaigns />}
             {tab === 'connect' && <GrowthConnect />}
