@@ -325,8 +325,22 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
   const [chatOpen, setChatOpen] = useState(false);    // right sidebar
   const [copied, setCopied] = useState(false);
   const [seenChat, setSeenChat] = useState(0);        // for the unread chat badge
+  const [note, setNote] = useState({ title: '', body: '' });
+  const noteRef = useRef(note); noteRef.current = note;
+  const roomRef = useRef(room); roomRef.current = room;
   const peersRef = useRef(peers); peersRef.current = peers;
-  useEffect(() => { setMin(false); setPartsOpen(false); setActive(null); setNotesOpen(false); setChatOpen(false); setSeenChat(0); setAddOpen(false); }, [room?.id]);
+  useEffect(() => { setMin(false); setPartsOpen(false); setActive(null); setNotesOpen(false); setChatOpen(false); setSeenChat(0); setAddOpen(false); setNote({ title: '', body: '' }); }, [room?.id]);
+  // Leaving the call: if notes were taken, save + email them as the Minutes of
+  // Meeting to everyone in the room (saved to each member's Notes too), then drop.
+  const endWithMom = useCallback(() => {
+    const r = roomRef.current; const n = noteRef.current;
+    if (n.body.trim() || n.title.trim()) {
+      const emails = [...new Set([...(r?.members || []), ...Object.keys(peersRef.current || {}), me?.email].filter(Boolean))];
+      fetchJson('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: n.title.trim() || `MoM — ${r?.name || 'Group meeting'}`, body: n.body, kind: 'mom', emailTo: emails }) }).catch(() => {});
+    }
+    leave();
+  }, [leave, me]);
   useEffect(() => { if (chatOpen) setSeenChat(chat.length); }, [chatOpen, chat.length]);
   const unread = Math.max(0, (chat?.length || 0) - seenChat);
   const copyLink = () => { try { navigator.clipboard.writeText(`${window.location.origin}/meet?room=${room.id}`); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* clipboard blocked */ } };
@@ -383,7 +397,7 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
     return (
       <MiniCall stream={fStream} name={fName} mine={!fEmail} speaking={fEmail ? active === fEmail : !muted}
         micMuted={fEmail ? peerMuted[fEmail] : muted} count={tiles.length + 1}
-        onExpand={() => setMin(false)} onLeave={leave} />
+        onExpand={() => setMin(false)} onLeave={endWithMom} />
     );
   }
   return (
@@ -424,7 +438,7 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
 
       {/* Middle row: notes (left) · stage · chat (right) */}
       <div className="flex-1 min-h-0 flex gap-2 py-2">
-        {notesOpen && <NotesPanel onClose={() => setNotesOpen(false)} />}
+        {notesOpen && <NotesPanel note={note} setNote={setNote} room={room} onClose={() => setNotesOpen(false)} />}
         <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2">
         {focus ? (
           <>
@@ -452,7 +466,7 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
         <button onClick={toggleCam} className={`${rb} ${camOff ? 'bg-amber-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={camOff ? 'Camera on' : 'Camera off'}>{camOff ? <FiVideoOff size={17} /> : <FiVideo size={17} />}</button>
         <button onClick={toggleShare} className={`${rb} ${sharing ? 'bg-indigo-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={sharing ? 'Stop sharing' : 'Share screen'}><FiMonitor size={17} /></button>
         <button onClick={() => setMin(true)} className={`${rb} bg-slate-700 hover:bg-slate-600`} title="Minimize"><FiMinimize2 size={16} /></button>
-        <button onClick={leave} className={`${rb} bg-red-600 hover:bg-red-700`} title="Leave"><FiPhoneOff size={17} /></button>
+        <button onClick={endWithMom} className={`${rb} bg-red-600 hover:bg-red-700`} title="Leave"><FiPhoneOff size={17} /></button>
       </div>
     </div>
   );
@@ -460,28 +474,29 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
 
 // Left sidebar: jot notes during the call; Save persists to the team Notes tab
 // (silently no-ops for guests who aren't authenticated).
-function NotesPanel({ onClose }) {
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
+function NotesPanel({ note, setNote, room, onClose }) {
+  const { title, body } = note;
   const [status, setStatus] = useState('');
   const save = async () => {
     if (!body.trim() && !title.trim()) return;
     setStatus('saving');
     try {
-      await fetchJson('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title.trim() || 'Call notes', body, kind: 'note' }) });
+      const emails = [...new Set([...(room?.members || [])].filter(Boolean))];
+      await fetchJson('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title.trim() || `MoM — ${room?.name || 'Group meeting'}`, body, kind: 'mom', emailTo: emails }) });
       setStatus('saved'); setTimeout(() => setStatus(''), 2000);
     } catch { setStatus('error'); setTimeout(() => setStatus(''), 2500); }
   };
   return (
     <div className="w-72 max-w-[42vw] shrink-0 bg-slate-900/95 border border-white/10 rounded-2xl flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
-        <span className="text-white text-sm font-semibold flex items-center gap-1.5"><FiFileText size={14} /> Notes</span>
+        <span className="text-white text-sm font-semibold flex items-center gap-1.5"><FiFileText size={14} /> Meeting notes</span>
         <button onClick={onClose} className="text-white/60 hover:text-white"><FiX size={16} /></button>
       </div>
       <div className="p-3 flex flex-col gap-2 flex-1 min-h-0">
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className="rounded-lg bg-slate-800 border border-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-        <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Jot down notes during the call…" className="flex-1 min-h-0 resize-none rounded-lg bg-slate-800 border border-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-        <button onClick={save} disabled={status === 'saving'} className="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 disabled:opacity-50">{status === 'saved' ? 'Saved ✓' : status === 'error' ? 'Save failed' : status === 'saving' ? 'Saving…' : 'Save to Notes'}</button>
+        <input value={title} onChange={(e) => setNote((n) => ({ ...n, title: e.target.value }))} placeholder="Title" className="rounded-lg bg-slate-800 border border-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+        <textarea value={body} onChange={(e) => setNote((n) => ({ ...n, body: e.target.value }))} placeholder="Jot the minutes here… emailed to everyone in the call & saved to Notes when you leave." className="flex-1 min-h-0 resize-none rounded-lg bg-slate-800 border border-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+        <button onClick={save} disabled={status === 'saving'} className="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 disabled:opacity-50">{status === 'saved' ? 'Saved & emailed ✓' : status === 'error' ? 'Save failed' : status === 'saving' ? 'Saving…' : 'Save & email MoM now'}</button>
+        <p className="text-[10px] text-white/40 text-center">Also auto-saved & emailed when you leave the call.</p>
       </div>
     </div>
   );
