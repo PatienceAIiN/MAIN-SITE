@@ -10,8 +10,13 @@ import MailComposer from 'nodemailer/lib/mail-composer/index.js';
 import { queryDb, isMissingTableError } from './_db.js';
 import { getMemberSession } from './_security.js';
 
-const IMAP = { host: 'imap.titan.email', port: 993, secure: true };
-const SMTP = { host: 'smtp.titan.email', port: 465, secure: true };
+// GoDaddy resells Titan on two host families — detect which one the mailbox
+// uses at connect time and store it. (titan.email = native Titan; secureserver
+// = GoDaddy "Professional Email".)
+const HOST_CANDIDATES = [
+  { imap: 'imap.titan.email', smtp: 'smtp.titan.email' },
+  { imap: 'imap.secureserver.net', smtp: 'smtpout.secureserver.net' },
+];
 
 const keyOf = () => crypto.createHash('sha256').update(process.env.MAIL_ENC_KEY || process.env.ADMIN_SESSION_SECRET || 'mail-dev-key').digest();
 const enc = (text) => { const iv = crypto.randomBytes(12); const c = crypto.createCipheriv('aes-256-gcm', keyOf(), iv); const e = Buffer.concat([c.update(String(text), 'utf8'), c.final()]); return Buffer.concat([iv, c.getAuthTag(), e]).toString('base64'); };
@@ -20,11 +25,21 @@ const dec = (b64) => { const b = Buffer.from(b64, 'base64'); const d = crypto.cr
 const accountFor = async (email) => {
   const [a] = await queryDb(`SELECT * FROM titan_accounts WHERE owner_email=$1 LIMIT 1`, [email]).catch(() => []);
   if (!a) return null;
-  return { email: a.mail_email, password: dec(a.enc_password) };
+  return { email: a.mail_email, password: dec(a.enc_password), imapHost: a.imap_host || 'imap.titan.email', smtpHost: a.smtp_host || 'smtp.titan.email' };
 };
 
-const newClient = (acc) => new ImapFlow({ ...IMAP, auth: { user: acc.email, pass: acc.password }, logger: false, emitLogs: false });
-const withImap = async (acc, fn) => { const c = newClient(acc); await c.connect(); try { return await fn(c); } finally { await c.logout().catch(() => {}); } };
+const newClient = (host, user, pass) => new ImapFlow({ host, port: 993, secure: true, auth: { user, pass }, logger: false, emitLogs: false });
+const withImap = async (acc, fn) => { const c = newClient(acc.imapHost, acc.email, acc.password); await c.connect(); try { return await fn(c); } finally { await c.logout().catch(() => {}); } };
+
+// Try each host family; return the one that authenticates (or null).
+const detectHosts = async (email, password) => {
+  for (const cand of HOST_CANDIDATES) {
+    const c = newClient(cand.imap, email, password);
+    try { await c.connect(); await c.mailboxOpen('INBOX'); await c.logout().catch(() => {}); return cand; }
+    catch { try { await c.logout(); } catch { /* not connected */ } }
+  }
+  return null;
+};
 
 // Resolve a logical folder (INBOX/Sent/Drafts/Junk/Trash) to the server's path.
 const folderPath = async (client, logical) => {
@@ -139,13 +154,13 @@ export default async function handler(req, res) {
         const email = String(b.email || '').trim().toLowerCase();
         const password = String(b.password || '');
         if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-        // Verify the credentials by opening an IMAP session before storing.
-        try { await withImap({ email, password }, async (c) => c.mailboxOpen('INBOX')); }
-        catch { return res.status(401).json({ error: 'Could not sign in to Titan — check the email and password.' }); }
+        // Verify credentials + auto-detect the host family before storing.
+        const hosts = await detectHosts(email, password);
+        if (!hosts) return res.status(401).json({ error: 'Could not sign in — check the email and password, and that IMAP access is enabled for this mailbox.' });
         await queryDb(
-          `INSERT INTO titan_accounts (owner_email, mail_email, enc_password) VALUES ($1,$2,$3)
-           ON CONFLICT (owner_email) DO UPDATE SET mail_email=$2, enc_password=$3, updated_at=now()`,
-          [me.email, email, enc(password)]
+          `INSERT INTO titan_accounts (owner_email, mail_email, enc_password, imap_host, smtp_host) VALUES ($1,$2,$3,$4,$5)
+           ON CONFLICT (owner_email) DO UPDATE SET mail_email=$2, enc_password=$3, imap_host=$4, smtp_host=$5, updated_at=now()`,
+          [me.email, email, enc(password), hosts.imap, hosts.smtp]
         );
         return res.status(200).json({ ok: true, email });
       }
@@ -163,7 +178,7 @@ export default async function handler(req, res) {
         };
         const raw = await new Promise((resolve, reject) => new MailComposer(mailOptions).compile().build((e, m) => e ? reject(e) : resolve(m)));
         if (b.action === 'send') {
-          const t = nodemailer.createTransport({ ...SMTP, auth: { user: acc.email, pass: acc.password } });
+          const t = nodemailer.createTransport({ host: acc.smtpHost, port: 465, secure: true, auth: { user: acc.email, pass: acc.password } });
           await t.sendMail(mailOptions);
           await withImap(acc, async (c) => { const p = await folderPath(c, 'Sent'); await c.append(p, raw, ['\\Seen']).catch(() => {}); });
         } else {

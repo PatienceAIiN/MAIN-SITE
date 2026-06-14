@@ -8,6 +8,7 @@ import {
   FiMail, FiInbox, FiSend, FiFileText, FiStar, FiTrash2, FiEdit, FiSearch,
   FiRefreshCw, FiX, FiCornerUpLeft, FiPaperclip, FiLink2, FiAlertCircle,
   FiTag, FiPlus, FiBold, FiItalic, FiUnderline, FiList, FiCheckSquare, FiSquare,
+  FiEye, FiEyeOff,
 } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import { Spinner } from '../common/confirm';
@@ -36,6 +37,7 @@ const TITAN_FOLDERS = [
 function TitanLogin({ onClose, onDone }) {
   const [f, setF] = useState({ email: '', password: '' });
   const [busy, setBusy] = useState(false);
+  const [show, setShow] = useState(false);
   const [err, setErr] = useState('');
   const submit = async (e) => {
     e.preventDefault(); setErr(''); setBusy(true);
@@ -48,7 +50,10 @@ function TitanLogin({ onClose, onDone }) {
         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Sign in with Titan Mail</h3>
         <p className="text-xs text-slate-500 mb-4">Use your Titan / GoDaddy email and password. Stored encrypted; used only to sync your mailbox.</p>
         <input className={`${input} mb-2`} type="email" placeholder="you@yourdomain.com" value={f.email} onChange={(e) => setF((s) => ({ ...s, email: e.target.value }))} required />
-        <input className={`${input} mb-3`} type="password" placeholder="Mailbox password" value={f.password} onChange={(e) => setF((s) => ({ ...s, password: e.target.value }))} required />
+        <div className="relative mb-3">
+          <input className={`${input} pr-10`} type={show ? 'text' : 'password'} placeholder="Mailbox password" value={f.password} onChange={(e) => setF((s) => ({ ...s, password: e.target.value }))} required />
+          <button type="button" onClick={() => setShow((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">{show ? <FiEyeOff size={16} /> : <FiEye size={16} />}</button>
+        </div>
         {err && <p className="text-sm text-red-600 mb-2">{err}</p>}
         <button className={`${btnPrimary} w-full justify-center`} disabled={busy}>{busy ? <Spinner /> : 'Connect Titan Mail'}</button>
       </form>

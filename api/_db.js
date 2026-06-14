@@ -568,7 +568,10 @@ const SCHEMA_QUERIES = [
     enc_password text not null,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
-  )`];
+  )`,
+  // Auto-detected mail host (Titan vs GoDaddy secureserver) stored per account.
+  `alter table public.titan_accounts add column if not exists imap_host text`,
+  `alter table public.titan_accounts add column if not exists smtp_host text`];
 
 let schemaReady = false;
 let schemaPromise = null;
