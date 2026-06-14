@@ -62,7 +62,7 @@ import supportExecutivesHandler, { seedExecutive } from './api/support-executive
 import deployHandler, { sweepDeploys } from './api/deploy.js';
 import workLogHandler from './api/work-log.js';
 import notesHandler from './api/notes.js';
-import meetingsHandler from './api/meetings.js';
+import meetingsHandler, { runMeetingReminders } from './api/meetings.js';
 import teamMembersHandler from './api/team-members.js';
 import ticketsHandler from './api/tickets.js';
 import ticketSettingsHandler from './api/ticket-settings.js';
@@ -80,6 +80,7 @@ import { openapiSpec } from './api/_openapi.js';
 import voiceRoomHandler from './api/voice-room.js';
 import colleaguesHandler from './api/colleagues.js';
 import businessHandler from './api/business.js';
+import gmailHandler from './api/gmail.js';
 import { attachTeamHub } from './api/_teamhub.js';
 import {
   createSessionToken, verifySessionToken,
@@ -254,6 +255,9 @@ setTimeout(seedExecutive, 6000);
 // Escalation + SLA engine — first sweep shortly after boot, then every 5 minutes
 setTimeout(runEscalationSweep, 15000);
 setInterval(runEscalationSweep, 5 * 60 * 1000);
+// Meeting reminders — email attendees ~10 min before start (checked every 2 min).
+setTimeout(runMeetingReminders, 20000);
+setInterval(runMeetingReminders, 2 * 60 * 1000);
 // Fire any due scheduled deploys — check every minute.
 setInterval(sweepDeploys, 60 * 1000);
 
@@ -432,6 +436,10 @@ app.all('/api/dev-workflow',                 wrap(devWorkflowHandler));
 // Business Growth OS — CRM, pipeline, campaigns, exec metrics & AI copilot.
 app.all('/api/business',                     wrap(businessHandler));
 app.all('/api/business/*',                   wrap(businessHandler));
+// Gmail integration (Growth) — OAuth connect + inbox/sent/drafts/send/draft.
+app.all('/api/gmail/callback',               wrap(gmailHandler));
+app.all('/api/gmail',                        wrap(gmailHandler));
+app.all('/api/gmail/*',                      wrap(gmailHandler));
 // Machine-readable API contract for the ticketing + PEOS surface
 app.get('/api/openapi.json', (req, res) => res.json(openapiSpec));
 

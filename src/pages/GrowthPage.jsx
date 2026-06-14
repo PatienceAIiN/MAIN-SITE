@@ -16,8 +16,9 @@ import {
   FiCreditCard, FiBriefcase, FiUserCheck, FiEdit2, FiSettings, FiLock,
 } from 'react-icons/fi';
 import { TbCurrencyRupee, TbCurrencyDollar, TbCurrencyEuro, TbCurrencyPound } from 'react-icons/tb';
-import { FiMessageCircle, FiVideo, FiPhoneOff } from 'react-icons/fi';
+import { FiMessageCircle, FiVideo, FiPhoneOff, FiMail } from 'react-icons/fi';
 import GrowthConnect from '../components/GrowthConnect';
+import GrowthMail from '../components/GrowthMail';
 import { GrowthHubProvider, useGrowthHub, meetUrl } from '../common/growthHub';
 import { fetchJson } from '../common/fetchJson';
 import { confirmDialog, Spinner } from '../common/confirm';
@@ -1321,6 +1322,7 @@ const NAV = [
   { key: 'pipeline', label: 'Pipeline', icon: FiTarget },
   { key: 'campaigns', label: 'Campaigns', icon: FiTrendingUp },
   { key: 'connect', label: 'Connect', icon: FiMessageCircle },
+  { key: 'mail', label: 'Mail', icon: FiMail },
   { key: 'accounts', label: 'Accounts', icon: FiCreditCard },
   { key: 'hr', label: 'People / HR', icon: FiBriefcase },
   { key: 'copilot', label: 'AI Copilot', icon: FiCpu },
@@ -1431,6 +1433,7 @@ export default function GrowthPage() {
             {tab === 'pipeline' && <Pipeline reload={reload} />}
             {tab === 'campaigns' && <Campaigns />}
             {tab === 'connect' && <GrowthConnect />}
+            {tab === 'mail' && <GrowthMail />}
             {tab === 'accounts' && <Accounts reload={reload} />}
             {tab === 'hr' && <Hr reload={reload} />}
             {tab === 'copilot' && <Copilot />}

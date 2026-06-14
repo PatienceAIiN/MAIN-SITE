@@ -37,6 +37,11 @@ export function useGroupCall(me, wsSend) {
     const t = String(text || '').trim(); if (!t || !roomRef.current) return;
     setChat((c) => [...c, { id: `${Date.now()}-me-${c.length}`, name: me.name || 'You', text: t, mine: true }]);
     pcs.current.forEach((_, email) => send(email, { kind: 'g-chat', text: t, name: me.name || me.email }));
+    // Persist in-call chat to the meeting transcript (scheduled meeting rooms only).
+    const rid = roomRef.current.id;
+    if (rid && rid.startsWith('mtg-')) {
+      fetch('/api/meetings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'transcript', room: rid, line: `${me.name || 'Guest'}: ${t}` }) }).catch(() => {});
+    }
   };
 
   const ensureMedia = async (audioOnly = false) => {

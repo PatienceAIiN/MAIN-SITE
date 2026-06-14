@@ -50,7 +50,26 @@ const notifyAttendees = async ({ list, organizerEmail, subjectPrefix, title, des
   }
 };
 
+// Append a line to a meeting's notes/transcript. Used to auto-capture in-call
+// chat — keyed by the room token (the same credential as the join link), so
+// unauthenticated guests in the room can contribute their lines.
+const appendTranscript = async (room, line) => {
+  if (!room || !line) return null;
+  const cur = (await queryDb(`SELECT id, notes FROM team_meetings WHERE room=$1 LIMIT 1`, [room]))[0];
+  if (!cur) return null;
+  const stamp = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const next = `${cur.notes ? cur.notes + '\n' : ''}[${stamp}] ${String(line).slice(0, 500)}`.slice(-20000);
+  await queryDb(`UPDATE team_meetings SET notes=$1 WHERE id=$2`, [next, cur.id]);
+  return true;
+};
+
 export default async function handler(req, res) {
+  // Transcript capture is room-token authenticated (no session) so guests count.
+  if (req.method === 'POST' && (req.body || {}).action === 'transcript') {
+    const ok = await appendTranscript((req.body || {}).room, (req.body || {}).line).catch(() => null);
+    return res.status(200).json({ ok: Boolean(ok) });
+  }
+
   const me = actorOf(req);
   if (!me) return res.status(401).json({ error: 'Not authenticated' });
 
@@ -126,3 +145,26 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: e.message });
   }
 }
+
+// Reminder sweep — emails attendees + organizer ~10 min before a meeting starts,
+// once per meeting. Wired to a setInterval in server.js.
+export const runMeetingReminders = async () => {
+  try {
+    const due = await queryDb(
+      `SELECT * FROM team_meetings
+       WHERE reminded_at IS NULL AND scheduled_at > NOW() AND scheduled_at <= NOW() + interval '10 minutes'`
+    );
+    for (const m of due) {
+      const list = String(m.attendees || '').split(',').filter(Boolean);
+      const joinUrl = `${SITE}/meet?room=${m.room}${m.mode === 'voice' ? '&audio=1' : ''}`;
+      await notifyAttendees({
+        list, organizerEmail: m.created_by_email, subjectPrefix: 'Starting soon',
+        title: m.title, description: m.description, when: m.scheduled_at, durationMins: m.duration_mins,
+        organizer: m.created_by_name || m.created_by_email, joinUrl,
+      });
+      await queryDb(`UPDATE team_meetings SET reminded_at=NOW() WHERE id=$1`, [m.id]).catch(() => {});
+    }
+  } catch (e) {
+    if (!isMissingTableError(e.message)) console.error('[meeting reminders]', e.message);
+  }
+};

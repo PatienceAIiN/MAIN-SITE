@@ -577,14 +577,17 @@ async function computeMetrics() {
   const conversionRate = totLeads ? Math.round((totConv / totLeads) * 100) : 0;
   const avgCustomerValue = customers.length ? Math.round(customers.reduce((s, c) => s + num(c.value), 0) / customers.length) : 0;
   const ltv = avgCustomerValue * 3; // simple 3x annual-value heuristic
-  const retention = customers.length ? Math.round(((customers.length - churned.length) / (customers.length + churned.length || 1)) * 100) : 100;
+  // No customers → retention is undefined, report 0 (not a misleading 100%).
+  const retention = customers.length ? Math.round(((customers.length - churned.length) / (customers.length + churned.length || 1)) * 100) : 0;
 
   // Composite business health score (0-100) across growth, pipeline, retention, efficiency.
   const pipelineHealth = Math.min(100, Math.round((weightedPipeline / Math.max(wonValue || 1, 1)) * 50 + winRate / 2));
   const churnRisk = customers.length ? Math.round((atRisk.length / customers.length) * 100) : 0;
   const retentionHealth = retention;
   const efficiency = Math.min(100, Math.round(roas * 20 + conversionRate));
-  const healthScore = Math.max(0, Math.min(100, Math.round(
+  // An empty workspace has no signal — show 0, not a phantom score.
+  const hasData = contactRows.length > 0 || dealRows.length > 0 || campRows.length > 0;
+  const healthScore = !hasData ? 0 : Math.max(0, Math.min(100, Math.round(
     pipelineHealth * 0.3 + retentionHealth * 0.3 + efficiency * 0.2 + winRate * 0.2
   )));
 
