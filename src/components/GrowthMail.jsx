@@ -147,7 +147,13 @@ function MessageBlock({ api, m, folder, std, defaultOpen }) {
           <p className="text-[11px] text-slate-400 px-2 mb-1">to {m.to}{m.cc ? ` · cc ${m.cc}` : ''}</p>
           {m.attachments?.length > 0 && <div className="flex flex-wrap gap-1.5 px-2 mb-2">{m.attachments.map((a, i) => <button key={i} onClick={() => dl(a)} className="inline-flex items-center gap-1 text-xs bg-slate-100 dark:bg-slate-800 rounded-full px-2 py-0.5 text-slate-600 dark:text-slate-300 hover:text-indigo-600"><FiPaperclip size={11} /> {a.filename}</button>)}</div>}
           <div className="bg-white rounded-lg overflow-hidden" style={{ height: 360 }}>
-            {m.html ? <iframe title={`email-${m.id}`} sandbox="allow-same-origin" srcDoc={m.html} className="w-full h-full border-0" /> : <pre className="p-3 whitespace-pre-wrap text-sm text-slate-700 font-sans">{m.text || '(empty)'}</pre>}
+            {m.html
+              ? <iframe title={`email-${m.id}`} sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+                  /* <base target="_blank"> makes every link in the email open in a new
+                     browser tab instead of navigating inside the mail viewer. */
+                  srcDoc={`<base target="_blank"><meta name="referrer" content="no-referrer">${m.html}`}
+                  className="w-full h-full border-0" />
+              : <pre className="p-3 whitespace-pre-wrap text-sm text-slate-700 font-sans">{m.text || '(empty)'}</pre>}
           </div>
         </div>
       )}
