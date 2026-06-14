@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import {
   FiSearch, FiSend, FiX, FiUsers, FiPlus, FiEdit2, FiTrash2, FiVideo,
   FiMic, FiMicOff, FiVideoOff, FiMonitor, FiPhoneOff, FiPhone, FiCheck,
-  FiPaperclip, FiFile, FiDownload, FiCornerUpLeft, FiMessageSquare, FiMinimize2, FiMaximize2
+  FiPaperclip, FiFile, FiDownload, FiCornerUpLeft, FiMessageSquare, FiMinimize2, FiMaximize2,
+  FiCalendar, FiCamera, FiClock
 } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import { useGroupCall, GroupCallOverlay } from './GroupCall';
@@ -668,6 +669,133 @@ function GroupModal({ colleagues, chat, onClose, onSaved }) {
   );
 }
 
+/* ── Group info: members list, add people, set group photo (DP) ──────────── */
+function GroupInfoModal({ chat, colleagues, canManage, presence, meEmail, onClose, onAddMembers, onSaved }) {
+  const [avatar, setAvatar] = useState(chat.avatar || '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const fileRef = useRef(null);
+  const nameOf = (email) => colleagues.find((c) => c.email === email)?.name || email;
+  const members = chat.member_list || [];
+  // Downscale the chosen image to a small square JPEG so it fits in one column.
+  const pickPhoto = async (file) => {
+    if (!file) return;
+    setErr('');
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            const size = 256; const c = document.createElement('canvas'); c.width = size; c.height = size;
+            const ctx = c.getContext('2d');
+            const s = Math.min(img.width, img.height);
+            ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+            resolve(c.toDataURL('image/jpeg', 0.82));
+          };
+          img.onerror = reject; img.src = reader.result;
+        };
+        reader.onerror = reject; reader.readAsDataURL(file);
+      });
+      setBusy(true);
+      await fetchJson('/api/colleagues', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update_chat', chatId: chat.id, avatar: dataUrl }) });
+      setAvatar(dataUrl); onSaved?.();
+    } catch (e) { setErr(e.message || 'Could not update photo'); } finally { setBusy(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm max-h-[85vh] flex flex-col">
+        <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <p className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2"><FiUsers size={14} /> Group info</p>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><FiX size={16} /></button>
+        </div>
+        <div className="p-5 overflow-y-auto">
+          {/* Group photo (DP) */}
+          <div className="flex flex-col items-center mb-4">
+            <div className="relative">
+              {avatar
+                ? <img src={avatar} alt="" className="h-20 w-20 rounded-full object-cover" />
+                : <span className="h-20 w-20 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 grid place-items-center"><FiUsers size={28} /></span>}
+              {canManage && (
+                <button onClick={() => fileRef.current?.click()} disabled={busy} title="Change group photo"
+                  className="absolute -bottom-1 -right-1 h-7 w-7 grid place-items-center rounded-full bg-indigo-600 text-white shadow-md hover:bg-indigo-700 disabled:opacity-50">
+                  <FiCamera size={13} />
+                </button>
+              )}
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => pickPhoto(e.target.files?.[0])} />
+            </div>
+            <p className="mt-2 font-bold text-slate-900 dark:text-white">{chat.name || 'Group chat'}</p>
+            <p className="text-[11px] text-slate-400">{members.length} members</p>
+            {err && <p className="text-red-500 text-xs mt-1">{err}</p>}
+          </div>
+          {/* Members */}
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Members</p>
+            {canManage && <button onClick={onAddMembers} className="text-xs text-indigo-600 dark:text-indigo-400 flex items-center gap-1 hover:underline"><FiPlus size={12} /> Add</button>}
+          </div>
+          <div className="space-y-1">
+            {members.map((email) => (
+              <div key={email} className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800">
+                <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${(PRESENCE[presence[email]] || PRESENCE.offline).dot || 'bg-slate-300'}`} />
+                <span className="min-w-0">
+                  <span className="block text-sm text-slate-800 dark:text-slate-100 truncate">{nameOf(email)}{email === meEmail ? ' (you)' : ''}</span>
+                  <span className="block text-[11px] text-slate-400 truncate">{email}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Schedule a meeting for a chat (voice/video) — emails all participants ──── */
+function ScheduleMeetingModal({ chat, me, attendees, title, onClose }) {
+  const [form, setForm] = useState({ title: `${title} sync`, when: '', duration: 30, mode: 'video' });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState({ type: '', text: '' });
+  const submit = async () => {
+    if (!form.when) { setMsg({ type: 'err', text: 'Pick a date & time.' }); return; }
+    if (!attendees.length) { setMsg({ type: 'err', text: 'This chat has no other participants to invite.' }); return; }
+    setBusy(true); setMsg({ type: '', text: '' });
+    try {
+      await fetchJson('/api/meetings', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: form.title.trim() || `${title} sync`, scheduledAt: new Date(form.when).toISOString(), durationMins: Number(form.duration) || 30, attendees, organizerName: me?.name, mode: form.mode, description: `Scheduled from the “${title}” chat.` }) });
+      setMsg({ type: 'ok', text: `Scheduled — invite emailed to ${attendees.length} participant(s).` });
+      setTimeout(onClose, 1200);
+    } catch (e) { setMsg({ type: 'err', text: e.message }); } finally { setBusy(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm">
+        <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <p className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2"><FiCalendar size={14} /> Schedule meeting</p>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><FiX size={16} /></button>
+        </div>
+        <div className="p-5 space-y-3">
+          <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Meeting title" className={`${inp} w-full`} />
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-[11px] text-slate-400">When<input type="datetime-local" value={form.when} onChange={(e) => setForm({ ...form, when: e.target.value })} className={`${inp} w-full`} /></label>
+            <label className="text-[11px] text-slate-400">Duration (min)<input type="number" min="5" value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })} className={`${inp} w-full`} /></label>
+          </div>
+          <div className="flex items-center gap-2">
+            {['video', 'voice'].map((k) => (
+              <button key={k} onClick={() => setForm({ ...form, mode: k })}
+                className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded-lg border transition-colors ${form.mode === k ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`}>
+                {k === 'video' ? <FiVideo size={13} /> : <FiPhone size={13} />} {k === 'video' ? 'Video' : 'Voice'}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-slate-400 flex items-center gap-1"><FiClock size={11} /> Invites are emailed to all {attendees.length} participant(s) with a join link.</p>
+          {msg.text && <p className={`text-xs ${msg.type === 'ok' ? 'text-emerald-600' : 'text-red-500'}`}>{msg.text}</p>}
+          <button onClick={submit} disabled={busy} className={`${tb} w-full !py-2.5`}>{busy ? 'Scheduling…' : 'Schedule & email invites'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main component ──────────────────────────────────────────────────────── */
 export default function Colleagues({ member, visible, onUnread, canManageRoster = true, fullscreen = false, onClose, canShareMeetingLink = true }) {
   const [colleagues, setColleagues] = useState([]);
@@ -679,6 +807,10 @@ export default function Colleagues({ member, visible, onUnread, canManageRoster 
   const [input, setInput] = useState('');
   const [editing, setEditing] = useState(null); // message being edited
   const [groupModal, setGroupModal] = useState(null); // false-y | 'new' | chat object
+  const [groupInfo, setGroupInfo] = useState(null);   // chat shown in the members/info modal
+  const [scheduleFor, setScheduleFor] = useState(null); // chat we're scheduling a meeting for
+  const [searchOpen, setSearchOpen] = useState(false);  // in-chat message search panel
+  const [msgQuery, setMsgQuery] = useState('');
   const [preview, setPreview] = useState(null); // file message in popup
   const [uploading, setUploading] = useState(false);
   const [replyTo, setReplyTo] = useState(null); // message being replied to
@@ -982,17 +1114,35 @@ export default function Colleagues({ member, visible, onUnread, canManageRoster 
                 className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
                 <FiX size={16} />
               </button>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{chatTitle(activeChat)}</p>
+              {/* Group avatar (DP) — click opens the group info / members modal */}
+              {activeChat.kind === 'group' && (
+                <button onClick={() => setGroupInfo(activeChat)} title="Group info & members" className="shrink-0">
+                  {activeChat.avatar
+                    ? <img src={activeChat.avatar} alt="" className="h-9 w-9 rounded-full object-cover" />
+                    : <span className="h-9 w-9 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 grid place-items-center"><FiUsers size={16} /></span>}
+                </button>
+              )}
+              <button onClick={() => activeChat.kind === 'group' && setGroupInfo(activeChat)} disabled={activeChat.kind !== 'group'} className="min-w-0 flex-1 text-left disabled:cursor-default">
+                <p className="text-sm font-bold text-slate-900 dark:text-white truncate hover:underline-offset-2 group-title">{chatTitle(activeChat)}</p>
                 <p className="text-[11px] text-slate-400 truncate">
                   {activeTyping ? <span className="text-indigo-500">{activeTyping.name} is typing…</span>
                     : activeChat.kind === 'group'
-                      ? `${(activeChat.member_list || []).length} members`
+                      ? `${(activeChat.member_list || []).length} members · tap for info`
                       : (presence[peerEmail] || 'offline') === 'offline'
                         ? lastSeenText(colleagues.find((c) => c.email === peerEmail)?.last_seen_at)
                         : (PRESENCE[presence[peerEmail]]).label}
                 </p>
-              </div>
+              </button>
+              {/* Collapsed search — opens an in-chat message search panel */}
+              <button onClick={() => { setSearchOpen((s) => !s); setMsgQuery(''); }} title="Search in chat"
+                className={`p-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 ${searchOpen ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-300'}`}>
+                <FiSearch size={15} />
+              </button>
+              {/* Schedule a meeting (voice/video) — emails an invite to participants */}
+              <button onClick={() => setScheduleFor(activeChat)} title="Schedule a meeting"
+                className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                <FiCalendar size={15} />
+              </button>
               {activeChat.kind === 'dm' && ['voice', 'video'].map((k) => {
                 const peerStatus = presence[peerEmail] || 'offline';
                 const disabled = peerStatus === 'offline' || peerStatus === 'busy' || Boolean(callApi.call);
@@ -1017,9 +1167,23 @@ export default function Colleagues({ member, visible, onUnread, canManageRoster 
               )}
             </div>
 
+            {/* Collapsible in-chat search panel */}
+            {searchOpen && (
+              <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 flex items-center gap-2 shrink-0">
+                <FiSearch size={14} className="text-slate-400 shrink-0" />
+                <input autoFocus value={msgQuery} onChange={(e) => setMsgQuery(e.target.value)} placeholder="Search messages in this chat…"
+                  className="flex-1 bg-transparent border-0 outline-none text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400" />
+                {msgQuery && <span className="text-[11px] text-slate-400 shrink-0">{messages.filter((m) => !m.deleted && (m.message || '').toLowerCase().includes(msgQuery.toLowerCase())).length} match(es)</span>}
+                <button onClick={() => { setSearchOpen(false); setMsgQuery(''); }} className="text-slate-400 hover:text-slate-600 shrink-0"><FiX size={15} /></button>
+              </div>
+            )}
+
             <div className="flex-1 overflow-y-auto p-4 space-y-2 min-h-0">
-              {hasMore && <button onClick={loadOlder} className={`${tb2} mx-auto block`}>Load older messages</button>}
-              {messages.map((m) => {
+              {hasMore && !msgQuery && <button onClick={loadOlder} className={`${tb2} mx-auto block`}>Load older messages</button>}
+              {msgQuery && !messages.some((m) => !m.deleted && (m.message || '').toLowerCase().includes(msgQuery.toLowerCase())) && (
+                <p className="text-xs text-slate-400 text-center py-4">No messages match “{msgQuery}”. Older messages may not be loaded yet.</p>
+              )}
+              {(msgQuery ? messages.filter((m) => !m.deleted && (m.message || '').toLowerCase().includes(msgQuery.toLowerCase())) : messages).map((m) => {
                 const mine = m.sender_email === member.email;
                 return (
                   <SwipeReply key={m.id} mine={mine} onReply={() => !m.deleted && setReplyTo(m)}>
@@ -1103,6 +1267,18 @@ export default function Colleagues({ member, visible, onUnread, canManageRoster 
         <GroupModal colleagues={colleagues} chat={groupModal === 'new' ? null : groupModal}
           onClose={() => setGroupModal(null)}
           onSaved={(chat) => { setGroupModal(null); loadChats(); if (chat?.id) setActiveChatId(chat.id); }} />
+      )}
+      {groupInfo && (
+        <GroupInfoModal chat={chats.find((c) => c.id === groupInfo.id) || groupInfo} colleagues={colleagues}
+          canManage={canManageRoster} presence={presence} meEmail={member.email}
+          onClose={() => setGroupInfo(null)}
+          onAddMembers={() => { setGroupInfo(null); setGroupModal(chats.find((c) => c.id === groupInfo.id) || groupInfo); }}
+          onSaved={() => loadChats()} />
+      )}
+      {scheduleFor && (
+        <ScheduleMeetingModal chat={scheduleFor} me={member}
+          attendees={scheduleFor.kind === 'group' ? (scheduleFor.member_list || []) : [dmPeer(scheduleFor)].filter(Boolean)}
+          title={chatTitle(scheduleFor)} onClose={() => setScheduleFor(null)} />
       )}
       {preview && <FilePreviewModal msg={preview} onClose={() => setPreview(null)} />}
     </div>

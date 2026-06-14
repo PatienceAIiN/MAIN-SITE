@@ -792,6 +792,8 @@ function GitHubWorkspace({ canWrite, canCollab }) {
   const [collabOpen, setCollabOpen] = useState(false);
   const [cliOpen, setCliOpen] = useState(false);
   const [msg, setMsg] = useState('');
+  const [working, setWorking] = useState(false);   // an action/PR/branch request is in flight
+  const [opening, setOpening] = useState(false);    // switching repositories
   const repoObj = repos.find((r) => r.full_name === repo) || null;
   const cloneUrl = repoObj?.clone_url || (repo ? `https://github.com/${repo}.git` : '');
   const box = 'rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4';
@@ -815,24 +817,26 @@ function GitHubWorkspace({ canWrite, canCollab }) {
   }, []);
 
   const open = async (full) => {
-    setRepo(full); setMsg('');
+    setRepo(full); setMsg(''); setOpening(true);
     const [o, n] = full.split('/');
-    const [b, p] = await Promise.all([
-      fetchJson(`/api/github?branches=1&owner=${o}&repo=${n}`).catch(() => ({ branches: [] })),
-      fetchJson(`/api/github?prs=1&owner=${o}&repo=${n}`).catch(() => ({ prs: [] }))
-    ]);
-    setData({ branches: b.branches, prs: p.prs });
+    try {
+      const [b, p] = await Promise.all([
+        fetchJson(`/api/github?branches=1&owner=${o}&repo=${n}`).catch(() => ({ branches: [] })),
+        fetchJson(`/api/github?prs=1&owner=${o}&repo=${n}`).catch(() => ({ prs: [] }))
+      ]);
+      setData({ branches: b.branches, prs: p.prs });
+    } finally { setOpening(false); }
   };
 
   const act = async (body) => {
     if (!repo) return;
     const [o, n] = repo.split('/');
-    setMsg('Working…');
+    setMsg('Working…'); setWorking(true);
     try {
       const d = await fetchJson(`/api/github?owner=${o}&repo=${n}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       setMsg(d.url ? `Done ✓ ${d.url}` : 'Done ✓');
-      open(repo);
-    } catch (e) { setMsg(e.message); }
+      await open(repo);
+    } catch (e) { setMsg(e.message); } finally { setWorking(false); }
   };
 
   return (
@@ -844,13 +848,14 @@ function GitHubWorkspace({ canWrite, canCollab }) {
             <option value="">Select repository…</option>
             {repos.map((r) => <option key={r.full_name} value={r.full_name}>{r.full_name}</option>)}
           </select>
+          {opening && <Spinner size={14} />}
           {repo && canCollab && (
             <button className={tb2} onClick={() => setCollabOpen(true)} title="Manage repository collaborators"><FiUsers size={12} className="inline mr-1" />Collaborators</button>
           )}
           {repo && (
             <button className={tb2} onClick={() => setCliOpen(true)} title="Open the GitHub CLI console"><FiTerminal size={12} className="inline mr-1" />CLI</button>
           )}
-          {msg && <p className="text-[11px] text-amber-600 dark:text-amber-400 w-full truncate">{msg}</p>}
+          {msg && <p className="text-[11px] text-amber-600 dark:text-amber-400 w-full truncate flex items-center gap-1.5">{working && <Spinner size={11} />}{msg}</p>}
         </div>
         {!repos.length && !msg && (
           <p className="text-xs text-slate-400 mt-2">No repositories granted to you yet — an admin can grant specific repos from the admin panel (Team → repos).</p>
@@ -872,7 +877,7 @@ function GitHubWorkspace({ canWrite, canCollab }) {
               <div className="flex flex-wrap gap-2 mb-3">
                 <input value={forms.prTitle} onChange={(e) => setForms((f) => ({ ...f, prTitle: e.target.value }))} placeholder="PR title (PA-12 …)" className={`${tin} flex-1 min-w-[160px]`} />
                 <input value={forms.prHead} onChange={(e) => setForms((f) => ({ ...f, prHead: e.target.value }))} placeholder="from branch" className={`${tin} w-36`} />
-                <button className={tb} onClick={() => forms.prTitle && forms.prHead && act({ action: 'create_pr', title: forms.prTitle, head: forms.prHead })}>Create PR</button>
+                <button className={`${tb} inline-flex items-center gap-1.5`} disabled={working} onClick={() => forms.prTitle && forms.prHead && act({ action: 'create_pr', title: forms.prTitle, head: forms.prHead })}>{working && <Spinner size={11} />}Create PR</button>
               </div>
             )}
             <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -883,8 +888,8 @@ function GitHubWorkspace({ canWrite, canCollab }) {
                   </a>
                   {canWrite && (
                     <span className="flex gap-1.5 shrink-0">
-                      <button className={tb} onClick={() => act({ action: 'merge_pr', number: p.number })}>Merge</button>
-                      <button className={tb2} onClick={() => act({ action: 'close_pr', number: p.number })}>Close</button>
+                      <button className={`${tb} inline-flex items-center gap-1`} disabled={working} onClick={() => act({ action: 'merge_pr', number: p.number })}>{working && <Spinner size={10} />}Merge</button>
+                      <button className={tb2} disabled={working} onClick={() => act({ action: 'close_pr', number: p.number })}>Close</button>
                     </span>
                   )}
                 </div>
@@ -897,7 +902,7 @@ function GitHubWorkspace({ canWrite, canCollab }) {
             {canWrite && (
               <div className="flex gap-2 mb-3">
                 <input value={forms.branch} onChange={(e) => setForms((f) => ({ ...f, branch: e.target.value }))} placeholder="PA-12-fix-login" className={`${tin} flex-1`} />
-                <button className={tb} onClick={() => forms.branch && act({ action: 'create_branch', branch: forms.branch })}>Create</button>
+                <button className={`${tb} inline-flex items-center gap-1.5`} disabled={working} onClick={() => forms.branch && act({ action: 'create_branch', branch: forms.branch })}>{working && <Spinner size={11} />}Create</button>
               </div>
             )}
             <div className="space-y-1 max-h-56 overflow-y-auto">
@@ -909,7 +914,7 @@ function GitHubWorkspace({ canWrite, canCollab }) {
                   <span className="flex gap-1.5 shrink-0">
                     <button className={tb2} onClick={() => setExplore(b.name)}>Open</button>
                     {canWrite && !b.protected && (
-                      <button className={tb2} onClick={async () => { if (await confirmDialog({ title: 'Delete branch', message: `Delete branch ${b.name}? This cannot be undone.`, confirmText: 'Delete' })) act({ action: 'delete_branch', branch: b.name }); }}>Delete</button>
+                      <button className={tb2} disabled={working} onClick={async () => { if (await confirmDialog({ title: 'Delete branch', message: `Delete branch ${b.name}? This cannot be undone.`, confirmText: 'Delete' })) act({ action: 'delete_branch', branch: b.name }); }}>Delete</button>
                     )}
                   </span>
                 </div>
@@ -987,10 +992,12 @@ function CliConsole({ repo, canWrite, onClose }) {
             <span className="relative flex-1 min-w-0">
               <input ref={inRef} value={cmd} onChange={(e) => setCmd(e.target.value)} onKeyDown={onKey} disabled={busy}
                 onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} spellCheck={false} autoComplete="off"
-                placeholder={focused ? '' : (canWrite ? 'git status · git log · pr merge 12' : 'git status · git log · pr list')}
-                className="w-full bg-transparent border-0 outline-none text-slate-100 font-mono text-xs caret-slate-100 placeholder:text-slate-600" />
-              {/* Block caret shown when the line is empty so it reads as "waiting for input". */}
-              {!cmd && !busy && <span className={`pointer-events-none absolute left-0 top-0 text-slate-300 ${focused ? 'caret-blink' : 'opacity-40'}`}>▋</span>}
+                placeholder=""
+                className="w-full bg-transparent border-0 outline-none text-slate-100 font-mono text-xs caret-transparent placeholder:text-slate-600" />
+              {/* A blinking "|" sits in the empty field so it's obvious you can type
+                  here; it disappears the moment the user starts typing. */}
+              {!cmd && !busy && <span className="pointer-events-none absolute left-0 top-0 text-emerald-400 font-bold caret-blink">|<span className="text-slate-600 font-normal ml-1">type a command…</span></span>}
+              {cmd && !busy && <span className="pointer-events-none absolute top-0 text-emerald-400 font-bold caret-blink" style={{ left: `${cmd.length}ch` }}>|</span>}
             </span>
             {busy && <span className="text-amber-400 shrink-0 ml-2">running<span className="caret-blink">▋</span></span>}
           </div>
@@ -1181,12 +1188,12 @@ function DeployControl({ dark = false }) {
       // Fallback: a recently-triggered local deploy (last 15 min).
       if (!running) running = (d.recent || []).find((r) => r.status === 'triggered' && (Date.now() - new Date(r.created_at).getTime()) < 15 * 60 * 1000) || null;
       // A brand-new deploy (any source — manual, scheduled, git push, Render
-      // dashboard) auto-surfaces live and clears the previous deploy's logs.
+      // dashboard) surfaces live via the pulsing "Deploying…" button indicator,
+      // but the modal is NOT auto-opened — the user opens it when they want.
       if (running && running.id !== shownRef.current) {
         shownRef.current = running.id;
         setActive(running.id);
         setLogs({ status: null, lines: [], note: '' });
-        if (d.canDeploy) setOpen(true);
       }
     } catch { /* ignore */ }
   };

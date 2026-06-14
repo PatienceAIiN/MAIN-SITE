@@ -172,17 +172,18 @@ export default async function handler(req, res) {
       }
 
       if (action === 'update_chat') {
-        const { chatId, name, memberEmails } = req.body;
+        const { chatId, name, memberEmails, avatar } = req.body;
         const chat = await loadChat(chatId);
         if (!chat || !inChat(chat, myEmail)) return res.status(404).json({ error: 'Chat not found' });
         if (chat.kind !== 'group') return res.status(400).json({ error: 'Only group chats can be edited' });
         if (!(await canManageRoster(req, me))) return res.status(403).json({ error: 'You do not have permission to edit group chats' });
+        if (avatar != null && String(avatar).length > 1500000) return res.status(413).json({ error: 'Group photo is too large (max ~1MB).' });
         const members = Array.isArray(memberEmails) && memberEmails.length
           ? [...new Set([chat.created_by, ...memberEmails])].join(',')
           : chat.members;
         const rows = await queryDb(
-          `UPDATE team_chats SET name=COALESCE($1,name), members=$2, updated_at=NOW() WHERE id=$3 RETURNING *`,
-          [name || null, members, chatId]);
+          `UPDATE team_chats SET name=COALESCE($1,name), members=$2, avatar=COALESCE($4,avatar), updated_at=NOW() WHERE id=$3 RETURNING *`,
+          [name || null, members, chatId, avatar != null ? String(avatar) : null]);
         // notify old + new member sets so removed members drop the chat
         broadcastToEmails([...new Set([...chatMembers(chat), ...chatMembers(rows[0])])],
           { type: 'chat_meta', event: 'updated', chat: rows[0] });
