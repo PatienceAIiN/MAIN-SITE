@@ -9,7 +9,7 @@ import { ServiceDetail } from '../components/RenderServices';
 import { confirmDialog } from '../common/confirm';
 import { fetchJson } from '../common/fetchJson';
 
-const TABS = ['analytics', 'content', 'blog', 'submissions', 'conversations', 'support', 'executives', 'team', 'growth', 'deploy', 'tickets', 'engineering', 'worklog', 'logs'];
+const TABS = ['analytics', 'content', 'blog', 'submissions', 'responses', 'conversations', 'support', 'executives', 'team', 'growth', 'deploy', 'tickets', 'engineering', 'worklog', 'logs'];
 
 /* ── Security & audit log viewer: every recorded event, exportable ───────── */
 function AdminLogs() {
@@ -107,6 +107,116 @@ function AdminWorkLog() {
 }
 
 /* ── Deploy management: who may deploy, optional password, deploy history ─── */
+/* ── Responses: every form submission grouped by type (contact, sales, demo…) ── */
+const RESPONSE_GROUPS = [
+  { key: 'contact', label: 'Contact Us', match: (s) => s === 'contact' },
+  { key: 'sales', label: 'Sales Enquiries', match: (s) => s === 'sales' || s === 'chatbot' },
+  { key: 'product-demo', label: 'Product Demo Requests', match: (s) => s === 'product-demo' },
+  { key: 'careers', label: 'Job Inquiries', match: (s) => s === 'careers' || s === 'job-inquiry-chat' },
+  { key: 'newsletter', label: 'Newsletter Signups', match: (s) => s === 'newsletter' },
+];
+const STATUS_TINT = { new: 'bg-cyan-500/20 text-cyan-200', reviewing: 'bg-amber-500/20 text-amber-200', replied: 'bg-emerald-500/20 text-emerald-200', archived: 'bg-white/10 text-white/50' };
+
+function AdminResponses() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState({});
+  const [busyId, setBusyId] = useState(null);
+  const load = () => {
+    setLoading(true); setErr('');
+    fetchJson('/api/admin').then((d) => setItems(d.items || [])).catch((e) => setErr(e.message)).finally(() => setLoading(false));
+  };
+  useEffect(() => { load(); const i = setInterval(load, 30000); return () => clearInterval(i); }, []);
+
+  const setStatus = async (id, status) => {
+    setBusyId(id);
+    try {
+      const d = await fetchJson('/api/admin', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) });
+      if (d.item) setItems((cur) => cur.map((it) => (it.id === d.item.id ? d.item : it)));
+    } catch (e) { setErr(e.message); } finally { setBusyId(null); }
+  };
+  const remove = async (id) => {
+    if (!(await confirmDialog({ title: 'Delete response', message: 'Permanently delete this submission?', confirmText: 'Delete', danger: true }))) return;
+    setBusyId(id);
+    try { await fetchJson('/api/admin', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }); setItems((cur) => cur.filter((it) => it.id !== id)); }
+    catch (e) { setErr(e.message); } finally { setBusyId(null); }
+  };
+
+  const needle = q.trim().toLowerCase();
+  const visible = items.filter((it) => !needle || JSON.stringify(it).toLowerCase().includes(needle));
+  const grouped = RESPONSE_GROUPS.map((g) => ({ ...g, rows: visible.filter((it) => g.match((it.source || '').toLowerCase())) }));
+  // Anything with an unrecognised source lands in a catch-all "Other" group.
+  const other = visible.filter((it) => !RESPONSE_GROUPS.some((g) => g.match((it.source || '').toLowerCase())));
+  if (other.length) grouped.push({ key: 'other', label: 'Other', rows: other });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-semibold">Responses</h2>
+          <p className="text-white/55 text-sm mt-1">Every form submission from the website — Contact Us, Sales, Product Demo, Job Inquiries and more — grouped by type. Newest first. Auto-refreshes every 30s.</p>
+        </div>
+        <button onClick={load} className="text-xs px-3 py-2 rounded-xl border border-white/10 text-white/50 hover:text-white hover:bg-white/5 self-start">{loading ? 'Loading…' : 'Refresh'}</button>
+      </div>
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search across all responses…"
+        className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-300/70" />
+      {err && <p className="text-red-300 text-sm">{err}</p>}
+      <div className="space-y-5">
+        {grouped.map((g) => (
+          <div key={g.key} className="rounded-[1.5rem] border border-white/10 bg-white/5 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+              <h3 className="text-sm font-semibold text-white/90">{g.label}</h3>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-white/10 text-white/60">{g.rows.length}</span>
+            </div>
+            {!g.rows.length ? (
+              <p className="text-white/30 text-xs p-4">No {g.label.toLowerCase()} yet.</p>
+            ) : (
+              <div className="divide-y divide-white/5">
+                {g.rows.map((it) => {
+                  const isOpen = open[it.id];
+                  return (
+                    <div key={it.id} className="px-4 py-3 text-sm hover:bg-white/[0.03]">
+                      <div className="flex items-start justify-between gap-3 cursor-pointer" onClick={() => setOpen((o) => ({ ...o, [it.id]: !o[it.id] }))}>
+                        <div className="min-w-0">
+                          <p className="font-medium text-white/90 truncate">{it.name} <span className="text-white/40 font-normal">· {it.email}</span></p>
+                          <p className="text-white/55 truncate">{it.subject}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full capitalize ${STATUS_TINT[it.status] || 'bg-white/10 text-white/50'}`}>{it.status}</span>
+                          <span className="text-[10px] text-white/35 font-mono hidden sm:inline">{new Date(it.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      {isOpen && (
+                        <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 space-y-2">
+                          {it.company && <p className="text-white/60 text-xs"><span className="text-white/40">Company:</span> {it.company}</p>}
+                          {it.product_name && <p className="text-white/60 text-xs"><span className="text-white/40">Product:</span> {it.product_name}</p>}
+                          <p className="text-white/40 text-[10px] uppercase tracking-wider">Message</p>
+                          <p className="text-white/75 whitespace-pre-wrap leading-relaxed text-xs">{it.message}</p>
+                          <p className="text-white/30 text-[10px] font-mono">{new Date(it.created_at).toLocaleString()} · source: {it.source}</p>
+                          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                            {['new', 'reviewing', 'replied', 'archived'].map((st) => (
+                              <button key={st} disabled={busyId === it.id || it.status === st} onClick={() => setStatus(it.id, st)}
+                                className={`text-[10px] px-2.5 py-1 rounded-lg capitalize transition-colors disabled:opacity-40 ${it.status === st ? 'bg-white text-slate-950' : 'border border-white/15 text-white/70 hover:bg-white/10'}`}>{st}</button>
+                            ))}
+                            <button disabled={busyId === it.id} onClick={() => remove(it.id)} className="text-[10px] px-2.5 py-1 rounded-lg bg-red-500/15 text-red-300 hover:bg-red-500/25 disabled:opacity-40 ml-auto">Delete</button>
+                            <a href={`mailto:${it.email}?subject=Re: ${encodeURIComponent(it.subject)}`} className="text-[10px] px-2.5 py-1 rounded-lg border border-white/15 text-white/70 hover:bg-white/10">Reply</a>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function AdminDeploy() {
   const [members, setMembers]   = useState([]);
   const [allowed, setAllowed]   = useState([]);          // emails granted deploy access
@@ -2313,6 +2423,7 @@ const AdminPage = ({ onAction, defaultContent, currentContent, currentContentSou
 
             {activeTab === 'engineering' && <AdminPeos />}
             {activeTab === 'growth' && <AdminGrowth />}
+            {activeTab === 'responses' && <AdminResponses />}
             {activeTab === 'deploy' && <AdminDeploy />}
             {activeTab === 'worklog' && <AdminWorkLog />}
             {activeTab === 'logs' && <AdminLogs />}

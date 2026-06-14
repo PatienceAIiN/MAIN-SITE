@@ -189,15 +189,33 @@ export default async function handler(req, res) {
       </div>
     `;
 
+    // Growth-portal members can opt into form alerts by setting a notification
+    // email in their Growth settings (team_members.notify_email). New form
+    // submissions are emailed to them in addition to the configured admin owner
+    // address — keeping the existing admin notification working as before.
+    const growthNotifyEmails = async () => {
+      try {
+        const rows = await queryDb(
+          `SELECT notify_email FROM team_members WHERE growth_access = true AND notify_email IS NOT NULL AND notify_email <> ''`
+        );
+        return (rows || []).map((r) => normalizeEmailAddress(r.notify_email)).filter(isValidEmail);
+      } catch (err) {
+        if (!isMissingTableError(err.message)) console.error('[contact] growth notify lookup error:', err.message);
+        return [];
+      }
+    };
+
     const dispatchEmails = async () => {
+      const extra = await growthNotifyEmails();
+      const ownerRecipients = parseEmailList([...CONTACT_TO_EMAILS, ...extra].join(',')).filter(isValidEmail);
       try {
         await sendEmail({
-          to: CONTACT_TO_EMAILS,
+          to: ownerRecipients,
           replyTo: isValidEmail(normalizedUserEmail) ? { email: normalizedUserEmail, name: name.trim() } : null,
           subject: inquiryMeta.ownerSubject,
           html: ownerHtml
         });
-        console.log('[contact] owner email sent via', emailProvider.kind, 'to', CONTACT_TO_EMAILS.join(','));
+        console.log('[contact] owner email sent via', emailProvider.kind, 'to', ownerRecipients.join(','));
       } catch (err) {
         console.error('[contact] owner email error:', err.message);
       }
