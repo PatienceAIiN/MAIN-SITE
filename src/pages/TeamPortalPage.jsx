@@ -694,7 +694,7 @@ function OverviewTab({ member, teamRole, avatar, myPerms, myRepos, myStatus, cou
     { key: 'dev-tickets', icon: FiCode, title: 'Dev Tickets', tint: 'bg-indigo-500' },
     { key: 'tickets', icon: FiTag, title: 'My Tickets', value: counts.all, tint: 'bg-sky-500' },
     { key: 'engineering', icon: FiBookOpen, title: 'Engineering', desc: 'Pipeline, sprints, epics, QA & OKRs.', tint: 'bg-violet-500' },
-    ...(hasGithub ? [{ key: 'github', icon: FiGithub, title: 'GitHub', value: sum.repos, desc: 'Repos, branches, PRs · clone & open in IDE.', tint: 'bg-slate-700' }] : []),
+    ...(hasGithub ? [{ key: 'github', icon: FiGithub, title: 'Projects', value: sum.repos, desc: 'Repos, branches, PRs · clone & open in IDE.', tint: 'bg-slate-700' }] : []),
     { key: 'notes', icon: FiFileText, title: 'Notes', value: sum.notes, desc: 'Personal & meeting notes (MoM).', tint: 'bg-amber-500' },
     { key: 'meetings', icon: FiVideo, title: 'Meetings', value: sum.meetings, desc: 'Schedule & join video meetings.', tint: 'bg-emerald-500' },
     { key: 'colleagues', icon: FiUsers, title: 'Colleagues', desc: 'Chat, voice & video with team + support.', tint: 'bg-rose-500' },
@@ -1430,7 +1430,7 @@ export default function TeamPortalPage() {
               {['overview', 'dev-tickets', 'tickets', 'engineering', ...((myPerms.includes('github_read') || myPerms.includes('github_write') || myRepos.length > 0) ? ['github'] : []), 'notes', 'meetings', 'mail', 'colleagues'].map((v) => (
                 <button key={v} onClick={() => setView(v)}
                   className={`relative px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors whitespace-nowrap shrink-0 ${view === v ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-300'}`}>
-                  {v === 'overview' ? 'Overview' : v === 'dev-tickets' ? 'Dev Tickets' : v}
+                  {v === 'overview' ? 'Overview' : v === 'dev-tickets' ? 'Dev Tickets' : v === 'github' ? 'Projects' : v}
                   {v === 'colleagues' && colUnread > 0 && view !== 'colleagues' && (
                     <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold animate-pulse">{colUnread > 9 ? '9+' : colUnread}</span>
                   )}
