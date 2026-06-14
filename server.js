@@ -81,6 +81,7 @@ import voiceRoomHandler from './api/voice-room.js';
 import colleaguesHandler from './api/colleagues.js';
 import businessHandler from './api/business.js';
 import gmailHandler from './api/gmail.js';
+import titanHandler from './api/titan.js';
 import { attachTeamHub } from './api/_teamhub.js';
 import {
   createSessionToken, verifySessionToken,
@@ -440,6 +441,9 @@ app.all('/api/business/*',                   wrap(businessHandler));
 app.all('/api/gmail/callback',               wrap(gmailHandler));
 app.all('/api/gmail',                        wrap(gmailHandler));
 app.all('/api/gmail/*',                      wrap(gmailHandler));
+// Titan Mail (GoDaddy) — IMAP/SMTP, credential sign-in.
+app.all('/api/titan',                        wrap(titanHandler));
+app.all('/api/titan/*',                      wrap(titanHandler));
 // Machine-readable API contract for the ticketing + PEOS surface
 app.get('/api/openapi.json', (req, res) => res.json(openapiSpec));
 

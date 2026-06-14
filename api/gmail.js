@@ -244,7 +244,11 @@ export default async function handler(req, res) {
           : await gapi(at.token, '/drafts', { method: 'POST', body: JSON.stringify(payload) });
         return res.status(200).json({ ok: true, draftId: d.id });
       }
-      if (b.action === 'trash') { await gapi(at.token, `/messages/${b.id}/trash`, { method: 'POST', body: '{}' }); return res.status(200).json({ ok: true }); }
+      if (b.action === 'trash') {
+        const ids = Array.isArray(b.ids) && b.ids.length ? b.ids : (b.id ? [b.id] : []);
+        await Promise.all(ids.map((id) => gapi(at.token, `/messages/${id}/trash`, { method: 'POST', body: '{}' }).catch(() => {})));
+        return res.status(200).json({ ok: true, count: ids.length });
+      }
       if (b.action === 'deleteDraft') { await gapi(at.token, `/drafts/${b.id}`, { method: 'DELETE' }); return res.status(200).json({ ok: true }); }
       if (b.action === 'markRead' || b.action === 'markUnread') {
         const mod = b.action === 'markRead' ? { removeLabelIds: ['UNREAD'] } : { addLabelIds: ['UNREAD'] };

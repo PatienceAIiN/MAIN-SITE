@@ -199,6 +199,17 @@ function SettingsModal({ onClose, currency, setCurrency }) {
   const [err, setErr] = useState('');
   const [done, setDone] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [mail, setMail] = useState(null); // { provider, email } | false
+  const loadMail = () => Promise.all([
+    fetchJson('/api/gmail?status=1', { credentials: 'include' }).catch(() => ({})),
+    fetchJson('/api/titan?status=1', { credentials: 'include' }).catch(() => ({})),
+  ]).then(([g, t]) => setMail(g.connected ? { provider: 'gmail', email: g.email } : t.connected ? { provider: 'titan', email: t.email } : false));
+  useEffect(() => { loadMail(); }, []);
+  const disconnectMail = async () => {
+    if (!mail || !(await confirmDialog({ title: 'Disconnect mailbox', message: `Disconnect ${mail.email} from Growth?`, confirmText: 'Disconnect' }))) return;
+    await fetchJson(`/api/${mail.provider}`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'disconnect' }) }).catch(() => {});
+    loadMail();
+  };
   const submit = async (e) => {
     e.preventDefault(); setErr('');
     if (f.newPassword !== f.confirm) { setErr('New passwords do not match'); return; }
@@ -225,6 +236,16 @@ function SettingsModal({ onClose, currency, setCurrency }) {
               </button>
             ))}
           </div>
+        </div>
+        <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
+          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2 flex items-center gap-2"><FiMail size={15} /> Connected mailbox</h4>
+          {mail === null ? <p className="text-sm text-slate-400">Checking…</p>
+            : mail ? (
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2">
+                <div className="min-w-0"><p className="text-sm text-slate-700 dark:text-slate-200 truncate">{mail.email}</p><p className="text-[11px] text-slate-400 capitalize">{mail.provider} Mail</p></div>
+                <button onClick={disconnectMail} className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950 dark:text-red-300 font-medium shrink-0">Disconnect</button>
+              </div>
+            ) : <p className="text-sm text-slate-400">No mailbox connected. Connect one from the Mail tab.</p>}
         </div>
         <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
           <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2 flex items-center gap-2"><FiLock size={15} /> Change password</h4>
