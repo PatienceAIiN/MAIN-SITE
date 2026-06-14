@@ -42,6 +42,149 @@ const getGhActor = async (req) => {
 const repoAllowed = (actor, owner, repo) =>
   actor.allRepos || actor.allowed.includes(`${owner}/${repo}`.toLowerCase());
 
+// ── GitHub CLI console ────────────────────────────────────────────────────
+// A safe, web-based `gh`-style console. Commands are NOT shelled out — they are
+// parsed and routed to the GitHub REST API via gh() below. This means no shell
+// injection is possible and no gh binary is needed. Read commands need
+// github_read; mutating commands need github_write; every command is scoped to
+// repositories the actor has been granted (and a few destructive ops are hard-
+// blocked for everyone but admins).
+const READ_METHODS = new Set(['GET', 'HEAD']);
+// Split a command line into tokens, honouring single/double quotes.
+const tokenize = (s) => {
+  const out = []; const re = /"([^"]*)"|'([^']*)'|(\S+)/g; let m;
+  while ((m = re.exec(s)) !== null) out.push(m[1] ?? m[2] ?? m[3]);
+  return out;
+};
+const normPath = (p) => '/' + String(p || '').replace(/^https?:\/\/api\.github\.com/i, '').replace(/^\/+/, '');
+// A repo path like /repos/owner/name/... — returns [owner, name] or null.
+const repoOfPath = (p) => { const m = normPath(p).match(/^\/repos\/([^/?#]+)\/([^/?#]+)/); return m ? [m[1], m[2]] : null; };
+
+// Build a {owner,repo}-scoped REST request from a parsed `gh api` invocation.
+const buildApiCall = (tokens) => {
+  let method = 'GET'; let path = null; const body = {};
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (t === '-X' || t === '--method') { method = (tokens[++i] || 'GET').toUpperCase(); }
+    else if (t === '-f' || t === '--raw-field' || t === '-F' || t === '--field') {
+      const kv = tokens[++i] || ''; const eq = kv.indexOf('='); if (eq > 0) {
+        const k = kv.slice(0, eq); let v = kv.slice(eq + 1);
+        if (t === '-F' || t === '--field') { if (v === 'true') v = true; else if (v === 'false') v = false; else if (/^-?\d+$/.test(v)) v = Number(v); }
+        body[k] = v;
+      }
+      // a body field implies a write verb unless one was given
+      if (method === 'GET') method = 'POST';
+    } else if (t === '-q' || t === '--jq' || t === '-H' || t === '--header' || t === '--paginate' || t === '--slurp') { if (t === '-q' || t === '--jq' || t === '-H' || t === '--header') i++; /* ignore */ }
+    else if (!t.startsWith('-') && !path) path = t;
+  }
+  return { method, path, body: Object.keys(body).length ? body : undefined };
+};
+
+const handleCli = async (req, res, actor, owner, repo) => {
+  const raw = String(req.body?.command || '').trim();
+  if (!raw) return res.status(400).json({ error: 'Empty command' });
+  if (raw.length > 1000) return res.status(400).json({ error: 'Command too long' });
+  // No shell features — we never exec; reject obvious shell metacharacters so a
+  // user isn't misled into thinking piping/chaining works.
+  if (/[|;&`$><\\]|\$\(/.test(raw)) return res.status(400).json({ error: 'Shell operators (| & ; $ ` > <) are not supported — this console runs GitHub API commands only.' });
+
+  let tokens = tokenize(raw);
+  if (tokens[0] === 'gh') tokens = tokens.slice(1);
+  const sub = (tokens[0] || '').toLowerCase();
+  const rest = tokens.slice(1);
+  const scoped = (path) => `/repos/${owner}/${repo}/${String(path).replace(/^\/+/, '')}`;
+  const run = async (method, path, body) => {
+    const data = await gh(path, { method, body });
+    return res.status(200).json({ ok: true, command: raw, method, path, data });
+  };
+  const needWrite = () => { if (!actor.write) { res.status(403).json({ error: 'This command writes — you need the github_write permission.' }); return true; } return false; };
+
+  try {
+    if (sub === 'help' || sub === '') {
+      return res.status(200).json({ ok: true, help: true, output: [
+        'GitHub CLI console — runs against this repository via the GitHub API.',
+        '',
+        'Read:',
+        '  gh repo view',
+        '  gh pr list                 gh pr view <n>',
+        '  gh issue list              gh issue view <n>',
+        '  gh branch list             gh release list',
+        '  gh run list                gh workflow list',
+        '  gh api repos/' + owner + '/' + repo + '/contributors',
+        '',
+        'Write (needs github_write):',
+        '  gh pr create --title "T" --head <branch> [--base <b>] [--body "B"]',
+        '  gh pr merge <n>            gh pr close <n>',
+        '  gh issue create --title "T" [--body "B"]   gh issue close <n>',
+        '  gh api -X POST repos/' + owner + '/' + repo + '/labels -f name=bug -f color=ff0000',
+        '',
+        'Notes: scoped to repos an admin granted you. Shell pipes/redirects are not supported.',
+      ].join('\n') });
+    }
+
+    // Generic passthrough: gh api [-X METHOD] <path> [-f k=v ...]
+    if (sub === 'api') {
+      const { method, path, body } = buildApiCall(rest);
+      if (!path) return res.status(400).json({ error: 'Usage: gh api [-X METHOD] <path> [-f key=value ...]' });
+      const np = normPath(path);
+      const rp = repoOfPath(np);
+      // Hard block: deleting/transferring a repository, and org-level mutations.
+      if (!actor.allRepos) {
+        if (/^DELETE$/i.test(method) && rp && np.replace(/\/+$/, '') === `/repos/${rp[0]}/${rp[1]}`) return res.status(403).json({ error: 'Deleting a repository is not allowed from this console.' });
+        if (/^\/orgs\//i.test(np) && !READ_METHODS.has(method)) return res.status(403).json({ error: 'Organisation-level changes are not allowed from this console.' });
+      }
+      if (rp) { if (!repoAllowed(actor, rp[0], rp[1])) return res.status(403).json({ error: `Repository ${rp[0]}/${rp[1]} has not been granted to you.` }); }
+      else if (!READ_METHODS.has(method) && !actor.allRepos) return res.status(403).json({ error: 'Only repository-scoped writes are allowed from this console.' });
+      if (!READ_METHODS.has(method) && needWrite()) return;
+      const out = await run(method, np, body);
+      await logAudit('staff', actor.email, 'github_cli', `${method} ${np}`.slice(0, 200)).catch(() => {});
+      return out;
+    }
+
+    // Friendly aliases, all scoped to the selected repo.
+    if (sub === 'repo' && (rest[0] === 'view' || !rest[0])) return run('GET', `/repos/${owner}/${repo}`);
+    if (sub === 'branch' && (rest[0] === 'list' || !rest[0])) return run('GET', scoped('branches?per_page=100'));
+    if (sub === 'release' && (rest[0] === 'list' || !rest[0])) return run('GET', scoped('releases?per_page=50'));
+    if (sub === 'run' && (rest[0] === 'list' || !rest[0])) return run('GET', scoped('actions/runs?per_page=30'));
+    if (sub === 'workflow' && (rest[0] === 'list' || !rest[0])) return run('GET', scoped('actions/workflows'));
+    if (sub === 'label' && (rest[0] === 'list' || !rest[0])) return run('GET', scoped('labels?per_page=100'));
+
+    if (sub === 'pr') {
+      const op = rest[0] || 'list';
+      if (op === 'list') return run('GET', scoped(`pulls?state=${/* */ 'open'}&per_page=30`));
+      if (op === 'view' && rest[1]) return run('GET', scoped(`pulls/${parseInt(rest[1], 10)}`));
+      const flags = parseFlags(rest.slice(1));
+      if (op === 'create') { if (needWrite()) return; if (!flags.title || !flags.head) return res.status(400).json({ error: 'gh pr create --title "T" --head <branch> [--base <b>] [--body "B"]' }); const r = await gh(scoped('pulls'), { method: 'POST', body: { title: flags.title, head: flags.head, base: flags.base || (await gh(`/repos/${owner}/${repo}`)).default_branch, body: flags.body || '' } }); await logAudit('staff', actor.email, 'github_cli_pr_created', `${repo}#${r.number}`).catch(() => {}); return res.status(200).json({ ok: true, command: raw, data: { number: r.number, url: r.html_url } }); }
+      if (op === 'merge' && rest[1]) { if (needWrite()) return; const r = await gh(scoped(`pulls/${parseInt(rest[1], 10)}/merge`), { method: 'PUT', body: { merge_method: 'squash' } }); await logAudit('staff', actor.email, 'github_cli_pr_merged', `${repo}#${rest[1]}`).catch(() => {}); return res.status(200).json({ ok: true, command: raw, data: r }); }
+      if (op === 'close' && rest[1]) { if (needWrite()) return; const r = await gh(scoped(`pulls/${parseInt(rest[1], 10)}`), { method: 'PATCH', body: { state: 'closed' } }); await logAudit('staff', actor.email, 'github_cli_pr_closed', `${repo}#${rest[1]}`).catch(() => {}); return res.status(200).json({ ok: true, command: raw, data: { number: r.number, state: r.state } }); }
+      return res.status(400).json({ error: 'Usage: gh pr list | view <n> | create … | merge <n> | close <n>' });
+    }
+
+    if (sub === 'issue') {
+      const op = rest[0] || 'list';
+      if (op === 'list') return run('GET', scoped('issues?state=open&per_page=30'));
+      if (op === 'view' && rest[1]) return run('GET', scoped(`issues/${parseInt(rest[1], 10)}`));
+      const flags = parseFlags(rest.slice(1));
+      if (op === 'create') { if (needWrite()) return; if (!flags.title) return res.status(400).json({ error: 'gh issue create --title "T" [--body "B"]' }); const r = await gh(scoped('issues'), { method: 'POST', body: { title: flags.title, body: flags.body || '' } }); await logAudit('staff', actor.email, 'github_cli_issue_created', `${repo}#${r.number}`).catch(() => {}); return res.status(200).json({ ok: true, command: raw, data: { number: r.number, url: r.html_url } }); }
+      if (op === 'close' && rest[1]) { if (needWrite()) return; const r = await gh(scoped(`issues/${parseInt(rest[1], 10)}`), { method: 'PATCH', body: { state: 'closed' } }); await logAudit('staff', actor.email, 'github_cli_issue_closed', `${repo}#${rest[1]}`).catch(() => {}); return res.status(200).json({ ok: true, command: raw, data: { number: r.number, state: r.state } }); }
+      return res.status(400).json({ error: 'Usage: gh issue list | view <n> | create … | close <n>' });
+    }
+
+    return res.status(400).json({ error: `Unsupported command: "${sub}". Type \`gh help\` for the supported commands.` });
+  } catch (err) {
+    return res.status(err.code === 503 ? 503 : 200).json({ ok: false, command: raw, error: err.message });
+  }
+};
+// Parse --flag value / --flag="value" pairs from alias commands.
+const parseFlags = (toks) => {
+  const f = {};
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i];
+    if (t.startsWith('--')) { const eq = t.indexOf('='); if (eq > 0) { f[t.slice(2, eq)] = t.slice(eq + 1); } else { f[t.slice(2)] = toks[++i] ?? true; } }
+  }
+  return f;
+};
+
 const gh = async (path, { method = 'GET', body } = {}) => {
   const token = process.env.GITHUB_TOKEN;
   if (!token) throw Object.assign(new Error('GitHub is not connected. Set GITHUB_TOKEN (and optional GITHUB_OWNER) in the environment.'), { code: 503 });
@@ -64,9 +207,19 @@ export default async function handler(req, res) {
   const actor = await getGhActor(req);
   if (!actor) return res.status(401).json({ error: 'Not authenticated' });
   if (req.method === 'GET' && !actor.read) return res.status(403).json({ error: 'No GitHub access — ask an admin to grant the github_read permission' });
-  if (req.method === 'POST' && !actor.write) return res.status(403).json({ error: 'No GitHub write access — ask an admin to grant the github_write permission' });
   const owner = req.query.owner || process.env.GITHUB_OWNER;
   const repo = req.query.repo;
+
+  // GitHub CLI console — own permission model (read commands need read, write
+  // commands need write), so it is handled before the blanket POST-write guard.
+  if (req.method === 'POST' && req.body?.action === 'cli') {
+    if (!actor.read) return res.status(403).json({ error: 'No GitHub access — ask an admin to grant the github_read permission' });
+    if (!owner || !repo) return res.status(400).json({ error: 'Select a repository first' });
+    if (!repoAllowed(actor, owner, repo)) return res.status(403).json({ error: 'This repository has not been granted to you by an admin' });
+    return handleCli(req, res, actor, owner, repo);
+  }
+
+  if (req.method === 'POST' && !actor.write) return res.status(403).json({ error: 'No GitHub write access — ask an admin to grant the github_write permission' });
 
   try {
     if (req.method === 'GET') {

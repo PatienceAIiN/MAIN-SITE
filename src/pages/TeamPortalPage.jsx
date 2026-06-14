@@ -4,7 +4,7 @@ import {
   FiEye, FiEyeOff, FiLogOut, FiMoon, FiSun, FiSend, FiRefreshCw, FiSearch,
   FiLock, FiX, FiTag, FiUser, FiMail, FiClock, FiMessageSquare, FiSettings,
   FiBell, FiBellOff, FiUploadCloud, FiFileText, FiMaximize2,
-  FiCopy, FiUsers, FiGithub, FiExternalLink, FiTrash2, FiPlus, FiCode, FiCheck, FiShield, FiVideo, FiBookOpen, FiMove, FiServer
+  FiCopy, FiUsers, FiGithub, FiExternalLink, FiTrash2, FiPlus, FiCode, FiCheck, FiShield, FiVideo, FiBookOpen, FiMove, FiServer, FiTerminal
 } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import NetworkDot from '../common/NetworkDot';
@@ -790,6 +790,7 @@ function GitHubWorkspace({ canWrite, canCollab }) {
   const [forms, setForms] = useState({ branch: '', prTitle: '', prHead: '' });
   const [explore, setExplore] = useState(null); // branch name being explored
   const [collabOpen, setCollabOpen] = useState(false);
+  const [cliOpen, setCliOpen] = useState(false);
   const [msg, setMsg] = useState('');
   const repoObj = repos.find((r) => r.full_name === repo) || null;
   const cloneUrl = repoObj?.clone_url || (repo ? `https://github.com/${repo}.git` : '');
@@ -845,6 +846,9 @@ function GitHubWorkspace({ canWrite, canCollab }) {
           </select>
           {repo && canCollab && (
             <button className={tb2} onClick={() => setCollabOpen(true)} title="Manage repository collaborators"><FiUsers size={12} className="inline mr-1" />Collaborators</button>
+          )}
+          {repo && (
+            <button className={tb2} onClick={() => setCliOpen(true)} title="Open the GitHub CLI console"><FiTerminal size={12} className="inline mr-1" />CLI</button>
           )}
           {msg && <p className="text-[11px] text-amber-600 dark:text-amber-400 w-full truncate">{msg}</p>}
         </div>
@@ -916,6 +920,75 @@ function GitHubWorkspace({ canWrite, canCollab }) {
       )}
       {explore && <BranchExplorer repo={repo} branch={explore} canWrite={canWrite} cloneUrl={cloneUrl} htmlUrl={repoObj?.url} onClose={() => setExplore(null)} />}
       {collabOpen && <CollaboratorsModal repo={repo} onClose={() => setCollabOpen(false)} />}
+      {cliOpen && <CliConsole repo={repo} canWrite={canWrite} onClose={() => setCliOpen(false)} />}
+    </div>
+  );
+}
+
+/* ── GitHub CLI console: type `gh` commands; runs against the selected repo via
+   the GitHub API. Read commands need github_read, writes need github_write. ── */
+function CliConsole({ repo, canWrite, onClose }) {
+  const [o, n] = repo.split('/');
+  const [cmd, setCmd] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [hist, setHist] = useState([]);        // [{cmd, ok, text}]
+  const [recall, setRecall] = useState([]);    // command history for ↑/↓
+  const [ri, setRi] = useState(-1);
+  const outRef = useRef(null);
+  const inRef = useRef(null);
+  useEffect(() => { inRef.current?.focus(); }, []);
+  useEffect(() => { if (outRef.current) outRef.current.scrollTop = outRef.current.scrollHeight; }, [hist, busy]);
+
+  const fmt = (d) => {
+    if (d.help || d.output) return d.output;
+    if (d.error) return `✗ ${d.error}`;
+    try { return JSON.stringify(d.data ?? d, null, 2); } catch { return String(d.data); }
+  };
+  const runCmd = async () => {
+    const c = cmd.trim();
+    if (!c || busy) return;
+    setBusy(true); setRecall((r) => [c, ...r.filter((x) => x !== c)].slice(0, 50)); setRi(-1);
+    try {
+      const d = await fetchJson(`/api/github?owner=${o}&repo=${n}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cli', command: c }) });
+      setHist((h) => [...h, { cmd: c, ok: d.ok !== false && !d.error, text: fmt(d) }]);
+    } catch (e) {
+      setHist((h) => [...h, { cmd: c, ok: false, text: `✗ ${e.message}` }]);
+    } finally { setBusy(false); setCmd(''); inRef.current?.focus(); }
+  };
+  const onKey = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); runCmd(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setRi((i) => { const ni = Math.min(i + 1, recall.length - 1); if (recall[ni] !== undefined) setCmd(recall[ni]); return ni; }); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); setRi((i) => { const ni = Math.max(i - 1, -1); setCmd(ni === -1 ? '' : recall[ni]); return ni; }); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[85] bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-3xl h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 border-b border-slate-700">
+          <p className="text-sm font-bold text-white flex items-center gap-2 min-w-0">
+            <FiTerminal size={15} className="shrink-0" /> <span className="truncate">GitHub CLI · {repo}</span>
+            <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded font-semibold ${canWrite ? 'bg-emerald-900/40 text-emerald-300' : 'bg-slate-700 text-slate-300'}`}>{canWrite ? 'read · write' : 'read only'}</span>
+          </p>
+          <button onClick={onClose} className="text-slate-400 hover:text-white shrink-0"><FiX size={18} /></button>
+        </div>
+        <div ref={outRef} className="flex-1 overflow-auto bg-slate-950 p-4 font-mono text-xs leading-relaxed">
+          <p className="text-slate-500 mb-2">GitHub CLI console — runs against <span className="text-slate-300">{repo}</span> via the GitHub API. Type <span className="text-emerald-400">gh help</span> for commands. Use ↑/↓ for history.</p>
+          {hist.map((h, i) => (
+            <div key={i} className="mb-3">
+              <p className="text-indigo-300"><span className="text-slate-500 select-none">$ </span>{h.cmd}</p>
+              <pre className={`whitespace-pre-wrap mt-1 ${h.ok ? 'text-slate-200' : 'text-red-400'}`}>{h.text}</pre>
+            </div>
+          ))}
+          {busy && <p className="text-amber-400">Running…</p>}
+        </div>
+        <div className="flex items-center gap-2 px-3 sm:px-4 py-3 border-t border-slate-700 bg-slate-900">
+          <span className="text-emerald-400 font-mono text-sm select-none">gh</span>
+          <input ref={inRef} value={cmd} onChange={(e) => setCmd(e.target.value)} onKeyDown={onKey} disabled={busy}
+            placeholder={canWrite ? 'pr list   ·   api repos/.../commits   ·   pr merge 12' : 'pr list   ·   repo view   ·   api repos/.../contributors'}
+            className="flex-1 bg-transparent border-0 outline-none text-slate-100 font-mono text-sm placeholder:text-slate-600" />
+          <button onClick={runCmd} disabled={busy || !cmd.trim()} className="text-[11px] px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-40">Run</button>
+        </div>
+      </div>
     </div>
   );
 }
