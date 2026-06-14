@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   FiPhone, FiPhoneOff, FiPhoneIncoming, FiMic, FiMicOff, FiSend,
   FiLogOut, FiUser, FiRefreshCw, FiCheck, FiEye, FiEyeOff, FiChevronLeft, FiChevronRight, FiSearch,
-  FiVolume2, FiSmartphone, FiUsers, FiX, FiCornerUpRight, FiSun, FiMoon, FiAlertTriangle, FiTag, FiMessageSquare, FiBell, FiBellOff, FiMail, FiSettings, FiLock
+  FiVolume2, FiSmartphone, FiUsers, FiX, FiCornerUpRight, FiSun, FiMoon, FiAlertTriangle, FiTag, FiMessageSquare, FiBell, FiBellOff, FiMail, FiSettings, FiLock, FiCalendar
 } from 'react-icons/fi';
 import { TicketModal, TicketsPanel, NotificationBell } from '../components/TicketCenter';
+import { MeetingsTab } from '../components/TeamNotes';
 import GrowthMail from '../components/GrowthMail';
 
 const STATUS_DOT = { online: 'bg-emerald-500', away: 'bg-amber-500', offline: 'bg-slate-300' };
@@ -1113,7 +1114,7 @@ export default function SupportExecutivePage() {
         <div className="flex items-center gap-2 lg:gap-3 flex-wrap lg:flex-nowrap w-full lg:w-auto">
           {/* Chats / Tickets view toggle */}
           <div className="flex items-center bg-slate-100 rounded-lg p-1">
-            {[{ key: 'chats', label: 'Chats', icon: FiMessageSquare }, { key: 'tickets', label: 'Tickets', icon: FiTag }, { key: 'mail', label: 'Mail', icon: FiMail }].map(({ key, label, icon: Icon }) => (
+            {[{ key: 'chats', label: 'Chats', icon: FiMessageSquare }, { key: 'tickets', label: 'Tickets', icon: FiTag }, { key: 'meetings', label: 'Meetings', icon: FiCalendar }, { key: 'mail', label: 'Mail', icon: FiMail }].map(({ key, label, icon: Icon }) => (
               <button key={key} onClick={() => setView(key)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                   view === key ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'
@@ -1198,6 +1199,8 @@ export default function SupportExecutivePage() {
 
       {view === 'mail' ? (
         <div className="flex-1 overflow-y-auto p-4"><GrowthMail gmailOnly portal="support" /></div>
+      ) : view === 'meetings' ? (
+        <div className="flex-1 overflow-y-auto p-4"><MeetingsTab /></div>
       ) : view === 'tickets' ? (
         <TicketsPanel onCreateNew={() => setTicketModal({})} />
       ) : (
