@@ -1490,6 +1490,219 @@ function ResponseModal({ it, busy, onStatus, onDelete, onClose }) {
   );
 }
 
+/* ── Receipts: issue customer receipts, download PDF, email with template ──── */
+const RECEIPT_STAGES = ['draft', 'in_progress', 'final'];
+const STAGE_TINT = {
+  draft: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+  in_progress: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+  final: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+};
+const RCUR = { INR: '₹', USD: '$', EUR: '€', GBP: '£' };
+const money = (n, cur) => `${RCUR[cur] || ''}${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const blankReceipt = () => ({ customer_name: '', customer_email: '', project: '', stage: 'draft', currency: 'INR', items: [{ description: '', qty: 1, price: 0 }], tax_rate: 0, discount: 0, notes: '' });
+const calcTotal = (r) => {
+  const sub = (r.items || []).reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.price) || 0), 0);
+  const taxable = Math.max(0, sub - (Number(r.discount) || 0));
+  return { sub, total: taxable + taxable * ((Number(r.tax_rate) || 0) / 100) };
+};
+
+function Receipts() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState(null);   // detail modal
+  const [editing, setEditing] = useState(null);      // create/edit form (object) or null
+  const [tplOpen, setTplOpen] = useState(false);
+  const load = useCallback(() => { setLoading(true); api('/receipts').then((r) => setRows(r.receipts || [])).catch(() => {}).finally(() => setLoading(false)); }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async (rec) => {
+    const body = JSON.stringify(rec);
+    if (rec.id) await api(`/receipts?id=${rec.id}`, { method: 'PATCH', body });
+    else await api('/receipts', { method: 'POST', body });
+    setEditing(null); load();
+  };
+  const remove = async (id) => {
+    if (!(await confirmDialog({ title: 'Delete receipt', message: 'Delete this receipt permanently?', confirmText: 'Delete' }))) return;
+    await api(`/receipts?id=${id}`, { method: 'DELETE' }); setSelected(null); load();
+  };
+  const setStage = async (rec, stage) => { const r = await api(`/receipts?id=${rec.id}`, { method: 'PATCH', body: JSON.stringify({ stage }) }); if (r.receipt) { setRows((c) => c.map((x) => (x.id === r.receipt.id ? r.receipt : x))); setSelected(r.receipt); } };
+
+  return (
+    <div className="space-y-4 max-w-4xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white">Receipts</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Issue customer receipts, track stage (draft → in progress → final), download a PDF, and email it to the customer.</p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button onClick={() => setTplOpen(true)} className={btnGhost}><FiMail /> Email template</button>
+          <button onClick={() => setEditing(blankReceipt())} className={btnPrimary}><FiPlus /> New receipt</button>
+        </div>
+      </div>
+      <div className={`${card} overflow-hidden`}>
+        {loading && !rows.length ? <p className="text-sm text-slate-400 p-6 text-center">Loading…</p>
+          : !rows.length ? <p className="text-sm text-slate-400 p-6 text-center">No receipts yet. Click “New receipt” to create one.</p>
+            : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                {rows.map((r) => (
+                  <div key={r.id} className="px-4 py-3 flex items-center justify-between gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40" onClick={() => setSelected(r)}>
+                    <div className="min-w-0">
+                      <p className="font-medium text-slate-800 dark:text-slate-100 truncate">{r.customer_name} <span className="text-slate-400 font-normal font-mono text-xs">· {r.receipt_no}</span></p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{r.project || r.customer_email || '—'}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {r.sent_at && <span title={`Sent ${new Date(r.sent_at).toLocaleString()}`} className="text-emerald-500"><FiCheckCircle size={14} /></span>}
+                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{money(r.total, r.currency)}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full capitalize ${STAGE_TINT[r.stage] || STAGE_TINT.draft}`}>{(r.stage || 'draft').replace('_', ' ')}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+      </div>
+      {selected && <ReceiptModal r={selected} onEdit={() => { setEditing(selected); setSelected(null); }} onDelete={() => remove(selected.id)} onStage={(s) => setStage(selected, s)} onSent={load} onClose={() => setSelected(null)} />}
+      {editing && <ReceiptForm initial={editing} onSave={save} onClose={() => setEditing(null)} />}
+      {tplOpen && <ReceiptTemplateModal onClose={() => setTplOpen(false)} />}
+    </div>
+  );
+}
+
+function ReceiptModal({ r, onEdit, onDelete, onStage, onSent, onClose }) {
+  const [email, setEmail] = useState(r.customer_email || '');
+  const [sending, setSending] = useState(false);
+  const [msg, setMsg] = useState({ type: '', text: '' });
+  const t = calcTotal(r);
+  const send = async () => {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setMsg({ type: 'err', text: 'Enter a valid customer email.' }); return; }
+    setSending(true); setMsg({ type: '', text: '' });
+    try { const res = await api('/receipts', { method: 'POST', body: JSON.stringify({ action: 'send', id: r.id, email }) }); setMsg({ type: 'ok', text: `Receipt emailed to ${res.sentTo}.` }); onSent?.(); }
+    catch (e) { setMsg({ type: 'err', text: e.message }); } finally { setSending(false); }
+  };
+  return (
+    <Modal title={`Receipt ${r.receipt_no || ''}`} onClose={onClose} wide>
+      <div className="space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-base font-bold text-slate-900 dark:text-white truncate">{r.customer_name}</p>
+            {r.customer_email && <p className="text-sm text-slate-500 dark:text-slate-400 break-all">{r.customer_email}</p>}
+            {r.project && <p className="text-xs text-slate-400">Project: {r.project}</p>}
+          </div>
+          <span className={`text-[11px] px-2.5 py-1 rounded-full capitalize shrink-0 ${STAGE_TINT[r.stage] || STAGE_TINT.draft}`}>{(r.stage || 'draft').replace('_', ' ')}</span>
+        </div>
+        {/* Line items */}
+        <div className="rounded-xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+          <table className="w-full text-xs">
+            <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-400"><tr><th className="text-left px-3 py-1.5 font-medium">Description</th><th className="text-right px-3 py-1.5 font-medium">Qty</th><th className="text-right px-3 py-1.5 font-medium">Price</th><th className="text-right px-3 py-1.5 font-medium">Amount</th></tr></thead>
+            <tbody>
+              {(r.items || []).map((it, i) => (
+                <tr key={i} className="border-t border-slate-100 dark:border-slate-800"><td className="px-3 py-1.5 text-slate-700 dark:text-slate-200">{it.description}</td><td className="px-3 py-1.5 text-right text-slate-600 dark:text-slate-300">{it.qty}</td><td className="px-3 py-1.5 text-right text-slate-600 dark:text-slate-300">{money(it.price, r.currency)}</td><td className="px-3 py-1.5 text-right text-slate-700 dark:text-slate-200">{money((it.qty || 0) * (it.price || 0), r.currency)}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex justify-end"><div className="text-sm font-bold text-slate-900 dark:text-white">Total: {money(r.total != null ? r.total : t.total, r.currency)}</div></div>
+        {r.notes && <p className="text-xs text-slate-500 dark:text-slate-400 whitespace-pre-wrap">{r.notes}</p>}
+
+        {/* Stage */}
+        <div>
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-2">Stage</p>
+          <div className="flex gap-2">
+            {RECEIPT_STAGES.map((s) => (
+              <button key={s} onClick={() => onStage(s)} disabled={r.stage === s} className={`text-xs px-3 py-1.5 rounded-lg capitalize disabled:opacity-100 ${r.stage === s ? 'bg-indigo-600 text-white' : 'border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{s.replace('_', ' ')}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Send by email */}
+        <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-2">Send to customer (PDF attached)</p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="customer@email.com" className={`${input} flex-1`} />
+            <button onClick={send} disabled={sending} className={`${btnPrimary} justify-center shrink-0`}>{sending ? <Spinner size={14} /> : <FiSend />} {sending ? 'Sending…' : 'Send mail'}</button>
+          </div>
+          {msg.text && <p className={`text-xs mt-1.5 ${msg.type === 'ok' ? 'text-emerald-600' : 'text-red-600'}`}>{msg.text}</p>}
+        </div>
+
+        {/* CRUD actions */}
+        <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 dark:border-slate-800 pt-3">
+          <a href={`/api/business/receipts?pdf=1&id=${r.id}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"><FiDownload size={14} /> Download PDF</a>
+          <button onClick={onEdit} className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"><FiEdit2 size={14} /> Edit</button>
+          <button onClick={onDelete} className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-300 hover:bg-red-100 ml-auto"><FiTrash2 size={14} /> Delete</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function ReceiptForm({ initial, onSave, onClose }) {
+  const [f, setF] = useState({ ...blankReceipt(), ...initial, items: (initial.items?.length ? initial.items : blankReceipt().items).map((it) => ({ description: it.description || '', qty: it.qty ?? 1, price: it.price ?? 0 })) });
+  const [saving, setSaving] = useState(false);
+  const setItem = (i, k, v) => setF((p) => ({ ...p, items: p.items.map((it, j) => (j === i ? { ...it, [k]: v } : it)) }));
+  const addItem = () => setF((p) => ({ ...p, items: [...p.items, { description: '', qty: 1, price: 0 }] }));
+  const delItem = (i) => setF((p) => ({ ...p, items: p.items.filter((_, j) => j !== i) }));
+  const t = calcTotal(f);
+  const submit = async () => { if (!f.customer_name.trim()) return; setSaving(true); try { await onSave(f); } finally { setSaving(false); } };
+  return (
+    <Modal title={initial.id ? 'Edit receipt' : 'New receipt'} onClose={onClose} wide>
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <input value={f.customer_name} onChange={(e) => setF({ ...f, customer_name: e.target.value })} placeholder="Customer name *" className={input} />
+          <input value={f.customer_email} onChange={(e) => setF({ ...f, customer_email: e.target.value })} placeholder="Customer email" className={input} />
+          <input value={f.project} onChange={(e) => setF({ ...f, project: e.target.value })} placeholder="Project / reference" className={input} />
+          <div className="grid grid-cols-2 gap-2">
+            <select value={f.stage} onChange={(e) => setF({ ...f, stage: e.target.value })} className={input}>{RECEIPT_STAGES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}</select>
+            <select value={f.currency} onChange={(e) => setF({ ...f, currency: e.target.value })} className={input}>{Object.keys(RCUR).map((c) => <option key={c} value={c}>{c}</option>)}</select>
+          </div>
+        </div>
+        {/* Line items */}
+        <div>
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-1">Line items</p>
+          <div className="space-y-2">
+            {f.items.map((it, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <input value={it.description} onChange={(e) => setItem(i, 'description', e.target.value)} placeholder="Description" className={`${input} flex-1`} />
+                <input type="number" value={it.qty} onChange={(e) => setItem(i, 'qty', e.target.value)} placeholder="Qty" className={`${input} w-16`} />
+                <input type="number" value={it.price} onChange={(e) => setItem(i, 'price', e.target.value)} placeholder="Price" className={`${input} w-24`} />
+                <button onClick={() => delItem(i)} className="text-slate-400 hover:text-red-500 shrink-0"><FiX size={16} /></button>
+              </div>
+            ))}
+          </div>
+          <button onClick={addItem} className="mt-2 text-xs text-indigo-600 dark:text-indigo-400 flex items-center gap-1 hover:underline"><FiPlus size={12} /> Add item</button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 items-end">
+          <label className="text-xs text-slate-500">Discount<input type="number" value={f.discount} onChange={(e) => setF({ ...f, discount: e.target.value })} className={input} /></label>
+          <label className="text-xs text-slate-500">Tax %<input type="number" value={f.tax_rate} onChange={(e) => setF({ ...f, tax_rate: e.target.value })} className={input} /></label>
+          <div className="text-right text-sm font-bold text-slate-900 dark:text-white sm:pb-2">Total: {money(t.total, f.currency)}</div>
+        </div>
+        <textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="Notes (optional)" rows={2} className={input} />
+        <div className="flex justify-end gap-2 pt-1">
+          <button onClick={onClose} className={btnGhost}>Cancel</button>
+          <button onClick={submit} disabled={saving || !f.customer_name.trim()} className={btnPrimary}>{saving ? <Spinner size={14} /> : <FiCheckCircle />} {initial.id ? 'Save' : 'Create'}</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function ReceiptTemplateModal({ onClose }) {
+  const [tpl, setTpl] = useState({ subject: '', body: '' });
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+  useEffect(() => { api('/receipts?template=1').then((r) => setTpl(r.template || { subject: '', body: '' })).catch(() => {}); }, []);
+  const save = async () => { setSaving(true); setMsg(''); try { await api('/receipts', { method: 'POST', body: JSON.stringify({ action: 'save_template', subject: tpl.subject, body: tpl.body }) }); setMsg('Template saved.'); } catch (e) { setMsg(e.message); } finally { setSaving(false); } };
+  return (
+    <Modal title="Receipt email template" onClose={onClose} wide>
+      <div className="space-y-3">
+        <p className="text-xs text-slate-500 dark:text-slate-400">Used when emailing a receipt. Placeholders: <code className="text-indigo-600 dark:text-indigo-400">{'{customer_name}'} {'{receipt_no}'} {'{project}'} {'{total}'} {'{currency}'}</code></p>
+        <label className="block text-xs text-slate-500">Subject<input value={tpl.subject} onChange={(e) => setTpl({ ...tpl, subject: e.target.value })} className={input} /></label>
+        <label className="block text-xs text-slate-500">Body<textarea value={tpl.body} onChange={(e) => setTpl({ ...tpl, body: e.target.value })} rows={8} className={input} /></label>
+        {msg && <p className="text-xs text-emerald-600">{msg}</p>}
+        <div className="flex justify-end gap-2"><button onClick={onClose} className={btnGhost}>Close</button><button onClick={save} disabled={saving} className={btnPrimary}>{saving ? <Spinner size={14} /> : <FiCheckCircle />} Save template</button></div>
+      </div>
+    </Modal>
+  );
+}
+
 /* ── Shell ────────────────────────────────────────────────────────────────── */
 const NAV = [
   { key: 'command', label: 'Command Center', icon: FiGrid },
@@ -1500,6 +1713,7 @@ const NAV = [
   { key: 'connect', label: 'Connect', icon: FiMessageCircle },
   { key: 'mail', label: 'Mail', icon: FiMail },
   { key: 'accounts', label: 'Accounts', icon: FiCreditCard },
+  { key: 'receipts', label: 'Receipts', icon: FiFileText },
   { key: 'hr', label: 'People / HR', icon: FiBriefcase },
   { key: 'worklog', label: 'Worklog', icon: FiClock },
   { key: 'copilot', label: 'AI Copilot', icon: FiCpu },
@@ -1626,6 +1840,7 @@ export default function GrowthPage() {
             {tab === 'connect' && <GrowthConnect />}
             {tab === 'mail' && <GrowthMail />}
             {tab === 'accounts' && <Accounts reload={reload} />}
+            {tab === 'receipts' && <Receipts />}
             {tab === 'hr' && <Hr reload={reload} />}
             {tab === 'worklog' && <GrowthWorklog />}
             {tab === 'copilot' && <Copilot />}

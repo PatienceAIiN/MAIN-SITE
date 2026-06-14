@@ -77,7 +77,10 @@ const getSmtpTransporter = () => {
   return cachedTransporter;
 };
 
-const sendViaBrevo = async ({ provider, to, replyTo, subject, html, text }) => {
+// attachments: [{ filename, content: Buffer|base64 string, contentType }]
+const toBase64 = (content) => (Buffer.isBuffer(content) ? content.toString('base64') : String(content));
+
+const sendViaBrevo = async ({ provider, to, replyTo, subject, html, text, attachments }) => {
   const apiClient = SibApiV3Sdk.ApiClient.instance;
   apiClient.authentications['api-key'].apiKey = provider.apiKey;
   const emailApi = new SibApiV3Sdk.TransactionalEmailsApi();
@@ -91,10 +94,11 @@ const sendViaBrevo = async ({ provider, to, replyTo, subject, html, text }) => {
     const r = normalizeRecipient(replyTo);
     if (r) request.replyTo = r;
   }
+  if (attachments?.length) request.attachment = attachments.map((a) => ({ name: a.filename, content: toBase64(a.content) }));
   await emailApi.sendTransacEmail(request);
 };
 
-const sendViaSmtp = async ({ provider, to, replyTo, subject, html, text }) => {
+const sendViaSmtp = async ({ provider, to, replyTo, subject, html, text, attachments }) => {
   const transporter = getSmtpTransporter();
   const recipients = (Array.isArray(to) ? to : [to])
     .map(normalizeRecipient)
@@ -107,11 +111,12 @@ const sendViaSmtp = async ({ provider, to, replyTo, subject, html, text }) => {
     replyTo: rt ? (rt.name ? `"${rt.name}" <${rt.email}>` : rt.email) : undefined,
     subject,
     html,
-    text
+    text,
+    attachments: attachments?.length ? attachments.map((a) => ({ filename: a.filename, content: Buffer.isBuffer(a.content) ? a.content : Buffer.from(String(a.content), 'base64'), contentType: a.contentType })) : undefined
   });
 };
 
-export const sendEmail = async ({ to, replyTo, subject, html, text }) => {
+export const sendEmail = async ({ to, replyTo, subject, html, text, attachments }) => {
   const provider = getEmailProvider();
   if (!provider) throw new Error('No email provider configured. Set BREVO_API_KEY+BREVO_SENDER_EMAIL or SMTP_*.');
   // Test-mode safety net: when EMAIL_TEST_REDIRECT is set, every outbound email
@@ -124,8 +129,8 @@ export const sendEmail = async ({ to, replyTo, subject, html, text }) => {
     to = { email: redirect, name: 'Test inbox' };
     subject = `[TEST → ${orig || 'unknown'}] ${subject}`;
   }
-  if (provider.kind === 'brevo') return sendViaBrevo({ provider, to, replyTo, subject, html, text });
-  return sendViaSmtp({ provider, to, replyTo, subject, html, text });
+  if (provider.kind === 'brevo') return sendViaBrevo({ provider, to, replyTo, subject, html, text, attachments });
+  return sendViaSmtp({ provider, to, replyTo, subject, html, text, attachments });
 };
 
 export { normalizeEmailAddress, isValidEmail, normalizeRecipient };
