@@ -1,262 +1,214 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FiMic, FiMicOff, FiVideo, FiVideoOff, FiMonitor, FiPhoneOff, FiPhone, FiMinimize2, FiMaximize2, FiMove, FiUsers, FiUserPlus, FiChevronDown, FiChevronUp, FiMessageSquare, FiFileText, FiShare2, FiLink, FiX, FiSend, FiCheck, FiExternalLink } from 'react-icons/fi';
+import { Room, RoomEvent, Track } from 'livekit-client';
 import { fetchJson } from '../common/fetchJson';
 import { playRingtone } from '../common/sounds';
 
-// Multi-party (mesh) group video call. Each participant holds one RTCPeerConnection
-// per other participant. Glare-free rule: whoever is ALREADY in the room offers to
-// a newcomer (who only answers). Signalling rides the existing /ws/team relay with
-// data.room set, so 1:1 calls (no room) are completely unaffected.
+// Group video call powered by LiveKit (a media server / SFU). Every participant
+// publishes ONE up-stream to LiveKit, which forwards it to everyone else — so it
+// scales smoothly to many people, works reliably across phones + networks, and
+// avoids the old mesh's CPU/bandwidth blow-up. The /ws/team relay is still used
+// only to "ring" a colleague into a call (the incoming-call popup); all audio &
+// video flow through LiveKit. 1:1 calls are unaffected (separate code path).
 export function useGroupCall(me, wsSend) {
-  const [room, setRoom] = useState(null);     // { id, name, members } | { incoming, from, fromName }
-  const [peers, setPeers] = useState({});      // email -> { name, stream }
+  const [room, setRoom] = useState(null);          // meta: { id, name, members, host?, meeting? } | { incoming, ... }
+  const [peers, setPeers] = useState({});          // identity -> { name, email, videoTrack, micMuted, camOff }
+  const [localVideoTrack, setLocalVideoTrack] = useState(null);
   const [muted, setMuted] = useState(false);
   const [camOff, setCamOff] = useState(false);
   const [sharing, setSharing] = useState(false);
-  const [chat, setChat] = useState([]);       // in-call chat: { id, name, text, mine }
-  const [peerMuted, setPeerMuted] = useState({}); // email -> bool (broadcast mic state)
-  const [peerCamOff, setPeerCamOff] = useState({}); // email -> bool (broadcast camera state)
-  const mutedRef = useRef(false);              // my live mic state (for late-joiner sync)
-  const camOffRef = useRef(false);             // my live camera state (for late-joiner sync)
+  const [chat, setChat] = useState([]);            // { id, name, text, mine }
   const roomRef = useRef(null); roomRef.current = room;
-  const pcs = useRef(new Map());               // email -> RTCPeerConnection
-  const pending = useRef(new Map());           // email -> [ice]
-  const localStream = useRef(null);
-  const screenStream = useRef(null);
-  const iceRef = useRef([{ urls: 'stun:stun.l.google.com:19302' }]);
+  const lkRef = useRef(null);                       // LiveKit Room instance
+  const audioEls = useRef(new Map());              // identity -> [HTMLAudioElement] (remote audio sinks)
 
+  const emailOf = (identity) => String(identity || '').split('__')[0];
   const send = (to, data) => wsSend({ type: 'rtc', to, data: { ...data, room: roomRef.current?.id } });
+  const addChat = (m) => setChat((c) => [...c, { id: `${Date.now()}-${m.mine ? 'me' : m.from || 'x'}-${c.length}`, ...m }]);
+
+  // Recompute the visible state from the live LiveKit room (cheap; tracks are
+  // stable object refs so tiles don't re-attach/flicker).
+  const refresh = () => {
+    const lk = lkRef.current; if (!lk) return;
+    const np = {};
+    lk.remoteParticipants.forEach((p) => {
+      const share = p.getTrackPublication(Track.Source.ScreenShare);
+      const cam = p.getTrackPublication(Track.Source.Camera);
+      const vt = share?.videoTrack || cam?.videoTrack || null;
+      np[p.identity] = { name: p.name || emailOf(p.identity), email: emailOf(p.identity), videoTrack: vt, micMuted: !p.isMicrophoneEnabled, camOff: !vt };
+    });
+    setPeers(np);
+    const lp = lk.localParticipant;
+    const lShare = lp.getTrackPublication(Track.Source.ScreenShare);
+    const lCam = lp.getTrackPublication(Track.Source.Camera);
+    const lvt = lShare?.videoTrack || lCam?.videoTrack || null;
+    setLocalVideoTrack(lvt);
+    setMuted(!lp.isMicrophoneEnabled);
+    setCamOff(!lvt);
+    setSharing(!!lShare?.videoTrack);
+  };
+
+  const attachAudio = (track, participant) => {
+    if (track.kind !== Track.Kind.Audio || participant?.isLocal) return;
+    try {
+      const el = track.attach();           // LiveKit creates an <audio> that handles autoplay
+      el.setAttribute('data-lk-audio', participant.identity);
+      document.body.appendChild(el);
+      const arr = audioEls.current.get(participant.identity) || [];
+      arr.push(el); audioEls.current.set(participant.identity, arr);
+    } catch { /* ignore */ }
+  };
+  const detachAudioFor = (identity) => {
+    (audioEls.current.get(identity) || []).forEach((el) => { try { el.remove(); } catch { /* gone */ } });
+    audioEls.current.delete(identity);
+  };
 
   const cleanup = useCallback(() => {
-    pcs.current.forEach((pc) => pc.close()); pcs.current.clear(); pending.current.clear();
-    [localStream, screenStream].forEach((r) => { r.current?.getTracks().forEach((t) => t.stop()); r.current = null; });
-    setPeers({}); setRoom(null); setMuted(false); setCamOff(false); setSharing(false); setChat([]); setPeerMuted({}); mutedRef.current = false;
+    try { lkRef.current?.disconnect(); } catch { /* already gone */ }
+    lkRef.current = null;
+    audioEls.current.forEach((arr) => arr.forEach((el) => { try { el.remove(); } catch { /* gone */ } }));
+    audioEls.current.clear();
+    setPeers({}); setLocalVideoTrack(null); setRoom(null); setMuted(false); setCamOff(false); setSharing(false); setChat([]);
   }, []);
 
-  // In-call chat: fan a message out to every peer I'm connected to (rides the
-  // existing rtc relay; the hub already permits guests to send to their room).
+  const connectRoom = async (roomId, audioOnly) => {
+    if (lkRef.current) return;
+    const { url, token } = await fetchJson(`/api/livekit?room=${encodeURIComponent(roomId)}&name=${encodeURIComponent(me.name || me.email || 'Guest')}`);
+    if (!url || !token) throw new Error('Video service is not configured.');
+    // adaptiveStream + dynacast keep bandwidth/CPU low (esp. on phones).
+    const lk = new Room({ adaptiveStream: true, dynacast: true });
+    lkRef.current = lk;
+    lk.on(RoomEvent.ParticipantConnected, refresh)
+      .on(RoomEvent.ParticipantDisconnected, (p) => { detachAudioFor(p.identity); refresh(); })
+      .on(RoomEvent.TrackSubscribed, (track, _pub, participant) => { attachAudio(track, participant); refresh(); })
+      .on(RoomEvent.TrackUnsubscribed, (track) => { try { track.detach().forEach((e) => e.remove()); } catch { /* ignore */ } refresh(); })
+      .on(RoomEvent.TrackMuted, refresh)
+      .on(RoomEvent.TrackUnmuted, refresh)
+      .on(RoomEvent.LocalTrackPublished, refresh)
+      .on(RoomEvent.LocalTrackUnpublished, refresh)
+      .on(RoomEvent.ParticipantNameChanged, refresh)
+      .on(RoomEvent.DataReceived, (payload, participant) => {
+        try { const d = JSON.parse(new TextDecoder().decode(payload)); if (d?.text) addChat({ from: participant?.identity, name: participant?.name || emailOf(participant?.identity), text: String(d.text).slice(0, 2000), mine: false }); } catch { /* non-chat data */ }
+      })
+      .on(RoomEvent.Disconnected, () => cleanup());
+    await lk.connect(url, token);
+    await lk.localParticipant.setMicrophoneEnabled(true).catch(() => {});
+    if (!audioOnly) await lk.localParticipant.setCameraEnabled(true).catch(() => {});
+    lk.startAudio?.().catch(() => {});
+    refresh();
+  };
+
   const sendChat = (text) => {
-    const t = String(text || '').trim(); if (!t || !roomRef.current) return;
-    setChat((c) => [...c, { id: `${Date.now()}-me-${c.length}`, name: me.name || 'You', text: t, mine: true }]);
-    pcs.current.forEach((_, email) => send(email, { kind: 'g-chat', text: t, name: me.name || me.email }));
-    // Persist in-call chat to the meeting transcript (scheduled meeting rooms only).
-    const rid = roomRef.current.id;
-    if (rid && rid.startsWith('mtg-')) {
-      fetch('/api/meetings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'transcript', room: rid, line: `${me.name || 'Guest'}: ${t}` }) }).catch(() => {});
-    }
+    const t = String(text || '').trim(); const lk = lkRef.current; if (!t || !lk) return;
+    addChat({ name: me.name || 'You', text: t, mine: true });
+    try { lk.localParticipant.publishData(new TextEncoder().encode(JSON.stringify({ text: t })), { reliable: true }); } catch { /* ignore */ }
+    const rid = roomRef.current?.id;
+    if (rid && rid.startsWith('mtg-')) fetch('/api/meetings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'transcript', room: rid, line: `${me.name || 'Guest'}: ${t}` }) }).catch(() => {});
   };
 
-  const ensureMedia = async (audioOnly = false) => {
-    if (localStream.current) return localStream.current;
-    const { iceServers } = await fetchJson('/api/voice-room/ice-servers').catch(() => ({ iceServers: iceRef.current }));
-    iceRef.current = iceServers || iceRef.current;
-    // Voice call → request mic only (no camera light, camera shown off).
-    const s = await navigator.mediaDevices.getUserMedia(audioOnly ? { video: false, audio: true } : { video: true, audio: true });
-    localStream.current = s;
-    if (audioOnly) setCamOff(true);
-    return s;
-  };
-
-  const makePc = (email, name) => {
-    const pc = new RTCPeerConnection({ iceServers: iceRef.current });
-    localStream.current?.getTracks().forEach((t) => pc.addTrack(t, localStream.current));
-    pc.onicecandidate = (e) => { if (e.candidate) send(email, { kind: 'g-ice', candidate: e.candidate }); };
-    pc.ontrack = (e) => setPeers((p) => ({ ...p, [email]: { name, stream: e.streams[0] } }));
-    pc.onconnectionstatechange = () => { if (['failed', 'closed'].includes(pc.connectionState)) dropPeer(email); };
-    pcs.current.set(email, pc);
-    return pc;
-  };
-  const dropPeer = (email) => { pcs.current.get(email)?.close(); pcs.current.delete(email); setPeers((p) => { const n = { ...p }; delete n[email]; return n; }); setPeerMuted((m) => { const n = { ...m }; delete n[email]; return n; }); };
-
-  const broadcast = (data) => (roomRef.current?.members || []).filter((e) => e !== me.email).forEach((e) => send(e, data));
-
-  // Start a call for a group chat.
+  // Start a call from a group chat: connect, then ring the members in.
   const start = async (chatId, members, name) => {
-    await ensureMedia();
     const id = `grp-${chatId}-${Date.now()}`;
     setRoom({ id, name, members, host: true }); roomRef.current = { id, name, members, host: true };
+    await connectRoom(id, false);
     members.filter((e) => e !== me.email).forEach((e) => wsSend({ type: 'rtc', to: e, data: { room: id, kind: 'g-invite', name, members } }));
   };
-
-  // Ring an extra person INTO the live call: they receive a group invite whose
-  // member list is everyone currently connected, so on accept they g-join each
-  // of us and the mesh extends. Works for both chat group calls and meetings.
+  // Ring an extra colleague into the live call.
   const invite = (email, name) => {
     const r = roomRef.current; if (!r || r.incoming || !email) return;
-    const members = Array.from(new Set([me.email, ...pcs.current.keys()]));
-    wsSend({ type: 'rtc', to: email, data: { room: r.id, kind: 'g-invite', name: r.name || name || 'Group call', members } });
+    wsSend({ type: 'rtc', to: email, data: { room: r.id, kind: 'g-invite', name: r.name || name || 'Group call', members: r.members || [] } });
   };
-
   const accept = async () => {
     const inc = roomRef.current; if (!inc?.incoming) return;
-    await ensureMedia();
-    const r = { id: inc.id, name: inc.name, members: inc.members };
+    const r = { id: inc.id, name: inc.name, members: inc.members || [] };
     setRoom(r); roomRef.current = r;
-    broadcast({ kind: 'g-join', name: me.name || me.email });   // existing members will offer to me
+    await connectRoom(inc.id, false);
   };
-
-  // Join an OPEN meeting room via its shared link — discovery via the hub
-  // registry (anyone with the link can join, not just invitees).
+  // Join an open meeting room via its shared link (anyone with the link).
   const joinMeeting = async (roomId, name, audioOnly = false) => {
-    if (roomRef.current) return;
-    await ensureMedia(audioOnly);
-    const r = { id: roomId, name: name || 'Meeting', members: [], host: false, meeting: true };
+    if (roomRef.current && !roomRef.current.incoming) return;
+    const r = { id: roomId, name: name || 'Meeting', members: [], meeting: true };
     setRoom(r); roomRef.current = r;
-    wsSend({ type: 'gcall', room: roomId, op: 'join' }); // hub returns roster + notifies occupants
+    await connectRoom(roomId, audioOnly);
   };
-
-  // Hub room-registry events for open meeting rooms.
-  const onGcall = useCallback(async (m) => {
-    const r = roomRef.current;
-    if (!r || m.room !== r.id) return;
-    if (m.op === 'roster') {
-      r.members = (m.members || []).map((x) => x.email); // existing occupants will offer to me
-    } else if (m.op === 'joined') {
-      const pc = makePc(m.email, m.name);               // I'm already here → I offer to the newcomer
-      const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
-      send(m.email, { kind: 'g-offer', sdp: offer, name: me.name || me.email });
-      send(m.email, { kind: 'g-mute', muted: mutedRef.current });   // sync my mic state to the newcomer
-      send(m.email, { kind: 'g-cam', camOff: camOffRef.current });  // …and my camera state
-    } else if (m.op === 'left') {
-      dropPeer(m.email);
-    }
-  }, [me, wsSend]);
-
-  // Leave: meeting rooms deregister via the hub; chat calls use g-end/g-leave.
   const leave = useCallback(() => {
     const r = roomRef.current;
-    if (r?.meeting) wsSend({ type: 'gcall', room: r.id, op: 'leave' });
-    else broadcast({ kind: r?.host ? 'g-end' : 'g-leave' });
+    if (r && !r.meeting) (r.members || []).filter((e) => e !== me.email).forEach((e) => wsSend({ type: 'rtc', to: e, data: { room: r.id, kind: 'g-end' } }));
     cleanup();
+    // eslint-disable-next-line
   }, [cleanup]);
 
-  const onRtc = useCallback(async (from, fromName, data) => {
-    if (!data?.room) return; // not a group message
+  // WS relay: only the ring/incoming-popup signalling — media is all LiveKit.
+  const onRtc = useCallback((from, fromName, data) => {
+    if (!data?.room) return;
     const r = roomRef.current;
     if (data.kind === 'g-invite') {
       if (r) return; // already busy
-      setRoom({ incoming: true, id: data.room, name: data.name, members: data.members, from, fromName });
-      return;
+      const inc = { incoming: true, id: data.room, name: data.name, members: data.members, from, fromName };
+      setRoom(inc); roomRef.current = inc; return;
     }
-    // Host ended the whole call → tear down immediately, whether we'd joined or
-    // were still ringing (this clears a stuck incoming dialer).
-    if (data.kind === 'g-end' && r && data.room === r.id) { cleanup(); return; }
-    if (!r || r.incoming || data.room !== r.id) return;
-    if (data.kind === 'g-join') {
-      // I'm already in the room → I initiate the offer to the newcomer.
-      const pc = makePc(from, fromName);
-      const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
-      send(from, { kind: 'g-offer', sdp: offer, name: me.name || me.email });
-      send(from, { kind: 'g-mute', muted: mutedRef.current });
-      send(from, { kind: 'g-cam', camOff: camOffRef.current });
-    } else if (data.kind === 'g-offer') {
-      const pc = pcs.current.get(from) || makePc(from, fromName);
-      await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-      for (const c of (pending.current.get(from) || [])) await pc.addIceCandidate(c).catch(() => {});
-      pending.current.set(from, []);
-      const ans = await pc.createAnswer(); await pc.setLocalDescription(ans);
-      send(from, { kind: 'g-answer', sdp: ans });
-      send(from, { kind: 'g-mute', muted: mutedRef.current });
-      send(from, { kind: 'g-cam', camOff: camOffRef.current });
-    } else if (data.kind === 'g-mute') {
-      setPeerMuted((mm) => ({ ...mm, [from]: Boolean(data.muted) }));
-    } else if (data.kind === 'g-cam') {
-      setPeerCamOff((cc) => ({ ...cc, [from]: Boolean(data.camOff) }));
-    } else if (data.kind === 'g-answer') {
-      await pcs.current.get(from)?.setRemoteDescription(new RTCSessionDescription(data.sdp)).catch(() => {});
-    } else if (data.kind === 'g-ice') {
-      const pc = pcs.current.get(from);
-      if (pc?.remoteDescription) await pc.addIceCandidate(data.candidate).catch(() => {});
-      else pending.current.set(from, [...(pending.current.get(from) || []), data.candidate]);
-    } else if (data.kind === 'g-leave') {
-      dropPeer(from);
-    } else if (data.kind === 'g-chat') {
-      setChat((c) => [...c, { id: `${Date.now()}-${from}-${c.length}`, name: fromName || from, text: String(data.text || '').slice(0, 2000), mine: false }]);
-    }
-  }, [me, wsSend]);
+    if (data.kind === 'g-end' && r && data.room === r.id && r.incoming) cleanup();
+  }, [cleanup]);
+  const onGcall = useCallback(() => {}, []); // LiveKit handles discovery; hub no longer needed for media
 
-  const toggleMute = () => {
-    const next = !mutedRef.current; mutedRef.current = next;
-    localStream.current?.getAudioTracks().forEach((t) => { t.enabled = !next; });
-    setMuted(next);
-    pcs.current.forEach((_, email) => send(email, { kind: 'g-mute', muted: next })); // tell everyone
-  };
-  // Explicit mic on/off (used by push-to-talk). No-ops if already in that state.
-  const setMic = (on) => {
-    const nextMuted = !on;
-    if (mutedRef.current === nextMuted) return;
-    mutedRef.current = nextMuted;
-    localStream.current?.getAudioTracks().forEach((t) => { t.enabled = on; });
-    setMuted(nextMuted);
-    pcs.current.forEach((_, email) => send(email, { kind: 'g-mute', muted: nextMuted }));
-  };
-  const toggleCam = () => {
-    const next = !camOffRef.current; camOffRef.current = next;
-    localStream.current?.getVideoTracks().forEach((t) => { t.enabled = !next; });
-    setCamOff(next);
-    pcs.current.forEach((_, email) => send(email, { kind: 'g-cam', camOff: next })); // tell everyone
-  };
-  const toggleShare = async () => {
-    if (screenStream.current) {
-      screenStream.current.getTracks().forEach((t) => t.stop()); screenStream.current = null;
-      const cam = localStream.current?.getVideoTracks()[0];
-      pcs.current.forEach((pc) => { const s = pc.getSenders().find((x) => x.track?.kind === 'video'); if (s && cam) s.replaceTrack(cam); });
-      setSharing(false); return;
-    }
-    try {
-      const ds = await navigator.mediaDevices.getDisplayMedia({ video: true });
-      screenStream.current = ds; const track = ds.getVideoTracks()[0];
-      pcs.current.forEach((pc) => { const s = pc.getSenders().find((x) => x.track?.kind === 'video'); if (s) s.replaceTrack(track); });
-      track.onended = toggleShare; setSharing(true);
-    } catch { /* cancelled */ }
-  };
+  const toggleMute = () => { const lk = lkRef.current; if (!lk) return; lk.localParticipant.setMicrophoneEnabled(!lk.localParticipant.isMicrophoneEnabled).then(refresh).catch(() => {}); };
+  const setMic = (on) => { const lk = lkRef.current; if (!lk || lk.localParticipant.isMicrophoneEnabled === on) return; lk.localParticipant.setMicrophoneEnabled(on).then(refresh).catch(() => {}); };
+  const toggleCam = () => { const lk = lkRef.current; if (!lk) return; lk.localParticipant.setCameraEnabled(!lk.localParticipant.isCameraEnabled).then(refresh).catch(() => {}); };
+  const toggleShare = async () => { const lk = lkRef.current; if (!lk) return; try { const on = !!lk.localParticipant.getTrackPublication(Track.Source.ScreenShare); await lk.localParticipant.setScreenShareEnabled(!on); refresh(); } catch { /* cancelled */ } };
 
-  return { room, peers, peerMuted, peerCamOff, muted, camOff, sharing, chat, sendChat, localStream, start, accept, invite, leave, onRtc, onGcall, joinMeeting, toggleMute, setMic, toggleCam, toggleShare, me };
+  useEffect(() => () => cleanup(), [cleanup]); // tidy up if the component unmounts mid-call
+
+  return { room, peers, localVideoTrack, muted, camOff, sharing, chat, sendChat, start, accept, invite, leave, onRtc, onGcall, joinMeeting, toggleMute, setMic, toggleCam, toggleShare, me };
 }
 
-function Tile({ stream, name, mine, micMuted, camOff, pinned, onPin }) {
+// Attach a LiveKit video track to a <video>; handles local mirror + camera-off.
+function Tile({ videoTrack, name, mine, micMuted, camOff, pinned, onPin }) {
   const ref = useRef(null);
-  useEffect(() => { if (ref.current && stream) ref.current.srcObject = stream; }, [stream]);
+  useEffect(() => {
+    const el = ref.current; if (!el) return undefined;
+    if (videoTrack) { try { videoTrack.attach(el); } catch { /* ignore */ } return () => { try { videoTrack.detach(el); } catch { /* ignore */ } }; }
+    el.srcObject = null; return undefined;
+  }, [videoTrack]);
   const initial = ((name || '?').trim().charAt(0) || '?').toUpperCase();
+  const off = camOff || !videoTrack;
   return (
     <div className="group relative rounded-2xl overflow-hidden bg-slate-800 aspect-video ring-1 ring-white/10 w-full h-full">
-      {/* Own preview is mirrored (selfie view, like Google Meet); remote people are
-          shown true-to-life (not mirrored). */}
-      <video ref={ref} autoPlay playsInline muted={mine}
-        className={`w-full h-full object-cover ${mine ? 'scale-x-[-1]' : ''} ${camOff ? 'invisible' : ''}`} />
-      {/* Camera off → initial avatar + crossed-camera icon instead of a black screen */}
-      {camOff && (
+      {/* Own preview is mirrored (selfie view); remote people are shown true-to-life. */}
+      <video ref={ref} autoPlay playsInline muted={mine} className={`w-full h-full object-cover ${mine ? 'scale-x-[-1]' : ''} ${off ? 'invisible' : ''}`} />
+      {off && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-700 to-slate-900">
-          <span className="h-16 w-16 rounded-full bg-indigo-600 text-white grid place-items-center text-2xl font-bold select-none">{initial}</span>
+          <span className="h-14 w-14 sm:h-16 sm:w-16 rounded-full bg-indigo-600 text-white grid place-items-center text-xl sm:text-2xl font-bold select-none">{initial}</span>
           <FiVideoOff size={15} className="text-white/40" />
         </div>
       )}
-      {/* Pin / enlarge this person (manual focus — no auto speaker-switching) */}
       {onPin && (
         <button onClick={onPin} title={pinned ? 'Unpin' : 'Pin / enlarge'}
           className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/50 hover:bg-black/70 text-white grid place-items-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition">
           {pinned ? <FiMinimize2 size={13} /> : <FiMaximize2 size={13} />}
         </button>
       )}
-      <span className="absolute bottom-2 left-2 flex items-center gap-1.5 text-[11px] text-white bg-black/55 backdrop-blur-sm px-2 py-0.5 rounded-full">
-        {micMuted && <FiMicOff size={12} className="text-red-400" />}
-        {camOff && <FiVideoOff size={12} className="text-amber-400" />}
-        {name}{mine ? ' (you)' : ''}
+      <span className="absolute bottom-2 left-2 flex items-center gap-1.5 text-[11px] text-white bg-black/55 backdrop-blur-sm px-2 py-0.5 rounded-full max-w-[90%] truncate">
+        {micMuted && <FiMicOff size={12} className="text-red-400 shrink-0" />}
+        {off && <FiVideoOff size={12} className="text-amber-400 shrink-0" />}
+        <span className="truncate">{name}{mine ? ' (you)' : ''}</span>
       </span>
     </div>
   );
 }
 
-// Draggable picture-in-picture window shown when the call is minimized. Shows
-// the pinned person (or first peer); movable anywhere; hover reveals controls.
-function MiniCall({ stream, name, mine, micMuted, camOff, count, onExpand, onLeave }) {
+// Draggable picture-in-picture window shown when the call is minimized.
+function MiniCall({ videoTrack, name, mine, micMuted, camOff, count, onExpand, onLeave }) {
   const vref = useRef(null);
   const drag = useRef(null);
   const [pos, setPos] = useState(() => ({
     x: (typeof window !== 'undefined' ? window.innerWidth - 256 : 20),
     y: (typeof window !== 'undefined' ? window.innerHeight - 190 : 20),
   }));
-  useEffect(() => { if (vref.current && stream) vref.current.srcObject = stream; }, [stream]);
+  useEffect(() => {
+    const el = vref.current; if (!el) return undefined;
+    if (videoTrack) { try { videoTrack.attach(el); } catch { /* ignore */ } return () => { try { videoTrack.detach(el); } catch { /* ignore */ } }; }
+    el.srcObject = null; return undefined;
+  }, [videoTrack]);
   const clamp = (x, y) => ({
     x: Math.max(6, Math.min((window.innerWidth || 9999) - 246, x)),
     y: Math.max(6, Math.min((window.innerHeight || 9999) - 184, y)),
@@ -265,15 +217,16 @@ function MiniCall({ stream, name, mine, micMuted, camOff, count, onExpand, onLea
   const onMove = (e) => { if (!drag.current) return; setPos(clamp(drag.current.ox + (e.clientX - drag.current.sx), drag.current.oy + (e.clientY - drag.current.sy))); };
   const onUp = () => { drag.current = null; };
   const initial = ((name || '?').trim().charAt(0) || '?').toUpperCase();
+  const off = camOff || !videoTrack;
   return (
     <div style={{ left: pos.x, top: pos.y, width: 240 }}
       onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
       className="fixed z-[73] select-none cursor-move group rounded-2xl overflow-hidden shadow-2xl bg-slate-900 ring-1 ring-white/25">
-      <video ref={vref} autoPlay playsInline muted={mine} className={`w-full aspect-video object-cover pointer-events-none bg-slate-800 ${mine ? 'scale-x-[-1]' : ''} ${camOff ? 'invisible' : ''}`} />
-      {camOff && <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-900"><span className="h-12 w-12 rounded-full bg-indigo-600 text-white grid place-items-center text-lg font-bold">{initial}</span></div>}
+      <video ref={vref} autoPlay playsInline muted={mine} className={`w-full aspect-video object-cover pointer-events-none bg-slate-800 ${mine ? 'scale-x-[-1]' : ''} ${off ? 'invisible' : ''}`} />
+      {off && <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-900"><span className="h-12 w-12 rounded-full bg-indigo-600 text-white grid place-items-center text-lg font-bold">{initial}</span></div>}
       <span className="absolute bottom-1.5 left-1.5 flex items-center gap-1 text-[10px] text-white bg-black/55 backdrop-blur-sm px-1.5 py-0.5 rounded-full">
         {micMuted && <FiMicOff size={11} className="text-red-400" />}
-        {camOff && <FiVideoOff size={11} className="text-amber-400" />}
+        {off && <FiVideoOff size={11} className="text-amber-400" />}
         {name}{mine ? ' (you)' : ''}
       </span>
       {count > 1 && <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 text-[10px] text-white bg-black/55 backdrop-blur-sm px-1.5 py-0.5 rounded-full"><FiUsers size={9} />{count}</span>}
@@ -286,12 +239,11 @@ function MiniCall({ stream, name, mine, micMuted, camOff, count, onExpand, onLea
   );
 }
 
-// "Add people" — ring an online internal colleague (Team / Support tabs) into
-// the live call, or copy the shareable link for anyone (internal or external).
+// "Add people" — ring an online colleague into the call, or copy the share link.
 function AddPeople({ roster, presence = {}, roomId, inCall, onRing, onClose, canShare = true }) {
   const [tab, setTab] = useState('team');
   const [copied, setCopied] = useState(false);
-  const [rung, setRung] = useState({}); // email -> true (transient "Ringing…")
+  const [rung, setRung] = useState({});
   const link = `${window.location.origin}/meet?room=${roomId}`;
   const copy = () => { try { navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* blocked */ } };
   const inSet = new Set(inCall || []);
@@ -305,8 +257,6 @@ function AddPeople({ roster, presence = {}, roomId, inCall, onRing, onClose, can
           <p className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5"><FiUserPlus size={15} /> Add people</p>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><FiX size={16} /></button>
         </div>
-        {/* Share link — works for internal & external guests. Hidden for support
-            users (internal-only: they ring colleagues from the list below). */}
         {canShare && (
           <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
             <p className="text-[11px] text-slate-400 mb-1.5 flex items-center gap-1"><FiLink size={11} /> Invite by link (anyone can join)</p>
@@ -353,48 +303,40 @@ function AddPeople({ roster, presence = {}, roomId, inCall, onRing, onClose, can
 }
 
 export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
-  const { room, peers, peerMuted = {}, peerCamOff = {}, muted, camOff, sharing, chat, sendChat, localStream, accept, invite, leave, toggleMute, setMic, toggleCam, toggleShare, me } = api;
+  const { room, peers, localVideoTrack, muted, camOff, sharing, chat, sendChat, accept, invite, leave, toggleMute, setMic, toggleCam, toggleShare, me } = api;
   const [min, setMin] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-  const [partsOpen, setPartsOpen] = useState(false); // top participant bar collapsed by default
-  const [pinned, setPinned] = useState(null);         // manually pinned tile: 'me' | email | null
-  const [notesOpen, setNotesOpen] = useState(false);  // left sidebar
-  const [chatOpen, setChatOpen] = useState(false);    // right sidebar
+  const [partsOpen, setPartsOpen] = useState(false);
+  const [pinned, setPinned] = useState(null);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [seenChat, setSeenChat] = useState(0);        // for the unread chat badge
+  const [seenChat, setSeenChat] = useState(0);
   const [note, setNote] = useState({ title: '', body: '' });
   const noteRef = useRef(note); noteRef.current = note;
   const roomRef = useRef(room); roomRef.current = room;
   const peersRef = useRef(peers); peersRef.current = peers;
-  const pipRef = useRef(null);                         // hidden video used for native Picture-in-Picture
-  const pttRef = useRef(false);                        // currently holding Space to talk?
+  const pipRef = useRef(null);
+  const pttRef = useRef(false);
   const mutedNowRef = useRef(muted); mutedNowRef.current = muted;
   const setMicRef = useRef(setMic); setMicRef.current = setMic;
   useEffect(() => { setMin(false); setPartsOpen(false); setPinned(null); setNotesOpen(false); setChatOpen(false); setSeenChat(0); setAddOpen(false); setNote({ title: '', body: '' }); }, [room?.id]);
 
-  // Push-to-talk: hold Space to unmute, release to mute again. Ignored while
-  // typing (chat/notes) so a space in a message doesn't toggle the mic.
+  // Push-to-talk: hold Space to unmute, release to mute. Ignored while typing.
   useEffect(() => {
     if (!room || room.incoming) return undefined;
     const typing = () => { const el = document.activeElement; return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable); };
-    const down = (e) => {
-      if (e.code !== 'Space' || e.repeat || typing()) return;
-      e.preventDefault();
-      if (mutedNowRef.current && !pttRef.current) { pttRef.current = true; setMicRef.current?.(true); }
-    };
-    const up = (e) => {
-      if (e.code !== 'Space' || !pttRef.current) return;
-      e.preventDefault(); pttRef.current = false; setMicRef.current?.(false);
-    };
+    const down = (e) => { if (e.code !== 'Space' || e.repeat || typing()) return; e.preventDefault(); if (mutedNowRef.current && !pttRef.current) { pttRef.current = true; setMicRef.current?.(true); } };
+    const up = (e) => { if (e.code !== 'Space' || !pttRef.current) return; e.preventDefault(); pttRef.current = false; setMicRef.current?.(false); };
     window.addEventListener('keydown', down); window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); pttRef.current = false; };
   }, [room?.id, room?.incoming]);
-  // Leaving the call: if notes were taken, save + email them as the Minutes of
-  // Meeting to everyone in the room (saved to each member's Notes too), then drop.
+
+  // On leave, save + email the Minutes of Meeting (if notes were taken).
   const endWithMom = useCallback(() => {
     const r = roomRef.current; const n = noteRef.current;
     if (n.body.trim() || n.title.trim()) {
-      const emails = [...new Set([...(r?.members || []), ...Object.keys(peersRef.current || {}), me?.email].filter(Boolean))];
+      const emails = [...new Set([...(r?.members || []), ...Object.values(peersRef.current || {}).map((p) => p.email), me?.email].filter((e) => e && String(e).includes('@')))];
       fetchJson('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: n.title.trim() || `MoM — ${r?.name || 'Group meeting'}`, body: n.body, kind: 'mom', emailTo: emails }) }).catch(() => {});
     }
@@ -402,12 +344,8 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
   }, [leave, me]);
   useEffect(() => { if (chatOpen) setSeenChat(chat.length); }, [chatOpen, chat.length]);
   const unread = Math.max(0, (chat?.length || 0) - seenChat);
-  const copyLink = () => { try { navigator.clipboard.writeText(`${window.location.origin}/meet?room=${room.id}`); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* clipboard blocked */ } };
-  // Ring while a group call is incoming.
+  const copyLink = () => { try { navigator.clipboard.writeText(`${window.location.origin}/meet?room=${room.id}`); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* blocked */ } };
   useEffect(() => { if (room?.incoming) return playRingtone(); }, [room?.incoming]);
-  // (Auto active-speaker detection was removed: the 400 ms audio-analysis loop +
-  // full re-render on every speaker change was the main cause of in-call lag.
-  // Focus is now manual via the per-tile pin button — see `pinned` below.)
   if (!room) return null;
   const rb = 'h-11 w-11 rounded-full flex items-center justify-center text-white transition-colors';
 
@@ -428,64 +366,57 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
   }
   const tiles = Object.entries(peers);
   const pinValid = pinned && (pinned === 'me' || peers[pinned]) ? pinned : null;
-  const allKeys = ['me', ...tiles.map(([e]) => e)];               // self first, then peers
-  const cols = Math.max(1, Math.ceil(Math.sqrt(allKeys.length))); // balanced equal grid
+  const allKeys = ['me', ...tiles.map(([e]) => e)];
+  const cols = Math.max(1, Math.ceil(Math.sqrt(allKeys.length)));
   const togglePin = (k) => setPinned((p) => (p === k ? null : k));
-  // Native (OS-level) Picture-in-Picture of the pinned person, else first peer, else you.
+  const trackOf = (k) => (k === 'me' ? localVideoTrack : peers[k]?.videoTrack);
   const pipSupported = typeof document !== 'undefined' && document.pictureInPictureEnabled;
   const togglePip = async () => {
     try {
       if (document.pictureInPictureElement) { await document.exitPictureInPicture(); return; }
-      const email = pinValid && pinValid !== 'me' ? pinValid : (tiles[0]?.[0] || null);
-      const stream = email ? peers[email]?.stream : localStream.current;
-      if (!stream || !pipRef.current) return;
-      pipRef.current.srcObject = stream;
+      const k = pinValid && pinValid !== 'me' ? pinValid : (tiles[0]?.[0] || 'me');
+      const track = trackOf(k);
+      if (!track?.mediaStreamTrack || !pipRef.current) return;
+      pipRef.current.srcObject = new MediaStream([track.mediaStreamTrack]);
       await pipRef.current.play().catch(() => {});
       await pipRef.current.requestPictureInPicture();
     } catch { /* PiP unsupported or dismissed */ }
   };
   const renderTile = (k) => (k === 'me'
-    ? <Tile key="me" stream={localStream.current} name={me.name || 'You'} mine micMuted={muted} camOff={camOff} pinned={pinValid === 'me'} onPin={() => togglePin('me')} />
-    : <Tile key={k} stream={peers[k]?.stream} name={peers[k]?.name || k} micMuted={peerMuted[k]} camOff={peerCamOff[k]} pinned={pinValid === k} onPin={() => togglePin(k)} />);
+    ? <Tile key="me" videoTrack={localVideoTrack} name={me.name || 'You'} mine micMuted={muted} camOff={camOff} pinned={pinValid === 'me'} onPin={() => togglePin('me')} />
+    : <Tile key={k} videoTrack={peers[k]?.videoTrack} name={peers[k]?.name || k} micMuted={peers[k]?.micMuted} camOff={peers[k]?.camOff} pinned={pinValid === k} onPin={() => togglePin(k)} />);
   if (min) {
-    // Floating, draggable PiP — shows the pinned person, else the first peer, else you.
     const mEmail = pinValid && pinValid !== 'me' ? pinValid : (pinValid === 'me' ? null : (tiles[0]?.[0] || null));
-    const mStream = mEmail ? peers[mEmail]?.stream : localStream.current;
-    const mName = mEmail ? (peers[mEmail]?.name || mEmail) : (me.name || 'You');
     return (
-      <MiniCall stream={mStream} name={mName} mine={!mEmail}
-        micMuted={mEmail ? peerMuted[mEmail] : muted} camOff={mEmail ? peerCamOff[mEmail] : camOff} count={tiles.length + 1}
+      <MiniCall videoTrack={mEmail ? peers[mEmail]?.videoTrack : localVideoTrack} name={mEmail ? (peers[mEmail]?.name || mEmail) : (me.name || 'You')} mine={!mEmail}
+        micMuted={mEmail ? peers[mEmail]?.micMuted : muted} camOff={mEmail ? peers[mEmail]?.camOff : camOff} count={tiles.length + 1}
         onExpand={() => setMin(false)} onLeave={endWithMom} />
     );
   }
   return (
-    <div className="fixed inset-0 z-[72] bg-black/90 backdrop-blur-sm flex flex-col p-3">
-      {/* Collapsed participants bar (top-left) + Share (top-right) */}
-      <div className="shrink-0 flex items-start justify-between gap-2">
+    <div className="fixed inset-0 z-[72] bg-black/90 backdrop-blur-sm flex flex-col p-2 sm:p-3">
+      <div className="shrink-0 flex items-start justify-between gap-2 flex-wrap">
         <div>
         <button onClick={() => setPartsOpen((o) => !o)} className="flex items-center gap-2 text-white/85 text-xs bg-white/10 hover:bg-white/15 rounded-full px-3 py-1.5">
           <FiUsers size={13} /> {tiles.length + 1} in {room.name || 'group'} call {partsOpen ? <FiChevronUp size={12} /> : <FiChevronDown size={12} />}
         </button>
         {partsOpen && (
-          <div className="mt-2 bg-slate-900/95 border border-white/10 rounded-xl p-2.5 w-64 text-xs space-y-1">
+          <div className="mt-2 bg-slate-900/95 border border-white/10 rounded-xl p-2.5 w-64 max-w-[80vw] text-xs space-y-1">
             <p className="text-white/90">{me.name || 'You'} <span className="text-white/40">(you)</span></p>
             {tiles.map(([e, p]) => (
               <p key={e} className="text-white/80 flex items-center gap-1.5">
                 {p.name || e}
-                {peerMuted[e] && <FiMicOff size={10} className="text-red-400" />}
-                {peerCamOff[e] && <FiVideoOff size={10} className="text-amber-400" />}
+                {p.micMuted && <FiMicOff size={10} className="text-red-400" />}
+                {p.camOff && <FiVideoOff size={10} className="text-amber-400" />}
               </p>
             ))}
           </div>
         )}
         </div>
         <div className="flex items-center gap-2">
-          {/* Add more people — ring an online colleague in, or share the link */}
           <button onClick={() => setAddOpen(true)} title="Add people to the call" className="flex items-center gap-1.5 text-xs rounded-full px-3 py-1.5 bg-white/10 hover:bg-white/15 text-white/85">
             <FiUserPlus size={13} /> Add
           </button>
-          {/* Share: copies the public join link (works for internal + external
-              guests). Hidden for support-portal users — internal calls only. */}
           {canShare && (
             <button onClick={copyLink} title="Copy meeting link to share" className={`flex items-center gap-1.5 text-xs rounded-full px-3 py-1.5 ${copied ? 'bg-emerald-600 text-white' : 'bg-white/10 hover:bg-white/15 text-white/85'}`}>
               {copied ? <FiCheck size={13} /> : <FiShare2 size={13} />} {copied ? 'Link copied' : 'Share'}
@@ -494,26 +425,23 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
         </div>
       </div>
       {addOpen && <AddPeople roster={roster} presence={presence} roomId={room.id} canShare={canShare}
-        inCall={[me.email, ...Object.keys(peers)]} onRing={(email, name) => invite(email, name)} onClose={() => setAddOpen(false)} />}
+        inCall={[me.email, ...Object.values(peers).map((p) => p.email)]} onRing={(email, name) => invite(email, name)} onClose={() => setAddOpen(false)} />}
 
-      {/* Middle row: notes (left) · stage · chat (right) */}
-      <div className="flex-1 min-h-0 flex gap-2 py-2">
+      {/* Stage (notes + tiles + chat). Panels stack below the stage on phones. */}
+      <div className="flex-1 min-h-0 flex flex-col sm:flex-row gap-2 py-2">
         {notesOpen && <NotesPanel note={note} setNote={setNote} room={room} onClose={() => setNotesOpen(false)} />}
-        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2">
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2 overflow-auto">
         {pinValid ? (
-          // Pinned: the chosen person fills the stage; everyone else in a strip.
           <>
             <div className="w-full max-w-5xl flex-1 min-h-0 flex items-center justify-center">
               <div className="w-full max-h-full">{renderTile(pinValid)}</div>
             </div>
             <div className="flex gap-2 overflow-x-auto shrink-0 max-w-full pb-1">
-              {allKeys.filter((k) => k !== pinValid).map((k) => <div key={k} className="w-32 shrink-0">{renderTile(k)}</div>)}
+              {allKeys.filter((k) => k !== pinValid).map((k) => <div key={k} className="w-28 sm:w-32 shrink-0">{renderTile(k)}</div>)}
             </div>
           </>
         ) : (
-          // Equal-size auto grid: every participant gets the same-size card.
-          <div className="grid gap-2 w-full place-content-center"
-            style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, maxWidth: `${cols * 360}px` }}>
+          <div className="grid gap-2 w-full place-content-center" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, maxWidth: `${cols * 360}px` }}>
             {allKeys.map((k) => renderTile(k))}
           </div>
         )}
@@ -521,7 +449,7 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
         {chatOpen && <ChatPanel chat={chat} onSend={sendChat} onClose={() => setChatOpen(false)} />}
       </div>
       <div className="flex flex-col items-center gap-1 mt-1 shrink-0">
-       <div className="flex justify-center gap-3">
+       <div className="flex justify-center gap-2 sm:gap-3 flex-wrap">
         <button onClick={toggleMute} className={`${rb} ${muted ? 'bg-amber-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={muted ? 'Unmute (or hold Space to talk)' : 'Mute'}>{muted ? <FiMicOff size={17} /> : <FiMic size={17} />}</button>
         <button onClick={() => setChatOpen((o) => !o)} className={`${rb} relative ${chatOpen ? 'bg-indigo-500' : 'bg-slate-700 hover:bg-slate-600'}`} title={unread > 0 && !chatOpen ? `${unread} new message(s)` : 'Call chat'}>
           <FiMessageSquare size={17} />
@@ -541,14 +469,12 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
        </div>
        <p className="text-[10px] text-white/35">{muted ? 'Hold ' : ''}<kbd className="px-1 rounded bg-white/10 text-white/60">Space</kbd>{muted ? ' to talk' : ' held = talking'}</p>
       </div>
-      {/* Hidden video element used as the source for native Picture-in-Picture. */}
       <video ref={pipRef} muted playsInline style={{ position: 'fixed', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />
     </div>
   );
 }
 
-// Left sidebar: jot notes during the call; Save persists to the team Notes tab
-// (silently no-ops for guests who aren't authenticated).
+// Notes sidebar — jot minutes; saved + emailed as MoM (auto on leave too).
 function NotesPanel({ note, setNote, room, onClose }) {
   const { title, body } = note;
   const [status, setStatus] = useState('');
@@ -562,7 +488,7 @@ function NotesPanel({ note, setNote, room, onClose }) {
     } catch { setStatus('error'); setTimeout(() => setStatus(''), 2500); }
   };
   return (
-    <div className="w-72 max-w-[42vw] shrink-0 bg-slate-900/95 border border-white/10 rounded-2xl flex flex-col overflow-hidden">
+    <div className="w-full sm:w-72 sm:max-w-[42vw] shrink-0 max-h-48 sm:max-h-none bg-slate-900/95 border border-white/10 rounded-2xl flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
         <span className="text-white text-sm font-semibold flex items-center gap-1.5"><FiFileText size={14} /> Meeting notes</span>
         <button onClick={onClose} className="text-white/60 hover:text-white"><FiX size={16} /></button>
@@ -583,7 +509,6 @@ const linkify = (text) => String(text).split(/(https?:\/\/[^\s]+)/g).map((part, 
     ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline text-indigo-200 break-all hover:text-white">{part}</a>
     : <span key={i}>{part}</span>
 ));
-// Compact, clickable preview card for the first link in a message.
 function LinkPreview({ url }) {
   let host = url;
   try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { /* keep raw */ }
@@ -600,14 +525,14 @@ function LinkPreview({ url }) {
   );
 }
 
-// Right sidebar: live chat shared by everyone in the call (mesh-relayed).
+// Chat sidebar — shared with everyone in the call (LiveKit data channel).
 function ChatPanel({ chat, onSend, onClose }) {
   const [text, setText] = useState('');
   const endRef = useRef(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chat.length]);
   const submit = () => { const t = text.trim(); if (!t) return; onSend(t); setText(''); };
   return (
-    <div className="w-72 max-w-[42vw] shrink-0 bg-slate-900/95 border border-white/10 rounded-2xl flex flex-col overflow-hidden">
+    <div className="w-full sm:w-72 sm:max-w-[42vw] shrink-0 max-h-56 sm:max-h-none bg-slate-900/95 border border-white/10 rounded-2xl flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
         <span className="text-white text-sm font-semibold flex items-center gap-1.5"><FiMessageSquare size={14} /> Call chat</span>
         <button onClick={onClose} className="text-white/60 hover:text-white"><FiX size={16} /></button>

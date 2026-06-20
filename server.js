@@ -63,6 +63,7 @@ import deployHandler, { sweepDeploys } from './api/deploy.js';
 import workLogHandler from './api/work-log.js';
 import notesHandler from './api/notes.js';
 import meetingsHandler, { runMeetingReminders } from './api/meetings.js';
+import livekitHandler from './api/livekit.js';
 import teamMembersHandler from './api/team-members.js';
 import ticketsHandler from './api/tickets.js';
 import ticketSettingsHandler from './api/ticket-settings.js';
@@ -418,6 +419,7 @@ app.all('/api/deploy',                       wrap(deployHandler));
 app.all('/api/work-log',                     wrap(workLogHandler));
 app.all('/api/notes',                        writeLimit, wrap(notesHandler));
 app.all('/api/meetings',                     writeLimit, wrap(meetingsHandler));
+app.all('/api/livekit',                      wrap(livekitHandler));
 // Chat file uploads: raw body (any format) up to 10 MB
 app.post('/api/colleagues/upload', express.raw({ type: () => true, limit: '10mb' }), wrap(colleaguesHandler));
 app.all('/api/colleagues', writeLimit, wrap(colleaguesHandler));
