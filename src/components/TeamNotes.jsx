@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { FiVideo, FiPhone, FiUsers, FiUser, FiZap, FiCalendar, FiX } from 'react-icons/fi';
 import { fetchJson } from '../common/fetchJson';
 import { confirmDialog } from '../common/confirm';
 
@@ -81,9 +82,30 @@ export function MeetingsTab() {
   const [meetings, setMeetings] = useState([]);
   const [members, setMembers] = useState([]);
   const [open, setOpen] = useState(false);
+  const [chooser, setChooser] = useState(false);   // type-picker popup
+  const [starting, setStarting] = useState('');     // key of the type being launched
   const [d, setD] = useState({ title: '', description: '', scheduledAt: '', durationMins: 30, attendees: [] });
   const load = () => fetchJson('/api/meetings').then((m) => setMeetings(m.meetings || [])).catch(() => {});
   useEffect(() => { load(); fetchJson('/api/colleagues?list=1').then((r) => setMembers(r.colleagues || [])).catch(() => {}); }, []);
+  // Instant call/meeting types — create the room now (recorded in history) and
+  // open it straight away in a new browser tab.
+  const INSTANT = [
+    { key: 'instant', label: 'Instant meeting', icon: FiZap, mode: 'video', desc: 'Start a video meeting room right now' },
+    { key: 'group', label: 'Group video call', icon: FiUsers, mode: 'video', desc: 'Multi-person video call, launches now' },
+    { key: 'single', label: 'Single video call', icon: FiUser, mode: 'video', desc: 'One-to-one video call, launches now' },
+    { key: 'instvid', label: 'Instant video call', icon: FiVideo, mode: 'video', desc: 'Jump straight into video' },
+    { key: 'voice', label: 'Voice call', icon: FiPhone, mode: 'voice', desc: 'Audio-only call, launches now' },
+  ];
+  const startInstant = async (t) => {
+    setStarting(t.key);
+    try {
+      const r = await fetchJson('/api/meetings', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: t.label, scheduledAt: new Date().toISOString(), durationMins: 30, mode: t.mode, attendees: [] }) });
+      const room = r.meeting?.room;
+      if (room) window.open(`/meet?room=${room}${t.mode === 'voice' ? '&audio=1' : ''}`, '_blank', 'noopener');
+      setChooser(false); load();
+    } catch { /* surfaced via no-op */ } finally { setStarting(''); }
+  };
   const create = async () => {
     await fetchJson('/api/meetings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...d, scheduledAt: new Date(d.scheduledAt).toISOString() }) });
     setOpen(false); setD({ title: '', description: '', scheduledAt: '', durationMins: 30, attendees: [] }); load();
@@ -95,7 +117,7 @@ export function MeetingsTab() {
       <div className="max-w-3xl mx-auto space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">Meetings</h2>
-          <button className={tb} onClick={() => setOpen(true)}>+ Schedule meeting</button>
+          <button className={tb} onClick={() => setChooser(true)}>+ New meeting / call</button>
         </div>
         {!meetings.length && <p className="text-sm text-slate-400 text-center py-8">No upcoming meetings.</p>}
         {meetings.map((m) => (
@@ -117,6 +139,37 @@ export function MeetingsTab() {
           </div>
         ))}
       </div>
+      {chooser && (
+        <div className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) setChooser(false); }}>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-5 max-h-[88vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-base font-bold text-slate-900 dark:text-white">Start or schedule</p>
+              <button onClick={() => setChooser(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><FiX size={18} /></button>
+            </div>
+            <div className="space-y-2">
+              {INSTANT.map((t) => (
+                <button key={t.key} disabled={!!starting} onClick={() => startInstant(t)}
+                  className="w-full flex items-center gap-3 text-left rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors">
+                  <span className="grid place-items-center h-9 w-9 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300 shrink-0"><t.icon size={17} /></span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-slate-900 dark:text-white">{t.label}{starting === t.key ? ' · launching…' : ''}</span>
+                    <span className="block text-[11px] text-slate-400">{t.desc}</span>
+                  </span>
+                </button>
+              ))}
+              <button onClick={() => { setChooser(false); setOpen(true); }}
+                className="w-full flex items-center gap-3 text-left rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                <span className="grid place-items-center h-9 w-9 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0"><FiCalendar size={17} /></span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-slate-900 dark:text-white">Schedule for later</span>
+                  <span className="block text-[11px] text-slate-400">Pick a time &amp; invite attendees by email</span>
+                </span>
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-3">Instant calls open in a new browser tab and are saved here in your meeting history.</p>
+          </div>
+        </div>
+      )}
       {open && (
         <div className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg p-5 space-y-3 max-h-[88vh] overflow-y-auto">
