@@ -114,6 +114,16 @@ export default async function handler(req, res) {
         return res.status(200).json({ meeting: rows[0] });
       }
 
+      // Persist minutes jotted in-call against the meeting (by room token), so the
+      // host can send them as MoM later from the meeting history.
+      if (b.action === 'savenotes') {
+        const room = String(b.room || '').trim();
+        const notes = String(b.notes || '').slice(0, 20000);
+        if (!room || !notes) return res.status(400).json({ error: 'room and notes required' });
+        await queryDb(`UPDATE team_meetings SET notes = CASE WHEN coalesce(notes,'')='' THEN $2 ELSE notes || E'\n\n— Notes —\n' || $2 END WHERE room=$1`, [room, notes]).catch(() => {});
+        return res.status(200).json({ ok: true });
+      }
+
       // Record that the current user joined a meeting (for the schedule history).
       if (b.action === 'join') {
         const id = parseInt(b.id, 10);

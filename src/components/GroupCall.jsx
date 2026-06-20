@@ -332,10 +332,19 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); pttRef.current = false; };
   }, [room?.id, room?.incoming]);
 
-  // On leave, save + email the Minutes of Meeting (if notes were taken).
+  // On leave, ask the host whether to share the minutes (no auto-send, no manual
+  // in-call button). If yes → email everyone + save to Notes (MoM chip + date).
+  // It can also be sent later from the meeting's history.
   const endWithMom = useCallback(() => {
     const r = roomRef.current; const n = noteRef.current;
-    if (n.body.trim() || n.title.trim()) {
+    const hasNotes = n.body.trim() || n.title.trim();
+    // Persist the minutes against the meeting so they can be sent later from the
+    // meeting history (scheduled-meeting rooms only).
+    if (hasNotes && r?.id && r.id.startsWith('mtg-')) {
+      fetchJson('/api/meetings', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'savenotes', room: r.id, notes: [n.title.trim(), n.body.trim()].filter(Boolean).join('\n') }) }).catch(() => {});
+    }
+    if (hasNotes && typeof window !== 'undefined' && window.confirm('Share the minutes of this meeting with everyone by email (and save to Notes)?')) {
       const emails = [...new Set([...(r?.members || []), ...Object.values(peersRef.current || {}).map((p) => p.email), me?.email].filter((e) => e && String(e).includes('@')))];
       fetchJson('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: n.title.trim() || `MoM — ${r?.name || 'Group meeting'}`, body: n.body, kind: 'mom', emailTo: emails }) }).catch(() => {});
@@ -429,7 +438,7 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
 
       {/* Stage (notes + tiles + chat). Panels stack below the stage on phones. */}
       <div className="flex-1 min-h-0 flex flex-col sm:flex-row gap-2 py-2">
-        {notesOpen && <NotesPanel note={note} setNote={setNote} room={room} onClose={() => setNotesOpen(false)} />}
+        {notesOpen && <NotesPanel note={note} setNote={setNote} onClose={() => setNotesOpen(false)} />}
         <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2 overflow-auto">
         {pinValid ? (
           <>
@@ -474,19 +483,11 @@ export function GroupCallOverlay({ api, roster, presence, canShare = true }) {
   );
 }
 
-// Notes sidebar — jot minutes; saved + emailed as MoM (auto on leave too).
-function NotesPanel({ note, setNote, room, onClose }) {
+// Notes sidebar — jot minutes during the call. No manual send: when you leave,
+// the host is asked whether to share the minutes (they can also be sent later
+// from the meeting's history).
+function NotesPanel({ note, setNote, onClose }) {
   const { title, body } = note;
-  const [status, setStatus] = useState('');
-  const save = async () => {
-    if (!body.trim() && !title.trim()) return;
-    setStatus('saving');
-    try {
-      const emails = [...new Set([...(room?.members || [])].filter(Boolean))];
-      await fetchJson('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title.trim() || `MoM — ${room?.name || 'Group meeting'}`, body, kind: 'mom', emailTo: emails }) });
-      setStatus('saved'); setTimeout(() => setStatus(''), 2000);
-    } catch { setStatus('error'); setTimeout(() => setStatus(''), 2500); }
-  };
   return (
     <div className="w-full sm:w-72 sm:max-w-[42vw] shrink-0 max-h-48 sm:max-h-none bg-slate-900/95 border border-white/10 rounded-2xl flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
@@ -495,9 +496,8 @@ function NotesPanel({ note, setNote, room, onClose }) {
       </div>
       <div className="p-3 flex flex-col gap-2 flex-1 min-h-0">
         <input value={title} onChange={(e) => setNote((n) => ({ ...n, title: e.target.value }))} placeholder="Title" className="rounded-lg bg-slate-800 border border-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-        <textarea value={body} onChange={(e) => setNote((n) => ({ ...n, body: e.target.value }))} placeholder="Jot the minutes here… emailed to everyone in the call & saved to Notes when you leave." className="flex-1 min-h-0 resize-none rounded-lg bg-slate-800 border border-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-        <button onClick={save} disabled={status === 'saving'} className="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 disabled:opacity-50">{status === 'saved' ? 'Saved & emailed ✓' : status === 'error' ? 'Save failed' : status === 'saving' ? 'Saving…' : 'Save & email MoM now'}</button>
-        <p className="text-[10px] text-white/40 text-center">Also auto-saved & emailed when you leave the call.</p>
+        <textarea value={body} onChange={(e) => setNote((n) => ({ ...n, body: e.target.value }))} placeholder="Jot the minutes here…" className="flex-1 min-h-0 resize-none rounded-lg bg-slate-800 border border-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+        <p className="text-[10px] text-white/40 text-center">When you leave, you’ll be asked whether to share these minutes with everyone — or send them later from the meeting’s history.</p>
       </div>
     </div>
   );

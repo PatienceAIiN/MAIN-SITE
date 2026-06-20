@@ -111,6 +111,19 @@ export function MeetingsTab() {
     setOpen(false); setD({ title: '', description: '', scheduledAt: '', durationMins: 30, attendees: [] }); load();
   };
   const del = async (id) => { if (await confirmDialog({ title: 'Cancel meeting', message: 'Cancel and delete this meeting?', confirmText: 'Delete meeting' })) { await fetchJson(`/api/meetings?id=${id}`, { method: 'DELETE' }); load(); } };
+  const [momState, setMomState] = useState({}); // meeting id -> 'sending' | 'sent'
+  // Email the captured minutes to all attendees + the organizer, and file them in
+  // Notes (shown with a MoM chip + date).
+  const sendMom = async (m) => {
+    if (momState[m.id] === 'sending') return;
+    if (!(await confirmDialog({ title: 'Share minutes of meeting', message: `Email the minutes of "${m.title}" to all attendees and save to Notes?`, confirmText: 'Send MoM' }))) return;
+    const emailTo = [...new Set([...(m.attendees ? m.attendees.split(',') : []), m.created_by_email].map((e) => String(e || '').trim()).filter(Boolean))];
+    setMomState((s) => ({ ...s, [m.id]: 'sending' }));
+    try {
+      await fetchJson('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: `MoM — ${m.title}`, body: m.notes || '', kind: 'mom', emailTo }) });
+      setMomState((s) => ({ ...s, [m.id]: 'sent' }));
+    } catch { setMomState((s) => { const n = { ...s }; delete n[m.id]; return n; }); }
+  };
   const toggleAtt = (email) => setD((x) => ({ ...x, attendees: x.attendees.includes(email) ? x.attendees.filter((e) => e !== email) : [...x.attendees, email] }));
   return (
     <div className="flex-1 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-950">
@@ -134,6 +147,10 @@ export function MeetingsTab() {
                 <button className={tb2} title="Copy public join link — anyone (even without an account) can join"
                   onClick={() => { try { navigator.clipboard.writeText(`${location.origin}/meet?room=${m.room}`); } catch { /* ignore */ } }}>Copy link</button>
               </>}
+              {m.notes && (
+                <button className={tb2} disabled={momState[m.id] === 'sending'} title="Email the minutes (MoM) to all attendees and save to Notes"
+                  onClick={() => sendMom(m)}>{momState[m.id] === 'sent' ? 'MoM sent ✓' : momState[m.id] === 'sending' ? 'Sending…' : 'Send MoM'}</button>
+              )}
               <button className="text-xs px-3 py-2 rounded-lg border border-red-200 dark:border-red-900 text-red-500 hover:bg-red-50 dark:hover:bg-red-950" onClick={() => del(m.id)}>Cancel</button>
             </span>
           </div>
