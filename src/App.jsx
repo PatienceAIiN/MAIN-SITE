@@ -14,6 +14,7 @@ const PortalLoader = () => (
     <div className="h-9 w-9 rounded-full border-2 border-slate-200 border-t-indigo-500 animate-spin" />
   </div>
 );
+import PortalManifest from './components/PortalManifest';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ContactUs from './components/ContactUs';
@@ -242,6 +243,7 @@ function App() {
   if (isAdminRoute) {
     return (
       <div className="min-h-screen">
+        <PortalManifest />
         <ConfirmHost />
         <Suspense fallback={<PortalLoader />}>
           <Routes>
@@ -259,6 +261,7 @@ function App() {
   if (isExecRoute) {
     return (
       <>
+        <PortalManifest />
         <ConfirmHost />
         <Suspense fallback={<PortalLoader />}>
           <Routes>
@@ -273,6 +276,7 @@ function App() {
   if (isTeamRoute) {
     return (
       <>
+        <PortalManifest />
         <ConfirmHost />
         <Suspense fallback={<PortalLoader />}>
           <Routes>
@@ -287,6 +291,7 @@ function App() {
   if (isGrowthRoute) {
     return (
       <>
+        <PortalManifest />
         <ConfirmHost />
         <Suspense fallback={<PortalLoader />}>
           <Routes>
@@ -301,6 +306,7 @@ function App() {
   if (isMyTicketRoute) {
     return (
       <Suspense fallback={<PortalLoader />}>
+        <PortalManifest />
         <Routes>
           <Route path="/my-ticket" element={<ClientTicketPage />} />
           <Route path="*" element={<Navigate to="/my-ticket" replace />} />
@@ -326,6 +332,7 @@ function App() {
   return (
     <GlobalAudioProvider>
     <div className="min-h-screen bg-white text-[#1a1a1a]">
+      <PortalManifest />
       <Navbar
         brand={siteContent.brand}
         navigation={siteContent.navigation}

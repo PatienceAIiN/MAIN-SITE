@@ -49,20 +49,35 @@ export const getVapidPublicKey = () => loadKeys().publicKey;
 
 // Fire-and-forget push to a set of member emails. Respects the per-member
 // notifications_enabled toggle; dead endpoints (410/404) are pruned.
+// Shared team-side features (colleague chat, calls) live in several portals,
+// each of which is now its own installable PWA. When a push targets one of
+// these, we retarget it to each recipient's home portal so clicking the
+// notification opens *their* app: support executives → /support-executive,
+// everyone else (team members) → /team. Portal-specific pushes (e.g. the
+// client ticket tracker at /my-ticket) are left untouched.
+const RETARGETABLE_PORTALS = new Set(['/team', '/admin', '/support-executive']);
+const homePortalUrl = (originalUrl, isSupport) => {
+  if (!RETARGETABLE_PORTALS.has(originalUrl)) return originalUrl;
+  return isSupport ? '/support-executive' : '/team';
+};
+
 export const sendPushToEmails = async (emails, payload) => {
   if (!emails?.length) return;
   loadKeys();
   try {
     const placeholders = emails.map((_, i) => `$${i + 1}`).join(',');
     const rows = await queryDb(
-      `SELECT s.id, s.email, s.subscription FROM push_subscriptions s
+      `SELECT s.id, s.email, s.subscription,
+              EXISTS (SELECT 1 FROM support_executives x WHERE x.email = s.email) AS is_support
+       FROM push_subscriptions s
        WHERE s.email IN (${placeholders})
          AND NOT EXISTS (SELECT 1 FROM team_members m WHERE m.email = s.email AND m.notifications_enabled = false)`,
       emails
     );
-    const body = JSON.stringify(payload);
     await Promise.allSettled(rows.map(async (r) => {
       const sub = typeof r.subscription === 'string' ? JSON.parse(r.subscription) : r.subscription;
+      const url = homePortalUrl(payload.url, r.is_support);
+      const body = JSON.stringify(url === payload.url ? payload : { ...payload, url });
       try {
         await webpush.sendNotification(sub, body);
       } catch (err) {

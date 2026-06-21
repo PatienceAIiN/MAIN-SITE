@@ -183,7 +183,7 @@ export const attachTeamHub = (server) => {
         if ((msg.data.kind === 'offer' || msg.data.kind === 'meet-invite')) {
           notifyMembers([msg.to], {
             title: msg.data.title || `Incoming ${msg.data.video === false ? 'voice' : 'video'} call`,
-            body: `${payload.name || email} is calling you`, url: '/growth', tag: 'call',
+            body: `${payload.name || email} is calling you`, url: '/team', tag: 'call',
           });
         }
       }

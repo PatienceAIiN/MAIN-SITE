@@ -211,7 +211,7 @@ export default async function handler(req, res) {
         // Notify other members: OS push if no tab open + email if away/offline.
         notifyMembers(chatMembers(chat).filter((e) => e !== myEmail), {
           title: chat.kind === 'group' ? `${me.name} · ${chat.name || 'Group'}` : `New message from ${me.name}`,
-          body: text.slice(0, 140), url: '/growth', tag: `chat-${chat.id}`,
+          body: text.slice(0, 140), url: '/team', tag: `chat-${chat.id}`,
         });
         return res.status(200).json({ message: msg });
       }
