@@ -290,6 +290,7 @@
       {
         "id": "pariksha-ki-taiyari",
         "name": "CrackXam",
+        "image": "https://images.unsplash.com/photo-1488998427799-e3362cec87c3?q=80&w=2070&auto=format&fit=crop",
         "shortTagline": "Fast, adaptive exam prep with intelligent practice, feedback, and collaboration.",
         "summary": "An intelligent exam-prep platform delivering timed practice, instant feedback, and personalized recommendations for focused learning.",
         "benefits": [
@@ -320,6 +321,7 @@
       {
         "id": "nexus-exchange",
         "name": "Nexus Exchange",
+        "image": "https://images.unsplash.com/photo-1535320903710-d993d3d77d29?q=80&w=2070&auto=format&fit=crop",
         "shortTagline": "Smart reference rate management with real-time updates, bulk processing, and secure approvals.",
         "summary": "A reference rate management platform that helps financial teams track, update, and approve currency exchange rates in real time. Nexus Exchange acts as a single control center for live rates, bulk uploads, and governed approvals — built for banks, money transfer companies, and global businesses managing multi-currency operations.",
         "benefits": [
@@ -350,6 +352,7 @@
       {
         "id": "ai-email-saas",
         "name": "AI Email SaaS",
+        "image": "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?q=80&w=2070&auto=format&fit=crop",
         "shortTagline": "Enterprise email automation with secure rules, context-aware drafting, and actionable analytics.",
         "summary": "Enterprise AI email automation that produces context-aware drafts, enforces templates and policies, and provides actionable analytics for operations teams.",
         "benefits": [
@@ -372,6 +375,7 @@
       {
         "id": "barrister",
         "name": "Barrister",
+        "image": "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?q=80&w=2070&auto=format&fit=crop",
         "live": true,
         "shortTagline": "End-to-end case management for law firms — cases, documents, payments, and client communication in one secure portal.",
         "summary": "A comprehensive digital case management platform for law firms. Barrister brings case tracking, document management, payment recording, automated court reminders, and dual admin/advocate portals into a single secure system — so firms spend less time on paperwork and more time on clients.",
