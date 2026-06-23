@@ -288,6 +288,31 @@
     },
     "products": [
       {
+        "id": "barrister",
+        "name": "Barrister",
+        "image": "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?q=80&w=2070&auto=format&fit=crop",
+        "isNew": true,
+        "shortTagline": "End-to-end case management for law firms — cases, documents, payments, and client communication in one secure portal.",
+        "summary": "A comprehensive digital case management platform for law firms. Barrister brings case tracking, document management, payment recording, automated court reminders, and dual admin/advocate portals into a single secure system — so firms spend less time on paperwork and more time on clients.",
+        "benefits": [
+          "Full case lifecycle tracking with status, court details, hearing dates, fees, and advocate assignment in one place.",
+          "Dual portals — a full-control admin portal and a focused advocate portal for assigned cases, documents, and payments.",
+          "Centralized document management with per-case organization, secure uploads, and access auditing.",
+          "Payment tracking across cash, cheque, NEFT, UPI, card, and DD with auto-generated receipts and reconciliation.",
+          "Automated email reminders for court appearances and case updates, with professional PDF case and receipt documents."
+        ],
+        "technologies": [
+          "Next.js 15 and React 19 frontend with TypeScript and Tailwind CSS",
+          "PostgreSQL with Prisma ORM for durable, optimized data",
+          "NextAuth.js JWT authentication with OTP-based password reset",
+          "Brevo email integration with pdf-lib document generation",
+          "Secure role-based access with advocate access logging"
+        ],
+        "audience": "Law firms, advocates, and legal teams that need organized case tracking, documents, and client communication",
+        "privacyTone": "Security and compliance focused; JWT auth, hashed credentials, and access logging",
+        "demoUrl": "https://barrister.patienceai.in"
+      },
+      {
         "id": "pariksha-ki-taiyari",
         "name": "CrackXam",
         "image": "https://images.unsplash.com/photo-1488998427799-e3362cec87c3?q=80&w=2070&auto=format&fit=crop",
@@ -371,31 +396,6 @@
         ],
         "audience": "Operations, marketing, and customer-facing teams looking to scale compliant, high-quality email workflows",
         "privacyTone": "Enterprise-grade security and auditability emphasized"
-      },
-      {
-        "id": "barrister",
-        "name": "Barrister",
-        "image": "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?q=80&w=2070&auto=format&fit=crop",
-        "live": true,
-        "shortTagline": "End-to-end case management for law firms — cases, documents, payments, and client communication in one secure portal.",
-        "summary": "A comprehensive digital case management platform for law firms. Barrister brings case tracking, document management, payment recording, automated court reminders, and dual admin/advocate portals into a single secure system — so firms spend less time on paperwork and more time on clients.",
-        "benefits": [
-          "Full case lifecycle tracking with status, court details, hearing dates, fees, and advocate assignment in one place.",
-          "Dual portals — a full-control admin portal and a focused advocate portal for assigned cases, documents, and payments.",
-          "Centralized document management with per-case organization, secure uploads, and access auditing.",
-          "Payment tracking across cash, cheque, NEFT, UPI, card, and DD with auto-generated receipts and reconciliation.",
-          "Automated email reminders for court appearances and case updates, with professional PDF case and receipt documents."
-        ],
-        "technologies": [
-          "Next.js 15 and React 19 frontend with TypeScript and Tailwind CSS",
-          "PostgreSQL with Prisma ORM for durable, optimized data",
-          "NextAuth.js JWT authentication with OTP-based password reset",
-          "Brevo email integration with pdf-lib document generation",
-          "Secure role-based access with advocate access logging"
-        ],
-        "audience": "Law firms, advocates, and legal teams that need organized case tracking, documents, and client communication",
-        "privacyTone": "Security and compliance focused; JWT auth, hashed credentials, and access logging",
-        "demoUrl": "https://barrister.patienceai.in"
       }
     ]
   },

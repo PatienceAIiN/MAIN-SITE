@@ -50,13 +50,9 @@ const ProductShowcase = ({ products, onSelect }) => {
                     className="h-full w-full object-cover transition-all duration-700 ease-out group-hover:scale-105 group-hover:grayscale-0"
                   />
                   <div className="absolute inset-0 bg-black/10 transition-opacity duration-700 group-hover:opacity-0" />
-                  {product.live ? (
-                    <div className="absolute left-5 top-5 z-10 inline-flex items-center gap-2 rounded-full bg-emerald-500 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-white shadow-lg">
-                      <span className="relative flex h-2 w-2">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
-                      </span>
-                      Live
+                  {product.isNew ? (
+                    <div className="absolute left-5 top-5 z-10 inline-flex items-center rounded-full bg-[#1a1a1a] px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-white shadow-lg">
+                      New
                     </div>
                   ) : null}
                 </div>
