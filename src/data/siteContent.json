@@ -368,6 +368,30 @@
         ],
         "audience": "Operations, marketing, and customer-facing teams looking to scale compliant, high-quality email workflows",
         "privacyTone": "Enterprise-grade security and auditability emphasized"
+      },
+      {
+        "id": "barrister",
+        "name": "Barrister",
+        "live": true,
+        "shortTagline": "End-to-end case management for law firms — cases, documents, payments, and client communication in one secure portal.",
+        "summary": "A comprehensive digital case management platform for law firms. Barrister brings case tracking, document management, payment recording, automated court reminders, and dual admin/advocate portals into a single secure system — so firms spend less time on paperwork and more time on clients.",
+        "benefits": [
+          "Full case lifecycle tracking with status, court details, hearing dates, fees, and advocate assignment in one place.",
+          "Dual portals — a full-control admin portal and a focused advocate portal for assigned cases, documents, and payments.",
+          "Centralized document management with per-case organization, secure uploads, and access auditing.",
+          "Payment tracking across cash, cheque, NEFT, UPI, card, and DD with auto-generated receipts and reconciliation.",
+          "Automated email reminders for court appearances and case updates, with professional PDF case and receipt documents."
+        ],
+        "technologies": [
+          "Next.js 15 and React 19 frontend with TypeScript and Tailwind CSS",
+          "PostgreSQL with Prisma ORM for durable, optimized data",
+          "NextAuth.js JWT authentication with OTP-based password reset",
+          "Brevo email integration with pdf-lib document generation",
+          "Secure role-based access with advocate access logging"
+        ],
+        "audience": "Law firms, advocates, and legal teams that need organized case tracking, documents, and client communication",
+        "privacyTone": "Security and compliance focused; JWT auth, hashed credentials, and access logging",
+        "demoUrl": "https://barrister.patienceai.in"
       }
     ]
   },
@@ -885,6 +909,27 @@
             "title": "Video — Nexus Exchange Walkthrough",
             "src": "Ivwqy7y56Nc"
           }
+        ]
+      },
+      {
+        "slug": "barrister-launch",
+        "coverImage": "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?q=80&w=1800&auto=format&fit=crop",
+        "header": "Product",
+        "title": "Introducing Barrister — Case Management Built for Law Firms",
+        "by": "Harsh Kumar",
+        "publishedAt": "2026-06-24T11:00:00+05:30",
+        "excerpt": "Barrister brings case tracking, document management, payment recording, and client communication into a single secure portal — so law firms spend less time on paperwork and more time on clients.",
+        "tags": [
+          "Product",
+          "Legal",
+          "Launch"
+        ],
+        "content": [
+          "Law firms run on details. Hearing dates, court information, client records, pleadings, fee schedules, payment receipts — all of it has to be tracked accurately and retrieved instantly. Yet for most firms this still lives across spreadsheets, email threads, and physical files. Barrister is our answer: a calm, secure control center where every case and everything attached to it lives in one place.",
+          "At its core, Barrister is a digital case management platform for law firms and the advocates who work with them. Admins get full control — creating and updating cases, assigning advocates, recording payments, and monitoring the whole practice. Advocates get a focused portal showing only the cases assigned to them, with the documents and payment history they need and nothing they don't.",
+          "Documents are organized per case with secure uploads and access auditing, so you always know what was filed and who viewed it. Payments are recorded across cash, cheque, NEFT, UPI, card, and DD, with receipts generated automatically and reconciliation built in. Court appearance reminders and case updates go out by email, complete with professionally formatted PDF case details and receipts ready to share with clients.",
+          "Security is foundational rather than bolted on. Barrister uses JWT-based authentication, hashed credentials, OTP-driven password resets, and access logging for advocates — the kind of controls legal data demands.",
+          "Barrister is live today at barrister.patienceai.in. If your firm is ready to move case management off spreadsheets and into a single secure system, we'd love to show you around."
         ]
       },
       {

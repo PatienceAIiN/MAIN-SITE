@@ -65,6 +65,15 @@ const ProductsPage = ({ content, onAction }) => {
               <div className="absolute left-6 top-6 z-10 rounded-2xl bg-white px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-[#1a1a1a] shadow-lg">
                 Product {index + 1}
               </div>
+              {product.live ? (
+                <div className="absolute right-6 top-6 z-10 inline-flex items-center gap-2 rounded-full bg-emerald-500 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-white shadow-lg">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+                  </span>
+                  Live
+                </div>
+              ) : null}
               <img
                 src={`https://images.unsplash.com/photo-${product.id === 'pariksha-ki-taiyari' ? '1516321497487-e288fb19713f' : product.id === 'nexus-exchange' ? '1535320903710-d993d3d77d29' : '1557200134-90327ee9fafa'}?q=80&w=1200&auto=format&fit=crop`}
                 alt={product.name}
@@ -125,7 +134,18 @@ const ProductsPage = ({ content, onAction }) => {
                 </div>
 
               <div className="border-b border-[#e5e5e5] bg-[#f4f4f4] px-6 pb-8 pt-16 md:px-8 md:pb-10">
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.35em] text-[#a3a3a3]">Product</p>
+                <div className="mb-3 flex items-center gap-3">
+                  <p className="text-xs font-bold uppercase tracking-[0.35em] text-[#a3a3a3]">Product</p>
+                  {selectedProduct.live ? (
+                    <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white">
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+                      </span>
+                      Live
+                    </span>
+                  ) : null}
+                </div>
                 <h3 className="mb-3 text-3xl font-medium tracking-tight text-[#1a1a1a] md:text-4xl">{selectedProduct.name}</h3>
                 <p className="max-w-3xl text-lg leading-relaxed text-[#666666]">{selectedProduct.summary}</p>
               </div>
