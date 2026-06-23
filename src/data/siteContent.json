@@ -310,7 +310,14 @@
         ],
         "audience": "Law firms, advocates, and legal teams that need organized case tracking, documents, and client communication",
         "privacyTone": "Security and compliance focused; JWT auth, hashed credentials, and access logging",
-        "demoUrl": "https://barrister.patienceai.in"
+        "demoUrl": "https://barrister.patienceai.in",
+        "media": [
+          {
+            "type": "youtube",
+            "title": "Barrister — Product Walkthrough",
+            "src": "fSnKUt1hxng"
+          }
+        ]
       },
       {
         "id": "pariksha-ki-taiyari",

@@ -7,7 +7,9 @@ const ALLOWED_KEYS = new Set([
   'podcast/Automating_Indian_business_operations_with_Patience_AI.m4a',
   'podcast/Hacking_B2B_trust_with_AI_video_hi.m4a',
   'podcast/Conquering_the_UPSC_syllabus_with_PKT_hi.m4a',
-  'podcast/Automating_Indian_business_operations_with_Patience_AI_hi.m4a'
+  'podcast/Automating_Indian_business_operations_with_Patience_AI_hi.m4a',
+  'podcast/Getting_law_firms_off_spreadsheets_with_Barrister.m4a',
+  'podcast/Getting_law_firms_off_spreadsheets_with_Barrister_hi.m4a'
 ]);
 
 let client = null;
