@@ -715,6 +715,13 @@
         "title": "Products",
         "links": [
           {
+            "label": "Barrister",
+            "action": {
+              "type": "external",
+              "href": "https://barrister.patienceai.in"
+            }
+          },
+          {
             "label": "Features",
             "action": {
               "type": "route",

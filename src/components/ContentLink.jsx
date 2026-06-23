@@ -43,6 +43,24 @@ const ContentLink = ({
     );
   }
 
+  const externalHref =
+    action?.type === 'external'
+      ? action.href
+      : (action?.href && /^https?:\/\//.test(action.href) ? action.href : null);
+
+  if (externalHref) {
+    return (
+      <a
+        href={externalHref}
+        target="_blank"
+        rel="noreferrer"
+        className={`${className} ${stateClass}`.trim()}
+      >
+        {label}
+      </a>
+    );
+  }
+
   return (
     <Link to={buildTo(action)} className={`${className} ${stateClass}`.trim()}>
       {label}
