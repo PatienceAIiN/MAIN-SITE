@@ -151,24 +151,6 @@ const Product = ({ siteContent, onAction }) => {
                 </div>
 
                 <div className="rounded-[24px] border border-[#e5e5e5] bg-white p-6 md:p-8">
-                  <div className="mb-8">
-                    <div className="mb-6 flex items-center gap-4">
-                      <div className="h-px flex-1 bg-[#e5e5e5]" />
-                      <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#a3a3a3]">Technologies</span>
-                      <div className="h-px flex-1 bg-[#e5e5e5]" />
-                    </div>
-                    <div className="flex flex-wrap gap-2.5">
-                      {(selectedProduct.technologies || []).map((technology) => (
-                        <span
-                          key={technology}
-                          className="rounded-full border border-[#d1d1d1] px-3.5 py-1.5 text-[12px] font-medium text-[#666666]"
-                        >
-                          {technology}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
                   <div className="flex flex-col gap-3">
                     {selectedProduct.demoUrl ? (
                       <a
