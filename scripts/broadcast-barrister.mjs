@@ -4,18 +4,6 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const envPath = path.resolve(__dirname, '..', '.env');
-try {
-  for (const line of readFileSync(envPath, 'utf8').split('\n')) {
-    const m = line.match(/^([A-Z0-9_]+)\s*=\s*(.*)$/);
-    if (m) process.env[m[1]] = m[2].replace(/^"|"$/g, '');
-  }
-} catch {}
-
-const { queryDb } = await import('../api/_db.js');
-const { sendEmail } = await import('../api/_email.js');
-
 const siteUrl = (process.env.SITE_URL || 'https://patienceai.in').replace(/\/$/, '');
 const productUrl = 'https://barrister.patienceai.in';
 
@@ -49,28 +37,50 @@ const bodyHtml = `
 
 const bodyText = `Introducing Barrister — case management built for law firms.\n\nCase tracking, document management, payment recording, automated court reminders, and dual admin/advocate portals in one secure portal.\n\nIt's live now: ${productUrl}`;
 
-const rows = await queryDb(
-  `SELECT email, unsubscribe_token FROM public.newsletter_subscriptions WHERE confirmed_at IS NOT NULL`
-);
-
-console.log(`Confirmed subscribers: ${rows.length}`);
-if (process.env.EMAIL_TEST_REDIRECT) {
-  console.log(`EMAIL_TEST_REDIRECT active -> all mail routes to ${process.env.EMAIL_TEST_REDIRECT}`);
-}
-
-let sent = 0;
-const failed = [];
-for (const row of rows) {
-  const f = footer(row.unsubscribe_token);
+const main = async () => {
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const envPath = path.resolve(__dirname, '..', '.env');
   try {
-    await sendEmail({ to: row.email, subject, html: bodyHtml + f.html, text: bodyText + f.text });
-    sent += 1;
-  } catch (e) {
-    failed.push(row.email);
-    console.error('[broadcast]', row.email, e.message);
+    for (const line of readFileSync(envPath, 'utf8').split('\n')) {
+      const m = line.match(/^([A-Z0-9_]+)\s*=\s*(.*)$/);
+      if (m) process.env[m[1]] = m[2].replace(/^"|"$/g, '');
+    }
+  } catch {
+    // .env optional; vars may already be set in the environment
   }
-}
 
-console.log(`Done. sent=${sent} failed=${failed.length}`);
-if (failed.length) console.log('failed:', failed.join(', '));
-process.exit(0);
+  const { queryDb } = await import('../api/_db.js');
+  const { sendEmail } = await import('../api/_email.js');
+
+  const rows = await queryDb(
+    `SELECT email, unsubscribe_token FROM public.newsletter_subscriptions WHERE confirmed_at IS NOT NULL`
+  );
+
+  console.log(`Confirmed subscribers: ${rows.length}`);
+  if (process.env.EMAIL_TEST_REDIRECT) {
+    console.log(`EMAIL_TEST_REDIRECT active -> all mail routes to ${process.env.EMAIL_TEST_REDIRECT}`);
+  }
+
+  let sent = 0;
+  const failed = [];
+  for (const row of rows) {
+    const f = footer(row.unsubscribe_token);
+    try {
+      await sendEmail({ to: row.email, subject, html: bodyHtml + f.html, text: bodyText + f.text });
+      sent += 1;
+    } catch (e) {
+      failed.push(row.email);
+      console.error('[broadcast]', row.email, e.message);
+    }
+  }
+
+  console.log(`Done. sent=${sent} failed=${failed.length}`);
+  if (failed.length) console.log('failed:', failed.join(', '));
+};
+
+main()
+  .then(() => process.exit(0))
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
