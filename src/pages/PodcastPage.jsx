@@ -44,8 +44,8 @@ const EPISODES = [
     episode: 'EP 04',
     title: 'Getting Law Firms Off Spreadsheets with Barrister',
     show: 'Barrister',
-    excerpt: 'How Barrister brings case tracking, documents, payments, and client communication into one secure portal — and what calmer, organized case management means for modern law firms.',
-    tags: ['Barrister', 'Legal', 'Case Management'],
+    excerpt: 'How Barrister brings case tracking, documents, payments, and client communication into one secure portal — plus Find a Barrister, the new public directory that lets clients across India search lawyers, chat, video-call, and book consultations.',
+    tags: ['Barrister', 'Legal', 'Case Management', 'Find a Barrister'],
     coverImage: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?q=80&w=1200&auto=format&fit=crop',
     keyEn: 'podcast/Getting_law_firms_off_spreadsheets_with_Barrister.m4a',
     keyHi: 'podcast/Getting_law_firms_off_spreadsheets_with_Barrister_hi.m4a'

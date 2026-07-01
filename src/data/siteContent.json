@@ -292,9 +292,12 @@
         "name": "Barrister",
         "image": "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?q=80&w=2070&auto=format&fit=crop",
         "isNew": true,
-        "shortTagline": "End-to-end case management for law firms — cases, documents, payments, and client communication in one secure portal.",
-        "summary": "A comprehensive digital case management platform for law firms. Barrister brings case tracking, document management, payment recording, automated court reminders, and dual admin/advocate portals into a single secure system — so firms spend less time on paperwork and more time on clients.",
+        "shortTagline": "End-to-end case management for law firms — plus Find a Barrister, a public directory where clients search lawyers across India, chat, video-call, and book consultations.",
+        "summary": "A comprehensive digital case management platform for law firms — now with Find a Barrister, a public directory that connects clients to legal help. Barrister brings case tracking, document management, payment recording, automated court reminders, and dual admin/advocate portals into a single secure system, while Find a Barrister lets anyone search lawyers and firms across India, start a live chat, jump into an instant video consultation, and book a slot — so firms spend less time on paperwork and win more clients.",
         "benefits": [
+          "Find a Barrister — a public directory to search lawyers and firms across India by state, city, locality, and PIN, with GPS-based auto-detection of your city.",
+          "Connect instantly — live 1:1 chat with any lawyer (sign in with Google or email OTP) and one-click private video consultations.",
+          "Public lawyer and firm profiles with photo, title, expertise, and bio, plus consultation booking against real-time availability slots.",
           "Full case lifecycle tracking with status, court details, hearing dates, fees, and advocate assignment in one place.",
           "Dual portals — a full-control admin portal and a focused advocate portal for assigned cases, documents, and payments.",
           "Centralized document management with per-case organization, secure uploads, and access auditing.",
@@ -308,7 +311,7 @@
           "Brevo email integration with pdf-lib document generation",
           "Secure role-based access with advocate access logging"
         ],
-        "audience": "Law firms, advocates, and legal teams that need organized case tracking, documents, and client communication",
+        "audience": "Law firms, advocates, and legal teams that need organized case tracking, documents, and client communication — and clients across India looking to find a lawyer, chat, and book a consultation",
         "privacyTone": "Security and compliance focused; JWT auth, hashed credentials, and access logging",
         "demoUrl": "https://barrister.patienceai.in",
         "media": [
@@ -936,7 +939,7 @@
         "title": "Introducing Barrister — Case Management Built for Law Firms",
         "by": "Harsh Kumar",
         "publishedAt": "2026-06-24T11:00:00+05:30",
-        "excerpt": "Barrister brings case tracking, document management, payment recording, and client communication into a single secure portal — so law firms spend less time on paperwork and more time on clients.",
+        "excerpt": "Barrister brings case tracking, document management, payment recording, and client communication into a single secure portal — and with the new Find a Barrister directory, clients across India can search lawyers and firms, chat, video-call, and book consultations in one place.",
         "tags": [
           "Product",
           "Legal",
@@ -947,7 +950,8 @@
           "At its core, Barrister is a digital case management platform for law firms and the advocates who work with them. Admins get full control — creating and updating cases, assigning advocates, recording payments, and monitoring the whole practice. Advocates get a focused portal showing only the cases assigned to them, with the documents and payment history they need and nothing they don't.",
           "Documents are organized per case with secure uploads and access auditing, so you always know what was filed and who viewed it. Payments are recorded across cash, cheque, NEFT, UPI, card, and DD, with receipts generated automatically and reconciliation built in. Court appearance reminders and case updates go out by email, complete with professionally formatted PDF case details and receipts ready to share with clients.",
           "Security is foundational rather than bolted on. Barrister uses JWT-based authentication, hashed credentials, OTP-driven password resets, and access logging for advocates — the kind of controls legal data demands.",
-          "Barrister is live today at barrister.patienceai.in. If your firm is ready to move case management off spreadsheets and into a single secure system, we'd love to show you around."
+          "Barrister now goes beyond the back office with Find a Barrister — a public directory that connects clients to legal help. Anyone can search lawyers and firms across India by state, city, locality, or PIN, with their city auto-detected via GPS. From a lawyer's profile — complete with photo, expertise, and bio — a client can start a live 1:1 chat (signing in with Google or a quick email OTP), jump into a one-click private video consultation, or book a slot against the firm's real-time availability. It turns a firm's Barrister presence into a channel for winning new work, not just managing existing cases.",
+          "Barrister is live today at barrister.patienceai.in. Whether your firm wants to move case management off spreadsheets into a single secure system, or be discovered by clients through Find a Barrister, we'd love to show you around."
         ]
       },
       {
