@@ -421,9 +421,8 @@
           "Per-home OTA learning — a server-side training loop turns consented events and user overrides into per-home models pushed over the air, so SoNex adapts to each household without an app update.",
           "Phone-call awareness — detects active calls, forces ducking on all outputs, and restores only after the call ends and the room is quiet.",
           "Voice control in English and Hindi — wake-word 'SoNex' plus on-device Vosk speech recognition for hands-free volume, stop, and play commands.",
-          "Guided calibration — a 3-step wizard captures silence floor, media-only baseline, and media+talk, then creates named profiles for different rooms.",
+          "Guided calibration — a 3-step wizard captures silence floor, media-only baseline, and media+talk, then creates named profiles for different rooms."
         ],
-
         "audience": "Households, home-theater enthusiasts, and accessibility-focused users who want intelligent, automatic volume management across all their devices",
         "privacyTone": "Privacy is a hard constraint — on-device processing, consent-gated data sharing, and full DPDP/GDPR compliance"
       }
