@@ -325,7 +325,7 @@
       {
         "id": "sonex",
         "name": "SoNex",
-        "image": "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=2070&auto=format&fit=crop",
+        "image": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=2070&auto=format&fit=crop",
         "isNew": true,
         "shortTagline": "Room-aware adaptive volume — on-device ML that listens to the room, ducks media when someone talks, boosts it in noise, and learns your home over time.",
         "summary": "SoNex is a privacy-first Android system that automatically adjusts media volume across your phone, paired Android TV, Bluetooth speakers, and Chromecast based on what's happening in the room. When someone talks, volume ducks. When it gets noisy, volume rises. All audio is processed on-device using Silero VAD and YAMNet — nothing leaves the phone without explicit consent. Pair phone and TV with a 4-digit code over Wi-Fi, calibrate once, and SoNex handles the rest. A server-side learning loop trains per-home models from consented data and pushes them OTA — no app update needed. Voice control in English and Hindi lets you say 'SoNex, lower volume' hands-free.",
