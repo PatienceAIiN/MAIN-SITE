@@ -75,7 +75,7 @@ const ProductsPage = ({ content, onAction }) => {
                 </div>
               ) : null}
               <img
-                src={`https://images.unsplash.com/photo-${product.id === 'pariksha-ki-taiyari' ? '1516321497487-e288fb19713f' : product.id === 'nexus-exchange' ? '1535320903710-d993d3d77d29' : product.id === 'sonex' ? '1558618666-fcd25c85f82e' : product.id === 'barrister' ? '1589829545856-d10d557cf95f' : '1557200134-90327ee9fafa'}?q=80&w=1200&auto=format&fit=crop`}
+                src={product.image || `https://images.unsplash.com/photo-1557200134-90327ee9fafa?q=80&w=1200&auto=format&fit=crop`}
                 alt={product.name}
                 className="h-full w-full object-cover grayscale transition-all duration-700 ease-out group-hover:scale-105 group-hover:grayscale-0"
               />
