@@ -12,7 +12,8 @@ const ALLOWED_KEYS = new Set([
   'podcast/Hacking_B2B_trust_with_AI_video.m4a',
   'podcast/Conquering_the_UPSC_syllabus_with_PKT.m4a',
   'podcast/Automating_Indian_business_operations_with_Patience_AI.m4a',
-  'podcast/Getting_law_firms_off_spreadsheets_with_Barrister.m4a'
+  'podcast/Getting_law_firms_off_spreadsheets_with_Barrister.m4a',
+  'podcast/Volume_that_listens_to_the_room_inside_SoNex.m4a'
 ]);
 
 const GROQ_API = 'https://api.groq.com/openai/v1';
