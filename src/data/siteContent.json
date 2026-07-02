@@ -323,6 +323,33 @@
         ]
       },
       {
+        "id": "sonex",
+        "name": "SoNex",
+        "image": "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=2070&auto=format&fit=crop",
+        "isNew": true,
+        "shortTagline": "Room-aware adaptive volume — on-device ML that listens to the room, ducks media when someone talks, boosts it in noise, and learns your home over time.",
+        "summary": "SoNex is a privacy-first Android system that automatically adjusts media volume across your phone, paired Android TV, Bluetooth speakers, and Chromecast based on what's happening in the room. When someone talks, volume ducks. When it gets noisy, volume rises. All audio is processed on-device using Silero VAD and YAMNet — nothing leaves the phone without explicit consent. Pair phone and TV with a 4-digit code over Wi-Fi, calibrate once, and SoNex handles the rest. A server-side learning loop trains per-home models from consented data and pushes them OTA — no app update needed. Voice control in English and Hindi lets you say 'SoNex, lower volume' hands-free.",
+        "benefits": [
+          "Automatic speech detection — on-device Silero VAD and YAMNet classify every 30ms audio frame as speech, noise, or quiet, with an energy-heuristic fallback if models are absent.",
+          "Multi-device ducking — one command interface fans volume changes to the phone speaker, paired Android TV, Bluetooth media, and Cast devices simultaneously.",
+          "Privacy-first by design — all audio processed on-device, no data leaves without per-purpose consent toggles (all OFF by default), DPDP Act 2023 and GDPR compliant.",
+          "Per-home OTA learning — a server-side training loop turns consented events and user overrides into per-home models pushed over the air, so SoNex adapts to each household without an app update.",
+          "Phone-call awareness — detects active calls, forces ducking on all outputs, and restores only after the call ends and the room is quiet.",
+          "Voice control in English and Hindi — wake-word 'SoNex' plus on-device Vosk speech recognition for hands-free volume, stop, and play commands.",
+          "Guided calibration — a 3-step wizard captures silence floor, media-only baseline, and media+talk, then creates named profiles for different rooms."
+        ],
+        "technologies": [
+          "Android (Kotlin) with on-device Silero VAD and YAMNet ML models",
+          "Android TV companion app with Wi-Fi pairing over local network",
+          "On-device Vosk speech recognition for wake-word and voice commands",
+          "Server-side OTA model training loop with per-home personalization",
+          "DPDP Act 2023 and GDPR compliant consent-gated data architecture"
+        ],
+        "audience": "Households, home-theater enthusiasts, and accessibility-focused users who want intelligent, automatic volume management across all their devices",
+        "privacyTone": "Privacy is a hard constraint — on-device processing, consent-gated data sharing, and full DPDP/GDPR compliance",
+        "demoUrl": "https://sonex.patienceai.in"
+      },
+      {
         "id": "pariksha-ki-taiyari",
         "name": "CrackXam",
         "image": "https://images.unsplash.com/photo-1488998427799-e3362cec87c3?q=80&w=2070&auto=format&fit=crop",
@@ -406,25 +433,6 @@
         ],
         "audience": "Operations, marketing, and customer-facing teams looking to scale compliant, high-quality email workflows",
         "privacyTone": "Enterprise-grade security and auditability emphasized"
-      },
-      {
-        "id": "sonex",
-        "name": "SoNex",
-        "image": "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=2070&auto=format&fit=crop",
-        "isNew": true,
-        "shortTagline": "Room-aware adaptive volume — on-device ML that listens to the room, ducks media when someone talks, boosts it in noise, and learns your home over time.",
-        "summary": "SoNex is a privacy-first Android system that automatically adjusts media volume across your phone, paired Android TV, Bluetooth speakers, and Chromecast based on what's happening in the room. When someone talks, volume ducks. When it gets noisy, volume rises. All audio is processed on-device using Silero VAD and YAMNet — nothing leaves the phone without explicit consent. Pair phone and TV with a 4-digit code over Wi-Fi, calibrate once, and SoNex handles the rest. A server-side learning loop trains per-home models from consented data and pushes them OTA — no app update needed. Voice control in English and Hindi lets you say 'SoNex, lower volume' hands-free.",
-        "benefits": [
-          "Automatic speech detection — on-device Silero VAD and YAMNet classify every 30ms audio frame as speech, noise, or quiet, with an energy-heuristic fallback if models are absent.",
-          "Multi-device ducking — one command interface fans volume changes to the phone speaker, paired Android TV, Bluetooth media, and Cast devices simultaneously.",
-          "Privacy-first by design — all audio processed on-device, no data leaves without per-purpose consent toggles (all OFF by default), DPDP Act 2023 and GDPR compliant.",
-          "Per-home OTA learning — a server-side training loop turns consented events and user overrides into per-home models pushed over the air, so SoNex adapts to each household without an app update.",
-          "Phone-call awareness — detects active calls, forces ducking on all outputs, and restores only after the call ends and the room is quiet.",
-          "Voice control in English and Hindi — wake-word 'SoNex' plus on-device Vosk speech recognition for hands-free volume, stop, and play commands.",
-          "Guided calibration — a 3-step wizard captures silence floor, media-only baseline, and media+talk, then creates named profiles for different rooms."
-        ],
-        "audience": "Households, home-theater enthusiasts, and accessibility-focused users who want intelligent, automatic volume management across all their devices",
-        "privacyTone": "Privacy is a hard constraint — on-device processing, consent-gated data sharing, and full DPDP/GDPR compliance"
       }
     ]
   },
