@@ -49,6 +49,17 @@ const EPISODES = [
     coverImage: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?q=80&w=1200&auto=format&fit=crop',
     keyEn: 'podcast/Getting_law_firms_off_spreadsheets_with_Barrister.m4a',
     keyHi: 'podcast/Getting_law_firms_off_spreadsheets_with_Barrister_hi.m4a'
+  },
+  {
+    slug: 'sonex',
+    episode: 'EP 05',
+    title: 'Volume That Listens to the Room — Inside SoNex',
+    show: 'SoNex',
+    excerpt: 'How SoNex uses on-device ML to auto-duck media when someone talks, boost it in noise, and learn each household\'s audio preferences over time — all without sending a single byte of audio to the cloud.',
+    tags: ['SoNex', 'On-Device ML', 'Privacy', 'Audio'],
+    coverImage: 'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=1200&auto=format&fit=crop',
+    keyEn: 'podcast/Volume_that_listens_to_the_room_inside_SoNex.m4a',
+    keyHi: 'podcast/Volume_that_listens_to_the_room_inside_SoNex_hi.m4a'
   }
 ];
 

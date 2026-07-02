@@ -406,6 +406,26 @@
         ],
         "audience": "Operations, marketing, and customer-facing teams looking to scale compliant, high-quality email workflows",
         "privacyTone": "Enterprise-grade security and auditability emphasized"
+      },
+      {
+        "id": "sonex",
+        "name": "SoNex",
+        "image": "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=2070&auto=format&fit=crop",
+        "isNew": true,
+        "shortTagline": "Room-aware adaptive volume — on-device ML that listens to the room, ducks media when someone talks, boosts it in noise, and learns your home over time.",
+        "summary": "SoNex is a privacy-first Android system that automatically adjusts media volume across your phone, paired Android TV, Bluetooth speakers, and Chromecast based on what's happening in the room. When someone talks, volume ducks. When it gets noisy, volume rises. All audio is processed on-device using Silero VAD and YAMNet — nothing leaves the phone without explicit consent. Pair phone and TV with a 4-digit code over Wi-Fi, calibrate once, and SoNex handles the rest. A server-side learning loop trains per-home models from consented data and pushes them OTA — no app update needed. Voice control in English and Hindi lets you say 'SoNex, lower volume' hands-free.",
+        "benefits": [
+          "Automatic speech detection — on-device Silero VAD and YAMNet classify every 30ms audio frame as speech, noise, or quiet, with an energy-heuristic fallback if models are absent.",
+          "Multi-device ducking — one command interface fans volume changes to the phone speaker, paired Android TV, Bluetooth media, and Cast devices simultaneously.",
+          "Privacy-first by design — all audio processed on-device, no data leaves without per-purpose consent toggles (all OFF by default), DPDP Act 2023 and GDPR compliant.",
+          "Per-home OTA learning — a server-side training loop turns consented events and user overrides into per-home models pushed over the air, so SoNex adapts to each household without an app update.",
+          "Phone-call awareness — detects active calls, forces ducking on all outputs, and restores only after the call ends and the room is quiet.",
+          "Voice control in English and Hindi — wake-word 'SoNex' plus on-device Vosk speech recognition for hands-free volume, stop, and play commands.",
+          "Guided calibration — a 3-step wizard captures silence floor, media-only baseline, and media+talk, then creates named profiles for different rooms.",
+        ],
+
+        "audience": "Households, home-theater enthusiasts, and accessibility-focused users who want intelligent, automatic volume management across all their devices",
+        "privacyTone": "Privacy is a hard constraint — on-device processing, consent-gated data sharing, and full DPDP/GDPR compliance"
       }
     ]
   },
@@ -736,6 +756,13 @@
             }
           },
           {
+            "label": "SoNex",
+            "action": {
+              "type": "route",
+              "to": "/products"
+            }
+          },
+          {
             "label": "Features",
             "action": {
               "type": "route",
@@ -952,6 +979,33 @@
           "Security is foundational rather than bolted on. Barrister uses JWT-based authentication, hashed credentials, OTP-driven password resets, and access logging for advocates — the kind of controls legal data demands.",
           "Barrister now goes beyond the back office with Find a Barrister — a public directory that connects clients to legal help. Anyone can search lawyers and firms across India by state, city, locality, or PIN, with their city auto-detected via GPS. From a lawyer's profile — complete with photo, expertise, and bio — a client can start a live 1:1 chat (signing in with Google or a quick email OTP), jump into a one-click private video consultation, or book a slot against the firm's real-time availability. It turns a firm's Barrister presence into a channel for winning new work, not just managing existing cases.",
           "Barrister is live today at barrister.patienceai.in. Whether your firm wants to move case management off spreadsheets into a single secure system, or be discovered by clients through Find a Barrister, we'd love to show you around."
+        ]
+      },
+      {
+        "slug": "sonex-launch",
+        "coverImage": "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=1800&auto=format&fit=crop",
+        "header": "Product",
+        "title": "Introducing SoNex — Volume That Listens to the Room",
+        "by": "Harsh Kumar",
+        "publishedAt": "2026-07-02T18:00:00+05:30",
+        "excerpt": "SoNex is a privacy-first Android system that uses on-device ML to automatically duck media volume when someone talks, boost it in loud environments, and learn each household's preferences over time — across phone, TV, Bluetooth, and Cast.",
+        "tags": [
+          "Product",
+          "Audio",
+          "On-Device ML",
+          "Privacy",
+          "Launch"
+        ],
+        "content": [
+          "Every household has the same argument. Someone is watching TV, someone else starts talking, and suddenly the room is a competition between the movie and the conversation. The remote gets grabbed, volume goes down, then back up, then down again. It is an absurdly manual process for something a phone with a microphone should handle automatically. SoNex is our answer — volume that listens to the room and responds in real time.",
+          "At its heart, SoNex is two Android apps — one for the phone, one for the TV — plus a server and dev portal. The phone app runs a continuous detection loop: 16kHz mono audio, 30ms frames, classified by Silero VAD for speech probability and YAMNet for sound-class identification. When someone talks, media ducks on the phone and the paired Android TV simultaneously. When it gets loud with non-speech noise — a mixer grinder, traffic outside an open window — volume rises instead. When the room goes quiet, everything restores smoothly.",
+          "Pairing is dead simple. Install SoNex on the phone and SoNex TV on the television, make sure they are on the same Wi-Fi, and enter the 4-digit code shown on the TV screen. From that point, the phone is the brain and the TV follows its instructions through a persistent LAN socket. The same command interface extends to Bluetooth media and Chromecast — each output target can be independently configured to duck, mute, pause, or boost.",
+          "Privacy was the first design constraint, not a feature added later. All audio is processed on-device by default. Every byte of recorded sound is classified and immediately discarded — no audio, transcript, or acoustic fingerprint leaves the phone unless you explicitly enable a per-purpose consent toggle, and every toggle is OFF by default. A persistent notification (and the OS microphone indicator) stays visible the entire time the mic is live. The app is fully functional with all sharing off.",
+          "The ML pipeline is what makes SoNex accurate. Silero VAD provides speech probability per frame — is someone speaking right now? YAMNet classifies the top sound categories to distinguish speech from non-speech noise, which is how SoNex decides to duck (speech) versus boost (appliance, traffic, construction). If models are absent or fail SHA-256 verification, the app falls back to a pure energy-heuristic classifier using RMS and zero-crossing-rate analysis. This fallback is less accurate but ensures the app always works.",
+          "A guided calibration wizard captures three measurements: the silence floor of your room, the media-only baseline, and media plus someone talking. These anchors let SoNex calculate precise trigger and boost thresholds for your specific environment. You can save named profiles for different rooms — living room, bedroom, kitchen — and switch between them.",
+          "The learning loop is where SoNex gets smarter over time. With consent, the server collects detection events and user overrides — every time you manually adjust the volume, that is a correction signal. A nightly training job tunes per-home thresholds and produces a lightweight classifier (logistic regression over VAD + YAMNet features), exported as ONNX and pushed to your devices over the air. The model updates without an app update — the app checks the server manifest on launch and daily on Wi-Fi, downloads if newer, verifies the checksum, and hot-swaps into the engine. Last-known-good rollback protects against bad models.",
+          "Voice control rounds out the experience. Say 'SoNex, lower volume' or 'SoNex, band karo' and the system responds — wake-word detection plus Vosk offline speech recognition in English and Hindi, entirely on-device. No cloud round-trip for voice commands.",
+          "We built SoNex because the problem is universal — every home with a TV and a human has this problem — and the solution is now technically feasible with on-device ML that is fast enough, small enough, and private enough. If you want volume that just works, SoNex is the beginning of that future."
         ]
       },
       {
