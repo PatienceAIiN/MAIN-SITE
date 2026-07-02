@@ -57,7 +57,7 @@ const EPISODES = [
     show: 'SoNex',
     excerpt: 'How SoNex uses on-device ML to auto-duck media when someone talks, boost it in noise, and learn each household\'s audio preferences over time — all without sending a single byte of audio to the cloud.',
     tags: ['SoNex', 'On-Device ML', 'Privacy', 'Audio'],
-    coverImage: 'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=1200&auto=format&fit=crop',
+    coverImage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=1200&auto=format&fit=crop',
     keyEn: 'podcast/Volume_that_listens_to_the_room_inside_SoNex.m4a',
     keyHi: 'podcast/Volume_that_listens_to_the_room_inside_SoNex_hi.m4a'
   }

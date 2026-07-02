@@ -367,7 +367,7 @@ ${'─'.repeat(50)}`);
         // Rate limit backoff
         if (err.message.includes('429')) {
           console.log('   ⏳  Waiting 60s for rate limit reset…');
-          await new Promise(r => setTimeout(r, 60_000));
+          await new Promise(r => setTimeout(r, 60000));
         }
         continue;
       }
@@ -415,7 +415,8 @@ ${'─'.repeat(50)}`);
     // Group by campaign type
     const byType = {};
     for (const r of allResults) {
-      (byType[r.label] ??= []).push(r);
+      if (!byType[r.label]) byType[r.label] = [];
+      byType[r.label].push(r);
     }
     for (const [label, items] of Object.entries(byType)) {
       console.log(`  ${label} (${items.length})`);
