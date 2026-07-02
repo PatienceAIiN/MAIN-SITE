@@ -347,7 +347,14 @@
         ],
         "audience": "Households, home-theater enthusiasts, and accessibility-focused users who want intelligent, automatic volume management across all their devices",
         "privacyTone": "Privacy is a hard constraint — on-device processing, consent-gated data sharing, and full DPDP/GDPR compliance",
-        "demoUrl": "https://sonex.patienceai.in"
+        "demoUrl": "https://sonex.patienceai.in",
+        "media": [
+          {
+            "type": "youtube",
+            "title": "SoNex — Smart Volume Demo",
+            "src": "PKMm94a3aYo"
+          }
+        ]
       },
       {
         "id": "pariksha-ki-taiyari",
