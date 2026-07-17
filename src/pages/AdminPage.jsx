@@ -334,7 +334,7 @@ function DeployTargets() {
   const emailArr = (csv) => String(csv || '').split(',').map((x) => x.trim()).filter(Boolean);
   const repoOpts = (cur) => [<option key="" value="">Select repo…</option>, ...Array.from(new Set([...(cur ? [cur] : []), ...repos])).map((r) => <option key={r} value={r}>{r}</option>)];
   const add = async () => {
-    if (!draft.label.trim() || !draft.deployHook.trim()) { setMsg('Label and deploy hook are required.'); return; }
+    if (!draft.label.trim() || !draft.repo.trim()) { setMsg('Label and repository are required.'); return; }
     try { await fetchJson('/api/deploy/targets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) }); setDraft({ label: '', repo: '', deployHook: '', apiKey: '', allowedEmails: [] }); setMsg('Added ✓'); load(); }
     catch (e) { setMsg(e.message); }
   };
@@ -342,7 +342,7 @@ function DeployTargets() {
     try { await fetchJson('/api/deploy/targets', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id, label: t.label, repo: t.repo, deployHook: t.deploy_hook, apiKey: t.api_key || '', allowedEmails: emailArr(t.allowed_emails) }) }); setMsg(`Saved “${t.label}” ✓`); setOpenSvc(t.id); load(); }
     catch (e) { setMsg(e.message); }
   };
-  const del = async (id) => { if (!(await confirmDialog({ title: 'Remove deploy target', message: 'Remove and delink this repo deployment? This does not delete the Render service.', confirmText: 'Remove' }))) return; try { await fetchJson(`/api/deploy/targets?id=${id}`, { method: 'DELETE' }); load(); } catch (e) { setMsg(e.message); } };
+  const del = async (id) => { if (!(await confirmDialog({ title: 'Remove deploy target', message: 'Remove and delink this repo deployment? This does not affect the GitHub repo or its workflow.', confirmText: 'Remove' }))) return; try { await fetchJson(`/api/deploy/targets?id=${id}`, { method: 'DELETE' }); load(); } catch (e) { setMsg(e.message); } };
   const setField = (id, k, v) => setTargets((ts) => ts.map((t) => (t.id === id ? { ...t, [k]: v } : t)));
   const [openSvc, setOpenSvc] = useState(null);
   const svcId = (hook) => (String(hook || '').match(/deploy\/(srv-[a-z0-9]+)/i) || [])[1] || '';
@@ -362,42 +362,41 @@ function DeployTargets() {
   return (
     <div>
       <h3 className="text-lg font-semibold mb-1">Configure deployment (per repo)</h3>
-      <p className="text-white/55 text-sm mb-3">Each repository gets its own Render deploy hook. Team users pick a repo before deploying, and only that repo's hook is fired — no single hook for everything.</p>
+      <p className="text-white/55 text-sm mb-3">Each repository deploys via its own GitHub Actions workflow. Team users pick a repo before deploying, and only that repo's workflow is dispatched — the build runs on GitHub and ships to the VM.</p>
       <div className="space-y-2">
         {targets.map((t) => (
           <div key={t.id} className="rounded-2xl border border-white/10 bg-white/5 p-3 space-y-2">
             <div className="grid md:grid-cols-[1fr_1fr_2fr_auto] gap-2 items-center">
               <input className={inp} value={t.label} onChange={(e) => setField(t.id, 'label', e.target.value)} placeholder="Label (e.g. Main site)" />
               <select className={sel} value={t.repo || ''} onChange={(e) => setField(t.id, 'repo', e.target.value)}>{repoOpts(t.repo)}</select>
-              <input className={`${inp} font-mono`} value={t.deploy_hook} onChange={(e) => setField(t.id, 'deploy_hook', e.target.value)} placeholder="https://api.render.com/deploy/srv-…?key=…" />
+              <input className={`${inp} font-mono`} value={t.deploy_hook} onChange={(e) => setField(t.id, 'deploy_hook', e.target.value)} placeholder="Workflow file (default: deploy.yml)" />
               <span className="flex gap-1.5">
                 <button onClick={() => saveRow(t)} className="text-xs px-3 py-1.5 rounded-lg bg-white text-slate-950 font-semibold">Save</button>
                 <button onClick={() => del(t.id)} className="text-xs px-2.5 py-1.5 rounded-lg border border-red-400/30 text-red-300 hover:bg-red-500/10">✕</button>
               </span>
             </div>
-            <input className={`${inp} font-mono w-full`} value={t.api_key || ''} onChange={(e) => setField(t.id, 'api_key', e.target.value)} placeholder="Render API key for this repo (rnd_… — needed only if its service is in another Render account)" />
+            <input className={`${inp} font-mono w-full`} value={t.api_key || ''} onChange={(e) => setField(t.id, 'api_key', e.target.value)} placeholder="Git branch to deploy (default: main)" />
             <div className="grid md:grid-cols-2 gap-2 items-start">
               <div className="text-[10px] text-white/45">Team users allowed to deploy this repo (none = all deploy-allowed users)
                 {memberChecks(emailArr(t.allowed_emails), (e) => setField(t.id, 'allowed_emails', toggleEmail(emailArr(t.allowed_emails), e).join(',')))}
               </div>
-              <p className="text-[10px] text-white/35 md:pt-4">The deploy hook fires the deploy; the API key lets this panel show & edit env/settings/history. Tick which team users may deploy this repo (independent of GitHub access).</p>
+              <p className="text-[10px] text-white/35 md:pt-4">The workflow file (in .github/workflows/) builds and ships to the VM; the branch is what gets deployed. Tick which team users may deploy this repo.</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              {svcId(t.deploy_hook)
-                ? <button onClick={() => setOpenSvc(openSvc === t.id ? null : t.id)} className="text-[11px] px-3 py-1 rounded-lg border border-white/15 text-white/80 hover:bg-white/5">{openSvc === t.id ? 'Hide' : 'Service & environment'} · <span className="font-mono">{svcId(t.deploy_hook)}</span></button>
-                : <span className="text-[11px] text-white/35">Save a Render deploy hook to manage this repo's service & environment.</span>}
+              {t.repo
+                ? <a href={`https://github.com/${t.repo}/actions`} target="_blank" rel="noreferrer" className="text-[11px] px-3 py-1 rounded-lg border border-white/15 text-white/80 hover:bg-white/5">GitHub Actions ↗</a>
+                : <span className="text-[11px] text-white/35">Select a repository to view its GitHub Actions runs.</span>}
               <button onClick={() => del(t.id)} className="text-[11px] px-3 py-1 rounded-lg border border-red-400/30 text-red-300 hover:bg-red-500/10">Remove &amp; delink</button>
             </div>
-            {openSvc === t.id && svcId(t.deploy_hook) && <ServiceDetail id={svcId(t.deploy_hook)} dark />}
           </div>
         ))}
         {/* New target */}
         <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-3 grid md:grid-cols-[1fr_1fr_2fr_auto] gap-2 items-center">
           <input className={inp} value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} placeholder="New label" />
           <select className={sel} value={draft.repo} onChange={(e) => setDraft({ ...draft, repo: e.target.value })}>{repoOpts(draft.repo)}</select>
-          <input className={`${inp} font-mono`} value={draft.deployHook} onChange={(e) => setDraft({ ...draft, deployHook: e.target.value })} placeholder="Render deploy-hook URL" />
+          <input className={`${inp} font-mono`} value={draft.deployHook} onChange={(e) => setDraft({ ...draft, deployHook: e.target.value })} placeholder="Workflow file (default: deploy.yml)" />
           <button onClick={add} className="text-xs px-4 py-1.5 rounded-lg bg-emerald-500/90 hover:bg-emerald-500 text-white font-semibold">+ Add</button>
-          <input className={`${inp} font-mono md:col-span-4`} value={draft.apiKey} onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })} placeholder="Render API key (rnd_… — optional)" />
+          <input className={`${inp} font-mono md:col-span-4`} value={draft.apiKey} onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })} placeholder="Git branch (default: main — optional)" />
           <div className="md:col-span-4 text-[10px] text-white/45">Team users allowed to deploy this repo (optional — none = all deploy-allowed users)
             {memberChecks(draft.allowedEmails, (e) => setDraft({ ...draft, allowedEmails: toggleEmail(draft.allowedEmails, e) }))}
           </div>
