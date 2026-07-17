@@ -267,7 +267,22 @@ export default async function handler(req, res) {
       const { repo } = targetRef(target || {});
       const runRes = await gh(repo, `/actions/runs/${runId}`);
       const run = runRes.ok ? await runRes.json() : null;
-      const status = run ? (run.status === 'completed' ? (run.conclusion || 'completed') : run.status) : null;
+      // Map GitHub's vocabulary onto the statuses the team-portal UI already
+      // knows (from the Render era): success→'live' (green, done), a bad
+      // conclusion→'failed', cancellation→'cancelled'. In-progress states pass
+      // through as-is (the UI treats anything not in DEPLOY_DONE as "running").
+      let status = null;
+      if (run) {
+        if (run.status === 'completed') {
+          status = run.conclusion === 'success' ? 'live' : (run.conclusion === 'cancelled' ? 'cancelled' : 'failed');
+          // Resolve the local history row so the button reverts and the
+          // recent-list "still running?" heuristic stops re-activating it.
+          const dbStatus = run.conclusion === 'success' ? 'success' : (run.conclusion === 'cancelled' ? 'cancelled' : 'failed');
+          await queryDb(`UPDATE deploys SET status=$2, updated_at=NOW() WHERE id=$1 AND status='triggered'`, [id, dbStatus]).catch(() => {});
+        } else {
+          status = run.status;
+        }
+      }
       let lines = [];
       const jobsRes = await gh(repo, `/actions/runs/${runId}/jobs`);
       if (jobsRes.ok) {
