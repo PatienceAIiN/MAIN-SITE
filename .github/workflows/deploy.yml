@@ -1,0 +1,33 @@
+name: Deploy to VM
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: deploy-mainsite
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npx vite build
+      - run: npm prune --omit=dev --no-audit --no-fund
+      - name: SSH setup
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VM_SSH_KEY }}" > ~/.ssh/k && chmod 600 ~/.ssh/k
+          ssh-keyscan -H ${{ secrets.VM_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Deploy
+        env:
+          H: ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}
+          D: /home/harsh/products/MAIN-SITE
+        run: |
+          rsync -az --delete -e "ssh -i ~/.ssh/k" dist/ "$H:$D/dist/"
+          rsync -az -e "ssh -i ~/.ssh/k" server.js api backend scripts package.json ecosystem.config.cjs "$H:$D/"
+          rsync -az --delete -e "ssh -i ~/.ssh/k" node_modules/ "$H:$D/node_modules/"
+          ssh -i ~/.ssh/k "$H" "sudo systemctl restart mainsite"
