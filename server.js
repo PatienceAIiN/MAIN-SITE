@@ -625,6 +625,6 @@ app.use((error, req, res, next) => {
 
 const server = http.createServer(app);
 attachTeamHub(server); // realtime presence / chat / call signaling at /ws/team
-server.listen(port, () => {
+server.listen(port, "127.0.0.1", () => {
   console.log(`Server listening on ${port}`);
 });

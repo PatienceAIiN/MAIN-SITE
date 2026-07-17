@@ -333,9 +333,26 @@ const tryGeneralSiteResponse = (question, siteContent) => {
 };
 
 const buildFallbackAnswer = (siteContent, topResults = []) => {
+  // Chunks are "path: value" pairs from flattenContent. NEVER surface the raw
+  // path (e.g. "blogPage.posts[9].header") — strip it and keep only the value,
+  // and only substantial, sentence-like values (not one-word UI labels), so a
+  // degraded reply without the LLM still reads like prose instead of leaking
+  // the content tree.
+  const seen = new Set();
   const snippets = topResults
     .map((item) => item?.chunk)
     .filter(Boolean)
+    .map((chunk) => {
+      const idx = chunk.indexOf(': ');
+      return (idx === -1 ? chunk : chunk.slice(idx + 2)).trim();
+    })
+    .filter((value) => value.length >= 40 && /\s/.test(value))
+    .filter((value) => {
+      const key = value.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
     .slice(0, 3);
 
   if (snippets.length) {
@@ -450,34 +467,42 @@ export default async function handler(req, res) {
     let answer = buildFallbackAnswer(siteContent, topResults);
 
     if (groqApiKey) {
-      const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${groqApiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-          temperature: 0.15,
-          max_tokens: 700,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'system', content: contextPrompt },
-            ...trimmedHistory,
-            { role: 'user', content: resolvedQuestion }
-          ]
-        })
-      });
+      // Free-tier GROQ enforces a per-model daily token cap. When the primary
+      // model is rate-limited (429), fall through to a lighter model with its
+      // own budget so visitors still get a real answer instead of the degraded
+      // fallback.
+      const candidateModels = [process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+      for (const model of candidateModels) {
+        const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${groqApiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model,
+            temperature: 0.15,
+            max_tokens: 700,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'system', content: contextPrompt },
+              ...trimmedHistory,
+              { role: 'user', content: resolvedQuestion }
+            ]
+          })
+        });
 
-      if (groqResponse.ok) {
-        const completion = await groqResponse.json();
-        const modelAnswer = completion?.choices?.[0]?.message?.content?.trim();
-        if (modelAnswer) {
-          answer = modelAnswer;
+        if (groqResponse.ok) {
+          const completion = await groqResponse.json();
+          const modelAnswer = completion?.choices?.[0]?.message?.content?.trim();
+          if (modelAnswer) {
+            answer = modelAnswer;
+            break;
+          }
+        } else {
+          const errorBody = await groqResponse.text().catch(() => '');
+          console.error(`Groq request failed (${model}):`, errorBody.slice(0, 220));
         }
-      } else {
-        const errorBody = await groqResponse.text().catch(() => '');
-        console.error('Groq request failed:', errorBody.slice(0, 220));
       }
     }
 

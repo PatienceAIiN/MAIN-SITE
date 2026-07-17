@@ -1,3 +1,4 @@
+import pg from 'pg';
 const normalizeRows = (payload) => {
   if (!payload) return [];
   if (Array.isArray(payload.rows)) return payload.rows;
@@ -24,33 +25,24 @@ export const isMissingTableError = (message = '') => /relation .* does not exist
 let dbQueryCount = 0;
 export const getDbQueryCount = () => dbQueryCount;
 
+// Self-hosted Postgres speaks the wire protocol, not Neon's HTTP /sql API,
+// so queries go through a pg Pool. Pool is lazy so a missing DATABASE_URL
+// still fails per-query (same behaviour as the HTTP path).
+let pgPool;
+const getPgPool = (databaseUrl) => {
+  if (!pgPool) {
+    pgPool = new pg.Pool({ connectionString: databaseUrl, max: 5, idleTimeoutMillis: 30000 });
+  }
+  return pgPool;
+};
+
 const executeRawQuery = async (config, query, params = []) => {
   dbQueryCount += 1;
   if (process.env.DB_QUERY_LOG === '1') {
     console.log(`[db #${dbQueryCount}]`, query.slice(0, 90).replace(/\s+/g, ' '));
   }
-  const response = await fetch(config.sqlEndpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Neon-Connection-String': config.databaseUrl
-    },
-    body: JSON.stringify({ query, params })
-  });
-
-  const text = await response.text();
-  let payload = {};
-  try {
-    payload = text ? JSON.parse(text) : {};
-  } catch {
-    payload = { error: text };
-  }
-
-  if (!response.ok || payload.error) {
-    throw new Error(payload.error?.message || payload.error || `Neon SQL request failed (${response.status})`);
-  }
-
-  return normalizeRows(payload);
+  const result = await getPgPool(config.databaseUrl).query(query, params);
+  return normalizeRows(result);
 };
 
 const SCHEMA_QUERIES = [
