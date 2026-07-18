@@ -22,11 +22,23 @@ const DEFAULT_WORKFLOW = 'deploy.yml';
 const DEFAULT_REF = 'main';
 const hasGitHub = () => Boolean(GH_TOKEN);
 
+// Some repos live under a different GitHub owner than the default token can
+// reach (e.g. CrackXam/UPSC under `thegeekygamechanger`). Map owner → token via
+// env vars named GITHUB_TOKEN_<OWNER> (non-alphanumerics → underscore, upper).
+const tokenFor = (repo) => {
+  const owner = String(repo || '').split('/')[0];
+  if (owner && owner.toLowerCase() !== GH_OWNER.toLowerCase()) {
+    const key = `GITHUB_TOKEN_${owner.replace(/[^a-z0-9]/gi, '_').toUpperCase()}`;
+    if (process.env[key]) return process.env[key];
+  }
+  return GH_TOKEN;
+};
+
 // GitHub REST helper scoped to a repo (owner/name). Fails soft (caller checks .ok).
 const gh = (repo, path, init = {}) => fetch(`https://api.github.com/repos/${repo}${path}`, {
   ...init,
   headers: {
-    Authorization: `Bearer ${GH_TOKEN}`,
+    Authorization: `Bearer ${tokenFor(repo)}`,
     Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
     ...(init.headers || {}),
