@@ -1378,11 +1378,8 @@ function DeployControl({ dark = false }) {
               {showServices && (
                 <div className="mt-2">
                   {target
-                    ? (() => {
-                      const sid = (data.targets || []).find((t) => String(t.id) === String(target))?.serviceId;
-                      return sid ? <ServiceDetail id={sid} dark={dark} /> : <p className="text-xs text-slate-400">No Render service id on this repo's deploy hook.</p>;
-                    })()
-                    : <p className="text-xs text-slate-400">Select a repository above to view only its service & environment.</p>}
+                    ? <ServiceDetail id={target} dark={dark} />
+                    : <p className="text-xs text-slate-400">Select a repository above to manage only its service & environment.</p>}
                 </div>
               )}
             </div>

@@ -295,13 +295,19 @@ export default async function handler(req, res) {
   // ── Admin-only: per-repo "Service & environment" — manage the app's .env on
   // the VM (add/edit/remove vars, then restart the service) + recent runs. ────
   if (req.url?.includes('/services')) {
-    if (!isAdmin(req)) return res.status(403).json({ error: 'Admin only' });
     try {
       const targets = await loadTargets();
       const tid = req.query.id ? parseInt(req.query.id, 10) : null;
       const target = tid ? targets.find((t) => Number(t.id) === tid) : null;
+      const admin = isAdmin(req);
+      // A granted team member may view/edit env for ONLY the repos they can see;
+      // admins see all. This is what keeps each repo's env isolated per user.
+      if (!admin && (!target || !canSeeTarget(actor, target))) return res.status(403).json({ error: 'You are not allowed to manage this repository.' });
+      // Changing deploy settings (branch/auto-deploy) stays admin-only.
+      if (req.method === 'PATCH' && !admin) return res.status(403).json({ error: 'Only admins can change deploy settings.' });
       if (!target) {
-        return res.status(200).json({ services: targets.map((t) => { const r = targetRef(t); return { id: t.id, name: t.label, repo: r.repo, workflow: r.workflow, branch: r.ref }; }) });
+        const visible = admin ? targets : targets.filter((t) => canSeeTarget(actor, t));
+        return res.status(200).json({ services: visible.map((t) => { const r = targetRef(t); return { id: t.id, name: t.label, repo: r.repo, workflow: r.workflow, branch: r.ref }; }) });
       }
       const { repo, workflow, ref, token } = targetRef(target);
       const app = appFor(target);
