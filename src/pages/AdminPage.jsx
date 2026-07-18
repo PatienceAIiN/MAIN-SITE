@@ -323,7 +323,7 @@ function DeployTargets() {
   const [targets, setTargets] = useState([]);
   const [repos, setRepos] = useState([]);
   const [members, setMembers] = useState([]);
-  const [draft, setDraft] = useState({ label: '', repo: '', deployHook: '', apiKey: '', allowedEmails: [] });
+  const [draft, setDraft] = useState({ label: '', repo: '', deployHook: '', apiKey: '', allowedEmails: [], ghToken: '', envPath: '', svcUnit: '' });
   const [msg, setMsg] = useState('');
   const load = () => fetchJson('/api/deploy/targets').then((d) => setTargets(d.targets || [])).catch((e) => setMsg(e.message));
   useEffect(() => {
@@ -335,11 +335,14 @@ function DeployTargets() {
   const repoOpts = (cur) => [<option key="" value="">Select repo…</option>, ...Array.from(new Set([...(cur ? [cur] : []), ...repos])).map((r) => <option key={r} value={r}>{r}</option>)];
   const add = async () => {
     if (!draft.label.trim() || !draft.repo.trim()) { setMsg('Label and repository are required.'); return; }
-    try { await fetchJson('/api/deploy/targets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) }); setDraft({ label: '', repo: '', deployHook: '', apiKey: '', allowedEmails: [] }); setMsg('Added ✓'); load(); }
+    try { await fetchJson('/api/deploy/targets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) }); setDraft({ label: '', repo: '', deployHook: '', apiKey: '', allowedEmails: [], ghToken: '', envPath: '', svcUnit: '' }); setMsg('Added ✓'); load(); }
     catch (e) { setMsg(e.message); }
   };
   const saveRow = async (t) => {
-    try { await fetchJson('/api/deploy/targets', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id, label: t.label, repo: t.repo, deployHook: t.deploy_hook, apiKey: t.api_key || '', allowedEmails: emailArr(t.allowed_emails) }) }); setMsg(`Saved “${t.label}” ✓`); setOpenSvc(t.id); load(); }
+    try {
+      const body = { id: t.id, label: t.label, repo: t.repo, deployHook: t.deploy_hook, apiKey: t.api_key || '', allowedEmails: emailArr(t.allowed_emails), envPath: t.env_path || '', svcUnit: t.svc_unit || '' };
+      if (t.gh_token) body.ghToken = t.gh_token;   // only send a token when the admin typed a new one
+      await fetchJson('/api/deploy/targets', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); setMsg(`Saved “${t.label}” ✓`); load(); }
     catch (e) { setMsg(e.message); }
   };
   const del = async (id) => { if (!(await confirmDialog({ title: 'Remove deploy target', message: 'Remove and delink this repo deployment? This does not affect the GitHub repo or its workflow.', confirmText: 'Remove' }))) return; try { await fetchJson(`/api/deploy/targets?id=${id}`, { method: 'DELETE' }); load(); } catch (e) { setMsg(e.message); } };
@@ -375,19 +378,24 @@ function DeployTargets() {
                 <button onClick={() => del(t.id)} className="text-xs px-2.5 py-1.5 rounded-lg border border-red-400/30 text-red-300 hover:bg-red-500/10">✕</button>
               </span>
             </div>
-            <input className={`${inp} font-mono w-full`} value={t.api_key || ''} onChange={(e) => setField(t.id, 'api_key', e.target.value)} placeholder="Git branch to deploy (default: main)" />
+            <div className="grid md:grid-cols-2 gap-2">
+              <input type="password" autoComplete="new-password" className={`${inp} font-mono`} value={t.gh_token || ''} onChange={(e) => setField(t.id, 'gh_token', e.target.value)} placeholder={t.hasToken ? 'GitHub PAT: •••• set (type to replace)' : 'GitHub PAT (needed only for repos under another owner)'} />
+              <input className={`${inp} font-mono`} value={t.api_key || ''} onChange={(e) => setField(t.id, 'api_key', e.target.value)} placeholder="Git branch to deploy (default: main)" />
+              <input className={`${inp} font-mono`} value={t.env_path || ''} onChange={(e) => setField(t.id, 'env_path', e.target.value)} placeholder="Env file path (auto for known apps)" />
+              <input className={`${inp} font-mono`} value={t.svc_unit || ''} onChange={(e) => setField(t.id, 'svc_unit', e.target.value)} placeholder="systemd unit to restart (auto for known apps)" />
+            </div>
             <div className="grid md:grid-cols-2 gap-2 items-start">
               <div className="text-[10px] text-white/45">Team users allowed to deploy this repo (none = all deploy-allowed users)
                 {memberChecks(emailArr(t.allowed_emails), (e) => setField(t.id, 'allowed_emails', toggleEmail(emailArr(t.allowed_emails), e).join(',')))}
               </div>
-              <p className="text-[10px] text-white/35 md:pt-4">The workflow file (in .github/workflows/) builds and ships to the VM; the branch is what gets deployed. Tick which team users may deploy this repo.</p>
+              <p className="text-[10px] text-white/35 md:pt-4">The workflow file builds & ships to the VM; the PAT is only needed for repos under another GitHub owner. "Service & environment" edits this app's .env on the VM and restarts it.</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              {t.repo
-                ? <a href={`https://github.com/${t.repo}/actions`} target="_blank" rel="noreferrer" className="text-[11px] px-3 py-1 rounded-lg border border-white/15 text-white/80 hover:bg-white/5">GitHub Actions ↗</a>
-                : <span className="text-[11px] text-white/35">Select a repository to view its GitHub Actions runs.</span>}
+              {t.repo && <button onClick={() => setOpenSvc(openSvc === t.id ? null : t.id)} className="text-[11px] px-3 py-1 rounded-lg border border-white/15 text-white/80 hover:bg-white/5">{openSvc === t.id ? 'Hide' : 'Service & environment'}</button>}
+              {t.repo && <a href={`https://github.com/${t.repo}/actions`} target="_blank" rel="noreferrer" className="text-[11px] px-3 py-1 rounded-lg border border-white/15 text-white/80 hover:bg-white/5">GitHub Actions ↗</a>}
               <button onClick={() => del(t.id)} className="text-[11px] px-3 py-1 rounded-lg border border-red-400/30 text-red-300 hover:bg-red-500/10">Remove &amp; delink</button>
             </div>
+            {openSvc === t.id && t.repo && <ServiceDetail id={t.id} dark />}
           </div>
         ))}
         {/* New target */}
@@ -396,7 +404,8 @@ function DeployTargets() {
           <select className={sel} value={draft.repo} onChange={(e) => setDraft({ ...draft, repo: e.target.value })}>{repoOpts(draft.repo)}</select>
           <input className={`${inp} font-mono`} value={draft.deployHook} onChange={(e) => setDraft({ ...draft, deployHook: e.target.value })} placeholder="Workflow file (default: deploy.yml)" />
           <button onClick={add} className="text-xs px-4 py-1.5 rounded-lg bg-emerald-500/90 hover:bg-emerald-500 text-white font-semibold">+ Add</button>
-          <input className={`${inp} font-mono md:col-span-4`} value={draft.apiKey} onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })} placeholder="Git branch (default: main — optional)" />
+          <input className={`${inp} font-mono md:col-span-2`} value={draft.apiKey} onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })} placeholder="Git branch (default: main — optional)" />
+          <input type="password" autoComplete="new-password" className={`${inp} font-mono md:col-span-2`} value={draft.ghToken} onChange={(e) => setDraft({ ...draft, ghToken: e.target.value })} placeholder="GitHub PAT (only for another-owner repos — optional)" />
           <div className="md:col-span-4 text-[10px] text-white/45">Team users allowed to deploy this repo (optional — none = all deploy-allowed users)
             {memberChecks(draft.allowedEmails, (e) => setDraft({ ...draft, allowedEmails: toggleEmail(draft.allowedEmails, e) }))}
           </div>

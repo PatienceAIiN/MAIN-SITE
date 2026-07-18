@@ -94,7 +94,7 @@ function ServiceDetailInner({ id, t, dark }) {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
 
   const saveEnv = async () => {
-    if (!(await confirmDialog({ title: 'Save environment variables', message: 'This replaces the full env set on Render and triggers a restart/redeploy. Continue?', confirmText: 'Save & redeploy', danger: false }))) return;
+    if (!(await confirmDialog({ title: 'Save environment variables', message: "This rewrites the app's .env on the VM and restarts its service. Continue?", confirmText: 'Save & restart', danger: false }))) return;
     setBusy(true); setMsg('');
     try { const r = await fetchJson(`/api/deploy/services?id=${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ envVars: env.filter((v) => v.key.trim()) }) }); setMsg(`Saved ${r.count} env vars ✓`); }
     catch (e) { setMsg(e.message); } finally { setBusy(false); }
@@ -143,8 +143,8 @@ function ServiceDetailInner({ id, t, dark }) {
             </div>
             <div className={`flex items-center gap-2 px-5 py-3 border-t ${dark ? 'border-white/10' : 'border-slate-200'}`}>
               <button onClick={() => setEnv((e) => [...e, { key: '', value: '' }])} className={`text-xs px-3 py-1.5 rounded-lg ${t.btn2}`}>+ Add variable</button>
-              <button onClick={saveEnv} disabled={busy || env.some((v) => !v.key.trim())} className={`text-xs px-4 py-1.5 rounded-lg font-semibold inline-flex items-center gap-1.5 ${t.btn} disabled:opacity-50`}>{busy && <Spinner size={12} />}{busy ? 'Saving…' : 'Save to Render'}</button>
-              <span className={`ml-auto text-[10px] ${t.sub}`}>Saving replaces the full set & triggers a redeploy. Keys must be non-empty.</span>
+              <button onClick={saveEnv} disabled={busy || env.some((v) => !v.key.trim())} className={`text-xs px-4 py-1.5 rounded-lg font-semibold inline-flex items-center gap-1.5 ${t.btn} disabled:opacity-50`}>{busy && <Spinner size={12} />}{busy ? 'Saving…' : 'Save & restart'}</button>
+              <span className={`ml-auto text-[10px] ${t.sub}`}>Saving rewrites the .env on the VM & restarts the service. Keys must be non-empty.</span>
             </div>
           </div>
         </div>

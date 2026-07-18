@@ -11,10 +11,42 @@
 //   workflow file -> deploy_targets.deploy_hook  e.g. "deploy.yml"  (default)
 //   git ref/branch-> deploy_targets.api_key      e.g. "main"        (default)
 // (Column names are reused verbatim to avoid a schema migration.)
+import { readFile, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { queryDb, isMissingTableError } from './_db.js';
 import { getCookieValue, SESSION_COOKIE_NAME, verifySessionToken, getMemberSession, hashPassword, verifyPassword } from './_security.js';
 import { logAudit } from './_ticketing.js';
 import { sweepDue, setSweepNextDue, invalidateSweep } from './_sweepgate.js';
+
+const pexec = promisify(execFile);
+
+// Which VM app each repo maps to: the .env file to manage + the systemd unit
+// to restart after an env change. Built-in for the current fleet; a target may
+// also carry its own env_path + svc_unit (validated) so NEW repos are fully
+// self-service from the admin UI.
+const APP_BY_REPO = {
+  'patienceaiin/main-site':      { env: '/home/harsh/products/MAIN-SITE/.env',                   unit: 'mainsite' },
+  'patienceaiin/law-firm':       { env: '/home/harsh/products/Law-firm/.env',                    unit: 'lawfirm' },
+  'patienceaiin/sonexus':        { env: '/home/harsh/products/Sonexus/server/.env',              unit: 'sonexus' },
+  'patienceaiin/nexus-exchange': { env: '/home/harsh/products/Nexus-Exchange/backend/.env',      unit: 'nexus' },
+  'thegeekygamechanger/upsc':    { env: '/home/harsh/products/crackxam/production/.env',         unit: 'crackxam-production' },
+};
+// Resolve a target → managed app. Per-target override is constrained to the
+// products area + a plain unit name, so admins can't read/write arbitrary files.
+const appFor = (target) => {
+  const ep = String(target?.env_path || '').trim();
+  const unit = String(target?.svc_unit || '').trim();
+  if (ep && unit && /^\/home\/harsh\/products\/[\w./-]+\.env$/.test(ep) && !ep.includes('..') && /^[a-z0-9@._-]+$/i.test(unit)) return { env: ep, unit };
+  return APP_BY_REPO[String(target?.repo || '').toLowerCase()] || null;
+};
+// Parse/serialize a dotenv file. Values are kept verbatim (single-line; the
+// fleet's multi-line secrets are already \n-escaped on one line).
+const parseEnv = (txt) => String(txt || '').split('\n')
+  .map((l) => l.replace(/\r$/, ''))
+  .filter((l) => l.trim() && !l.trim().startsWith('#') && l.includes('='))
+  .map((l) => { const i = l.indexOf('='); return { key: l.slice(0, i).trim(), value: l.slice(i + 1) }; });
+const serializeEnv = (vars) => (vars || []).filter((v) => String(v.key || '').trim()).map((v) => `${String(v.key).trim()}=${v.value ?? ''}`).join('\n') + '\n';
 
 const GH_TOKEN = process.env.GITHUB_TOKEN || '';
 const GH_OWNER = process.env.GITHUB_OWNER || 'PatienceAIiN';
@@ -25,7 +57,12 @@ const hasGitHub = () => Boolean(GH_TOKEN);
 // Some repos live under a different GitHub owner than the default token can
 // reach (e.g. CrackXam/UPSC under `thegeekygamechanger`). Map owner → token via
 // env vars named GITHUB_TOKEN_<OWNER> (non-alphanumerics → underscore, upper).
-const tokenFor = (repo) => {
+// Token precedence: (1) a per-target PAT the admin saved on the deploy target,
+// (2) an env var GITHUB_TOKEN_<OWNER> for repos under a different owner,
+// (3) the default GITHUB_TOKEN. This lets admins add a repo under any GitHub
+// account entirely from the UI — no env change needed.
+const tokenFor = (repo, override) => {
+  if (override) return override;
   const owner = String(repo || '').split('/')[0];
   if (owner && owner.toLowerCase() !== GH_OWNER.toLowerCase()) {
     const key = `GITHUB_TOKEN_${owner.replace(/[^a-z0-9]/gi, '_').toUpperCase()}`;
@@ -33,12 +70,14 @@ const tokenFor = (repo) => {
   }
   return GH_TOKEN;
 };
+const anyToken = (repo, override) => Boolean(tokenFor(repo, override));
 
-// GitHub REST helper scoped to a repo (owner/name). Fails soft (caller checks .ok).
-const gh = (repo, path, init = {}) => fetch(`https://api.github.com/repos/${repo}${path}`, {
+// GitHub REST helper scoped to a repo (owner/name). Optional per-call token
+// overrides the default. Fails soft (caller checks .ok).
+const gh = (repo, path, init = {}, token) => fetch(`https://api.github.com/repos/${repo}${path}`, {
   ...init,
   headers: {
-    Authorization: `Bearer ${tokenFor(repo)}`,
+    Authorization: `Bearer ${tokenFor(repo, token)}`,
     Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
     ...(init.headers || {}),
@@ -58,7 +97,8 @@ const targetRef = (t) => {
   const wfRaw = String(t?.deploy_hook || '').trim();
   const workflow = /\.ya?ml$/i.test(wfRaw) ? wfRaw : DEFAULT_WORKFLOW;
   const ref = String(t?.api_key || '').trim() || DEFAULT_REF;
-  return { repo, workflow, ref };
+  const token = String(t?.gh_token || '').trim() || undefined;
+  return { repo, workflow, ref, token };
 };
 
 const IN_PROGRESS = new Set(['queued', 'in_progress', 'requested', 'waiting', 'pending']);
@@ -89,11 +129,11 @@ const getActor = async (req) => {
 };
 
 // Best-effort: the latest commit on the target's branch (the one a dispatch builds).
-const latestCommit = async (repoFull, ref = DEFAULT_REF) => {
-  if (!GH_TOKEN) return {};
+const latestCommit = async (repoFull, ref = DEFAULT_REF, token) => {
   const repo = String(repoFull || '').includes('/') ? repoFull : `${GH_OWNER}/${repoFull || 'MAIN-SITE'}`;
+  if (!anyToken(repo, token)) return {};
   try {
-    const r = await gh(repo, `/commits/${encodeURIComponent(ref)}`);
+    const r = await gh(repo, `/commits/${encodeURIComponent(ref)}`, {}, token);
     if (!r.ok) return {};
     const c = await r.json();
     const msg = (c.commit?.message || '').split('\n')[0];
@@ -106,18 +146,18 @@ const latestCommit = async (repoFull, ref = DEFAULT_REF) => {
 // dispatch endpoint returns 204 with no body, so we read back the newest
 // workflow_dispatch run on that workflow (retry briefly — it can lag a moment).
 const fireDeploy = async (target) => {
-  if (!GH_TOKEN) throw new Error('No GITHUB_TOKEN configured — set it in the environment to enable deploys.');
-  const { repo, workflow, ref } = targetRef(target);
+  const { repo, workflow, ref, token } = targetRef(target);
+  if (!anyToken(repo, token)) throw new Error('No GitHub token for this repo — an admin must set one on the deploy target (or in the environment).');
   const disp = await gh(repo, `/actions/workflows/${encodeURIComponent(workflow)}/dispatches`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ref }),
-  });
+  }, token);
   if (!disp.ok) {
     const body = await disp.text().catch(() => '');
     throw new Error(`GitHub dispatch failed (${disp.status})${body ? ': ' + body.slice(0, 160) : ''}`);
   }
   for (let i = 0; i < 5; i++) {
     await new Promise((r) => setTimeout(r, 1500));
-    const rr = await gh(repo, `/actions/workflows/${encodeURIComponent(workflow)}/runs?event=workflow_dispatch&per_page=1`);
+    const rr = await gh(repo, `/actions/workflows/${encodeURIComponent(workflow)}/runs?event=workflow_dispatch&per_page=1`, {}, token);
     if (rr.ok) {
       const j = await rr.json().catch(() => ({}));
       const run = (j.workflow_runs || [])[0];
@@ -128,8 +168,12 @@ const fireDeploy = async (target) => {
 };
 
 const loadTargets = async () => {
-  try { return await queryDb(`SELECT id, label, repo, deploy_hook, api_key, allowed_emails FROM deploy_targets ORDER BY label ASC`); }
-  catch { return []; }
+  try { return await queryDb(`SELECT id, label, repo, deploy_hook, api_key, allowed_emails, gh_token, env_path, svc_unit FROM deploy_targets ORDER BY label ASC`); }
+  catch {
+    // Newer columns may not exist on older schemas — fall back without them.
+    try { return await queryDb(`SELECT id, label, repo, deploy_hook, api_key, allowed_emails FROM deploy_targets ORDER BY label ASC`); }
+    catch { return []; }
+  }
 };
 const targetGrants = (t) => String(t.allowed_emails || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
 const canSeeTarget = (actor, t) => actor.admin || (targetGrants(t).length ? targetGrants(t).includes(actor.email) : actor.allowed);
@@ -144,8 +188,8 @@ export const sweepDeploys = async () => {
     for (const row of due) {
       try {
         const target = row.target_id ? targets.find((t) => Number(t.id) === Number(row.target_id)) : null;
-        const { repo, ref } = targetRef(target || {});
-        const c = await latestCommit(repo, ref);
+        const { repo, ref, token } = targetRef(target || {});
+        const c = await latestCommit(repo, ref, token);
         const runId = await fireDeploy(target || {});
         await queryDb(`UPDATE deploys SET status='triggered', deploy_id=$2, commit_sha=$3, commit_msg=$4, pr=$5, updated_at=NOW() WHERE id=$1`,
           [row.id, runId, c.sha || null, c.msg || null, c.pr || null]);
@@ -206,29 +250,34 @@ export default async function handler(req, res) {
     try {
       if (req.method === 'GET') {
         const rows = await loadTargets();
-        const out = rows.map((t) => { const r = targetRef(t); return { ...t, repo: r.repo, workflow: r.workflow, ref: r.ref }; });
+        // Never send the raw token back to the browser — expose only whether one is set.
+        const out = rows.map((t) => { const r = targetRef(t); const { gh_token, ...rest } = t; return { ...rest, repo: r.repo, workflow: r.workflow, ref: r.ref, hasToken: Boolean(gh_token) }; });
         return res.status(200).json({ targets: out });
       }
       if (req.method === 'POST') {
-        const { label, repo, deployHook, apiKey, allowedEmails } = req.body || {};
+        const { label, repo, deployHook, apiKey, allowedEmails, ghToken, envPath, svcUnit } = req.body || {};
         if (!label?.trim() || !repo?.trim()) return res.status(400).json({ error: 'label and repo (owner/name) are required' });
         if (!/^[\w.-]+\/[\w.-]+$/.test(repo.trim())) return res.status(400).json({ error: 'repo must be "owner/name"' });
         const workflow = (deployHook || '').trim() || DEFAULT_WORKFLOW;   // deployHook field = workflow filename
         const ref = (apiKey || '').trim() || DEFAULT_REF;                 // apiKey field = branch
         const emails = Array.isArray(allowedEmails) ? allowedEmails.map((e) => String(e).trim().toLowerCase()).filter(Boolean).join(',') : null;
-        const rows = await queryDb(`INSERT INTO deploy_targets (label, repo, deploy_hook, api_key, allowed_emails) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-          [label.trim().slice(0, 120), repo.trim().slice(0, 200), workflow, ref, emails]);
+        const rows = await queryDb(`INSERT INTO deploy_targets (label, repo, deploy_hook, api_key, allowed_emails, gh_token, env_path, svc_unit) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+          [label.trim().slice(0, 120), repo.trim().slice(0, 200), workflow, ref, emails, (ghToken || '').trim() || null, (envPath || '').trim() || null, (svcUnit || '').trim() || null]);
         await logAudit('admin', 'admin', 'deploy_target_created', `${label} (${rows[0].id})`).catch(() => {});
         return res.status(200).json({ ok: true, id: rows[0].id });
       }
       if (req.method === 'PUT') {
-        const { id, label, repo, deployHook, apiKey } = req.body || {};
+        const { id, label, repo, deployHook, apiKey, ghToken, envPath, svcUnit } = req.body || {};
         if (!id) return res.status(400).json({ error: 'id required' });
         if (repo && !/^[\w.-]+\/[\w.-]+$/.test(String(repo).trim())) return res.status(400).json({ error: 'repo must be "owner/name"' });
         const emails = Array.isArray(req.body?.allowedEmails) ? req.body.allowedEmails.map((e) => String(e).trim().toLowerCase()).filter(Boolean).join(',') : null;
-        await queryDb(`UPDATE deploy_targets SET label=COALESCE($2,label), repo=COALESCE($3,repo), deploy_hook=COALESCE($4,deploy_hook), api_key=COALESCE($5,api_key), allowed_emails=COALESCE($6,allowed_emails), updated_at=NOW() WHERE id=$1`,
+        // ghToken/envPath/svcUnit: undefined = leave unchanged; '' = clear; string = set.
+        const tokenArg = ghToken === undefined ? null : String(ghToken).trim();
+        const epArg = envPath === undefined ? null : String(envPath).trim();
+        const suArg = svcUnit === undefined ? null : String(svcUnit).trim();
+        await queryDb(`UPDATE deploy_targets SET label=COALESCE($2,label), repo=COALESCE($3,repo), deploy_hook=COALESCE($4,deploy_hook), api_key=COALESCE($5,api_key), allowed_emails=COALESCE($6,allowed_emails), gh_token=CASE WHEN $7::text IS NULL THEN gh_token ELSE NULLIF($7,'') END, env_path=CASE WHEN $8::text IS NULL THEN env_path ELSE NULLIF($8,'') END, svc_unit=CASE WHEN $9::text IS NULL THEN svc_unit ELSE NULLIF($9,'') END, updated_at=NOW() WHERE id=$1`,
           [id, label ? String(label).trim().slice(0, 120) : null, repo ? String(repo).trim().slice(0, 200) : null,
-           deployHook ? String(deployHook).trim() : null, apiKey ? String(apiKey).trim() : null, emails]);
+           deployHook ? String(deployHook).trim() : null, apiKey ? String(apiKey).trim() : null, emails, tokenArg, epArg, suArg]);
         await logAudit('admin', 'admin', 'deploy_target_updated', String(id)).catch(() => {});
         return res.status(200).json({ ok: true });
       }
@@ -243,10 +292,10 @@ export default async function handler(req, res) {
     } catch (e) { return res.status(500).json({ error: e.message }); }
   }
 
-  // ── Admin-only: recent workflow runs for a target (GitHub-Actions view) ────
+  // ── Admin-only: per-repo "Service & environment" — manage the app's .env on
+  // the VM (add/edit/remove vars, then restart the service) + recent runs. ────
   if (req.url?.includes('/services')) {
     if (!isAdmin(req)) return res.status(403).json({ error: 'Admin only' });
-    if (!GH_TOKEN) return res.status(200).json({ services: [], runs: [], note: 'No GITHUB_TOKEN set — add it to the environment to view GitHub Actions runs.' });
     try {
       const targets = await loadTargets();
       const tid = req.query.id ? parseInt(req.query.id, 10) : null;
@@ -254,15 +303,46 @@ export default async function handler(req, res) {
       if (!target) {
         return res.status(200).json({ services: targets.map((t) => { const r = targetRef(t); return { id: t.id, name: t.label, repo: r.repo, workflow: r.workflow, branch: r.ref }; }) });
       }
-      const { repo, workflow, ref } = targetRef(target);
-      const rr = await gh(repo, `/actions/workflows/${encodeURIComponent(workflow)}/runs?per_page=20`);
-      const j = rr.ok ? await rr.json().catch(() => ({})) : {};
-      const runs = (j.workflow_runs || []).map((d) => ({
-        id: d.id, status: d.status, conclusion: d.conclusion, createdAt: d.created_at,
-        commitId: (d.head_sha || '').slice(0, 7), commitMsg: (d.head_commit?.message || '').split('\n')[0]?.slice(0, 120),
-        event: d.event, url: d.html_url,
-      }));
-      return res.status(200).json({ service: { id: target.id, name: target.label, repo, workflow, branch: ref }, runs });
+      const { repo, workflow, ref, token } = targetRef(target);
+      const app = appFor(target);
+
+      if (req.method === 'GET') {
+        // Env vars from the app's .env on the VM.
+        let envVars = [];
+        if (app) { const txt = await readFile(app.env, 'utf8').catch(() => ''); envVars = parseEnv(txt); }
+        // Recent GitHub Actions runs → the "history" tab.
+        const rr = await gh(repo, `/actions/workflows/${encodeURIComponent(workflow)}/runs?per_page=20`, {}, token);
+        const j = rr.ok ? await rr.json().catch(() => ({})) : {};
+        const deploys = (j.workflow_runs || []).map((d) => ({
+          id: d.id, status: d.status === 'completed' ? (d.conclusion || 'completed') : d.status, createdAt: d.created_at, finishedAt: d.updated_at,
+          commitId: (d.head_sha || '').slice(0, 7), commitMsg: (d.head_commit?.message || '').split('\n')[0]?.slice(0, 120), trigger: d.event,
+        }));
+        return res.status(200).json({
+          service: { id: target.id, name: target.label, repo, branch: ref, url: null, autoDeploy: 'yes', envManaged: Boolean(app), envFile: app?.env || null, unit: app?.unit || null },
+          envVars, deploys,
+          note: app ? null : 'No managed .env mapped for this repo. Set an Env file path + service unit on the target to manage it here.',
+        });
+      }
+
+      if (req.method === 'PUT') {
+        if (!app) return res.status(400).json({ error: 'No managed .env for this repo. Set an Env file path + service unit on the target first.' });
+        const vars = Array.isArray(req.body?.envVars) ? req.body.envVars : null;
+        if (!vars) return res.status(400).json({ error: 'envVars array required' });
+        const clean = vars.map((v) => ({ key: String(v.key || '').trim(), value: String(v.value ?? '') })).filter((v) => v.key);
+        await writeFile(app.env, serializeEnv(clean), { mode: 0o600 });
+        let restarted = false;
+        try { await pexec('sudo', ['systemctl', 'restart', app.unit]); restarted = true; } catch { /* env saved even if restart needs a manual kick */ }
+        await logAudit('admin', 'admin', 'deploy_env_updated', `${target.label} (${clean.length} vars${restarted ? ', restarted' : ''})`).catch(() => {});
+        return res.status(200).json({ ok: true, count: clean.length, restarted });
+      }
+
+      if (req.method === 'PATCH') {
+        // Only "branch" is meaningful for a VM target → store on the target.
+        const branch = typeof req.body?.branch === 'string' ? req.body.branch.trim() : '';
+        if (branch) await queryDb(`UPDATE deploy_targets SET api_key=$2, updated_at=NOW() WHERE id=$1`, [target.id, branch]).catch(() => {});
+        return res.status(200).json({ ok: true });
+      }
+      return res.status(405).json({ error: 'Method not allowed' });
     } catch (e) { return res.status(500).json({ error: e.message }); }
   }
 
@@ -276,8 +356,8 @@ export default async function handler(req, res) {
       if (!runId) return res.status(200).json({ status: null, lines: [], note: 'No GitHub run id recorded for this entry yet.' });
       const targets = await loadTargets();
       const target = row?.target_id ? targets.find((t) => Number(t.id) === Number(row.target_id)) : null;
-      const { repo } = targetRef(target || {});
-      const runRes = await gh(repo, `/actions/runs/${runId}`);
+      const { repo, token } = targetRef(target || {});
+      const runRes = await gh(repo, `/actions/runs/${runId}`, {}, token);
       const run = runRes.ok ? await runRes.json() : null;
       // Map GitHub's vocabulary onto the statuses the team-portal UI already
       // knows (from the Render era): success→'live' (green, done), a bad
@@ -296,7 +376,7 @@ export default async function handler(req, res) {
         }
       }
       let lines = [];
-      const jobsRes = await gh(repo, `/actions/runs/${runId}/jobs`);
+      const jobsRes = await gh(repo, `/actions/runs/${runId}/jobs`, {}, token);
       if (jobsRes.ok) {
         const jj = await jobsRes.json().catch(() => ({}));
         for (const job of (jj.jobs || [])) {
@@ -319,8 +399,8 @@ export default async function handler(req, res) {
       const candidates = visible.length ? visible : (actor.admin || actor.allowed ? [{ id: null, repo: `${GH_OWNER}/MAIN-SITE`, deploy_hook: DEFAULT_WORKFLOW, label: null }] : []);
       if (!GH_TOKEN || !candidates.length) return res.status(200).json({ active: null, hasRenderApi: hasGitHub() });
       for (const t of candidates) {
-        const { repo, workflow } = targetRef(t);
-        const rr = await gh(repo, `/actions/workflows/${encodeURIComponent(workflow)}/runs?per_page=1`);
+        const { repo, workflow, token } = targetRef(t);
+        const rr = await gh(repo, `/actions/workflows/${encodeURIComponent(workflow)}/runs?per_page=1`, {}, token);
         if (!rr.ok) continue;
         const j = await rr.json().catch(() => ({}));
         const d = (j.workflow_runs || [])[0];
@@ -390,8 +470,8 @@ export default async function handler(req, res) {
       if (!GH_TOKEN || !row.deploy_id) return res.status(200).json({ ok: true, message: 'Marked cancelled (no GitHub run id to abort).' });
       const targets = await loadTargets();
       const target = row.target_id ? targets.find((t) => Number(t.id) === Number(row.target_id)) : null;
-      const { repo } = targetRef(target || {});
-      const r = await gh(repo, `/actions/runs/${row.deploy_id}/cancel`, { method: 'POST' });
+      const { repo, token } = targetRef(target || {});
+      const r = await gh(repo, `/actions/runs/${row.deploy_id}/cancel`, { method: 'POST' }, token);
       await logAudit('team', actor.who, 'deploy_cancelled', `deploy:${id}`).catch(() => {});
       return res.status(200).json({ ok: true, message: r.ok ? 'Deploy cancelled on GitHub Actions.' : `Marked cancelled (GitHub returned ${r.status}).` });
     } catch (e) {
@@ -448,9 +528,9 @@ export default async function handler(req, res) {
       } else if (targets.length) {
         return res.status(400).json({ error: 'Select a repository to deploy.', needTarget: true });
       }
-      const { repo, ref } = targetRef(target || {});
+      const { repo, ref, token } = targetRef(target || {});
       const label = target?.label;
-      const c = await latestCommit(repo, ref);
+      const c = await latestCommit(repo, ref, token);
       const rows = await queryDb(`INSERT INTO deploys (triggered_by, status, note, commit_sha, commit_msg, pr, target_id, target_label) VALUES ($1,'triggered','manual',$2,$3,$4,$5,$6) RETURNING id`,
         [actor.who, c.sha || null, c.msg || null, c.pr || null, target?.id || null, target?.label || null]);
       const runId = await fireDeploy(target || {});
