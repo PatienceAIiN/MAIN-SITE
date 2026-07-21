@@ -184,6 +184,17 @@ const Product = ({ siteContent, onAction }) => {
                     >
                       Contact Sales
                     </button>
+                    {selectedProduct.demoUrl ? (
+                      <a
+                        href={selectedProduct.demoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-1.5 text-[13px] font-medium text-[#666666] transition-colors hover:text-[#1a1a1a]"
+                      >
+                        Visit {selectedProduct.demoUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                        <span aria-hidden="true">↗</span>
+                      </a>
+                    ) : null}
                   </div>
                 </div>
               </div>

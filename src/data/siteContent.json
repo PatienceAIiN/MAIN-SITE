@@ -409,7 +409,7 @@
         ],
         "audience": "Banks, money transfer companies, currency exchanges, and international businesses managing multi-currency operations",
         "privacyTone": "Enterprise-grade security with governed approvals and audit trails",
-        "demoUrl": "https://nexusexchange.patienceai.in",
+        "demoUrl": "https://xchangeverse.patienceai.in",
         "media": [
           {
             "type": "youtube",
@@ -963,7 +963,7 @@
           "At its core, Nexus Exchange is a reference rate management platform built for banks, money transfer companies, currency exchange platforms, and international businesses that operate across multiple currencies. It pulls in live rates automatically, supports bulk uploads when teams need to push hundreds of pairs at once, and keeps a clean approval workflow so nothing goes live without the right sign-off.",
           "The team wanted three things to feel obvious the moment you open the dashboard. Rates should be current without you having to check. Bulk work should be fast and visible, with clear progress as files are processed. And approvals should be a smooth conversation between operators and managers — not a bottleneck. Everything in Nexus Exchange is shaped around those three feelings.",
           "We put together a product walkthrough that shows the dashboard in action — the live rate ticker, bulk upload progress, and the approval flow. It is the fastest way to get a feel for how the platform behaves day to day.",
-          "If you would like to try Nexus Exchange yourself, the live demo is available at nexusexchange.patienceai.in. For teams that want a guided walkthrough or a tailored deployment, reach out and we will set up a deeper session."
+          "If you would like to try Nexus Exchange yourself, the live demo is available at xchangeverse.patienceai.in. For teams that want a guided walkthrough or a tailored deployment, reach out and we will set up a deeper session."
         ],
         "media": [
           {
