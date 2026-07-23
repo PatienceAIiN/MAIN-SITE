@@ -314,6 +314,11 @@
         "demoUrl": "https://mrtourguide.patienceai.in",
         "media": [
           {
+            "type": "youtube",
+            "title": "Mr.Tour Guide — Feel the world from home",
+            "src": "qLHEmhHzOWc"
+          },
+          {
             "type": "image",
             "title": "Mr.Tour Guide — Feel the world from home",
             "src": "https://commons.wikimedia.org/wiki/Special:FilePath/The_Golden_Temple_of_Amrithsar_7.jpg?width=1600"

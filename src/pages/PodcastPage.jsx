@@ -60,6 +60,17 @@ const EPISODES = [
     coverImage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=1200&auto=format&fit=crop',
     keyEn: 'podcast/Volume_that_listens_to_the_room_inside_SoNex.m4a',
     keyHi: 'podcast/Volume_that_listens_to_the_room_inside_SoNex_hi.m4a'
+  },
+  {
+    slug: 'mrtour-guide',
+    episode: 'EP 06',
+    title: 'Virtual Travel You Can Feel — Inside Mr.Tour Guide',
+    show: 'Mr.Tour Guide',
+    excerpt: 'How Mr.Tour Guide turns travel videos into full-sensory experiences — real-feel haptics, MR/VR, and an AI trip planner — so anyone, including the elderly and people with disabilities, can feel the world from home.',
+    tags: ['Mr.Tour Guide', 'Accessible Travel', 'Haptics', 'MR/VR'],
+    coverImage: 'https://images.unsplash.com/photo-1524492412937-b28074a5d7da?q=80&w=1200&auto=format&fit=crop',
+    keyEn: 'podcast/Virtual_travel_you_can_feel.m4a',
+    keyHi: 'podcast/Virtual_travel_you_can_feel_hi.m4a'
   }
 ];
 

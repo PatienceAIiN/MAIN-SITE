@@ -11,7 +11,9 @@ const ALLOWED_KEYS = new Set([
   'podcast/Getting_law_firms_off_spreadsheets_with_Barrister.m4a',
   'podcast/Getting_law_firms_off_spreadsheets_with_Barrister_hi.m4a',
   'podcast/Volume_that_listens_to_the_room_inside_SoNex.m4a',
-  'podcast/Volume_that_listens_to_the_room_inside_SoNex_hi.m4a'
+  'podcast/Volume_that_listens_to_the_room_inside_SoNex_hi.m4a',
+  'podcast/Virtual_travel_you_can_feel.m4a',
+  'podcast/Virtual_travel_you_can_feel_hi.m4a'
 ]);
 
 let client = null;
