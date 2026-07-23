@@ -292,15 +292,17 @@
         "name": "Mr.Tour Guide",
         "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Taj_Mahal,_Agra,_India_edit3.jpg?width=1600",
         "isNew": true,
-        "shortTagline": "Travel with your senses, from home — immersive city experiences with video, MR/VR and real-feel haptics, built for everyone the world is hard to reach for.",
-        "summary": "Mr.Tour Guide turns travel videos into full-sensory experiences. Travelers open a place — cities, monuments, landmarks — and feel it: the phone pulses in sync with each scene while an intelligent media pipeline enhances every creator upload and generates its haptic track. An MR/VR mode places monuments in your room through the camera. Creators get a web studio and the same app (one login, role-aware) to upload video, VR and MR captures, set place covers, tune per-video feel, sound and intensity, and preview exactly what travelers will experience. Built accessibility-first for people with disabilities, the elderly, students, and anyone facing climate or mobility barriers — user comfort settings always override creator defaults.",
+        "shortTagline": "Feel the world from home — travel videos you can feel through haptics, MR/VR, GuideVibe short videos and an AI trip planner, built for everyone the world is hard to reach for.",
+        "summary": "Mr.Tour Guide lets anyone feel a place, not just watch it. Travel videos come alive as your phone gently pulses in time with each scene — wind, waves, footsteps — and you can go fully immersive with MR/VR. Swipe through GuideVibe, a feed of short travel videos you can feel, add a song to your own clips, and ask the built-in AI to plan a day-by-day trip with honest, accessibility-aware advice. A friendly community lets you share photos and clips, react, reply and follow creators. Built accessibility-first for the elderly, people with disabilities, students, and anyone facing climate or mobility barriers — your comfort settings always come first.",
         "benefits": [
-          "Real-feel haptics — graded touch feedback across the whole UI and per-video haptic tracks generated automatically from each experience's audio and motion.",
-          "MR/VR mode — view places in 3D in-app, or place them in your real room via the phone camera; creator VR/MR captures play with full controls.",
-          "Accessibility-first — reduce-motion, feel-intensity, sound and dark-theme settings that always win over creator defaults; built for users the world is hard to reach for.",
-          "Creator studio, web + app — single login; upload experiences and place covers, tune feel/sound/intensity per video, preview as a traveler before publishing.",
-          "Communities with role gating — a travelers community for everyone and a creators-only space, with replies, reactions and image sharing.",
-          "AI search with live knowledge — minimal AI overviews per search, plus live weather for every place and smart suggestions.",
+          "Real-feel haptics — your phone gently pulses in time with each scene, so you feel wind, waves and footsteps, not just watch them.",
+          "GuideVibe short videos — a swipe-up feed of short travel clips you can feel, with music and creator uploads (normal, VR or MR).",
+          "MR/VR mode — step inside places in mixed or virtual reality, or watch in classic video with full controls.",
+          "AI trip planner — ask for a day-by-day trip in plain words and get honest, accessibility-aware answers, then save it to your profile.",
+          "Add your own music — search songs and set a soundtrack on your clips.",
+          "A warm community — share photos and clips, react and reply in threads, follow creators, and tap #hashtags to discover more.",
+          "Accessibility-first — adjustable feel-intensity, reduce-motion, and light/dark themes; your comfort always comes first.",
+          "Discover more — local travel news, live weather, and real ratings and reviews on every place.",
           "Secure by design — verified accounts, protected APIs, encrypted cloud storage, and DPDP Act 2023 consent."
         ],
         "technologies": [
@@ -317,11 +319,6 @@
             "type": "youtube",
             "title": "Mr.Tour Guide — Feel the world from home",
             "src": "qLHEmhHzOWc"
-          },
-          {
-            "type": "image",
-            "title": "Mr.Tour Guide — Feel the world from home",
-            "src": "https://commons.wikimedia.org/wiki/Special:FilePath/The_Golden_Temple_of_Amrithsar_7.jpg?width=1600"
           }
         ]
       },
